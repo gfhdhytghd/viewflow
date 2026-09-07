@@ -251,7 +251,7 @@ float a=texture(opacity,p).r;vec3 rgb=vec3(y+1.5748*c.y,y-0.187324*c.x-0.468124*
         glGenTextures(1,&alpha_texture);glBindTexture(GL_TEXTURE_2D,alpha_texture);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
-        eval("hl.window_rule({name='viewflow-windows-reverse',match={class='^ViewflowReverse-.*$'},float=true,no_initial_focus=true,decorate=false,border_size=0,no_shadow=true,no_anim=true})");
+        eval("hl.window_rule({name='viewflow-windows-reverse',match={class='^ViewflowReverse-.*$'},float=true,no_initial_focus=true,decorate=false,border_size=0,no_shadow=true,rounding=0,no_blur=true,no_anim=true})");
         std::fprintf(stderr,"reverse-presenter ready renderer=%s\n",glGetString(GL_RENDERER));
     }
     void make_current(EGLSurface surface) {if(!eglMakeCurrent(egl_display,surface,surface,context))throw std::runtime_error("reverse EGL make current failed");}
