@@ -2326,6 +2326,13 @@ class AtlasNativePresenter {
         L"ViewflowAtlasProxy", title.c_str(), desktop_display_ ? WS_OVERLAPPEDWINDOW : WS_POPUP, 80 + initial_offset, 80 + initial_offset, int(width), int(height),
         nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
     if (!proxy->window.value) throw_last_error();
+    // A proxy reveals an existing remote window; suppress the local DWM
+    // opening/closing transition before its first show, including pooled proxies.
+    const BOOL disable_transitions = TRUE;
+    if (FAILED(DwmSetWindowAttribute(proxy->window.value, DWMWA_TRANSITIONS_FORCEDISABLED,
+                                    &disable_transitions, sizeof(disable_transitions)))) {
+      OutputDebugStringW(L"Viewflow: could not disable proxy window transitions.\n");
+    }
     if (desktop_display_) {
       EnableMenuItem(GetSystemMenu(proxy->window.value, FALSE), SC_CLOSE, MF_BYCOMMAND | MF_GRAYED);
       const DWMNCRENDERINGPOLICY policy = DWMNCRP_DISABLED;

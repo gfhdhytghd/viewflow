@@ -40,6 +40,15 @@ behavior needs a separately authorized owned-window acceptance test.
 
 ## Build and test requirements
 
+Capture sessions request `IsBorderRequired(false)` and asynchronously request
+WGC borderless access, so the source-side capture indicator does not interrupt
+the appearance of a window spanning Windows and Linux. Windows controls whether
+the request is honored; denial or an unsupported API retains capture with the
+system border. Packaged hosts need the `graphicsCaptureWithoutBorder` capability.
+Another application's capture of the same window can still require the border.
+See Microsoft's [IsBorderRequired documentation](https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturesession.isborderrequired).
+This preference does not block capture startup on the access request.
+
 The portable contract test runs without the Windows SDK:
 
 ```sh

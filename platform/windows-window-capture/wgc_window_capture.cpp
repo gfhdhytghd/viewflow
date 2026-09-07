@@ -11,6 +11,7 @@
 #include <winrt/Windows.Graphics.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
+#include <winrt/Windows.Security.Authorization.AppCapabilityAccess.h>
 #include <winrt/base.h>
 
 #include <atomic>
@@ -29,6 +30,21 @@ using winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
 
 constexpr auto kPixelFormat = DirectXPixelFormat::B8G8R8A8UIntNormalized;
 constexpr std::int32_t kFramePoolBuffers = 2;
+
+// Keep the session alive across the OS access request without blocking capture
+// startup. A closed session or denied borderless access must not end streaming.
+winrt::fire_and_forget requestBorderlessCapture(GraphicsCaptureSession session) {
+    try {
+        session.IsBorderRequired(false);
+        co_await winrt::Windows::Graphics::Capture::GraphicsCaptureAccess::RequestAccessAsync(
+            winrt::Windows::Graphics::Capture::GraphicsCaptureAccessKind::Borderless);
+        session.IsBorderRequired(false);
+    } catch (const winrt::hresult_error&) {
+        OutputDebugStringW(L"Viewflow: borderless capture unavailable; retaining capture.\n");
+    } catch (...) {
+        OutputDebugStringW(L"Viewflow: borderless capture request failed; retaining capture.\n");
+    }
+}
 
 NativeWindowBounds readBounds(HWND window) noexcept {
     RECT rect{};
@@ -296,6 +312,7 @@ StartResult WindowCapture::start(HWND window, CaptureLimits limits,
         state->session = state->frame_pool.CreateCaptureSession(state->item);
         // Receiver draws the pointer locally; do not bake it into a window.
         state->session.IsCursorCaptureEnabled(false);
+        requestBorderlessCapture(state->session);
         state->frame_arrived = state->frame_pool.FrameArrived(
             [state](const Direct3D11CaptureFramePool& sender,
                     const winrt::Windows::Foundation::IInspectable&) {
