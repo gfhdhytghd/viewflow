@@ -1,0 +1,12 @@
+cmake_minimum_required(VERSION 3.24)
+project(viewflow_windows_window_presenter LANGUAGES CXX)
+add_executable(viewflow-windows-windows main.cpp ../windows-video-compositor/video_compositor.cpp)
+target_compile_features(viewflow-windows-windows PRIVATE cxx_std_20)
+target_compile_definitions(viewflow-windows-windows PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+if(MSVC)
+  target_compile_options(viewflow-windows-windows PRIVATE /EHsc /W4)
+endif()
+target_link_libraries(viewflow-windows-windows PRIVATE d3d11 d2d1 dxgi dwmapi windowsapp
+  mfplat mfuuid ole32 wmcodecdspuuid d3dcompiler user32 runtimeobject)
+enable_testing()
+add_test(NAME window-presenter-help COMMAND viewflow-windows-windows --help)

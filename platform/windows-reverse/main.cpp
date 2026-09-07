@@ -34,8 +34,10 @@ struct Source {
     std::mutex mutex;
     ComPtr<ID3D11Texture2D> texture;
     viewflow::windows_capture::CaptureGeometry geometry;
+    bool ime_popup{};
     std::uint64_t geometry_ack{};
     std::int64_t pts{};bool dirty{},closed{},in_move{},was_resized{};RECT move_origin{};
+    Clock::time_point retry_at{};
     ~Source(){capture.stop();}
 };
 struct App {
@@ -109,7 +111,11 @@ struct App {
             DWORD down{},up{};
             switch(event.a){case 272:down=MOUSEEVENTF_LEFTDOWN;up=MOUSEEVENTF_LEFTUP;break;case 273:down=MOUSEEVENTF_RIGHTDOWN;up=MOUSEEVENTF_RIGHTUP;break;case 274:down=MOUSEEVENTF_MIDDLEDOWN;up=MOUSEEVENTF_MIDDLEUP;break;case 275:case 276:down=MOUSEEVENTF_XDOWN;up=MOUSEEVENTF_XUP;native.mi.mouseData=event.a==275?XBUTTON1:XBUTTON2;break;default:return;}
             native.mi.dwFlags=event.b?down:up;
-            if(event.b)focus(source->window);
+            if(event.b) {
+                auto target=source->window;
+                if(source->ime_popup){std::lock_guard lock(source_mutex);for(const auto& [window,parent]:sources)if(parent->id==source->owner){target=window;break;}}
+                focus(target);
+            }
             if(SendInput(1,&native,sizeof(native))==1){if(event.b)held_buttons[event.a]=native;else held_buttons.erase(event.a);}
             break;
         }
@@ -150,6 +156,34 @@ struct App {
         }catch(const std::exception& error){std::fprintf(stderr,"reverse input: %s\n",error.what());}
         release();running=false;if(desktop)CloseDesktop(desktop);
     }
+    static bool ime_popup(HWND window) {
+        wchar_t cls[256]{};GetClassNameW(window,cls,256);
+        if(wcsncmp(cls,L"SoPY_",5)==0 || wcsncmp(cls,L"Sogou_",6)==0 ||
+            wcscmp(cls,L"IME")==0 || wcscmp(cls,L"MSCTFIME UI")==0)return true;
+        // Current Microsoft IME UI is hosted out of process. Its CoreWindow
+        // has no HWND owner link to the application receiving composition.
+        if(wcscmp(cls,L"Windows.UI.Core.CoreWindow")!=0)return false;
+        DWORD pid{};GetWindowThreadProcessId(window,&pid);
+        const auto process=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid);if(!process)return false;
+        wchar_t path[1024]{};DWORD size=static_cast<DWORD>(std::size(path));
+        const bool queried=QueryFullProcessImageNameW(process,0,path,&size);CloseHandle(process);
+        if(!queried)return false;const auto slash=wcsrchr(path,L'\\');const auto name=slash?slash+1:path;
+        return _wcsicmp(name,L"TextInputHost.exe")==0 || _wcsicmp(name,L"InputApp.exe")==0;
+    }
+    // Candidate -> hidden TSF/IME helpers -> application. Resolve after enrollment.
+    std::uint64_t owner_id(HWND window) {
+        std::set<HWND> visited{window};
+        auto owner=GetWindow(window,GW_OWNER);
+        for(unsigned depth=0;owner && depth<32 && visited.insert(owner).second;++depth) {
+            if(auto found=sources.find(owner);found!=sources.end())return found->second->id;
+            const auto next=GetWindow(owner,GW_OWNER);owner=next?next:GetParent(owner);
+        }
+        if(ime_popup(window)) {
+            const auto foreground=GetForegroundWindow();
+            if(auto found=sources.find(foreground);found!=sources.end() && !found->second->ime_popup)return found->second->id;
+        }
+        return 0;
+    }
     bool candidate(HWND window) {
         if(!IsWindowVisible(window) || IsIconic(window))return false;
         DWORD pid{};GetWindowThreadProcessId(window,&pid);if(!pid || pid==GetCurrentProcessId())return false;
@@ -158,6 +192,32 @@ struct App {
         DWORD cloaked{};DwmGetWindowAttribute(window,DWMWA_CLOAKED,&cloaked,sizeof(cloaked));if(cloaked)return false;
         const auto rect=bounds(window);
         return rect.right>left && rect.left<right && rect.bottom>top && rect.top<bottom && rect.right>rect.left && rect.bottom>rect.top;
+    }
+    void start_capture(const std::shared_ptr<Source>& source) {
+        // Stop outside source_mutex and the callback mutex: stop joins callbacks.
+        source->capture.stop();
+        {std::lock_guard lock(source->mutex);source->closed=false;source->retry_at=Clock::now()+std::chrono::milliseconds(500);}
+            viewflow::windows_capture::FrameCallbacks callbacks;
+            callbacks.on_frame=[this,weak=std::weak_ptr<Source>(source)](const viewflow::windows_capture::CapturedFrame& frame) {
+                auto source=weak.lock();if(!source)return;
+                std::lock_guard lock(source->mutex);
+                D3D11_TEXTURE2D_DESC desc{};frame.surface->GetDesc(&desc);
+                if(!source->texture || source->geometry.content_width!=frame.geometry.content_width || source->geometry.content_height!=frame.geometry.content_height) {
+                    desc.Width=frame.geometry.content_width;desc.Height=frame.geometry.content_height;
+                    desc.MipLevels=1;desc.ArraySize=1;desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;desc.MiscFlags=0;desc.Usage=D3D11_USAGE_DEFAULT;desc.CPUAccessFlags=0;
+                    ComPtr<ID3D11Texture2D> replacement;
+                    check(device->CreateTexture2D(&desc,nullptr,&replacement));
+                    source->texture=std::move(replacement);
+                }
+                D3D11_BOX box{0,0,0,frame.geometry.content_width,frame.geometry.content_height,1};
+                context->CopySubresourceRegion(source->texture.Get(),0,0,0,0,frame.surface,0,&box);
+                source->geometry=frame.geometry;source->pts=frame.system_relative_time_100ns;source->dirty=true;
+            };
+            callbacks.on_terminal=[weak=std::weak_ptr<Source>(source)](auto failure,std::uint32_t hr){
+                if(auto source=weak.lock()){std::lock_guard lock(source->mutex);source->closed=true;std::fprintf(stderr,"reverse-capture-terminal id=%llu reason=%u hr=%08x\n",static_cast<unsigned long long>(source->id),static_cast<unsigned>(failure),hr);}
+            };
+            const auto result=source->capture.start(source->window,{8192,8192,vf::max_pixels},std::move(callbacks),device.Get());
+            if(!result){std::lock_guard lock(source->mutex);source->closed=true;std::fprintf(stderr,"reverse-capture-start hwnd=%p hr=%08x retry=true\n",source->window,result.native_hresult);}
     }
     void inventory() {
         std::vector<HWND> found;
@@ -169,37 +229,30 @@ struct App {
         {
             std::lock_guard lock(source_mutex);
             for(auto it=sources.begin();it!=sources.end();) {
-                if(!eligible.contains(it->first)){removed.push_back(it->second);it=sources.erase(it);}else ++it;
+                DWORD pid{};GetWindowThreadProcessId(it->first,&pid);
+                if(!eligible.contains(it->first) || pid!=it->second->pid){removed.push_back(it->second);it=sources.erase(it);}else ++it;
             }
         }
         for(auto& source:removed){source->capture.stop();std::fprintf(stderr,"reverse-window-removed id=%llu\n",static_cast<unsigned long long>(source->id));}
         for(auto window:eligible) {
-            {std::lock_guard lock(source_mutex);if(sources.contains(window))continue;}
+            std::shared_ptr<Source> existing;
+            {std::lock_guard lock(source_mutex);if(auto it=sources.find(window);it!=sources.end())existing=it->second;}
+            if(existing) {
+                bool retry;
+                {std::lock_guard lock(existing->mutex);retry=existing->closed && Clock::now()>=existing->retry_at;}
+                if(retry){std::fprintf(stderr,"reverse-capture-retry id=%llu hwnd=%p\n",static_cast<unsigned long long>(existing->id),window);start_capture(existing);}
+                continue;
+            }
             auto source=std::make_shared<Source>();source->window=window;source->id=next_id++;GetWindowThreadProcessId(window,&source->pid);
-            const auto owner=GetWindow(window,GW_OWNER);
-            {std::lock_guard lock(source_mutex);if(sources.contains(owner))source->owner=sources.at(owner)->id;}
-            viewflow::windows_capture::FrameCallbacks callbacks;
-            callbacks.on_frame=[this,weak=std::weak_ptr<Source>(source)](const viewflow::windows_capture::CapturedFrame& frame) {
-                auto source=weak.lock();if(!source)return;
-                std::lock_guard lock(source->mutex);
-                D3D11_TEXTURE2D_DESC desc{};frame.surface->GetDesc(&desc);
-                if(!source->texture || source->geometry.content_width!=frame.geometry.content_width || source->geometry.content_height!=frame.geometry.content_height) {
-                    source->texture.Reset();desc.Width=frame.geometry.content_width;desc.Height=frame.geometry.content_height;
-                    desc.MipLevels=1;desc.ArraySize=1;desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;desc.MiscFlags=0;desc.Usage=D3D11_USAGE_DEFAULT;desc.CPUAccessFlags=0;
-                    check(device->CreateTexture2D(&desc,nullptr,&source->texture));
-                }
-                D3D11_BOX box{0,0,0,frame.geometry.content_width,frame.geometry.content_height,1};
-                context->CopySubresourceRegion(source->texture.Get(),0,0,0,0,frame.surface,0,&box);
-                source->geometry=frame.geometry;source->pts=frame.system_relative_time_100ns;source->dirty=true;
-            };
-            callbacks.on_terminal=[weak=std::weak_ptr<Source>(source)](auto failure,std::uint32_t hr){
-                if(auto source=weak.lock()){std::lock_guard lock(source->mutex);source->closed=true;std::fprintf(stderr,"reverse-capture-terminal id=%llu reason=%u hr=%08x\n",static_cast<unsigned long long>(source->id),static_cast<unsigned>(failure),hr);}
-            };
-            const auto result=source->capture.start(window,{8192,8192,vf::max_pixels},std::move(callbacks),device.Get());
-            if(!result){std::fprintf(stderr,"reverse-capture-start hwnd=%p hr=%08x\n",window,result.native_hresult);continue;}
+            source->ime_popup=ime_popup(window);
+            start_capture(source);
             {std::lock_guard lock(source_mutex);sources.emplace(window,source);}
-            std::fprintf(stderr,"reverse-window-added id=%llu hwnd=%p\n",static_cast<unsigned long long>(source->id),window);
+            std::fprintf(stderr,"reverse-window-added id=%llu hwnd=%p ime_popup=%u\n",static_cast<unsigned long long>(source->id),window,source->ime_popup);
         }
+        {std::lock_guard lock(source_mutex);for(auto& [window,source]:sources){
+            const auto owner=owner_id(window);
+            if(source->owner!=owner){source->owner=owner;std::fprintf(stderr,"reverse-window-owner id=%llu owner=%llu ime_popup=%u\n",static_cast<unsigned long long>(source->id),static_cast<unsigned long long>(owner),source->ime_popup);}
+        }}
     }
 };
 void write_frame(const vf::Frame& frame) {
@@ -251,7 +304,7 @@ int main(int argc,char** argv) {
                 {std::lock_guard lock(app.source_mutex);for(auto& [_,source]:app.sources)sources.push_back(source);}
                 vf::Frame frame;unsigned row_x=0,row_y=0,row_height=0,needed_width=192,needed_height=192;
                 for(auto& source:sources) {
-                    std::lock_guard lock(source->mutex);if(!source->texture || source->closed)continue;
+                    std::lock_guard lock(source->mutex);if(!source->texture)continue; // Keep the last frame and proxy while this capture recovers.
                     const auto w=source->geometry.content_width,h=source->geometry.content_height;
                     if(w>8192 || h>4096)continue;
                     if(row_x+w>8192){row_y+=row_height;row_x=0;row_height=0;}
@@ -266,7 +319,7 @@ int main(int argc,char** argv) {
                     source->in_move=moving;
                     const bool native_drag=moving && !source->was_resized &&
                         (rect.left!=source->move_origin.left || rect.top!=source->move_origin.top);
-                    frame.tiles.push_back({source->id,source->owner,rect.left,rect.top,w,h,row_x,row_y,title(source->window),native_drag?1u:0u,
+                    frame.tiles.push_back({source->id,source->owner,rect.left,rect.top,w,h,row_x,row_y,title(source->window),(native_drag && !source->ime_popup?1u:0u)|(source->ime_popup?2u:0u),
                         rect.right-rect.left==static_cast<int>(w) && rect.bottom-rect.top==static_cast<int>(h)?source->geometry_ack:0});
                     row_x+=w;row_height=std::max(row_height,h);needed_width=std::max(needed_width,row_x);needed_height=std::max(needed_height,row_y+h);
                 }

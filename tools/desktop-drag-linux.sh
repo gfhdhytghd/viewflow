@@ -19,6 +19,7 @@ Options for start:
   --input-plugin PATH     input plugin (default: build/desktop/input/viewflow-hyprland.so)
   --input-plugin-name N   Hyprland plugin name (default: viewflow-hyprland)
   --state-dir DIR         private, per-session state directory
+  --empty-desktop        start immediately with automatic window enrollment
   --crossing-timeout SEC  wait for one window in the Viewflow output (default: 0 = wait)
 
 The source process does not start until a selected window is one-shot probed.
@@ -168,8 +169,8 @@ probe_and_seed_window() {
     height=$("$JQ" -er '.height | select(type == "number" and . >= 1 and . <= 32768) | floor' "$(state_file probe.json)")
     geometry_epoch=$("$JQ" -er '.geometry_epoch | select(type == "number" and . >= 1) | floor' "$(state_file probe.json)")
     local atlas_width atlas_height
-    atlas_width=$("$JQ" -er '.media.width | select(type == "number" and . >= 1) | floor' "$config")
-    atlas_height=$("$JQ" -er '.media.height | select(type == "number" and . >= 1) | floor' "$config")
+    atlas_width=$("$JQ" -er '(.media.max_width // .media.width) | select(type == "number" and . >= 1) | floor' "$config")
+    atlas_height=$("$JQ" -er '(.media.max_height // .media.height) | select(type == "number" and . >= 1) | floor' "$config")
     (( width <= atlas_width && height <= atlas_height )) || \
         die "probed full decorated window ${width}x${height} exceeds configured atlas ${atlas_width}x${atlas_height}; regenerate with --atlas-width/--atlas-height"
     require_command sha256sum
@@ -211,11 +212,12 @@ wait_for_crossing() {
 }
 
 start() {
-    local config= monitor= window= crossing_timeout=0
+    local config= monitor= window= crossing_timeout=0 empty_desktop=0
     while (($#)); do
         case $1 in
             --config) config=${2:?missing value for --config}; shift 2 ;;
             --monitor) monitor=${2:?missing value for --monitor}; shift 2 ;;
+            --empty-desktop) empty_desktop=1; shift ;;
             --window) window=${2:?missing value for --window}; shift 2 ;;
             --peer) VF_MEDIA_PEER=${2:?missing value for --peer}; shift 2 ;;
             --capture-plugin) CAPTURE_PLUGIN=${2:?missing value for --capture-plugin}; shift 2 ;;
@@ -335,10 +337,20 @@ start() {
     # Plugin loading schedules a config reload, which can reset runtime output rules.
     sleep 0.3
     "$HYPRCTL" eval "$lua"
-    if [[ -z $window ]]; then
-        window=$(wait_for_crossing "$remote_x" "$remote_y" "$remote_logical_w" "$remote_logical_h" "$crossing_timeout")
+    if [[ $empty_desktop == 1 ]]; then
+        [[ -z $window ]] || die "--empty-desktop cannot be combined with --window"
+        install -d -m 700 "$(state_file native-control)"
+        "$JQ" --arg control_dir "$(state_file native-control)" '
+            .windows = [] | .desktop.candidates = [] | .desktop.auto_enroll = true |
+            .desktop.native_control_dir = $control_dir
+        ' "$(state_file config)" >"$(state_file config.next)"
+        mv -- "$(state_file config.next)" "$(state_file config)"
+    else
+        if [[ -z $window ]]; then
+            window=$(wait_for_crossing "$remote_x" "$remote_y" "$remote_logical_w" "$remote_logical_h" "$crossing_timeout")
+        fi
+        probe_and_seed_window "$(state_file config)" "$window"
     fi
-    probe_and_seed_window "$(state_file config)" "$window"
     "$VF_MEDIA_PEER" validate-send --config "$(state_file config)" \
         || die "seeded source configuration failed offline validation; sender was not started"
     record_plugin_if_loaded_here "$INPUT_PLUGIN" "$INPUT_PLUGIN_NAME"

@@ -53,5 +53,27 @@ int main() {
   if (!recovery.Stage(resumed) || !recovery.Commit(2)) return 18;
   auto following=frame(3); following.atlas->color_keyframe=false;
   if (!recovery.Stage(following) || !recovery.Commit(3)) return 19;
+  AtlasFrameBindings growth;
+  auto small=frame(1); if(!growth.Stage(small) || !growth.Commit(1))return 20;
+  auto large=frame(2);large.width=16;
+  if(growth.Stage(large))return 21; // Extent changes need a new revision.
+  large.atlas->revision=2;large.atlas->color_keyframe=false;
+  if(growth.Stage(large))return 22;
+  large.atlas->color_keyframe=true;
+  if(!growth.Stage(large) || !growth.Find(2,16,8) || growth.Find(2,8,8))return 23;
+  AtlasFrameBindings moving;
+  auto start=frame(1);
+  start.atlas->desktop=viewflow::vfgp::DesktopLayout{1,{0,0,8000,8000}, {{{0,1},{0,0,4000,4000},true,0,0}}};
+  if(!moving.Stage(start))return 24;
+  auto moved=frame(2);moved.atlas->desktop=start.atlas->desktop;
+  moved.atlas->desktop->windows[0].bounds.x_millidip=1000;
+  moved.atlas->color_keyframe=false;
+  if(!moving.Stage(moved))return 25;
+  const auto* before=moving.Find(1,8,8);const auto* after=moving.Find(2,8,8);
+  if(!before || !after || before->layout.desktop->windows[0].bounds.x_millidip!=0 ||
+      after->layout.desktop->windows[0].bounds.x_millidip!=1000)return 26;
+  auto stale_topology=frame(3);stale_topology.atlas->desktop=moved.atlas->desktop;
+  stale_topology.atlas->desktop->topology_generation=0;
+  if(moving.Stage(stale_topology))return 27;
   return 0;
 }

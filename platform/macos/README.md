@@ -1,7 +1,11 @@
-# macOS foundation
+# macOS native backends
 
-Initial native discovery target: macOS 13+, Apple Silicon and Intel. This is a
-development baseline, not a claim of a working macOS streaming backend.
+Target: macOS 13+, Apple Silicon and Intel. `viewflow-macos-windows` provides
+ScreenCaptureKit window capture, VideoToolbox codecs and AppKit/Metal proxy
+windows. See [window-sharing setup](../../docs/macos-window-sharing.md) for
+macOS ↔ Hyprland/Windows pairing and the remaining manual acceptance boundary.
+The daemon now has a Quartz keyboard/mouse receiver; see
+[setup and validation](../../deploy/macos/README.md).
 
 ```sh
 cmake -S platform/macos -B build/macos -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
@@ -28,23 +32,21 @@ standalone query only and defines no streaming deadline or security boundary.
 Window IDs are native process-session observations, not persistent Viewflow IDs.
 `frame_points` is the unmodified ScreenCaptureKit frame (x, y, width, height);
 do not treat it as backing pixels or normalized Viewflow topology coordinates.
-All implemented-backend flags remain false until integration is actually present.
+The probe does not exercise the daemon input backend; use the separate
+`viewflowd input-status` command to inspect event-post permission.
 
-## Next implementation slices
+## Window sharing
 
-1. Map display points/backing pixels and native window lifetimes into existing
-   topology, window IDs and geometry epochs. Validate mixed Retina scales,
-   negative display origins and window close/reopen handling.
-2. Add ScreenCaptureKit SCStream capture, retaining IOSurface/CVPixelBuffer
-   ownership until GPU consumers complete; then VideoToolbox encoding and the
-   existing authenticated QUIC media path. Measure alpha and decorations rather
-   than assuming support from window enumeration.
-3. Add VideoToolbox decode and Metal presentation in AppKit proxy windows.
-   Preserve geometry epochs and drop obsolete frames without closing sessions.
-4. Implement ordered native input and held-key/button cleanup; verify target
-   routing and OS permissions. All live mouse/keyboard acceptance is user-operated.
-5. Integrate lifecycle, reconnect, clipboard and application audio independently;
-   no fake backend should advertise these as native capabilities.
+`viewflow-macos-windows source --window ID` publishes selected windows;
+`viewflow-macos-windows present` reconstructs native proxies. Run these through
+`vf-window-peer` for authenticated QUIC and ordered return input.
+`--codec-self-test` checks generated color/alpha pixels and codec resize without
+capture, input injection or focus changes. `present --validate` decodes a VFRV
+stream without opening windows.
+
+Mixed Retina displays, live capture framing, drag/resize and native input still
+require user-operated acceptance. Popup-family enrollment, audio and IME remain
+future work; clipboard uses its independent peer.
 
 Follow [the availability policy](../../docs/security-and-availability-policy.md):
 33 ms/two refresh periods is a performance target; focus changes, congestion and
@@ -52,12 +54,10 @@ recoverable per-window failures must not terminate unrelated windows or sessions
 
 ## Verification boundary
 
-The macOS workflow checks the portable daemon, tests foundation crates and builds
-the universal native probe. Its only native test is `--help`, which needs no
-desktop permissions. CI does not establish capture, input or visual acceptance.
-Linux cross-checks can check Rust target compilation, but cannot compile or run
-Apple frameworks without an Apple SDK. Native probe compilation and runtime
-acceptance must be confirmed on macOS.
+The macOS workflow checks portable Rust and builds universal native binaries.
+Native tests cover CLI, Annex B, key mapping and generated pixel/codec round trips.
+They require no desktop capture or input permissions and do not establish live
+visual or input acceptance. See the [validation record](../../docs/evidence/macos-window-sharing-20260907.md).
 
 API references: [SCShareableContent](https://developer.apple.com/documentation/screencapturekit/scshareablecontent),
 [CGPreflightScreenCaptureAccess](https://developer.apple.com/documentation/coregraphics/cgpreflightscreencaptureaccess()).

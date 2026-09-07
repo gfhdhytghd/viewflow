@@ -240,6 +240,20 @@ HRESULT GpuVideoCompositor::Submit(uint64_t identity, std::span<const uint8_t> a
   if (!completed || !streaming_ || poisoned_ || !identity || identity <= last_frame_identity_ || identity != a.frame_identity || au.empty() || !a.width || !a.height ||
       a.bytes.size() != uint64_t(a.width) * a.height || a.bytes.size() > std::numeric_limits<UINT>::max()) return E_INVALIDARG;
   if (std::ranges::any_of(pending_, [identity](const Pending& p) { return p.identity == identity; })) return MF_E_INVALIDREQUEST;
+#ifdef VIEWFLOW_HAVE_FFMPEG
+  if (ffmpeg_decoder_ && decoder_geometry_.negotiated_width &&
+      (decoder_geometry_.negotiated_width != a.width || decoder_geometry_.negotiated_height != a.height)) {
+    // The atlas binding admits a size change only with paired keyframes. FFmpeg's
+    // AV1 D3D11VA decoder can retain its old surface pool across a new sequence
+    // header, so replace it once every previous frame has been composited.
+    if (!pending_.empty()) return MF_E_NOTACCEPTING;
+    auto next = std::make_unique<FfmpegDecoder>();
+    const HRESULT prepare = next->Initialize(device_.Get(), 4);
+    if (FAILED(prepare)) return prepare;
+    ffmpeg_decoder_ = std::move(next);
+    decoder_geometry_ = {};
+  }
+#endif
   last_submit_host_durations_ = {};
   last_submit_host_durations_.frame_identity = identity;
   recording_submit_host_durations_ = true;

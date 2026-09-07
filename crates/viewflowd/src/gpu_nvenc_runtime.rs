@@ -6,7 +6,7 @@
 
 use std::{marker::PhantomData, os::fd::AsRawFd, ptr::NonNull, rc::Rc};
 
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 
 use crate::hyprcapture_gpu_socket::GpuFrame;
 
@@ -134,6 +134,62 @@ struct CAtlas {
     geometry_epoch: u64,
 }
 #[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GpuSparseSource {
+    pub x: i64,
+    pub y: i64,
+    pub z: u32,
+    pub grid: u32,
+    pub clip_enabled: u32,
+    pub clip_x: u32,
+    pub clip_y: u32,
+    pub clip_width: u32,
+    pub clip_height: u32,
+}
+#[repr(C)]
+struct CSparseScene {
+    mode: u32,
+    max_width: u32,
+    max_height: u32,
+    source_count: u32,
+    sources: *const GpuSparseSource,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GpuSparsePatch {
+    pub source: u32,
+    pub source_x: u32,
+    pub source_y: u32,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GpuSparseInfo {
+    pub enabled: u32,
+    pub patch_count: u32,
+    pub required_width: u32,
+    pub required_height: u32,
+    pub input_pixels: u64,
+    pub stored_pixels: u64,
+    pub occluded_pixels: u64,
+    pub empty_pixels: u64,
+    pub omitted_pixels: u64,
+}
+#[derive(Debug)]
+pub struct GpuSparseResult {
+    pub info: GpuSparseInfo,
+    pub patches: Vec<GpuSparsePatch>,
+}
+pub struct GpuSparseScene<'a> {
+    pub prerender: bool,
+    pub canvas_limit: (u32, u32),
+    pub sources: &'a [GpuSparseSource],
+}
+
+#[repr(C)]
 #[derive(Default)]
 struct CInfo {
     frame_id: u64,
@@ -145,6 +201,25 @@ struct CInfo {
 }
 
 unsafe extern "C" {
+    fn vf_gpu_dmabuf_encoder_encode_sparse_recoverable(
+        encoder: *mut EncoderOpaque,
+        atlas: *const CAtlas,
+        scene: *const CSparseScene,
+        force_idr: u32,
+        deadline: i64,
+        output: *mut *mut OutputOpaque,
+    ) -> u32;
+    fn vf_gpu_dmabuf_output_get_sparse_info(
+        output: *const OutputOpaque,
+        info: *mut GpuSparseInfo,
+    ) -> u32;
+    fn vf_gpu_dmabuf_output_copy_sparse_patches(
+        output: *const OutputOpaque,
+        patches: *mut GpuSparsePatch,
+        capacity: usize,
+        required: *mut usize,
+    ) -> u32;
+
     fn vf_gpu_dmabuf_encoder_create_with_codec(
         config: *const CConfig,
         codec: u32,
@@ -196,6 +271,7 @@ unsafe extern "C" {
 
 /// Encoded color and independent, lossless straight-alpha bytes.
 pub struct EncodedGpuFrame {
+    pub sparse: Option<GpuSparseResult>,
     pub frame_id: u64,
     pub capture_monotonic_ns: u64,
     pub geometry_epoch: u64,
@@ -210,6 +286,11 @@ pub enum GpuEncodeOutcome {
     ExpiredClean,
     /// Packet drained and GPU cleanup complete; repair color and alpha references.
     ExpiredAfterSubmission,
+    /// All reads completed; caller releases leases before reallocating.
+    NeedsCanvas {
+        width: u32,
+        height: u32,
+    },
 }
 
 /// Identity of the entire encoded atlas, independent of its constituent windows.
@@ -348,7 +429,9 @@ impl GpuEncoder {
             .encode_checked(frame, force_idr, deadline, false)
             .and_then(|outcome| match outcome {
                 GpuEncodeOutcome::Encoded(frame) => Ok(frame),
-                GpuEncodeOutcome::ExpiredClean | GpuEncodeOutcome::ExpiredAfterSubmission => {
+                GpuEncodeOutcome::ExpiredClean
+                | GpuEncodeOutcome::ExpiredAfterSubmission
+                | GpuEncodeOutcome::NeedsCanvas { .. } => {
                     anyhow::bail!("legacy encoder returned recoverable expiry")
                 }
             });
@@ -397,6 +480,17 @@ impl GpuEncoder {
         force_idr: bool,
         deadline: i64,
     ) -> Result<GpuEncodeOutcome> {
+        self.encode_atlas_with_scene(tiles, identity, force_idr, deadline, None)
+    }
+
+    pub fn encode_atlas_with_scene(
+        &mut self,
+        tiles: &[GpuAtlasTile<'_>],
+        identity: GpuAtlasIdentity,
+        force_idr: bool,
+        deadline: i64,
+        scene: Option<GpuSparseScene<'_>>,
+    ) -> Result<GpuEncodeOutcome> {
         ensure!(!self.failed, "GPU encoder session is retired");
         let result = (|| {
             ensure!(tiles.len() <= 4096, "atlas tile bound exceeded");
@@ -432,14 +526,40 @@ impl GpuEncoder {
             let mut output = std::ptr::null_mut();
             // SAFETY: thread-bound encoder, exact C layouts, live tile array and
             // borrowed GPU frames/FDs for the duration of the synchronous call.
-            let status = unsafe {
-                vf_gpu_dmabuf_encoder_encode_atlas_recoverable(
-                    self.raw.as_ptr(),
-                    &raw const atlas,
-                    u32::from(force_idr),
-                    deadline,
-                    &raw mut output,
-                )
+            let status = if let Some(scene) = scene {
+                ensure!(
+                    scene.sources.len() == native_tiles.len(),
+                    "sparse source count mismatch"
+                );
+                let scene = CSparseScene {
+                    mode: if scene.prerender { 2 } else { 1 },
+                    max_width: scene.canvas_limit.0,
+                    max_height: scene.canvas_limit.1,
+                    source_count: u32::try_from(scene.sources.len())?,
+                    sources: scene.sources.as_ptr(),
+                };
+                // SAFETY: source descriptors and borrowed frames are live until this synchronous call returns.
+                unsafe {
+                    vf_gpu_dmabuf_encoder_encode_sparse_recoverable(
+                        self.raw.as_ptr(),
+                        &raw const atlas,
+                        &raw const scene,
+                        u32::from(force_idr),
+                        deadline,
+                        &raw mut output,
+                    )
+                }
+            } else {
+                // SAFETY: thread-owned encoder and exact C layouts with borrowed live descriptors.
+                unsafe {
+                    vf_gpu_dmabuf_encoder_encode_atlas_recoverable(
+                        self.raw.as_ptr(),
+                        &raw const atlas,
+                        u32::from(force_idr),
+                        deadline,
+                        &raw mut output,
+                    )
+                }
             };
             self.finish_encode(
                 status,
@@ -546,6 +666,25 @@ impl GpuEncoder {
         if allow_clean_expiry && status == 9 && owned.is_none() {
             return Ok(GpuEncodeOutcome::ExpiredAfterSubmission);
         }
+        if allow_clean_expiry && status == 10 {
+            let owned = owned.ok_or_else(|| anyhow::anyhow!("missing sparse resize result"))?;
+            let sparse = owned
+                .sparse_result()?
+                .context("resize result missing sparse metadata")?;
+            ensure!(
+                sparse.info.required_width >= self.width
+                    && sparse.info.required_height >= self.height
+                    && sparse.info.required_width <= 8192
+                    && sparse.info.required_height <= 4096
+                    && (sparse.info.required_width, sparse.info.required_height)
+                        != (self.width, self.height),
+                "invalid sparse resize request"
+            );
+            return Ok(GpuEncodeOutcome::NeedsCanvas {
+                width: sparse.info.required_width,
+                height: sparse.info.required_height,
+            });
+        }
         if status != 0 {
             let text = self.last_error();
             bail!("GPU encoding failed with status {status}: {text}");
@@ -578,7 +717,9 @@ impl GpuEncoder {
         let raw_alpha = owned.copy_plane(self.alpha_bytes, vf_gpu_dmabuf_output_copy_raw_alpha)?;
         let completed_ns = monotonic_ns()?;
         validate_output_transfer_deadline(allow_clean_expiry, completed_ns, deadline)?;
+        let sparse = owned.sparse_result()?;
         Ok(GpuEncodeOutcome::Encoded(EncodedGpuFrame {
+            sparse,
             frame_id: info.frame_id,
             capture_monotonic_ns: info.capture_timestamp_ns,
             geometry_epoch: info.geometry_epoch,
@@ -598,6 +739,36 @@ impl Drop for GpuEncoder {
 
 struct Output(NonNull<OutputOpaque>);
 impl Output {
+    fn sparse_result(&self) -> Result<Option<GpuSparseResult>> {
+        let mut info = GpuSparseInfo::default();
+        // SAFETY: owned native output and writable C layout on the same thread.
+        let status =
+            unsafe { vf_gpu_dmabuf_output_get_sparse_info(self.0.as_ptr(), &raw mut info) };
+        ensure!(
+            status == 0 && info.enabled <= 1 && info.patch_count <= 32768,
+            "invalid GPU sparse metadata"
+        );
+        if info.enabled == 0 {
+            return Ok(None);
+        }
+        let mut patches = vec![GpuSparsePatch::default(); info.patch_count as usize];
+        let mut required = 0;
+        // SAFETY: output is live; vector is writable for its exact capacity.
+        let status = unsafe {
+            vf_gpu_dmabuf_output_copy_sparse_patches(
+                self.0.as_ptr(),
+                patches.as_mut_ptr(),
+                patches.len(),
+                &raw mut required,
+            )
+        };
+        ensure!(
+            status == 0 && required == patches.len(),
+            "GPU sparse patch transfer failed"
+        );
+        Ok(Some(GpuSparseResult { info, patches }))
+    }
+
     fn copy_plane(
         &self,
         length: usize,

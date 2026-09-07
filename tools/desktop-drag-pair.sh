@@ -8,7 +8,7 @@ usage() {
 Usage:
   desktop-drag-pair.sh prepare --dir ABSOLUTE_DIR --monitor OUTPUT --linux-ip IP \\
       --windows-host DNS --windows-ip IP --windows-resolution WIDTHxHEIGHT --windows-scale FACTOR --windows-position XxY \\
-      [--atlas-width PX --atlas-height PX]
+      [--atlas-width PX --atlas-height PX] [--occlusion off|opaque|prerender]
   desktop-drag-pair.sh inspect-windows --host SSH_HOST
 
 prepare reads the selected Linux monitor and writes paired source/receiver JSON
@@ -21,10 +21,11 @@ EOF
 
 prepare() {
     local dir= monitor= linux_ip= windows_host= windows_ip= windows_width= windows_height= windows_scale=
-    local remote_position= windows_x=0 windows_y=0 source_port=44130 receiver_port=44129 refresh_hz=60 atlas_width=4096 atlas_height=4096
+    local remote_position= windows_x=0 windows_y=0 source_port=44130 receiver_port=44129 refresh_hz=60 atlas_width=1024 atlas_height=1024 occlusion=opaque
     local windows_root='C:\Users\wilf\Viewflow\desktop-test'
     while (($#)); do
         case $1 in
+            --occlusion) occlusion=${2:?missing value for --occlusion}; case $occlusion in off|opaque|prerender) ;; *) die "occlusion must be off, opaque, or prerender" ;; esac; shift 2 ;;
             --dir) dir=${2:?missing value for --dir}; shift 2 ;;
             --monitor) monitor=${2:?missing value for --monitor}; shift 2 ;;
             --linux-ip) linux_ip=${2:?missing value for --linux-ip}; shift 2 ;;
@@ -92,8 +93,8 @@ prepare() {
     local stream_id owner_device source_device max_decoded native_socket command_socket
     stream_id=$(openssl rand -hex 16); owner_device=$(openssl rand -hex 16); source_device=$(openssl rand -hex 16)
     [[ $stream_id != 00000000000000000000000000000000 && $owner_device != "$source_device" ]] || die "random identity generation failed"
-    (( atlas_width >= 64 && atlas_width <= 8192 && atlas_height >= 64 && atlas_height <= 8192 )) \
-        || die "atlas dimensions must be between 64 and 8192 pixels"
+    (( atlas_width >= 64 && atlas_width <= 8192 && atlas_height >= 64 && atlas_height <= 4096 )) \
+        || die "atlas dimensions must be between 64x64 and 8192x4096 pixels"
     max_decoded=268435456
     native_socket="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is required}/viewflow/hyprland.sock"
     command_socket="${XDG_RUNTIME_DIR}/hypr/${HYPRLAND_INSTANCE_SIGNATURE:?HYPRLAND_INSTANCE_SIGNATURE is required}/.socket.sock"
@@ -119,11 +120,11 @@ prepare() {
 {
   "desktop": {"topology_generation": 1, "local_display": {"x": $local_x, "y": $local_y, "width": $local_width, "height": $local_height, "scale": $local_scale}, "remote_display": {"x": $remote_x, "y": $remote_y, "width": $windows_width, "height": $windows_height, "scale": $windows_scale}, "hyprland_socket": "$command_socket", "native_control_dir": "$dir/runtime-control", "auto_enroll": true, "max_enrolled_windows": 8, "candidates": []},
   "pointer": {"devices": {"owner_device": "$owner_device", "source_device": "$source_device"}, "native_socket": "$native_socket", "wheel": true, "direct_keyboard": true},
-  "capture_provider": "viewflow", "disposition_recovery": true,
+  "capture_provider": "viewflow", "disposition_recovery": true, "occlusion": "$occlusion",
   "bind": "0.0.0.0:$source_port", "remote": "$windows_ip:$receiver_port", "server_name": "$windows_host",
   "certificate": "$dir/source.pem", "private_key": "$dir/source.key", "certificate_authority": "$dir/pair-ca.pem", "compositor_pid": $compositor_pid,
   "fps": $refresh_hz, "startup_timeout_ms": 10000, "media_idle_timeout_ms": 3000,
-  "media": {"stream_id": "$stream_id", "geometry_epoch": 1, "config_generation": 1, "width": $atlas_width, "height": $atlas_height, "max_tiles": 8, "max_encoded_bytes": 8388608, "max_decoded_bytes": $max_decoded, "refresh_hz": $refresh_hz}, "windows": []
+  "media": {"stream_id": "$stream_id", "geometry_epoch": 1, "config_generation": 1, "width": $atlas_width, "height": $atlas_height, "max_width": 8192, "max_height": 4096, "max_tiles": 8, "max_encoded_bytes": 134217728, "max_decoded_bytes": $max_decoded, "refresh_hz": $refresh_hz}, "windows": []
 }
 EOF
     local receiver_cert receiver_key receiver_ca receiver_presenter
@@ -136,7 +137,7 @@ EOF
   "desktop": {"display": {"x": $remote_x, "y": $remote_y, "width": $windows_width, "height": $windows_height, "scale": $windows_scale}, "native_x": $windows_x, "native_y": $windows_y},
   "pointer": {"owner_device": "$owner_device", "source_device": "$source_device", "wheel": true, "direct_keyboard": true}, "disposition_recovery": true, "input_recovery": true,
   "bind": "0.0.0.0:$receiver_port", "expected_peer_ip": "$linux_ip", "certificate": $receiver_cert, "private_key": $receiver_key, "certificate_authority": $receiver_ca, "native_presenter": $receiver_presenter,
-  "stream_id": "$stream_id", "geometry_epoch": 1, "config_generation": 1, "width": $atlas_width, "height": $atlas_height, "max_tiles": 8, "max_encoded_bytes": 8388608, "max_decoded_bytes": $max_decoded, "refresh_hz": $refresh_hz, "startup_timeout_ms": 10000, "media_idle_timeout_ms": 3000, "clock_silence_timeout_ms": 3000
+  "stream_id": "$stream_id", "geometry_epoch": 1, "config_generation": 1, "width": $atlas_width, "height": $atlas_height, "max_width": 8192, "max_height": 4096, "max_tiles": 8, "max_encoded_bytes": 134217728, "max_decoded_bytes": $max_decoded, "refresh_hz": $refresh_hz, "startup_timeout_ms": 10000, "media_idle_timeout_ms": 3000, "clock_silence_timeout_ms": 3000
 }
 EOF
     jq -e . "$dir/send.json" >/dev/null && jq -e . "$dir/receive.json" >/dev/null

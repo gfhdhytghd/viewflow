@@ -551,6 +551,20 @@ message AtlasDesktopLayout {
   repeated AtlasWindowPlacement windows = 3;
 }
 
+message AtlasPatch {
+  uint32 tile_index = 1;
+  uint32 source_x = 2;
+  uint32 source_y = 3;
+  uint32 x = 4;
+  uint32 y = 5;
+  uint32 width = 6;
+  uint32 height = 7;
+}
+
+message AtlasPatches {
+  repeated AtlasPatch patches = 1;
+}
+
 message AtlasFrame {
   uint32 version = 1;
   Id128 stream_id = 2;
@@ -565,6 +579,8 @@ message AtlasFrame {
   bool color_keyframe = 11;
   bool alpha_keyframe = 12;
   optional AtlasDesktopLayout desktop = 13;
+  // v2: tiles retain full window geometry; only patches occupy atlas storage.
+  optional AtlasPatches patches = 14;
 }
 
 enum DesktopWindowMovePhase {
@@ -636,6 +652,8 @@ message AtlasSession {
   uint64 max_decoded_bytes = 15;
   // Required and echoed exactly: v1 confirms source END before selection rejection.
   uint32 selection_rejection_version = 16;
+  // v1 supports AtlasFrame v2 sparse patches and native VFGP v8.
+  uint32 sparse_patch_version = 17;
 }
 
 message ControlEnvelope {

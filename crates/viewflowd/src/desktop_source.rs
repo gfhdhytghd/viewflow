@@ -463,7 +463,8 @@ impl DesktopEnrollmentSupervisor {
                 return_rejected_to_local(socket, display, &candidate)
             }).await;
             match result {
-                Ok(Ok(())) => eprintln!("desktop capacity rejected: window returned to local display"),
+                Ok(Ok(true)) => eprintln!("desktop capacity rejected: window returned to local display"),
+                Ok(Ok(false)) => eprintln!("desktop capacity rejected: local layout retained"),
                 other => eprintln!("desktop capacity return failed; existing stream retained: {other:?}"),
             }
             Ok(())
@@ -719,8 +720,22 @@ fn discover_local_candidates(
             ))
         })
         .collect();
+    // Scrolling layouts can place local tiled clients beyond the monitor edge.
+    // Their layout coordinates do not transfer ownership to the remote output.
+    let remote_monitors: std::collections::BTreeSet<i64> = monitors
+        .as_array().context("invalid local monitor inventory")?.iter()
+        .filter(|monitor| {
+            monitor["x"].as_i64().and_then(|x| x.checked_mul(1000)) == Some(viewport.bounds.x_millidip)
+                && monitor["y"].as_i64().and_then(|y| y.checked_mul(1000)) == Some(viewport.bounds.y_millidip)
+        })
+        .filter_map(|monitor| monitor["id"].as_i64())
+        .collect();
     let active_addresses: std::collections::BTreeSet<&str> = raw_clients
         .iter()
+        .filter(|client| {
+            client["floating"].as_bool() == Some(true)
+                || client["monitor"].as_i64().is_some_and(|id| remote_monitors.contains(&id))
+        })
         .filter(|client| {
             client["workspace"]["id"]
                 .as_i64()
@@ -926,9 +941,9 @@ fn return_rejected_to_local(
     socket: PathBuf,
     display: crate::desktop_config::AtlasDisplayConfig,
     candidate: &DesktopCandidate,
-) -> Result<()> {
+) -> Result<bool> {
     if !locally_observed_exact(socket.clone(), candidate)? {
-        return Ok(());
+        return Ok(false);
     }
     let ipc = viewflow_hyprland::HyprIpcClient::new(socket)
         .with_timeout(Duration::from_millis(250));
@@ -936,6 +951,11 @@ fn return_rejected_to_local(
     let client = clients.as_array().context("invalid clients")?.iter()
         .find(|c| c["address"].as_str() == Some(candidate.address.as_str()))
         .context("rejected window already closed")?;
+    // A capacity decision may race with retiling. Never change the layout's
+    // floating state, size, workspace, or position to recover atlas capacity.
+    if client["floating"].as_bool() != Some(true) {
+        return Ok(false);
+    }
     let monitors: serde_json::Value = serde_json::from_str(&ipc.request("j/monitors")?)?;
     let monitor = monitors.as_array().context("invalid monitors")?.iter()
         .find(|m| m["x"].as_i64() == Some(i64::from(display.x))
@@ -948,6 +968,8 @@ fn return_rejected_to_local(
         (rect.width_millidip / 1000) as i64, (rect.height_millidip / 1000) as i64,
         client["size"][0].as_i64().context("missing window width")?,
         client["size"][1].as_i64().context("missing window height")?,
+        client["at"][0].as_i64().context("missing window x")?,
+        client["at"][1].as_i64().context("missing window y")?,
     );
     // Only locally parsed numeric addresses/coordinates enter Lua. No focus or
     // input command is issued. A failed return must not retire other windows.
@@ -960,16 +982,38 @@ fn return_rejected_to_local(
     );
     let response = ipc.request(&script)?;
     ensure!(response.trim() == "ok", "local window return: {response}");
-    Ok(())
+    Ok(true)
 }
 
 fn capacity_return_rect(x: i32, y: i32, screen_w: i64, screen_h: i64,
-                        window_w: i64, window_h: i64) -> (i64, i64, i64, i64) {
-    // Keep decorations and oversized clients away from the cross-screen seam.
+                        window_w: i64, window_h: i64,
+                        window_x: i64, window_y: i64) -> (i64, i64, i64, i64) {
+    // Project onto the nearest edge of the valid window-origin rectangle.
+    // Outside origins already reach that boundary by clamping. For an origin
+    // inside the display, select the shortest translation instead of leaving
+    // the window in the interior or choosing a fixed/opposite edge.
+    // Keep a small inset so decorations do not immediately cross the seam again.
     let w = window_w.max(1).min((screen_w - 96).max(1));
     let h = window_h.max(1).min((screen_h - 160).max(1));
-    (i64::from(x) + (screen_w - w) / 2,
-     i64::from(y) + (screen_h - h) / 2, w, h)
+    let inset_x = ((screen_w - w).max(0) / 2).min(16);
+    let inset_y = ((screen_h - h).max(0) / 2).min(16);
+    let left = i64::from(x) + inset_x;
+    let top = i64::from(y) + inset_y;
+    let right = (i64::from(x) + screen_w - w - inset_x).max(left);
+    let bottom = (i64::from(y) + screen_h - h - inset_y).max(top);
+    let mut returned_x = window_x.clamp(left, right);
+    let mut returned_y = window_y.clamp(top, bottom);
+    if returned_x > left && returned_x < right && returned_y > top && returned_y < bottom {
+        let nearest = [
+            (returned_x - left, left, returned_y),
+            (right - returned_x, right, returned_y),
+            (returned_y - top, returned_x, top),
+            (bottom - returned_y, returned_x, bottom),
+        ].into_iter().min_by_key(|edge| edge.0).expect("four edges");
+        returned_x = nearest.1;
+        returned_y = nearest.2;
+    }
+    (returned_x, returned_y, w, h)
 }
 
 fn locally_observed_exact(socket: PathBuf, candidate: &DesktopCandidate) -> Result<bool> {
@@ -1273,11 +1317,32 @@ mod tests {
             (0, 0, 3072, 1728, 6000, 4000),
             (-1920, 390, 1920, 1200, 1030, 860),
         ] {
-            let (x, y, w, h) = super::capacity_return_rect(sx, sy, sw, sh, ww, wh);
+            let (x, y, w, h) = super::capacity_return_rect(sx, sy, sw, sh, ww, wh, i64::from(sx) + sw, i64::from(sy) + 200);
             assert!(x > i64::from(sx) && y > i64::from(sy));
             assert!(x + w < i64::from(sx) + sw);
             assert!(y + h < i64::from(sy) + sh);
             assert!(w <= ww && h <= wh);
+        }
+    }
+    #[test]
+    fn capacity_return_stays_at_crossed_edge_and_preserves_parallel_position() {
+        assert_eq!(super::capacity_return_rect(0,0,3072,1728,1000,800,3100,450), (2056,450,1000,800));
+        assert_eq!(super::capacity_return_rect(-1920,390,1920,1200,800,600,-2500,600), (-1904,600,800,600));
+        assert_eq!(super::capacity_return_rect(0,0,1920,1200,800,600,400,-500), (400,16,800,600));
+        assert_eq!(super::capacity_return_rect(0,0,1920,1200,800,600,400,1300), (400,584,800,600));
+    }
+    #[test]
+    fn capacity_return_uses_nearest_edge_when_origin_is_already_inside() {
+        for (wx, wy, expected_x, expected_y) in [
+            (30, 300, 16, 300),
+            (1090, 300, 1104, 300),
+            (500, 30, 500, 16),
+            (500, 570, 500, 584),
+        ] {
+            assert_eq!(super::capacity_return_rect(0, 0, 1920, 1200, 800, 600, wx, wy),
+                (expected_x, expected_y, 800, 600));
+            assert_eq!(super::capacity_return_rect(-1920, 390, 1920, 1200, 800, 600,
+                wx - 1920, wy + 390), (expected_x - 1920, expected_y + 390, 800, 600));
         }
     }
     use super::*;
@@ -1333,7 +1398,7 @@ mod tests {
             monitors.read_exact(&mut query).unwrap();
             assert_eq!(&query, b"j/monitors");
             monitors
-                .write_all(br#"[{"activeWorkspace":{"id":1},"specialWorkspace":{"id":0}}]"#)
+                .write_all(br#"[{"id":0,"x":0,"y":0,"activeWorkspace":{"id":1},"specialWorkspace":{"id":0}},{"id":2,"x":100,"y":0,"activeWorkspace":{"id":1},"specialWorkspace":{"id":0}}]"#)
                 .unwrap();
             drop(monitors);
             let (mut peer, _) = listener.accept().unwrap();
@@ -1349,13 +1414,15 @@ mod tests {
                 ("second", 120, true, 14),
                 ("inactive-workspace", 120, true, 15),
                 ("tiled-overhang", 120, true, 16),
+                ("tiled-remote", 120, true, 17),
             ] {
                 clients.push(serde_json::json!({
                     "address": format!("0x{pid:x}"), "mapped": true,
                     "visible": visible, "at": [x, 0], "size": [20, 20],
                     "pid": pid, "stableId": id,
                     "workspace": {"id": if pid == 15 {2} else {1}},
-                    "floating": pid != 16,
+                    "floating": pid != 16 && pid != 17,
+                    "monitor": if pid == 17 {2} else {0},
                 }));
             }
             peer.write_all(&serde_json::to_vec(&clients).unwrap())
@@ -1388,7 +1455,35 @@ mod tests {
         assert_eq!(candidates.len(), 3);
         assert_eq!(candidates[0].stable_id.as_deref(), Some("crossing"));
         assert_eq!(candidates[1].stable_id.as_deref(), Some("second"));
-        assert_eq!(candidates[2].stable_id.as_deref(), Some("tiled-overhang"));
+        assert_eq!(candidates[2].stable_id.as_deref(), Some("tiled-remote"));
+    }
+
+    #[test]
+    fn capacity_return_does_not_mutate_a_retiled_window() {
+        use std::io::{Read, Write};
+        use std::os::unix::net::UnixListener;
+        let dir = tempfile::tempdir().unwrap();
+        let socket = dir.path().join("retiled.sock");
+        let listener = UnixListener::bind(&socket).unwrap();
+        let worker = std::thread::spawn(move || {
+            // Identity validation and the immediately preceding layout check.
+            // There must be no subsequent monitor lookup or mutation command.
+            for _ in 0..2 {
+                let (mut peer, _) = listener.accept().unwrap();
+                let mut request = [0; 9];
+                peer.read_exact(&mut request).unwrap();
+                assert_eq!(&request, b"j/clients");
+                peer.write_all(br#"[{"address":"0x10","mapped":true,"visible":true,"pid":16,"stableId":"retiled","floating":false,"at":[120,0],"size":[20,20]}]"#).unwrap();
+            }
+        });
+        let candidate = DesktopCandidate {
+            window: Id128(16), address: "0x10".into(), native_address: 16,
+            stable_id: Some("retiled".into()), expected_pid: Some(16),
+        };
+        assert!(!return_rejected_to_local(socket,
+            crate::desktop_config::AtlasDisplayConfig {x:0,y:0,width:100,height:100,scale:1.},
+            &candidate).unwrap());
+        worker.join().unwrap();
     }
 
     fn frame(x: f64, y: f64, width: f64, height: f64) -> crate::hyprcapture_gpu_wire::HcgfFrame {

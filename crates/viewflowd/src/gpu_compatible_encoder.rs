@@ -9,7 +9,7 @@ use crate::{
     },
     hyprcapture_gpu_socket::GpuFrame,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use bytes::Bytes;
 use std::collections::BTreeMap;
 use viewflow_core::AtlasSnapshot;
@@ -96,16 +96,37 @@ pub enum AtlasSubmitOutcome {
         media: Vec<MediaFrame>,
     },
     ExpiredClean,
+    NeedsCanvas {
+        width: u32,
+        height: u32,
+    },
 }
 
 /// One persistent GPU encoder for a device-pair atlas, not one encoder per tile.
 pub struct GpuAtlasCompatibleEncoder {
+    occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
+    canvas_limit: (u32, u32),
+    last_sparse_manifest: Option<viewflow_protocol::AtlasFrame>,
     inner: GpuCompatibleEncoder,
     last_layout: Option<AtlasSnapshot>,
     last_sources: BTreeMap<WindowId, AtlasSourceIdentity>,
 }
 
 impl GpuAtlasCompatibleEncoder {
+    pub(crate) fn occlusion_enabled(&self) -> bool {
+        self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off
+    }
+
+    pub(crate) fn set_occlusion(
+        &mut self,
+        mode: crate::atlas_occlusion::AtlasOcclusionMode,
+        limit: (u32, u32),
+    ) {
+        self.occlusion = mode;
+        self.canvas_limit = limit;
+        self.request_keyframe();
+    }
+
     /// Continue the existing atlas lineage after startup pictures.
     pub(crate) fn next_frame_id(&self) -> Result<u64> {
         ensure!(!self.inner.failed, "atlas encoder is retired");
@@ -121,6 +142,9 @@ impl GpuAtlasCompatibleEncoder {
     pub fn new(config: Config) -> Result<Self> {
         Ok(Self {
             inner: GpuCompatibleEncoder::new(config)?,
+            occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Off,
+            canvas_limit: (8192, 4096),
+            last_sparse_manifest: None,
             last_layout: None,
             last_sources: BTreeMap::new(),
         })
@@ -143,6 +167,41 @@ impl GpuAtlasCompatibleEncoder {
     /// Must run before capture leases are held, as for the single-window adapter.
     pub fn prepare_size(&mut self, width: u32, height: u32) -> Result<()> {
         self.inner.prepare_size(width, height)
+    }
+
+    /// Grow only after prior work and source leases have been released.
+    pub(crate) fn grow_canvas(&mut self, width: u32, height: u32) -> Result<()> {
+        ensure!(!self.inner.failed, "atlas encoder retired");
+        let old = self
+            .inner
+            .prepared_size
+            .context("atlas encoder not prepared")?;
+        ensure!(
+            width >= old.0 && height >= old.1,
+            "atlas canvas cannot shrink live"
+        );
+        let pixels = usize::try_from(width)?
+            .checked_mul(usize::try_from(height)?)
+            .context("atlas canvas overflow")?;
+        ensure!(
+            pixels
+                .checked_mul(4)
+                .is_some_and(|bytes| bytes <= self.inner.config.max_input_bytes),
+            "atlas canvas exceeds GPU budget"
+        );
+        // Construction finishes before replacing the existing encoder.
+        let next = GpuEncoder::new_with_codec(
+            width,
+            height,
+            self.inner.config.max_color_access_unit_bytes,
+            pixels,
+            self.inner.color_codec,
+        )?;
+        self.inner.encoder = Some(next);
+        self.inner.prepared_size = Some((width, height));
+        self.inner.alpha_cache = None;
+        self.inner.force_idr = true;
+        Ok(())
     }
 
     #[must_use]
@@ -174,11 +233,12 @@ impl GpuAtlasCompatibleEncoder {
     fn submit_inner(&mut self, request: AtlasSubmission<'_>) -> Result<AtlasSubmitOutcome> {
         ensure!(request.sources.len() <= 4096, "atlas source bound exceeded");
         let sources: Vec<_> = request.sources.iter().map(AtlasSource::identity).collect();
-        validate_atlas_batch(
+        validate_atlas_batch_impl(
             request.layout,
             &sources,
             self.last_layout.as_ref(),
             &self.last_sources,
+            self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off,
         )?;
         validate_atlas_clock(request, &sources)?;
         ensure!(
@@ -191,7 +251,12 @@ impl GpuAtlasCompatibleEncoder {
             width: request.layout.width,
             height: request.layout.height,
         };
-        validate_generation(self.inner.generation, generation)?;
+        let previous = self.inner.generation.map(|mut previous| {
+            previous.width = generation.width;
+            previous.height = generation.height;
+            previous
+        });
+        validate_generation(previous, generation)?;
         if let Some((frame_id, timestamp)) = self.inner.last_source {
             ensure!(
                 request.identity.frame_id > frame_id
@@ -228,17 +293,33 @@ impl GpuAtlasCompatibleEncoder {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let outcome = self
+        let sparse_sources = sparse_scene_sources(&sources, request.desktop)?;
+        let sparse_scene = (self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off)
+            .then_some(crate::gpu_nvenc_runtime::GpuSparseScene {
+                prerender: self.occlusion == crate::atlas_occlusion::AtlasOcclusionMode::Prerender,
+                canvas_limit: self.canvas_limit,
+                sources: &sparse_sources,
+            });
+        let mut outcome = self
             .inner
             .encoder
             .as_mut()
             .ok_or_else(|| anyhow::anyhow!("missing atlas GPU encoder"))?
-            .encode_atlas_recoverable(
+            .encode_atlas_with_scene(
                 &tiles,
                 request.identity,
                 self.inner.force_idr,
                 request.deadline_monotonic_ns,
+                sparse_scene,
             )?;
+        if let GpuEncodeOutcome::NeedsCanvas { width, height } = outcome {
+            return Ok(AtlasSubmitOutcome::NeedsCanvas { width, height });
+        }
+        let sparse = if let GpuEncodeOutcome::Encoded(frame) = &mut outcome {
+            frame.sparse.take()
+        } else {
+            None
+        };
         let outcome = self.inner.finish_submission(
             generation,
             (
@@ -255,17 +336,128 @@ impl GpuAtlasCompatibleEncoder {
         self.last_layout = Some(request.layout.clone());
         Ok(match outcome {
             GpuSubmitOutcome::ExpiredClean => AtlasSubmitOutcome::ExpiredClean,
-            GpuSubmitOutcome::Encoded(media) => AtlasSubmitOutcome::Encoded {
-                manifest: Box::new(make_atlas_manifest(request, &sources, &media)?),
-                layout: request.layout.clone(),
-                sources,
-                media,
-            },
+            GpuSubmitOutcome::Encoded(media) => {
+                let manifest = if let Some(sparse) = sparse {
+                    let mut manifest = make_atlas_manifest_unchecked(request, &sources, &media)?;
+                    let by_window: BTreeMap<_, _> = manifest
+                        .tiles
+                        .iter()
+                        .enumerate()
+                        .map(|(i, t)| (t.window_id, i as u32))
+                        .collect();
+                    let mut patches = sparse
+                        .patches
+                        .iter()
+                        .map(|p| {
+                            let source = sources
+                                .get(p.source as usize)
+                                .context("sparse patch refers to absent source")?;
+                            Ok(viewflow_protocol::AtlasPatch {
+                                tile_index: by_window[&source.window],
+                                source_x: p.source_x,
+                                source_y: p.source_y,
+                                x: p.x,
+                                y: p.y,
+                                width: p.width,
+                                height: p.height,
+                            })
+                        })
+                        .collect::<Result<Vec<_>>>()?;
+                    patches.sort_by_key(|p| (p.tile_index, p.source_y, p.source_x));
+                    for tile in &mut manifest.tiles {
+                        tile.x = 0;
+                        tile.y = 0;
+                    }
+                    manifest.patches = Some(patches);
+                    let unchanged = self.last_sparse_manifest.as_ref().is_some_and(|old| {
+                        old.width == manifest.width
+                            && old.height == manifest.height
+                            && old.patches == manifest.patches
+                            && old.tiles.len() == manifest.tiles.len()
+                            && old.tiles.iter().zip(&manifest.tiles).all(|(a, b)| {
+                                a.window_id == b.window_id
+                                    && a.geometry_epoch == b.geometry_epoch
+                                    && a.width == b.width
+                                    && a.height == b.height
+                            })
+                    });
+                    if unchanged {
+                        let previous = self
+                            .last_sparse_manifest
+                            .as_ref()
+                            .expect("unchanged requires previous");
+                        manifest.layout_revision = previous.layout_revision;
+                        for (tile, old) in manifest.tiles.iter_mut().zip(&previous.tiles) {
+                            tile.placement_generation = old.placement_generation;
+                        }
+                    } else {
+                        let previous = self
+                            .last_sparse_manifest
+                            .as_ref()
+                            .map_or(request.layout.revision, |old| {
+                                old.layout_revision.max(request.layout.revision)
+                            });
+                        manifest.layout_revision = previous
+                            .checked_add(1)
+                            .context("sparse scene revision exhausted")?;
+                        for tile in &mut manifest.tiles {
+                            tile.placement_generation = manifest.layout_revision;
+                        }
+                        ensure!(
+                            manifest.color_keyframe && manifest.alpha_keyframe,
+                            "sparse mapping changed without paired keyframe"
+                        );
+                    }
+                    manifest
+                        .validate()
+                        .map_err(|e| anyhow::anyhow!("invalid sparse atlas: {e:?}"))?;
+                    if request.identity.frame_id <= 8
+                        || request.identity.frame_id % 120 == 0
+                        || sparse.info.omitted_pixels > 0
+                    {
+                        eprintln!(
+                            "atlas-source-sparse frame={} mode={:?} patches={} input_pixels={} stored_pixels={} occluded_pixels={} empty_pixels={} omitted_pixels={} canvas={}x{}",
+                            request.identity.frame_id,
+                            self.occlusion,
+                            sparse.info.patch_count,
+                            sparse.info.input_pixels,
+                            sparse.info.stored_pixels,
+                            sparse.info.occluded_pixels,
+                            sparse.info.empty_pixels,
+                            sparse.info.omitted_pixels,
+                            manifest.width,
+                            manifest.height
+                        );
+                    }
+                    self.last_sparse_manifest = Some(manifest.clone());
+                    manifest
+                } else {
+                    make_atlas_manifest(request, &sources, &media)?
+                };
+                AtlasSubmitOutcome::Encoded {
+                    manifest: Box::new(manifest),
+                    layout: request.layout.clone(),
+                    sources,
+                    media,
+                }
+            }
         })
     }
 }
 
 fn make_atlas_manifest(
+    request: AtlasSubmission<'_>,
+    sources: &[AtlasSourceIdentity],
+    media: &[MediaFrame],
+) -> Result<viewflow_protocol::AtlasFrame> {
+    let manifest = make_atlas_manifest_unchecked(request, sources, media)?;
+    manifest
+        .validate()
+        .map_err(|error| anyhow::anyhow!("invalid atlas wire manifest: {error:?}"))?;
+    Ok(manifest)
+}
+
+fn make_atlas_manifest_unchecked(
     request: AtlasSubmission<'_>,
     sources: &[AtlasSourceIdentity],
     media: &[MediaFrame],
@@ -321,6 +513,7 @@ fn make_atlas_manifest(
         .collect::<Result<Vec<_>>>()?;
     tiles.sort_by_key(|tile| tile.window_id);
     let manifest = viewflow_protocol::AtlasFrame {
+        patches: None,
         color_keyframe: coded.color_metadata.keyframe,
         alpha_keyframe: coded.alpha_metadata.keyframe,
         desktop: request.desktop.cloned(),
@@ -334,9 +527,6 @@ fn make_atlas_manifest(
         source_submitted_ns: request.mapped_source_ns,
         tiles,
     };
-    manifest
-        .validate()
-        .map_err(|error| anyhow::anyhow!("invalid atlas wire manifest: {error:?}"))?;
     Ok(manifest)
 }
 
@@ -372,6 +562,16 @@ fn validate_atlas_batch(
     sources: &[AtlasSourceIdentity],
     previous: Option<&AtlasSnapshot>,
     last_sources: &BTreeMap<WindowId, AtlasSourceIdentity>,
+) -> Result<()> {
+    validate_atlas_batch_impl(layout, sources, previous, last_sources, false)
+}
+
+fn validate_atlas_batch_impl(
+    layout: &AtlasSnapshot,
+    sources: &[AtlasSourceIdentity],
+    previous: Option<&AtlasSnapshot>,
+    last_sources: &BTreeMap<WindowId, AtlasSourceIdentity>,
+    sparse: bool,
 ) -> Result<()> {
     ensure!(
         layout.width > 0
@@ -461,7 +661,11 @@ fn validate_atlas_batch(
             }
         }
     }
-    validate_atlas_nonoverlap(layout)
+    if sparse {
+        Ok(())
+    } else {
+        validate_atlas_nonoverlap(layout)
+    }
 }
 
 // Called only after checked extent arithmetic for every placement.
@@ -834,6 +1038,87 @@ fn cached_alpha(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "requires NVIDIA GPU; owned empty canvases only, no desktop input"]
+    fn owned_atlas_grows_to_8192_by_4096() {
+        let mut encoder = GpuAtlasCompatibleEncoder::new(Config {
+            max_input_bytes: 256 << 20,
+            max_color_access_unit_bytes: 64 << 20,
+            max_alpha_access_unit_bytes: 64 << 20,
+            max_pending_frames: 1,
+        })
+        .unwrap();
+        encoder.set_color_codec(VideoCodec::Av1).unwrap();
+        let mut atlas = viewflow_core::StableAtlas::new(viewflow_core::AtlasConfig {
+            width: 1024,
+            height: 1024,
+            alignment: 2,
+            max_windows: 8,
+        })
+        .unwrap();
+        encoder.prepare_size(1024, 1024).unwrap();
+        for (index, (width, height)) in [(1024, 1024), (4096, 4096), (8192, 4096)]
+            .into_iter()
+            .enumerate()
+        {
+            if index != 0 {
+                atlas.grow(width, height).unwrap();
+                encoder.grow_canvas(width, height).unwrap();
+            }
+            let now = crate::gpu_nvenc_runtime::monotonic_ns().unwrap();
+            let layout = atlas.snapshot();
+            let outcome = encoder
+                .submit_recoverable(AtlasSubmission {
+                    codec: CodecIdentity {
+                        window_id: viewflow_protocol::Id128(9),
+                        config_generation: 1,
+                    },
+                    layout: &layout,
+                    identity: GpuAtlasIdentity {
+                        frame_id: index as u64 + 1,
+                        capture_monotonic_ns: now as u64,
+                        geometry_epoch: 1,
+                    },
+                    mapped_source_ns: now as u64,
+                    deadline_monotonic_ns: now + 10_000_000_000,
+                    sources: &[],
+                    desktop: None,
+                })
+                .unwrap();
+            let AtlasSubmitOutcome::Encoded {
+                manifest, media, ..
+            } = outcome
+            else {
+                panic!("unexpected expiry")
+            };
+            assert_eq!((manifest.width, manifest.height), (width, height));
+            assert_eq!(media.len(), 1);
+            assert!(media[0].color_metadata.keyframe && media[0].alpha_metadata.keyframe);
+            let descriptors = encoder.descriptors().unwrap();
+            assert_eq!(
+                (
+                    descriptors.color.coded_width,
+                    descriptors.color.coded_height
+                ),
+                (width, height)
+            );
+            assert_eq!(encoder.next_frame_id().unwrap(), index as u64 + 2);
+            if let Ok(directory) = std::env::var("VIEWFLOW_ATLAS_GROWTH_FIXTURE") {
+                let directory = std::path::Path::new(&directory);
+                std::fs::create_dir_all(directory).unwrap();
+                std::fs::write(
+                    directory.join(format!("color-{}.av1", index + 1)),
+                    &media[0].color.payload,
+                )
+                .unwrap();
+            }
+            eprintln!(
+                "PASS canvas={width}x{height} frame={} paired_keyframe=true",
+                index + 1
+            );
+        }
+    }
+
     fn atlas_fixture() -> (viewflow_core::StableAtlas, Vec<AtlasSourceIdentity>) {
         let mut atlas = viewflow_core::StableAtlas::new(viewflow_core::AtlasConfig {
             width: 64,
@@ -1090,6 +1375,7 @@ mod tests {
                     height: 64,
                 },
                 EncodedGpuFrame {
+                    sparse: None,
                     frame_id: 77,
                     capture_monotonic_ns: 10,
                     geometry_epoch: 9,
@@ -1234,6 +1520,7 @@ mod tests {
         let frame = adapt(
             generation,
             EncodedGpuFrame {
+                sparse: None,
                 frame_id: 9,
                 capture_monotonic_ns: 100,
                 geometry_epoch: 1,
@@ -1275,6 +1562,7 @@ mod tests {
 
     fn output(frame_id: u64, generation: Generation, raw_alpha: Vec<u8>) -> EncodedGpuFrame {
         EncodedGpuFrame {
+            sparse: None,
             frame_id,
             capture_monotonic_ns: frame_id * 10,
             geometry_epoch: generation.epoch,
@@ -1375,5 +1663,167 @@ mod tests {
         let config_changed =
             cached_alpha(changed, vec![0, 1, 128, 255], config_changed, &mut cache).unwrap();
         assert_ne!(dimensions_changed.as_ptr(), config_changed.as_ptr());
+    }
+}
+
+fn sparse_scene_sources(
+    sources: &[AtlasSourceIdentity],
+    desktop: Option<&viewflow_protocol::AtlasDesktopLayout>,
+) -> Result<Vec<crate::gpu_nvenc_runtime::GpuSparseSource>> {
+    use crate::gpu_nvenc_runtime::GpuSparseSource;
+    fn gcd(mut a: u64, mut b: u64) -> u64 {
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        a
+    }
+    let mut grids = BTreeMap::new();
+    let mut result = Vec::with_capacity(sources.len());
+    for (index, source) in sources.iter().enumerate() {
+        let mut isolated = GpuSparseSource {
+            x: 0,
+            y: 0,
+            z: 0,
+            grid: u32::try_from(index)? + 8192,
+            ..GpuSparseSource::default()
+        };
+        let Some(window) =
+            desktop.and_then(|d| d.windows.iter().find(|w| w.window_id == source.window))
+        else {
+            result.push(isolated);
+            continue;
+        };
+        let clip = sparse_viewport_clip(
+            window.bounds,
+            desktop.unwrap().viewport,
+            source.width,
+            source.height,
+        );
+        isolated.clip_enabled = 1;
+        isolated.clip_x = clip.0;
+        isolated.clip_y = clip.1;
+        isolated.clip_width = clip.2;
+        isolated.clip_height = clip.3;
+        if window.z_order == 0 {
+            result.push(isolated);
+            continue;
+        }
+        let b = window.bounds;
+        let x = i128::from(b.x_millidip) * i128::from(source.width);
+        let y = i128::from(b.y_millidip) * i128::from(source.height);
+        if b.width_millidip == 0
+            || b.height_millidip == 0
+            || x % i128::from(b.width_millidip) != 0
+            || y % i128::from(b.height_millidip) != 0
+        {
+            result.push(isolated);
+            continue;
+        }
+        let gx = gcd(u64::from(source.width), b.width_millidip);
+        let gy = gcd(u64::from(source.height), b.height_millidip);
+        let key = (
+            u64::from(source.width) / gx,
+            b.width_millidip / gx,
+            u64::from(source.height) / gy,
+            b.height_millidip / gy,
+        );
+        let next = u32::try_from(grids.len())? + 1;
+        let grid = *grids.entry(key).or_insert(next);
+        result.push(GpuSparseSource {
+            x: i64::try_from(x / i128::from(b.width_millidip))?,
+            y: i64::try_from(y / i128::from(b.height_millidip))?,
+            z: window.z_order,
+            grid,
+            ..isolated
+        });
+    }
+    Ok(result)
+}
+
+// Outward rounding preserves every partially visible source pixel, including
+// fractional scaling and negative desktop coordinates. Independent of z-order.
+fn sparse_viewport_clip(
+    window: viewflow_protocol::DesktopRect,
+    viewport: viewflow_protocol::DesktopRect,
+    width: u32,
+    height: u32,
+) -> (u32, u32, u32, u32) {
+    fn axis(start: i64, extent: u64, view_start: i64, view_extent: u64, pixels: u32) -> (u32, u32) {
+        if extent == 0 {
+            return (0, pixels);
+        }
+        let start = i128::from(start);
+        let extent = i128::from(extent);
+        let left = (i128::from(view_start) - start).clamp(0, extent);
+        let right = (i128::from(view_start) + i128::from(view_extent) - start).clamp(0, extent);
+        if left >= right {
+            return (0, 0);
+        }
+        let first = left * i128::from(pixels) / extent;
+        let last = (right * i128::from(pixels) + extent - 1) / extent;
+        (first as u32, (last - first) as u32)
+    }
+    let (x, w) = axis(
+        window.x_millidip,
+        window.width_millidip,
+        viewport.x_millidip,
+        viewport.width_millidip,
+        width,
+    );
+    let (y, h) = axis(
+        window.y_millidip,
+        window.height_millidip,
+        viewport.y_millidip,
+        viewport.height_millidip,
+        height,
+    );
+    (x, y, w, h)
+}
+#[cfg(test)]
+mod sparse_viewport_tests {
+    use super::*;
+    fn rect(x: i64, y: i64, w: u64, h: u64) -> viewflow_protocol::DesktopRect {
+        viewflow_protocol::DesktopRect {
+            x_millidip: x,
+            y_millidip: y,
+            width_millidip: w,
+            height_millidip: h,
+        }
+    }
+    #[test]
+    fn scroll_out_partial_and_back_preserves_source_coordinates() {
+        let viewport = rect(-1000, 0, 1000, 1000);
+        assert_eq!(
+            sparse_viewport_clip(rect(0, 0, 1000, 1000), viewport, 100, 100),
+            (0, 0, 0, 100)
+        );
+        assert_eq!(
+            sparse_viewport_clip(rect(-1500, 0, 1000, 1000), viewport, 100, 100),
+            (50, 0, 50, 100)
+        );
+        assert_eq!(
+            sparse_viewport_clip(rect(-1000, 0, 1000, 1000), viewport, 100, 100),
+            (0, 0, 100, 100)
+        );
+        assert_eq!(
+            sparse_viewport_clip(rect(-1000, 1000, 1000, 1000), viewport, 100, 100),
+            (0, 0, 100, 0)
+        );
+    }
+    #[test]
+    fn fractional_boundary_rounds_outward_without_losing_visible_pixels() {
+        assert_eq!(
+            sparse_viewport_clip(rect(-1, -1, 3000, 3000), rect(0, 0, 1000, 1000), 100, 100),
+            (0, 0, 34, 34)
+        );
+        assert_eq!(
+            sparse_viewport_clip(
+                rect(i64::MIN, 0, u64::MAX, 1000),
+                rect(i64::MAX - 1, 0, 1, 1000),
+                8192,
+                100
+            ),
+            (8191, 0, 1, 100)
+        );
     }
 }

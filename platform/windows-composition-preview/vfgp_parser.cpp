@@ -115,24 +115,22 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
       }
       if (std::array<uint8_t, 4>{'V', 'F', 'G', 'P'} !=
               std::array<uint8_t, 4>{p[0], p[1], p[2], p[3]} ||
-          ((p[4] < 1 || p[4] > 5) && p[4] != 7) ||
+          ((p[4] < 1 || p[4] > 5) && p[4] != 7 && p[4] != 8) ||
           ((p[4] == 3 && p[5] != 1) || (p[4] != 3 && p[5])) || p[6] || p[7] ||
-          (p[4] != 5 && p[4] != 7 && be32(p + 8) != (p[4] == 4 ? 56 : 40))) {
+          (p[4] != 5 && p[4] != 7 && p[4] != 8 && be32(p + 8) != (p[4] == 4 ? 56 : 40))) {
         error_ = "header";
         return false;
       }
       version_ = p[4];
-      if (version_ == 5 || version_ == 7) {
+      if (version_ == 5 || version_ == 7 || version_ == 8) {
         const auto header = be32(p + 8);
-        if ((!allow_atlas_v5_ || (version_ == 7 && !allow_desktop_v7_)) ||
-            header < (version_ == 7 ? 160u : 112u) ||
-            header >
-                (version_ == 7 ? 160u + 4096u * 120u : 112u + 4096u * 64u) ||
-            (version_ == 7 ? (header - 160u) % 120u : (header - 112u) % 64u) ||
-            header > max_) {
-          error_ =
-              version_ == 7 ? "V7 header or disabled" : "V5 header or disabled";
-          return false;
+        const bool sparse=version_==8;
+        if (!allow_atlas_v5_ || (version_==7 && !allow_desktop_v7_) || header>max_ ||
+            (sparse ? (header<120 || header>120u+4096u*120u+48u+32768u*28u) :
+                (header<(version_==7 ? 160u:112u) ||
+                 header>(version_==7 ? 160u+4096u*120u:112u+4096u*64u) ||
+                 (version_==7 ? (header-160u)%120u:(header-112u)%64u)))) {
+          error_="atlas header or disabled"; return false;
         }
         wanted_ = 112;
         continue;
@@ -182,17 +180,17 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
       continue;
     }
     if ((version_ == 4 && wanted_ == 56) ||
-        ((version_ == 5 || version_ == 7) && wanted_ == 112)) {
+        ((version_ == 5 || version_ == 7 || version_ == 8) && wanted_ == 112)) {
       const auto *p = bytes_.data();
       const uint32_t payload = be32(p + 12), c = be32(p + 32), a = be32(p + 36),
                      w = be32(p + 24), h = be32(p + 28);
       const auto header = be32(p + 8);
-      if ((version_ == 5 || version_ == 7) &&
-          (be32(p + 104) > 4096 ||
-           header != (version_ == 7 ? 160u + be32(p + 104) * 120u
-                                    : 112u + be32(p + 104) * 64u))) {
-        error_ = version_ == 7 ? "V7 tile count" : "V5 tile count";
-        return false;
+      if ((version_ == 5 || version_ == 7 || version_ == 8) &&
+          (be32(p+104)>4096 || (version_==8 ?
+             (header < 120u + be32(p+104)*64u + ((be32(p+108)&4) ? 48u+be32(p+104)*56u:0u)
+                || ((be32(p+108)&4) && !allow_desktop_v7_)) :
+             header != (version_==7 ? 160u+be32(p+104)*120u:112u+be32(p+104)*64u)))) {
+        error_="atlas tile count or desktop disabled"; return false;
       }
       const uint64_t area = uint64_t(w) * h, total = uint64_t(payload) + header;
       if (!be64(p + 40) || !be64(p + 48) || !w || !h || !c || !a ||
@@ -202,7 +200,7 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
         return false;
       }
       const uint64_t id = be64(p + 16);
-      if (!id || id <= ((version_ == 5 || version_ == 7) ? previous_atlas_
+      if (!id || id <= ((version_ == 5 || version_ == 7 || version_ == 8) ? previous_atlas_
                                                          : previous_)) {
         error_ = "identity";
         return false;
@@ -215,22 +213,24 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
     const uint64_t id = be64(p + 16);
     const uint32_t w = be32(p + 24), h = be32(p + 28), c = be32(p + 32);
     std::optional<AtlasLayout> atlas;
-    if (version_ == 5 || version_ == 7) {
+    if (version_ == 5 || version_ == 7 || version_ == 8) {
       const size_t atlas_bytes = 112 + size_t(be32(p + 104)) * 64;
-      atlas = DecodeAtlasLayout({p, atlas_bytes}, w, h);
+      atlas = DecodeAtlasLayout({p, atlas_bytes}, w, h, version_==8);
       if (!atlas) {
         error_ = version_ == 7 ? "V7 atlas layout" : "V5 atlas layout";
         return false;
       }
-      if (version_ == 7) {
-        const size_t desktop_at = 112 + atlas->tiles.size() * 64;
-        auto desktop = DecodeDesktopLayout(
-            {p + desktop_at, header_bytes_ - desktop_at}, *atlas);
-        if (!desktop) {
-          error_ = "V7 desktop layout";
-          return false;
-        }
-        atlas->desktop = std::move(desktop);
+      size_t next_at=atlas_bytes;
+      if (version_==7 || (version_==8 && (be32(p+108)&4))) {
+        const size_t desktop_bytes=48+atlas->tiles.size()*56;
+        if(next_at+desktop_bytes>header_bytes_) { error_="desktop extension length"; return false; }
+        auto desktop=DecodeDesktopLayout({p+next_at,desktop_bytes},*atlas);
+        if(!desktop) { error_="desktop layout"; return false; }
+        atlas->desktop=std::move(desktop);
+        next_at+=desktop_bytes;
+      }
+      if(version_==8 && !DecodeSparsePatches({p+next_at,header_bytes_-next_at},w,h,*atlas)) {
+        error_="V8 sparse patches"; return false;
       }
     }
     Frame frame{id,
@@ -246,10 +246,10 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
                            w, h, max_, &frame.alpha, &error_)) {
       return false;
     }
-    if (version_ == 4 || version_ == 5 || version_ == 7)
+    if (version_ == 4 || version_ == 5 || version_ == 7 || version_ == 8)
       frame.deadline_qpc = DeadlineQpc{be64(p + 40), be64(p + 48)};
     out->push_back(std::move(frame));
-    if (version_ == 5 || version_ == 7)
+    if (version_ == 5 || version_ == 7 || version_ == 8)
       previous_atlas_ = id;
     else
       previous_ = id;

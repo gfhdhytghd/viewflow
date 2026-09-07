@@ -186,7 +186,8 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_destroy(vf_gpu_dmabuf_encoder* encode
 static vf_gpu_dmabuf_status encode_impl(
     vf_gpu_dmabuf_encoder* encoder, const vf_gpu_dmabuf_frame* frame,
     uint32_t force_idr, int64_t deadline_monotonic_ns, vf_gpu_dmabuf_output** output,
-    bool allow_clean_expiry, const vf_gpu_dmabuf_atlas* atlas = nullptr) {
+    bool allow_clean_expiry, const vf_gpu_dmabuf_atlas* atlas = nullptr,
+    const vf_gpu_dmabuf_sparse_scene* sparse = nullptr) {
   try {
     if (encoder == nullptr) {
       if (output != nullptr) *output = nullptr;
@@ -214,6 +215,8 @@ static vf_gpu_dmabuf_status encode_impl(
     } else {
       valid_input = valid_input && frame != nullptr && valid_frame_flags(*frame);
     }
+    valid_input = valid_input && (!sparse || (atlas && (sparse->mode == 1 || sparse->mode == 2) &&
+        sparse->source_count == atlas->tile_count && (!sparse->source_count || sparse->sources)));
     if (!valid_input) {
       encoder->terminal_failed = true;
       set_error(encoder, "invalid encode input; retire the capture path");
@@ -230,12 +233,23 @@ static vf_gpu_dmabuf_status encode_impl(
         const auto& tile = atlas->tiles[i];
         tiles.push_back({map_frame(tile.frame), tile.x, tile.y, tile.deadline_monotonic_ns});
       }
+      std::optional<viewflow::gpu::SparseOptions> options;
+      if (sparse) {
+        options = viewflow::gpu::SparseOptions{sparse->mode == 2, sparse->max_width, sparse->max_height, {}};
+        for(uint32_t i=0;i<sparse->source_count;++i) {
+          const auto& a=sparse->sources[i]; options->sources.push_back({a.x,a.y,a.z,a.grid,a.clip_enabled,a.clip_x,a.clip_y,a.clip_width,a.clip_height});
+        }
+      }
       success = encoder->value->encodeAtlas(tiles,
           {atlas->frame_id, atlas->capture_timestamp_ns, atlas->geometry_epoch},
-          force_idr != 0, deadline_monotonic_ns, encoded, &error, &disposition);
+          force_idr != 0, deadline_monotonic_ns, encoded, &error, &disposition, options ? &*options : nullptr);
     } else {
       success = encoder->value->encode(map_frame(*frame), force_idr != 0, deadline_monotonic_ns,
                                        encoded, &error, &disposition);
+    }
+    if (!success && disposition == viewflow::gpu::EncodeDisposition::NeedsCanvas && sparse && encoded.sparse) {
+      *output = new vf_gpu_dmabuf_output{std::move(encoded), std::this_thread::get_id()};
+      return VF_GPU_DMABUF_NEEDS_CANVAS;
     }
     if (!success) {
       set_error(encoder, error);
@@ -291,6 +305,46 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_encode_atlas_recoverable(
     vf_gpu_dmabuf_encoder* encoder, const vf_gpu_dmabuf_atlas* atlas,
     uint32_t force_idr, int64_t deadline_monotonic_ns, vf_gpu_dmabuf_output** output) {
   return encode_impl(encoder, nullptr, force_idr, deadline_monotonic_ns, output, true, atlas);
+}
+
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_encode_sparse_recoverable(
+    vf_gpu_dmabuf_encoder* encoder, const vf_gpu_dmabuf_atlas* atlas,
+    const vf_gpu_dmabuf_sparse_scene* scene, uint32_t force_idr,
+    int64_t deadline, vf_gpu_dmabuf_output** output) {
+  if (!scene) { if(output) *output=nullptr; return VF_GPU_DMABUF_INVALID_ARGUMENT; }
+  return encode_impl(encoder, nullptr, force_idr, deadline, output, true, atlas, scene);
+}
+vf_gpu_dmabuf_status vf_gpu_dmabuf_output_get_sparse_info(
+    const vf_gpu_dmabuf_output* output, vf_gpu_dmabuf_sparse_info* info) {
+  return no_throw([&] {
+    const auto status=require_owner(output);
+    if(status!=VF_GPU_DMABUF_OK) return status;
+    if(!info) return VF_GPU_DMABUF_INVALID_ARGUMENT;
+    *info={};
+    if(output->value.sparse) {
+      const auto& s=*output->value.sparse;
+      *info={1, uint32_t(s.patches.size()), s.requiredWidth,s.requiredHeight,
+             s.inputPixels,s.storedPixels,s.occludedPixels,s.emptyPixels,s.omittedPixels};
+    }
+    return VF_GPU_DMABUF_OK;
+  });
+}
+vf_gpu_dmabuf_status vf_gpu_dmabuf_output_copy_sparse_patches(
+    const vf_gpu_dmabuf_output* output, vf_gpu_dmabuf_sparse_patch* destination,
+    size_t capacity,size_t* required) {
+  return no_throw([&] {
+    const auto status=require_owner(output);
+    if(status!=VF_GPU_DMABUF_OK) return status;
+    if(!required) return VF_GPU_DMABUF_INVALID_ARGUMENT;
+    *required=output->value.sparse ? output->value.sparse->patches.size() : 0;
+    if(capacity<*required) return VF_GPU_DMABUF_BUFFER_TOO_SMALL;
+    if(*required && !destination) return VF_GPU_DMABUF_INVALID_ARGUMENT;
+    for(size_t i=0;i<*required;++i) {
+      const auto& p=output->value.sparse->patches[i];
+      destination[i]={p.source,p.sourceX,p.sourceY,p.x,p.y,p.width,p.height};
+    }
+    return VF_GPU_DMABUF_OK;
+  });
 }
 
 vf_gpu_dmabuf_status vf_gpu_dmabuf_output_get_info(

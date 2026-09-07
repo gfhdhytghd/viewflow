@@ -2,6 +2,18 @@
 #include <cassert>
 namespace vf=viewflow::reverse;
 int main(){
+ // Scrolling overhang must not move the Windows backing across the seam.
+ const vf::Geometry linux_monitor{0,0,3072,1728};
+ const vf::Geometry overflow{2900,50,800,600};
+ const auto backing=vf::tiled_backing_geometry(overflow,linux_monitor);
+ assert(backing.x==2272 && backing.y==50 && backing.width==800);
+ assert(backing.x+backing.width<=3072);
+ assert(vf::tiled_backing_geometry({-500,50,800,600},linux_monitor).x==0);
+ vf::GeometrySync tiled;
+ assert(tiled.observe(overflow,backing,0,false)==vf::GeometryAction::send_local);
+ tiled.sent(1);
+ assert(tiled.observe(overflow,backing,1,false)==vf::GeometryAction::none);
+ assert(tiled.observe(overflow,backing,1,true)==vf::GeometryAction::send_local);
  vf::Geometry a{10,20,400,300},b{20,30,400,300},c{30,40,500,350};
  vf::GeometrySync sync;
  assert(sync.observe(a,a,0,true)==vf::GeometryAction::apply_remote);sync.applied(a);

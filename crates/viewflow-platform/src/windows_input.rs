@@ -558,6 +558,15 @@ mod native {
         Ok(desktop as usize)
     }
 
+    #[allow(unsafe_code)]
+    fn desktop_name(desktop: usize) -> Option<Vec<u16>> {
+        use windows_sys::Win32::System::StationsAndDesktops::{GetUserObjectInformationW, UOI_NAME};
+        let mut name = [0u16; 256];
+        let mut needed = 0;
+        if unsafe { GetUserObjectInformationW(desktop as _, UOI_NAME, name.as_mut_ptr().cast(), std::mem::size_of_val(&name) as u32, &mut needed) } == 0 { return None; }
+        Some(name[..name.iter().position(|c| *c == 0).unwrap_or(name.len())].to_vec())
+    }
+
     #[derive(Debug)]
     pub struct WindowsInputBackend {
         requests: Option<std::sync::mpsc::Sender<NativeRequest>>,
@@ -570,14 +579,35 @@ mod native {
     }
     impl WindowsInputBackend {
         pub fn new() -> Self {
+            Self::with_service(std::env::var_os("VIEWFLOW_WINDOWS_INPUT_SERVICE").is_some_and(|v| v == "1"))
+        }
+        pub(crate) fn new_direct() -> Self { Self::with_service(false) }
+        pub fn clear_desktop_display(&mut self) { self.desktop_display = None; }
+        fn with_service(service: bool) -> Self {
             let (send, receive) = std::sync::mpsc::channel::<NativeRequest>();
             let worker = std::thread::Builder::new().name("viewflow-native-input".into()).spawn(move || {
                 let mut backend = DirectWindowsInputBackend::new();
                 let mut desktop = 0;
+                let mut current_desktop_name = None;
+                let mut broker = super::super::windows_input_service::Client::default();
                 while let Ok((event, display, reply)) = receive.recv() {
+                    if service {
+                        let _ = reply.send(broker.request(event, display));
+                        continue;
+                    }
                     let result = match bind_input_desktop(desktop) {
                         Ok(bound) => {
                             desktop = bound;
+                            let name = desktop_name(bound);
+                            // Discard held state at an actual desktop switch, before
+                            // applying new input. Lock/unlock does not end the connection.
+                            if name != current_desktop_name {
+                                if let Err(error) = backend.release_all() {
+                                    let _ = reply.send(Err(error));
+                                    continue;
+                                }
+                                current_desktop_name = name;
+                            }
                             backend.desktop_display = display;
                             match event {
                                 Some(event) => backend.apply(&event),
@@ -588,7 +618,8 @@ mod native {
                     };
                     let _ = reply.send(result);
                 }
-                let _ = backend.release_all();
+                if service { let _ = broker.request(None, None); }
+                else { let _ = backend.release_all(); }
                 desktop
             });
             match worker {
@@ -669,15 +700,16 @@ mod native {
                     .desktop_display
                     .ok_or(WindowsInputError::DeltaOutOfRange)?;
                 let (x, y) = display.native_position(position)?;
-                // Desktop positions set the system pointer directly. A successful
-                // SendInput insertion alone does not establish that the pointer
-                // moved before the next ordered button transition.
+                // SetCursorPos preserves immediate pixel placement before the next
+                // ordered button event. Also submit actual mouse motion: a cursor
+                // warp alone does not leave Windows touch/pen cursor suppression.
                 let _dpi = DpiAwarenessGuard::per_monitor_v2()?;
                 unsafe { windows_sys::Win32::Foundation::SetLastError(0); }
                 if unsafe { windows_sys::Win32::UI::WindowsAndMessaging::SetCursorPos(x, y) } == 0 {
                     eprintln!("Viewflow SetCursorPos failed: {}", std::io::Error::last_os_error());
                     return Err(WindowsInputError::SendInputFailed);
                 }
+                send(desktop_motion_input(x, y)?)?;
                 if event.sequence == 1 {
                     let mut actual = windows_sys::Win32::Foundation::POINT { x: 0, y: 0 };
                     let read = unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut actual) };
@@ -892,6 +924,28 @@ mod native {
         }
     }
 
+    fn desktop_motion_fields(
+        x: i32, y: i32, origin_x: i32, origin_y: i32, width: i32, height: i32,
+    ) -> Result<MOUSEINPUT, WindowsInputError> {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_VIRTUALDESK};
+        Ok(mouse_input_fields(
+            super::normalize_desktop_pixel(x, origin_x, width)?,
+            super::normalize_desktop_pixel(y, origin_y, height)?,
+            0,
+            MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK,
+        ))
+    }
+
+    #[allow(unsafe_code)]
+    fn desktop_motion_input(x: i32, y: i32) -> Result<INPUT, WindowsInputError> {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN};
+        // Caller holds per-monitor-v2 awareness, so these are physical pixels.
+        let motion = unsafe { desktop_motion_fields(x, y,
+            GetSystemMetrics(SM_XVIRTUALSCREEN), GetSystemMetrics(SM_YVIRTUALSCREEN),
+            GetSystemMetrics(SM_CXVIRTUALSCREEN), GetSystemMetrics(SM_CYVIRTUALSCREEN))? };
+        Ok(INPUT { r#type: INPUT_MOUSE, Anonymous: INPUT_0 { mi: motion } })
+    }
+
     fn send(input: INPUT) -> Result<(), WindowsInputError> {
         send_batch(&[input])
     }
@@ -933,6 +987,22 @@ mod native {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn desktop_motion_is_tagged_mouse_input_on_the_full_virtual_desktop() {
+            use windows_sys::Win32::UI::Input::KeyboardAndMouse::{MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_VIRTUALDESK};
+            // Two screens, including a negative origin. The resulting pixel
+            // must match SetCursorPos exactly rather than shifting by DPI scale.
+            for (x, y) in [(-1920, -200), (0, 0), (3839, 2399)] {
+                let motion = desktop_motion_fields(x, y, -1920, -200, 5760, 2600).unwrap();
+                assert_eq!(motion.dwFlags, MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK);
+                assert_eq!(motion.dwExtraInfo, VIEWFLOW_INPUT_TAG);
+                assert_eq!(motion.mouseData, 0); // No click or wheel as a side effect.
+                assert_eq!((i64::from(motion.dx) * 5760 / 65536) as i32 - 1920, x);
+                assert_eq!((i64::from(motion.dy) * 2600 / 65536) as i32 - 200, y);
+            }
+            assert!(desktop_motion_fields(3840, 0, -1920, -200, 5760, 2600).is_err());
+        }
 
         #[test]
         fn constructed_keyboard_and_mouse_inputs_have_viewflow_tag() {

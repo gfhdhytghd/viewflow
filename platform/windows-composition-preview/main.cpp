@@ -647,6 +647,13 @@ LRESULT CALLBACK proc(HWND h, UINT m, WPARAM w, LPARAM l) {
   }
   return DefWindowProcW(h, m, w, l);
 }
+struct SparseVisual {
+  viewflow::vfgp::AtlasPatch patch;
+  SpriteVisual visual{nullptr};
+  CompositionSurfaceBrush brush{nullptr};
+  SpriteVisual backdrop{nullptr};
+  CompositionMaskBrush mask{nullptr};
+};
 struct Foreground {
   com_ptr<ID3D11Device> d3d;
   com_ptr<ID2D1Device> d2d;
@@ -656,6 +663,8 @@ struct Foreground {
   CompositionDrawingSurface spare_surface{nullptr};
   CompositionSurfaceBrush spare_brush{nullptr};
   SpriteVisual visual{nullptr};
+  ContainerVisual sparse_root{nullptr};
+  std::vector<SparseVisual> sparse_visuals;
   uint32_t width{}, height{};
 };
 
@@ -787,6 +796,8 @@ void commit_gpu_surface(Foreground &result, GpuSurfaceCandidate candidate) {
   // The caller's final QPC check is immediately before this call. Make the
   // visual swap the first operation, while `candidate` still owns the new
   // surface and `result.gpu_brush` still keeps the old visible resource alive.
+  result.visual.Children().RemoveAll();
+  result.sparse_root=nullptr; result.sparse_visuals.clear();
   result.visual.Brush(candidate.brush);
   result.spare_surface = std::move(result.surface);
   result.spare_brush = std::move(result.gpu_brush);
@@ -794,6 +805,73 @@ void commit_gpu_surface(Foreground &result, GpuSurfaceCandidate candidate) {
   result.gpu_brush = std::move(candidate.brush);
   result.width = candidate.width;
   result.height = candidate.height;
+}
+
+// One shared double-buffered atlas surface backs every sparse proxy. A window
+// owns only small visual/brush descriptors; hidden regions own no pixel surface.
+struct SparseGpuCandidate {
+  CompositionDrawingSurface surface{nullptr};
+  ContainerVisual root{nullptr};
+  std::vector<SparseVisual> visuals;
+  uint32_t width{},height{};
+  bool reuse{};
+};
+SparseGpuCandidate stage_sparse_visuals(Foreground const& foreground,
+    Compositor const& compositor, CompositionDrawingSurface const& surface,
+    std::span<const viewflow::vfgp::AtlasPatch> patches, uint32_t tile_index,
+    uint32_t width,uint32_t height,CompositionBrush const& backdrop) {
+  std::vector<viewflow::vfgp::AtlasPatch> selected;
+  for(const auto& p:patches) if(p.tile_index==tile_index) selected.push_back(p);
+  SparseGpuCandidate next;
+  next.surface=surface; next.width=width; next.height=height;
+  next.reuse=foreground.sparse_root && foreground.sparse_visuals.size()==selected.size();
+  for(size_t i=0;next.reuse && i<selected.size();++i)
+    next.reuse=foreground.sparse_visuals[i].patch==selected[i];
+  if(next.reuse) return next;
+  next.root=compositor.CreateContainerVisual();
+  next.root.Size({float(width),float(height)});
+  for(const auto& p:selected) {
+    SparseVisual item;
+    item.patch=p;
+    item.brush=compositor.CreateSurfaceBrush(surface);
+    item.brush.Stretch(CompositionStretch::None);
+    item.brush.HorizontalAlignmentRatio(0.0f);
+    item.brush.VerticalAlignmentRatio(0.0f);
+    item.brush.Offset({-float(p.x),-float(p.y)});
+    item.visual=compositor.CreateSpriteVisual();
+    item.visual.Size({float(p.width),float(p.height)});
+    item.visual.Offset({float(p.source_x),float(p.source_y),0.0f});
+    item.visual.Brush(item.brush);
+    if(backdrop) {
+      item.mask=compositor.CreateMaskBrush();
+      item.mask.Source(backdrop);
+      item.mask.Mask(item.brush);
+      item.backdrop=compositor.CreateSpriteVisual();
+      item.backdrop.Size(item.visual.Size());
+      item.backdrop.Offset(item.visual.Offset());
+      item.backdrop.Brush(item.mask);
+      next.root.Children().InsertAtTop(item.backdrop);
+    }
+    next.root.Children().InsertAtTop(item.visual);
+    next.visuals.push_back(std::move(item));
+  }
+  return next;
+}
+void commit_sparse_visuals(Foreground& foreground,SparseGpuCandidate next,
+                          float target_width,float target_height) {
+  if(next.reuse) {
+    for(auto& item:foreground.sparse_visuals) item.brush.Surface(next.surface);
+  } else {
+    foreground.visual.Children().RemoveAll();
+    foreground.visual.Children().InsertAtTop(next.root);
+    foreground.sparse_root=std::move(next.root);
+    foreground.sparse_visuals=std::move(next.visuals);
+  }
+  foreground.sparse_root.Scale({target_width/float(next.width),target_height/float(next.height),1.0f});
+  foreground.visual.Brush(nullptr);
+  foreground.gpu_brush=nullptr; foreground.spare_brush=nullptr;
+  foreground.surface=nullptr; foreground.spare_surface=nullptr;
+  foreground.width=next.width; foreground.height=next.height;
 }
 
 void update_gpu(Foreground &result, Compositor const &compositor,
@@ -2377,8 +2455,10 @@ class AtlasNativePresenter {
     }
     proxy->root.Children().InsertAtTop(proxy->foreground.visual);
     proxy->target.Root(proxy->root);
-    proxy->input.resize_preview = [visual = proxy->foreground.visual, backdrop = proxy->backdrop](float w, float h) {
+    proxy->input.resize_preview = [state = &proxy->foreground, visual = proxy->foreground.visual, backdrop = proxy->backdrop](float w, float h) {
       visual.Size({w, h});
+      if(state->sparse_root && state->width && state->height)
+        state->sparse_root.Scale({w/float(state->width),h/float(state->height),1.0f});
       if (backdrop) backdrop.Size({w, h});
     };
     if (IsWindowVisible(proxy->window.value) || proxy->foreground.visual.Brush() ||
@@ -2408,7 +2488,13 @@ class AtlasNativePresenter {
       viewflow::vfgp::AtlasId window;
       GpuSurfaceCandidate surface;
       std::optional<viewflow::windows_preview::DesktopSlice> desktop_slice;
+      std::optional<SparseGpuCandidate> sparse;
     };
+    std::optional<GpuSurfaceCandidate> shared_candidate;
+    if(binding->layout.patches) {
+      if(!sparse_atlas_) sparse_atlas_=foreground_on_device(*warmup_foreground_,compositor_,float(frame.width),float(frame.height));
+      shared_candidate=stage_gpu_surface(*sparse_atlas_,compositor_,frame);
+    }
     std::vector<Candidate> candidates;
     std::set<viewflow::vfgp::AtlasId> retained;
     std::set<viewflow::vfgp::AtlasId> clipped;
@@ -2439,11 +2525,19 @@ class AtlasNativePresenter {
       }
       auto& proxy = EnsureProxy(tile.window, tile.width, tile.height, frame.frame_identity, binding->deadline);
       TraceBudget(frame.frame_identity, "proxy-ready", binding->deadline);
-      viewflow::windows::CompositedFrame view;
-      check_hresult(viewflow::windows::MakeCompositedRegion(frame,
-          {tile.x, tile.y, tile.width, tile.height}, &view));
+      if(binding->layout.patches) {
+        CompositionBrush backdrop=nullptr;
+        if(proxy.backdrop_mask) backdrop=proxy.backdrop_mask.Source();
+        auto sparse=stage_sparse_visuals(proxy.foreground,compositor_,shared_candidate->surface,
+            *binding->layout.patches,uint32_t(index),tile.width,tile.height,backdrop);
+        candidates.push_back({tile.window,{nullptr,nullptr,tile.width,tile.height},desktop_slice,std::move(sparse)});
+      } else {
+        viewflow::windows::CompositedFrame view;
+        check_hresult(viewflow::windows::MakeCompositedRegion(frame,
+            {tile.x, tile.y, tile.width, tile.height}, &view));
+        candidates.push_back({tile.window,stage_gpu_surface(proxy.foreground,compositor_,view),desktop_slice,std::nullopt});
+      }
       atlas_progress(AtlasProgress::Copy);
-      candidates.push_back({tile.window, stage_gpu_surface(proxy.foreground, compositor_, view), desktop_slice});
       TraceBudget(frame.frame_identity, "copy-ready", binding->deadline);
       ObservePresentationTarget(frame.frame_identity, frame.width, frame.height);
       if (!dispositions_) CheckDeadline(binding->deadline, "atlas-unbound-copy-complete");
@@ -2473,7 +2567,14 @@ class AtlasNativePresenter {
         CheckDeadline(binding->deadline, visual_mutated ? "atlas-partial-visual-mutation" : "atlas-before-first-visual-mutation");
       atlas_progress(AtlasProgress::Bind);
       stage = "atlas-foreground-bind";
-      commit_gpu_surface(proxy.foreground, std::move(candidate.surface));
+      if(candidate.sparse) {
+        const bool native_preview=proxy.input.wm_moving || GetTickCount64()<proxy.input.wm_pending_until;
+        commit_sparse_visuals(proxy.foreground,std::move(*candidate.sparse),
+            native_preview ? float(client.right):float(width),native_preview ? float(client.bottom):float(height));
+        if(proxy.backdrop) { proxy.backdrop.Brush(nullptr); proxy.backdrop_mask.Mask(nullptr); }
+      } else {
+        commit_gpu_surface(proxy.foreground, std::move(candidate.surface));
+      }
       visual_mutated = true;
       proxy.layout_absent = false;
       proxy.input.desktop_clipped = false;
@@ -2484,7 +2585,7 @@ class AtlasNativePresenter {
         proxy.foreground.visual.Size(preview_native_size ?
             winrt::Windows::Foundation::Numerics::float2{float(client.right), float(client.bottom)} : winrt::Windows::Foundation::Numerics::float2{float(width), float(height)});
       proxy.foreground.visual.Offset({0.0f, 0.0f, 0.0f});
-      if (proxy.backdrop) {
+      if (proxy.backdrop && !candidate.sparse) {
         CheckDeadline(binding->deadline, "atlas-partial-visual-mutation");
         stage = "atlas-backdrop-bind";
         // Reuse this exact frame's GPU brush as opacity mask: no readback,
@@ -2525,6 +2626,14 @@ class AtlasNativePresenter {
         ShowWindow(proxy.window.value, SW_SHOWNOACTIVATE);
         ++window_shows_;
       }
+    }
+    if(shared_candidate) {
+      sparse_atlas_->spare_surface=std::move(sparse_atlas_->surface);
+      sparse_atlas_->spare_brush=std::move(sparse_atlas_->gpu_brush);
+      sparse_atlas_->surface=std::move(shared_candidate->surface);
+      sparse_atlas_->gpu_brush=std::move(shared_candidate->brush);
+      sparse_atlas_->width=shared_candidate->width;
+      sparse_atlas_->height=shared_candidate->height;
     }
     for (const auto id : clipped) {
       const auto found = proxies_.find(id);
@@ -2687,6 +2796,7 @@ class AtlasNativePresenter {
   viewflow::windows_preview::AtlasDecodeIdentities decode_identities_;
   viewflow::windows_preview::WarmupAdmission warmup_{3};
   std::optional<Foreground> warmup_foreground_;
+  std::optional<Foreground> sparse_atlas_;
   bool warmup_started_{}, live_started_{};
   std::map<viewflow::vfgp::AtlasId, std::unique_ptr<Proxy>> proxies_;
   std::vector<std::unique_ptr<Proxy>> reserved_proxies_;
@@ -2892,6 +3002,8 @@ int wmain(int argc, wchar_t **argv) try {
     // V7 desktop tail explicit and strictly ordered after all old flags.
     size_t at = 2; size_t max = default_max_frame_bytes; uint32_t capacity = 0;
     bool dispositions = false, pointer = false, wheel = false, keyboard = false, recovery = false;
+    // Explicit launch capability: an older presenter rejects this before any live stream starts.
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-sparse-v1") ++at;
     if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--max-frame-bytes") {
       if (at + 1 >= size_t(argc)) bad("atlas max frame value missing");
       max = atlas_byte_limit(argv[at + 1]); at += 2;

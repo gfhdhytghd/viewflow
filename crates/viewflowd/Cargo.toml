@@ -7,6 +7,8 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+arboard = { version = "3.6.1", features = ["wayland-data-control"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
 anyhow = "1.0.104"
 bytes = "1.11.1"
 prost = "0.13"

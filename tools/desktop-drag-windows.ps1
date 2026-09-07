@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string] $Config,
     [string] $StagingRoot = 'C:\Users\wilf\Viewflow\desktop-test',
-    [string] $Binary = 'C:\Users\wilf\Viewflow\desktop-test\vf-media-peer.exe'
+    [string] $Binary = 'C:\Users\wilf\Viewflow\desktop-test\vf-media-peer.exe',
+    [switch] $LockScreenInput
 )
 
 Set-StrictMode -Version Latest
@@ -107,5 +108,10 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host 'Viewflow receiver starts now. On the Windows proxy, use Win + left-drag to request a native move.'
 Write-Host 'The configured physical viewport was found in this desktop session. This launcher does not synthesize input, copy files, or modify display settings.'
+if ($LockScreenInput) {
+    $inputService = Get-Service -Name ViewflowInput -ErrorAction Stop
+    if ($inputService.Status -ne 'Running') { throw 'ViewflowInput service must be running for lock-screen input.' }
+    $env:VIEWFLOW_WINDOWS_INPUT_SERVICE = '1'
+}
 & $resolvedBinary receive --config $resolvedConfig
 exit $LASTEXITCODE

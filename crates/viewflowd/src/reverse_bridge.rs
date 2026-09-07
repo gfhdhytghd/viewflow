@@ -1,4 +1,4 @@
-//! Windows-native window direction on the existing paired QUIC connection.
+//! Native window direction on an existing paired QUIC connection.
 //! A single ordered stream carries its atlas and input. Native children retain
 //! GPU ownership; Rust relays bounded encoded records, never raw color pixels.
 use anyhow::{Context, Result, ensure};
@@ -24,7 +24,7 @@ pub struct ReverseBridgeConfig {
 impl ReverseBridgeConfig {
     pub fn validate(&self) -> Result<()> {
         ensure!(self.native.is_absolute(), "reverse native program must be absolute");
-        ensure!(self.args.len() <= 16 && self.args.iter().all(|arg| arg.len() <= 4096 && !arg.contains('\0')),
+        ensure!(self.args.len() <= 128 && self.args.iter().all(|arg| arg.len() <= 4096 && !arg.contains('\0')),
             "invalid reverse native arguments");
         Ok(())
     }
@@ -41,6 +41,24 @@ pub(crate) type SharedNativeDrag = std::sync::Arc<tokio::sync::Mutex<Option<Nati
 
 pub(crate) struct ReverseBridge {
     stop: Option<watch::Sender<bool>>,
+    task: Option<tokio::task::JoinHandle<()>>,
+}
+
+/// Run a native window source or presenter on a dedicated paired connection.
+/// Roles are independent of the operating system and of the TLS client/server
+/// role. The source opens the media stream; the presenter accepts it.
+///
+/// The caller owns connection shutdown. Dropping this future stops the native
+/// bridge, whose EOF cleanup releases held input before process teardown.
+pub async fn run_window_bridge(
+    connection: &quinn::Connection,
+    config: &ReverseBridgeConfig,
+    source: bool,
+) -> Result<()> {
+    let bridge = ReverseBridge::start(connection, config, source, None)?;
+    connection.closed().await;
+    bridge.shutdown().await?;
+    Ok(())
 }
 
 impl Drop for ReverseBridge {
@@ -50,13 +68,18 @@ impl Drop for ReverseBridge {
 }
 
 impl ReverseBridge {
+    async fn shutdown(mut self) -> Result<()> {
+        if let Some(stop) = self.stop.take() { let _ = stop.send(true); }
+        if let Some(task) = self.task.take() { task.await.context("window bridge cleanup task")?; }
+        Ok(())
+    }
     pub(crate) fn start(connection: &quinn::Connection, config: &ReverseBridgeConfig, windows_source: bool, drag: Option<SharedNativeDrag>) -> Result<Self> {
         config.validate()?;
         ensure!(connection.peer_identity().is_some(), "reverse bridge needs a paired connection");
         let connection = connection.clone();
         let config = config.clone();
         let (stop, mut stopped) = watch::channel(false);
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             loop {
                 if *stopped.borrow() || connection.close_reason().is_some() { break; }
                 if let Err(error) = run(&connection, &config, windows_source, &mut stopped, drag.as_ref()).await {
@@ -70,7 +93,7 @@ impl ReverseBridge {
                 }
             }
         });
-        Ok(Self { stop: Some(stop) })
+        Ok(Self { stop: Some(stop), task: Some(task) })
     }
 }
 
@@ -94,7 +117,7 @@ async fn run(connection: &quinn::Connection, config: &ReverseBridgeConfig, windo
     let mut child = command.spawn().context("start native reverse window backend")?;
     let mut input = child.stdin.take().context("reverse child stdin")?;
     let mut output = child.stdout.take().context("reverse child stdout")?;
-    eprintln!("reverse-window-bridge ready direction=windows-to-linux paired_connection=true");
+    eprintln!("reverse-window-bridge ready native_role={} paired_connection=true", if windows_source { "source" } else { "presenter" });
     let outgoing_type = if windows_source { 1 } else { 2 };
     let incoming_type = if windows_source { 2 } else { 1 };
     let child_pid = child.id().context("reverse child PID missing")?;

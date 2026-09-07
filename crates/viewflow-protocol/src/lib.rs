@@ -5,7 +5,7 @@ use std::fmt;
 mod application_icon;
 pub use application_icon::ApplicationIcon;
 mod atlas;
-pub use atlas::{AtlasFrame, AtlasTile};
+pub use atlas::{AtlasFrame, AtlasPatch, AtlasTile};
 mod desktop;
 pub use desktop::{
     AtlasDesktopLayout, AtlasWindowPlacement, DesktopRect, DesktopWindowMove, DesktopWindowMoveAck,

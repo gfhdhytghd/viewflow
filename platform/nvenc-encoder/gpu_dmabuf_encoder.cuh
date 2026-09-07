@@ -1,4 +1,5 @@
 #pragma once
+#include "sparse_atlas_plan.hpp"
 
 #include "gpu_shadow_math.cuh"
 #include <cstdint>
@@ -25,11 +26,27 @@ struct DmabufFrame {
   FrameMetadata metadata{};
   std::optional<ShadowSnapshot> shadow;
 };
+struct SparseSource {
+  int64_t x{}, y{};
+  uint32_t z{}, grid{};
+  uint32_t clipEnabled{}, clipX{}, clipY{}, clipWidth{}, clipHeight{};
+};
+struct SparseOptions {
+  bool prerender = false;
+  uint32_t maxWidth{}, maxHeight{};
+  std::vector<SparseSource> sources;
+};
+struct SparseResult {
+  std::vector<SparsePatch> patches;
+  uint32_t requiredWidth{}, requiredHeight{};
+  uint64_t inputPixels{}, storedPixels{}, occludedPixels{}, emptyPixels{}, omittedPixels{};
+};
 struct EncodedDmabufFrame {
   std::vector<unsigned char> colorAnnexB;
   std::vector<unsigned char> rawAlpha;
   FrameMetadata metadata{};
   bool idr = false;
+  std::optional<SparseResult> sparse;
 };
 struct DmabufAtlasTile {
   DmabufFrame frame;
@@ -50,6 +67,7 @@ enum class EncodeDisposition {
   ExpiredBeforeSubmission,
   // Matching NVENC packet drained and all imports cleaned; next frame needs IDR.
   ExpiredAfterSubmission,
+  NeedsCanvas,
 };
 
 // Construction, encode(), and destruction must all occur on one worker thread.
@@ -82,7 +100,8 @@ public:
   bool encodeAtlas(const std::vector<DmabufAtlasTile> &, FrameMetadata atlasMetadata,
                    bool forceIdr, std::int64_t absoluteMonotonicDeadlineNs,
                    EncodedDmabufFrame &, std::string *error = nullptr,
-                   EncodeDisposition *disposition = nullptr);
+                   EncodeDisposition *disposition = nullptr,
+                   const SparseOptions *sparse = nullptr);
 
 private:
   struct Impl;

@@ -21,6 +21,9 @@ pub(crate) struct CursorConfig {
     pub drag: SharedDragTransfer,
     pub reverse_drag: crate::reverse_bridge::SharedNativeDrag,
     pub remote_scale: f64,
+    pub position_offset: (f64, f64),
+    pub position_scale: (f64, f64),
+    pub ready_file: Option<std::path::PathBuf>,
     pub local: Vec<DesktopRect>,
     pub remote: DesktopRect,
     pub monitor_id: i64,
@@ -28,6 +31,12 @@ pub(crate) struct CursorConfig {
     pub owner: Id128,
     pub target: Id128,
     pub fps: u32,
+}
+impl CursorConfig {
+    fn position(&self, x: f64, y: f64) -> Result<InputEventKind> {
+        position((x + self.position_offset.0) * self.position_scale.0,
+                 (y + self.position_offset.1) * self.position_scale.1)
+    }
 }
 #[derive(Default)]
 struct NativeCaptureQueue {
@@ -70,6 +79,13 @@ impl NativeCaptureQueue {
         }
     }
 }
+
+#[derive(Debug)]
+struct NativeCaptureRejected;
+impl std::fmt::Display for NativeCaptureRejected {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("native capture command rejected") }
+}
+impl std::error::Error for NativeCaptureRejected {}
 
 struct NativeRequest {
     deadline: tokio::time::Instant,
@@ -132,9 +148,6 @@ impl CursorBridge {
     }
     pub(crate) fn pending_release_generation(&self) -> Option<u64> {
         self.pending.as_ref().and_then(|request| {
-            if tokio::time::Instant::now() >= request.deadline {
-                return None;
-            }
             match request.command {
                 CaptureCommand::Release { generation, .. } => Some(generation),
                 _ => None,
@@ -199,10 +212,13 @@ impl CursorBridge {
             .take()
             .context("unsolicited cursor capture receipt")?;
         // The native Connection validates generation and command against its pending record.
-        let result = if receipt.applied && tokio::time::Instant::now() < request.deadline {
+        if tokio::time::Instant::now() > request.deadline {
+            eprintln!("cursor native receipt delayed; applied={}", receipt.applied);
+        }
+        let result = if receipt.applied {
             Ok(())
         } else {
-            Err(anyhow::anyhow!("native capture command rejected"))
+            Err(NativeCaptureRejected.into())
         };
         let _ = request.reply.send(result);
         // Deliver a negative receipt to the handoff worker so it can revoke
@@ -223,10 +239,6 @@ impl CursorBridge {
         if self.pending.is_none() {
             match self.commands.try_recv() {
                 Ok(request) => {
-                    ensure!(
-                        tokio::time::Instant::now() < request.deadline,
-                        "cursor native command expired before send"
-                    );
                     connection.send_capture(request.command)?;
                     self.pending = Some(request);
                 }
@@ -243,16 +255,13 @@ async fn native(
     deadline: tokio::time::Instant,
 ) -> Result<()> {
     let (reply, result) = oneshot::channel();
-    tokio::time::timeout_at(
-        deadline,
-        commands.send(NativeRequest {
-            command,
-            reply,
-            deadline,
-        }),
-    )
-    .await??;
-    tokio::time::timeout_at(deadline, result).await???;
+    commands.send(NativeRequest { command, reply, deadline }).await?;
+    // Once queued, finish the native operation; a late receipt still describes
+    // the actual capture state and must not be replaced by a guessed rollback.
+    result.await??;
+    if tokio::time::Instant::now() > deadline {
+        eprintln!("cursor native operation delayed; receipt confirmed");
+    }
     Ok(())
 }
 fn contains(rect: DesktopRect, x: f64, y: f64) -> bool {
@@ -355,6 +364,9 @@ async fn run(
         "atlas-cursor-handoff phase=configured topology_generation={} local_displays={:?}",
         config.topology_generation, config.local
     );
+    if let Some(path) = &config.ready_file {
+        std::fs::write(path, format!("{}\n", std::process::id()))?;
+    }
     let mut generation = 0u64;
     let mut active = false;
     let mut x = 0.;
@@ -475,7 +487,7 @@ async fn run(
             active = true;
             sequence = 0;
             native_sequence = None;
-            position(x, y)?
+            config.position(x, y)?
         } else {
             // Late capture packets from a successfully revoked lease cannot create another lease.
             if !active {
@@ -502,7 +514,7 @@ async fn run(
                         (x, y),
                         (double(bytes, 36)?, double(bytes, 44)?),
                     );
-                    position(x, y)?
+                    config.position(x, y)?
                 }
                 32 => {
                     ensure!(bytes.len() == 41, "invalid button packet");
@@ -588,10 +600,8 @@ async fn run(
         if config.local.iter().any(|local| contains(*local, x, y)) || matches!(event, InputEventKind::ReleaseAll) {
             let drag_target = if config.local.iter().any(|local| contains(*local, x, y)) && tag == 31 {
                 transfer.as_mut().filter(|drag| !drag.handed_off && !drag.resizing && drag.move_confirmed).map(|drag| {
-                    drag.handed_off = true;
                     drag.target
                 }).or_else(|| reverse_drag.as_mut().filter(|drag| !drag.handed_off).map(|drag| {
-                    drag.handed_off = true;
                     viewflow_hyprland::capture_wire::DragTarget { pid: drag.pid, address: drag.address, surface: 0, reverse_id: drag.id }
                 }))
             } else { None };
@@ -599,7 +609,7 @@ async fn run(
             generation = generation
                 .checked_add(1)
                 .context("cursor lease exhausted")?;
-            crate::send_lease_revoke_confirmed_until(
+            crate::send_desktop_revoke_confirmed(
                 &writer.outbound(),
                 viewflow_protocol::InputLeaseRevoke {
                     operation_id: Id128(u128::from(generation)),
@@ -612,7 +622,7 @@ async fn run(
             )
             .await
             .map_err(|e| anyhow::anyhow!("cursor revoke: {e:?}"))?;
-            native(
+            let returned = native(
                 &commands,
                 CaptureCommand::Release {
                     generation: native_generation,
@@ -625,7 +635,15 @@ async fn run(
                 },
                 deadline,
             )
-            .await?;
+            .await;
+            if let Err(error) = returned {
+                eprintln!("atlas-cursor-handoff return rejected: {error:#}; releasing locally without drag");
+                if !error.is::<NativeCaptureRejected>() { return Err(error); }
+                release_capture_locally(&commands, native_generation, budget).await?;
+            } else if let Some(target) = drag_target {
+                if let Some(drag) = transfer.as_mut().filter(|drag| drag.target == target) { drag.handed_off = true; }
+                if let Some(drag) = reverse_drag.as_mut().filter(|drag| drag.id == target.reverse_id) { drag.handed_off = true; }
+            }
             eprintln!(
                 "atlas-cursor-handoff phase=return-complete generation={generation} x={x} y={y}"
             );
@@ -645,7 +663,7 @@ async fn run(
                 - 0.001,
         );
         let event = if matches!(event, InputEventKind::DesktopPointerPosition(_)) {
-            position(x, y)?
+            config.position(x, y)?
         } else {
             event
         };
@@ -660,7 +678,7 @@ async fn run(
                 sender_not_after_ns: sender_event_expiry(
                     u64::try_from(received.duration_since(origin).as_nanos())?,
                     crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS)?,
-                event: position(x, y)?,
+                event: config.position(x, y)?,
             };
             writer.send(crate::input_runtime::input_event_payload(positioned), deadline).await?;
         }
@@ -697,6 +715,23 @@ fn revoked_capture_tail(active: bool, tag: u16) -> bool {
     !active && (31..=37).contains(&tag)
 }
 
+async fn release_capture_locally(
+    commands: &mpsc::Sender<NativeRequest>, generation: u64, budget: Duration,
+) -> Result<()> {
+    loop {
+        match native(commands, CaptureCommand::Release {
+            generation, drag_target: None, return_position: None,
+        }, tokio::time::Instant::now() + budget).await {
+            Ok(()) => return Ok(()),
+            Err(error) if error.is::<NativeCaptureRejected>() => {
+                eprintln!("cursor local release rejected; retaining session and retrying cleanup");
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
 async fn rollback_capture(
     config: &CursorConfig,
     writer: &crate::shared_control::SharedControlSender,
@@ -709,10 +744,10 @@ async fn rollback_capture(
     let revoked_generation = generation
         .checked_add(1)
         .context("cursor lease exhausted")?;
-    // This deadline belongs only to revocation/release, never to the failed
-    // event. Unknown receiver cleanup or native release remains connection-fatal.
+    // Track cleanup latency independently from the triggering event. A delayed
+    // receipt retains the route; only actual transport/owner loss is fatal.
     let cleanup_deadline = tokio::time::Instant::now() + budget;
-    crate::send_lease_revoke_confirmed_until(
+    crate::send_desktop_revoke_confirmed(
         &writer.outbound(),
         viewflow_protocol::InputLeaseRevoke {
             operation_id: Id128(u128::from(revoked_generation)),
@@ -725,17 +760,8 @@ async fn rollback_capture(
     )
     .await
     .map_err(|error| anyhow::anyhow!("cursor rollback receiver cleanup: {error:?}"))?;
-    native(
-        commands,
-        CaptureCommand::Release {
-            generation,
-            drag_target: None,
-                return_position: None,
-        },
-        cleanup_deadline,
-    )
-    .await
-    .context("cursor rollback native release")?;
+    release_capture_locally(commands, generation, budget).await
+        .context("cursor rollback native release")?;
     eprintln!(
         "atlas-cursor-handoff phase=rollback-complete generation={revoked_generation} requires=fresh-physical-edge"
     );
@@ -991,7 +1017,7 @@ mod tests {
         let native = tokio::spawn(async move { while let Some(request) = requests.recv().await { let _ = request.reply.send(Ok(())); } });
         let queue = Arc::new(NativeCaptureQueue::default());
         let worker = tokio::spawn(run(CursorConfig {
-            drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0,
+            drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (-100.0, 0.0), position_scale: (1.0, 0.9), ready_file: None,
             local: vec![rect(0, 0)], remote: rect(100_000, 0), monitor_id: 1,
             topology_generation: 1, owner: Id128(1), target: Id128(2), fps: 60,
         }, writer, origin, queue.clone(), commands, clock));
@@ -1028,7 +1054,8 @@ mod tests {
                 let event = events_seen.recv().await.unwrap();
                 if matches!(event.event, InputEventKind::PointerButton(_)) {
                     let InputEventKind::DesktopPointerPosition(position) = previous.unwrap() else { panic!("click lacks position barrier") };
-                    assert_eq!(position.x_millidip, 120_000);
+                    assert_eq!(position.x_millidip, 20_000);
+                    assert_eq!(position.y_millidip, 45_000);
                     break;
                 }
                 previous = Some(event.event);
@@ -1173,7 +1200,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn expired_ack_rolls_back_only_after_receiver_and_native_cleanup_and_keeps_connection() {
+    async fn delayed_cleanup_retains_connection_until_receipt_or_actual_failure() {
         use viewflow_protocol::{DomainControl, InputLeaseRevokedAck, InputLeaseRevokedResult};
         use viewflow_transport::{ControlSequencer, receive_control_sequenced};
         for failure in [None, Some("receiver"), Some("native")] {
@@ -1203,7 +1230,7 @@ mod tests {
             ));
             let (commands, mut native_requests) = mpsc::channel(4);
             let config = CursorConfig {
-                drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0,
+                drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (0.0, 0.0), position_scale: (1.0, 1.0), ready_file: None,
                 local: vec![rect(0, 0)],
                 remote: rect(100_000, 0),
                 monitor_id: 1,
@@ -1244,6 +1271,11 @@ mod tests {
                 native_requests.try_recv().is_err(),
                 "native release must wait for receiver cleanup ACK"
             );
+            tokio::time::sleep(Duration::from_millis(220)).await;
+            assert!(!work.is_finished(), "elapsed cleanup target must not retire the session");
+            if failure == Some("receiver") {
+                outbound.lease_revoke_acks.disconnect("fixture peer disconnected");
+            }
             if failure != Some("receiver") {
                 assert_eq!(
                     outbound.lease_revoke_acks.resolve(InputLeaseRevokedAck {
@@ -1445,7 +1477,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn expired_native_capture_receipt_cannot_confirm_activation() {
+    async fn rejected_local_release_retries_without_replaying_drag_or_input() {
+        let (commands, mut requests) = mpsc::channel(4);
+        let work = tokio::spawn(async move {
+            release_capture_locally(&commands, 2, Duration::from_millis(1)).await
+        });
+        for reject in [true, false] {
+            let request = requests.recv().await.unwrap();
+            assert_eq!(request.command, CaptureCommand::Release {
+                generation: 2, drag_target: None, return_position: None,
+            });
+            tokio::time::sleep(Duration::from_millis(5)).await;
+            assert!(!work.is_finished());
+            request.reply.send(if reject { Err(NativeCaptureRejected.into()) } else { Ok(()) }).unwrap();
+        }
+        work.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn delayed_native_capture_receipt_confirms_actual_activation() {
         let mut bridge = CursorBridge::fixture();
         let (reply, receive) = oneshot::channel();
         bridge.pending = Some(NativeRequest {
@@ -1466,7 +1516,7 @@ mod tests {
                 })
                 .is_ok()
         );
-        assert!(receive.await.unwrap().is_err());
+        assert!(receive.await.unwrap().is_ok());
     }
 
     #[tokio::test]

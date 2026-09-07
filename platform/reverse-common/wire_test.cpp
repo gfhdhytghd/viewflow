@@ -10,9 +10,9 @@ int main() {
     std::fill(alpha.begin(),alpha.end(),173);auto compressed=vf::encode_alpha(alpha);assert(compressed.size()<alpha.size());assert(vf::decode_alpha(compressed,alpha.size())==alpha);
     vf::Frame frame;frame.width=64;frame.height=64;frame.pts=123;frame.keyframe=true;
     frame.alpha=compressed;frame.color={0,0,0,1,0x26};frame.tiles.push_back({42,0,-6144,-780,64,64,0,0,"Example"});
-    frame.tiles[0].flags=1;frame.tiles[0].geometry_ack=987;
+    frame.tiles[0].flags=3;frame.tiles[0].geometry_ack=987;
     auto bytes=vf::pack_frame(frame);auto decoded=vf::unpack_frame(bytes);
-    assert(decoded.tiles.size()==1 && decoded.tiles[0].id==42 && decoded.tiles[0].x==-6144 && decoded.tiles[0].flags==1 && decoded.tiles[0].geometry_ack==987 && decoded.color==frame.color);
+    assert(decoded.tiles.size()==1 && decoded.tiles[0].id==42 && decoded.tiles[0].x==-6144 && decoded.tiles[0].flags==3 && decoded.tiles[0].geometry_ack==987 && decoded.color==frame.color);
     for(std::size_t size=0;size<bytes.size();++size)rejected([&]{vf::unpack_frame(std::span(bytes).first(size));});
     auto trailing=bytes;trailing.push_back(0);rejected([&]{vf::unpack_frame(trailing);});
     frame.tiles.push_back(frame.tiles[0]);rejected([&]{vf::pack_frame(frame);});frame.tiles.pop_back();

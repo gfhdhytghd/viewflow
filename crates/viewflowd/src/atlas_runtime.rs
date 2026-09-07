@@ -101,8 +101,8 @@ impl AtlasReceiver {
         if manifest.stream_id != self.policy.stream_id
             || manifest.geometry_epoch != self.policy.geometry_epoch
             || manifest.config_generation != self.policy.config_generation
-            || manifest.width != self.policy.width
-            || manifest.height != self.policy.height
+            || manifest.width > self.policy.width
+            || manifest.height > self.policy.height
             || manifest.tiles.len() > self.policy.max_tiles
         {
             return Err(AtlasAdmissionError::WrongStream);
@@ -227,7 +227,8 @@ fn same_tile(a: &AtlasTile, b: &AtlasTile) -> bool {
 }
 
 fn same_layout(a: &AtlasFrame, b: &AtlasFrame) -> bool {
-    a.layout_revision == b.layout_revision
+    a.patches == b.patches
+        && a.layout_revision == b.layout_revision
         && a.width == b.width
         && a.height == b.height
         && a.tiles.len() == b.tiles.len()
@@ -285,6 +286,7 @@ mod tests {
     }
     fn layout(frame_id: u64) -> AtlasFrame {
         AtlasFrame {
+            patches: None,
             color_keyframe: true,
             alpha_keyframe: true,
             desktop: None,

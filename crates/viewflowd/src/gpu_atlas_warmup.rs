@@ -23,11 +23,20 @@ pub struct GpuAtlasWarmup {
     plan: AtlasSessionPlan,
     layout: AtlasSnapshot,
     captured_layout: Option<StableAtlas>,
+    occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
     next_frame: u64,
     stopping: bool,
 }
 
 impl GpuAtlasWarmup {
+    pub(crate) fn set_occlusion(&mut self, mode: crate::atlas_occlusion::AtlasOcclusionMode) {
+        self.occlusion = if self.plan.policy.width >= 128 && self.plan.policy.height >= 128 {
+            mode
+        } else {
+            crate::atlas_occlusion::AtlasOcclusionMode::Off
+        };
+    }
+
     /// Collect exactly three startup pictures under one original deadline and
     /// stop all producers before returning payloads for network negotiation.
     /// # Errors
@@ -130,6 +139,10 @@ impl GpuAtlasWarmup {
         // Initial admission after decode-only startup still requires an IDR.
         // All source sequence/timestamp floors and GPU caches remain intact.
         encoder.request_keyframe();
+        encoder.set_occlusion(
+            self.occlusion,
+            (self.plan.policy.width, self.plan.policy.height),
+        );
         let tightened = pool.tighten_age(self.plan.policy.max_age_ns.min(200_000_000));
         crate::gpu_atlas_session::GpuAtlasSession::from_parts_with_capacity(
             tightened.map(|()| pool),
@@ -186,6 +199,7 @@ impl GpuAtlasWarmup {
                 plan,
                 layout,
                 captured_layout: None,
+                occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Off,
                 next_frame: 1,
                 stopping: false,
             }),
@@ -225,28 +239,53 @@ impl GpuAtlasWarmup {
         for lease in &leases {
             lease.receiver.validate_outstanding(&lease.frame)?;
         }
-        let sources: Vec<_> = leases
+        let sparse = self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off;
+        let sources: Vec<_> = if sparse {
+            vec![]
+        } else {
+            leases
+                .iter()
+                .map(|s| AtlasSource {
+                    window: s.window,
+                    frame: &s.frame,
+                    deadline_monotonic_ns: s.deadline_monotonic_ns,
+                })
+                .collect()
+        };
+        let captures: Vec<_> = leases
             .iter()
-            .map(|s| AtlasSource {
-                window: s.window,
-                frame: &s.frame,
-                deadline_monotonic_ns: s.deadline_monotonic_ns,
+            .map(|s| {
+                let f = s.frame.metadata();
+                (s.window, f.geometry_epoch, f.crop_width, f.crop_height)
             })
             .collect();
-        let captured_layout = reconcile_warmup_layout(
-            self.captured_layout.as_ref(),
-            &self.layout,
-            leases.iter().map(|lease| {
-                let frame = lease.frame.metadata();
-                (
-                    lease.window,
-                    frame.geometry_epoch,
-                    frame.crop_width,
-                    frame.crop_height,
-                )
-            }),
-        )?;
-        let snapshot = captured_layout.snapshot();
+        let (captured_layout, source_layout, snapshot) = if sparse {
+            let (mut virtual_layout, paused) = crate::atlas_growth::stage_sparse_capture_layout(
+                &self.layout,
+                captures,
+                (self.plan.policy.width, self.plan.policy.height),
+            )?;
+            ensure!(
+                paused.is_empty(),
+                "startup source exceeds negotiated dimensions"
+            );
+            virtual_layout.width = self.layout.width;
+            virtual_layout.height = self.layout.height;
+            // No window pixels are needed for a decode-only codec warmup. The
+            // real captures still establish geometry and are returned below.
+            let empty = AtlasSnapshot {
+                revision: 0,
+                width: self.layout.width,
+                height: self.layout.height,
+                placements: vec![],
+            };
+            (None, virtual_layout, empty)
+        } else {
+            let captured =
+                reconcile_warmup_layout(self.captured_layout.as_ref(), &self.layout, captures)?;
+            let snapshot = captured.snapshot();
+            (Some(captured), snapshot.clone(), snapshot)
+        };
         // Each retained startup picture is independently decodable, including
         // after discarded expiry attempts. Live handoff retains this encoder.
         encoder.request_keyframe();
@@ -272,6 +311,9 @@ impl GpuAtlasWarmup {
         }
         let frame = match outcome {
             AtlasSubmitOutcome::ExpiredClean => None,
+            AtlasSubmitOutcome::NeedsCanvas { .. } => {
+                anyhow::bail!("sparse mode must begin after warmup")
+            }
             AtlasSubmitOutcome::Encoded { mut media, .. } => {
                 ensure!(media.len() == 1, "warmup requires exactly one plane pair");
                 let descriptors = encoder.descriptors().context("warmup descriptors absent")?;
@@ -290,8 +332,8 @@ impl GpuAtlasWarmup {
                     "warmup encoded byte limit"
                 );
                 Some(AtlasWarmupFrame {
-                    width: self.plan.policy.width,
-                    height: self.plan.policy.height,
+                    width: self.plan.color.coded_width,
+                    height: self.plan.color.coded_height,
                     color: media.color.payload,
                     alpha: media.alpha.payload,
                 })
@@ -302,8 +344,8 @@ impl GpuAtlasWarmup {
             .next_frame
             .checked_add(1)
             .context("warmup sequence exhausted")?;
-        self.layout = snapshot;
-        self.captured_layout = Some(captured_layout);
+        self.layout = source_layout;
+        self.captured_layout = captured_layout;
         self.active = Some((pool, encoder));
         Ok(frame)
     }
@@ -359,10 +401,21 @@ mod tests {
     use viewflow_protocol::Id128;
     #[test]
     fn empty_startup_layout_reconciles_without_inventing_a_window() {
-        let empty = AtlasSnapshot { revision: 0, width: 64, height: 64, placements: vec![] };
+        let empty = AtlasSnapshot {
+            revision: 0,
+            width: 64,
+            height: 64,
+            placements: vec![],
+        };
         let first = reconcile_warmup_layout(None, &empty, []).unwrap();
         assert!(first.snapshot().placements.is_empty());
-        assert!(reconcile_warmup_layout(Some(&first), &empty, []).unwrap().snapshot().placements.is_empty());
+        assert!(
+            reconcile_warmup_layout(Some(&first), &empty, [])
+                .unwrap()
+                .snapshot()
+                .placements
+                .is_empty()
+        );
     }
 
     #[test]

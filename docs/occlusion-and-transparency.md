@@ -1,74 +1,86 @@
-# Occlusion, transparency, and bounded atlas storage
+# Occlusion, viewport clipping, and transparent precomposition
 
-Status: design, not implemented. Current forward and reverse senders pack whole
-window rectangles. The forward sender pauses publications that cannot fit; it
-does not yet reclaim the pixels hidden by other windows. Clearing those pixels
-would reduce encoded bytes but would not reclaim atlas allocations.
+Implemented for the Hyprland-to-Windows forward atlas. The reverse pipeline
+uses a different wire format and does not yet use this patch representation.
 
-## Required representation
+The source JSON accepts `"occlusion": "opaque"` (default), `"prerender"`, or
+`"off"`. The paired launcher exposes the same setting as
+`--occlusion opaque|prerender|off`. Both the Rust receiver and the Windows native
+presenter must support sparse patches; capability checks reject older peers
+before publication.
 
-Keep full native window geometry, stacking, input regions, and window lifetime
-separate from a list of visible image patches. A patch carries source window ID,
-capture revision, source pixel rectangle, atlas rectangle, and effective alpha.
-The receiver reconstructs each native proxy from patches referencing shared GPU
-storage. Merely adding patch metadata while retaining full per-window backing
-textures would leave a second source of memory pressure unresolved.
+## What occupies the atlas
 
-Use a physical-pixel grid (initially 128 by 128, with smaller boundary patches)
-for visibility decisions and allocation. Pack only needed patches. Keep padded
-NV12 chroma boundaries outside each patch's exact content and alpha bounds.
-Compute visibility on the GPU and return compact tile occupancy decisions to
-the CPU, rather than downloading every window's color or alpha image for a
-CPU scan.
+Window geometry, stacking, input ownership, and lifetime are separate from
+resident pixel patches. Sources are split on a shared physical 128-pixel grid,
+with exact smaller patches at window and viewport boundaries. GPU alpha
+classification examines the prepared RGBA pixels, including repaired shadows;
+only compact cell summaries return to the CPU. No color image is downloaded
+for visibility decisions.
 
-## Transparency rules
+Fully transparent cells consume no atlas slots. In `opaque` mode, a front cell
+removes a lower cell only when its alpha is exactly opaque and it completely
+covers that lower cell. Partial coverage, unknown stacking, different capture
+scales, and fractional grid placement conservatively retain independent
+layers. Native style flags are not evidence of opacity.
 
-Walk effective source stacking from front to back. A pixel of an upper layer
-can eliminate a lower layer only when its effective alpha is exactly opaque.
-Effective alpha includes window opacity, decorations, corner masks, and
-animation opacity, not merely the application's buffer alpha.
+The configured remote desktop viewport clips residency in source coordinates.
+After scrolling a layout, a completely off-viewport window retains its metadata
+but has no resident patches. A partially visible window keeps only its visible
+source pixels; fractional pixel boundaries round outward. Returning into view
+restores patches in the next completed frame. This also applies when stacking
+is unknown. Ordinary viewport departure does not mean the window was closed.
 
-A partially transparent pixel keeps the lower pixels that contribute to its
-composition. Fully transparent source pixels do not need their own color data.
-Background blur additionally retains the required sampling halo. Do not infer
-opaque coverage solely from a window's rectangle or native style flags.
+Windows proxies display cropped sprites referencing shared atlas surfaces.
+They do not allocate a full texture for each window. The atlas uses two shared
+composition surfaces so new pixels can be staged before changing bindings.
 
-Do not flatten every remote window into one desktop screenshot: local windows
-must be able to interleave with native remote proxies. Flattening is valid only
-for a known contiguous stacking group with no independently composited local
-layer between its members.
+## Transparency option
 
-## Reveal and repair
+`opaque` preserves independent transparent layers and retains a 256-capture-pixel
+underlay halo near mixed-alpha cells for receiver backdrop blur. This halo is
+conservative at ordinary matching scales, not a proof for arbitrary blur and
+cross-display scaling combinations.
 
-Visibility changes and their patch set use one scene revision. Resizing,
-reordering, moving, and alpha changes invalidate the affected coverage region.
-Newly exposed pixels receive priority over ordinary interior damage. Publish a
-new patch mapping only when its associated pixels are resident; retain the
-previous valid patch set while its replacement arrives. A cached hidden patch
-may be displayed briefly during repair, but must not be mislabeled as newly
-captured content. Input still uses the correct native window and geometry.
+`prerender` additionally composites visible remote layers bottom-to-top when
+they have exactly the same cell footprint, and sends the resulting patch on
+the top window. Different boundary footprints remain independent. This saves
+space under transparent overlaps, at the cost of independent local-window
+interleaving and potentially different backdrop-blur results. Movement can
+briefly display the previous composition while the next frame arrives. Remaining
+alpha still participates in native composition. Use `opaque` when independent
+composition is more important than these additional savings.
 
-## Resource accounting
+Patch mapping changes require a new scene revision and paired color/alpha
+keyframes. A receiver never retags old atlas pixels with a new patch mapping.
+Hidden and revealed patch sets are committed with their completed frame.
 
-Budget capture buffers, encoder inputs, encoded records, decoder surfaces,
-patch caches, and proxy backings independently. Opaque coverage bounds the
-visible image area approximately by the receiving desktop area. Many full-screen
-translucent layers can still require multiple desktop areas; no occlusion
-algorithm removes that worst case while preserving independent composition.
-Use a fixed resident patch budget, evict hidden patches first, prioritize exposed
-patches, and schedule bounded atlas pages when required. Resource pressure must
-not terminate unrelated proxies or the paired connection.
+## Capacity and limits
 
-## Acceptance evidence
+Sparse startup warms the codec with an empty canvas rather than allocating the
+sum of enrolled window rectangles. Live growth accounts for the largest source
+preparation dimensions and required patch slots, up to the negotiated canvas
+limit. If slots are exhausted at that limit, topmost visible patches take
+priority; other patches are omitted while window metadata and input remain.
+A single capture exceeding the maximum supported dimensions is still withheld.
+The canvas does not automatically shrink after pixels become hidden.
 
-- Overlap two opaque windows: resident transmitted area approaches their visible
-  union, while both retain native geometry and can be raised independently.
-- Repeat with per-pixel alpha, global opacity, rounded corners, shadows, and blur:
-  compare composition with the local source and ensure required underlay remains.
-- Reveal moving and changing hidden content: no absent backing texture, black
-  rectangle, or stale patch mapping may be exposed.
-- Resize, reorder, close, and reconnect under a deliberately small memory budget:
-  allocations remain bounded and the session recovers without returning whole
-  windows to another screen.
-- Report capture-to-display latency and sustained visible-frame rate on real
-  moving content; empty-desktop or repeated cached frames do not prove 60 FPS.
+These savings apply to atlas residency and receiver window backings. Source
+capture and RGBA preparation still use full window buffers. Grid padding,
+transparent layers, blur underlay, codec surfaces, and double buffering also
+consume resources. This is not an unlimited-window or fixed-frame-rate claim.
+
+## Verification
+
+Hardware checks on 2026-09-07 used owned textures, without desktop input:
+
+- GPU alpha classification, opaque rejection, transparent source-over,
+  reveal/clear behavior, and grow/retry ownership passed.
+- The two-layer 256x256 fixture occupied 131,072 pixels in `opaque` mode and
+  65,536 pixels in `prerender` mode. Both modes passed fully off-screen,
+  partially visible, and fully restored residency checks on the same encoder.
+- Windows composition pixel readback verified source crop coordinates, colors,
+  removal without stale pixels, and zero per-window full-size surface backings.
+- Protocol and parser tests cover sparse patch validation and fragmented input.
+
+These checks establish the tested behavior, not 8K full-motion throughput.

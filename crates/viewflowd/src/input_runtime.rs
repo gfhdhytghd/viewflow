@@ -56,6 +56,8 @@ pub(crate) struct ClockSnapshot {
 use viewflow_platform::windows_input::WindowsInputBackend;
 #[cfg(any(windows, test))]
 use viewflow_platform::windows_input::WindowsInputError;
+#[cfg(target_os = "macos")]
+use viewflow_platform::macos_input::{MacOsInputBackend, MacOsInputError};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum InputBackendMode {
@@ -77,8 +79,8 @@ impl FromStr for InputBackendMode {
 }
 
 pub(crate) fn ensure_backend_available(mode: InputBackendMode) -> Result<()> {
-    if mode == InputBackendMode::Native && !cfg!(windows) {
-        bail!("native input injection is only available on Windows");
+    if mode == InputBackendMode::Native && !cfg!(any(windows, target_os = "macos")) {
+        bail!("native input injection is only available on Windows and macOS");
     }
     Ok(())
 }
@@ -88,6 +90,8 @@ enum InputBackend {
     Disabled,
     #[cfg(windows)]
     Native(WindowsInputBackend),
+    #[cfg(target_os = "macos")]
+    MacOs(MacOsInputBackend),
 }
 
 impl InputBackend {
@@ -96,19 +100,30 @@ impl InputBackend {
             InputBackendMode::Disabled => Ok(Self::Disabled),
             #[cfg(windows)]
             InputBackendMode::Native => Ok(Self::Native(WindowsInputBackend::new())),
-            #[cfg(not(windows))]
+            #[cfg(target_os = "macos")]
+            InputBackendMode::Native => Ok(Self::MacOs(MacOsInputBackend::new())),
+            #[cfg(not(any(windows, target_os = "macos")))]
             InputBackendMode::Native => {
-                bail!("native input injection is only available on Windows")
+                bail!("native input injection is only available on Windows and macOS")
             }
         }
     }
 
     #[allow(clippy::unnecessary_wraps)]
     fn apply(&mut self, event: &InputEvent) -> std::result::Result<(), InputApplyError> {
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let _ = event;
         match self {
             Self::Disabled => Ok(()),
+            #[cfg(target_os = "macos")]
+            Self::MacOs(backend) => backend.apply(event).map_err(|error| {
+                eprintln!("macos-input-rejected {} reason={error}", input_event_diagnostic(event));
+                match error {
+                    MacOsInputError::UnsupportedHidUsage | MacOsInputError::UnsupportedInput => InputApplyError::UnsupportedInput,
+                    MacOsInputError::InvalidCoordinate => InputApplyError::InvalidInput,
+                    MacOsInputError::PermissionDenied | MacOsInputError::EventCreationFailed => InputApplyError::InjectionFailed,
+                }
+            }),
             #[cfg(windows)]
             Self::Native(backend) => backend.apply(event).map_err(|error| {
                 let reason = match error {
@@ -130,6 +145,8 @@ impl InputBackend {
     fn release_all(&mut self) -> Result<()> {
         match self {
             Self::Disabled => Ok(()),
+            #[cfg(target_os = "macos")]
+            Self::MacOs(backend) => backend.release_all().map_err(anyhow::Error::from),
             #[cfg(windows)]
             Self::Native(backend) => backend
                 .release_all()
@@ -410,6 +427,16 @@ fn validate_event_freshness(
         return Ok(());
     }
     conservative_input_deadline(event.sender_not_after_ns, clock, local_now_ns).map(|_| ())
+}
+
+#[cfg(all(test, target_os = "macos"))]
+#[test]
+fn macos_native_receiver_initializes_without_posting_input() {
+    ensure_backend_available(InputBackendMode::Native).unwrap();
+    let mut receiver = InputReceiver::new(InputBackendMode::Native, Some(Id128(2))).unwrap();
+    assert!(matches!(receiver.backend, InputBackend::MacOs(_)));
+    // No held inputs: cleanup must be a no-op even without OS authorization.
+    receiver.release_all().unwrap();
 }
 
 /// Shared by device input and window-scoped input. The returned timestamp is

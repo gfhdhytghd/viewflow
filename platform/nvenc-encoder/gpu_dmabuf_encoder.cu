@@ -1,3 +1,4 @@
+#include "gpu_sparse_atlas.cuh"
 #include "gpu_dmabuf_encoder.cuh"
 #include "gpu_import_cleanup.hpp"
 #include "gpu_rgba_prepare.cuh"
@@ -125,6 +126,7 @@ __global__ void nv12(const unsigned char *rgba, size_t rp, unsigned char *y,
 } // namespace
 
 struct GpuDmabufEncoder::Impl {
+  std::vector<SparsePatch> lastSparsePatches;
   GpuDmabufEncoderConfig config;
   std::thread::id owner;
   EGLDisplay display = EGL_NO_DISPLAY;
@@ -358,7 +360,8 @@ bool GpuDmabufEncoder::encode(const DmabufFrame &input, bool forceIdr,
 bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
                               FrameMetadata metadata, bool forceIdr,
                               std::int64_t deadline, EncodedDmabufFrame &output,
-                              std::string *error, EncodeDisposition *disposition) {
+                              std::string *error, EncodeDisposition *disposition,
+                              const SparseOptions *sparse) {
   if (disposition) *disposition = EncodeDisposition::Failed;
   output = {};
   if (!ready() || impl_->poisoned ||
@@ -368,6 +371,10 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     return false;
   }
   forceIdr = forceIdr || impl_->recoveryIdr;
+  if (sparse && (sparse->sources.size() != inputs.size() || sparse->maxWidth < uint32_t(impl_->config.outputWidth) ||
+      sparse->maxHeight < uint32_t(impl_->config.outputHeight) || sparse->maxWidth > 8192 || sparse->maxHeight > 4096)) {
+    fail(error, "invalid sparse scene capacity"); return false;
+  }
   if (inputs.size() > 4096 || metadata.frameId == 0 || metadata.geometryEpoch == 0 ||
       metadata.captureTimestampNs == 0 || metadata.captureTimestampNs > std::uint64_t(INT64_MAX)) {
     fail(error, "invalid atlas metadata or tile count");
@@ -397,8 +404,8 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
       size_t(input.stride) < size_t(input.imageWidth) * 4 || input.cropX < 0 ||
       input.cropY < 0 || input.cropWidth <= 0 || input.cropHeight <= 0 ||
       input.cropWidth > impl_->config.outputWidth || input.cropHeight > impl_->config.outputHeight ||
-      tile.x < 0 || tile.y < 0 || tile.x > impl_->config.outputWidth - input.cropWidth ||
-      tile.y > impl_->config.outputHeight - input.cropHeight ||
+      (!sparse && (tile.x < 0 || tile.y < 0 || tile.x > impl_->config.outputWidth - input.cropWidth ||
+      tile.y > impl_->config.outputHeight - input.cropHeight)) ||
       input.cropX > int(input.imageWidth) - input.cropWidth ||
       input.cropY > int(input.imageHeight) - input.cropHeight ||
       input.metadata.frameId == 0 || input.metadata.geometryEpoch == 0 ||
@@ -407,7 +414,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     fail(error, "unsupported DMA-BUF frame or resize; make a new encoder");
     return false;
   }
-  for (size_t j = 0; j < i; ++j) {
+  for (size_t j = 0; !sparse && j < i; ++j) {
     const auto& other = inputs[j];
     if (tile.x < other.x + other.frame.cropWidth && other.x < tile.x + input.cropWidth &&
         tile.y < other.y + other.frame.cropHeight && other.y < tile.y + input.cropHeight) {
@@ -428,7 +435,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   auto nv12ReadbackDone = totalStart;
   auto nvencDone = totalStart;
   auto outputDone = totalStart;
-  const bool direct = inputs.size() == 1 && inputs[0].x == 0 && inputs[0].y == 0 &&
+  const bool direct = !sparse && inputs.size() == 1 && inputs[0].x == 0 && inputs[0].y == 0 &&
       inputs[0].frame.cropWidth == impl_->config.outputWidth && inputs[0].frame.cropHeight == impl_->config.outputHeight;
   struct PreparedTiles {
     std::vector<AtlasTile> tiles;
@@ -622,6 +629,94 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   bool ok = false;
   // Every imported image has been retired before composition/submission.
   auto cleanup = [&] { av_frame_free(&frame); return true; };
+  std::optional<SparseResult> sparseResult;
+  if (sparse) {
+    std::vector<SparseCell> cells;
+    uint64_t clippedPixels = 0;
+    auto floorCell = [](int64_t x) { return x / 128 - (x % 128 < 0); };
+    for (uint32_t i = 0; i < prepared.tiles.size(); ++i) {
+      const auto& tile = prepared.tiles[i];
+      const auto& scene = sparse->sources[i];
+      if (scene.x < INT64_MIN + 8192 || scene.x > INT64_MAX - 8192 ||
+          scene.y < INT64_MIN + 8192 || scene.y > INT64_MAX - 8192) {
+        fail(error, "sparse scene coordinate overflow"); return false;
+      }
+      for (uint32_t sy = 0; sy < uint32_t(tile.height);) {
+        const auto y = scene.y + sy;
+        const uint32_t h = uint32_t(std::min<int64_t>(tile.height - sy, (floorCell(y)+1)*128-y));
+        for (uint32_t sx = 0; sx < uint32_t(tile.width);) {
+          const auto x = scene.x + sx;
+          const uint32_t w = uint32_t(std::min<int64_t>(tile.width - sx, (floorCell(x)+1)*128-x));
+          SparseCell cell{i,sx,sy,w,h,x,y,scene.z,CellAlpha::Mixed,scene.grid};
+          if (!scene.clipEnabled || clipSparseCell(cell,scene.clipX,scene.clipY,scene.clipWidth,scene.clipHeight)) {
+            cells.push_back(cell);
+            clippedPixels += uint64_t(w)*h-uint64_t(cell.width)*cell.height;
+          } else clippedPixels += uint64_t(w)*h;
+          sx += w;
+          if (cells.size() > 262144) { fail(error, "sparse cell resource limit"); return false; }
+        }
+        sy += h;
+      }
+    }
+    if (!cudaOk(classifySparseCells(prepared.tiles.data(), prepared.tiles.size(), cells, impl_->stream),
+                error, "classify sparse alpha")) return false;
+    auto plan = planSparseAtlas(cells, impl_->config.outputWidth, impl_->config.outputHeight, sparse->prerender, 256);
+    sparseResult = SparseResult{{}, plan.requiredWidth, plan.requiredHeight, plan.inputPixels + clippedPixels,
+                               plan.storedPixels, plan.occludedPixels + clippedPixels, plan.emptyPixels, 0};
+    if (!plan.fits) {
+      uint32_t w = impl_->config.outputWidth, h = impl_->config.outputHeight;
+      // Growth happens after source reads have finished and leases are released.
+      // Prefer the smallest doubling candidate that accommodates the live cells.
+      while (uint64_t(w/128)*(h/128) < plan.draws.size() &&
+             (w < sparse->maxWidth || h < sparse->maxHeight)) {
+        if (w < sparse->maxWidth && (w <= h*2 || h == sparse->maxHeight))
+          w = std::min(sparse->maxWidth, w*2);
+        else h = std::min(sparse->maxHeight, h*2);
+      }
+      if (w != uint32_t(impl_->config.outputWidth) || h != uint32_t(impl_->config.outputHeight)) {
+        sparseResult->requiredWidth = w;
+        sparseResult->requiredHeight = h;
+        output.sparse = std::move(sparseResult);
+        if (disposition) *disposition = EncodeDisposition::NeedsCanvas;
+        return false;
+      }
+      // At the negotiated cap retain topmost visible cells first. A missing
+      // patch is transparent residency, never removal of native window/input.
+      const size_t capacity = size_t(w/128)*(h/128);
+      std::stable_sort(plan.draws.begin(), plan.draws.end(), [](const auto& a, const auto& b) {
+        return a.layers.back().z > b.layers.back().z;
+      });
+      for (size_t i=capacity; i<plan.draws.size(); ++i)
+        sparseResult->omittedPixels += uint64_t(plan.draws[i].patch.width)*plan.draws[i].patch.height;
+      plan.draws.resize(capacity);
+      std::sort(plan.draws.begin(), plan.draws.end(), [](const auto& a, const auto& b) {
+        return std::tie(a.patch.source,a.patch.sourceY,a.patch.sourceX) <
+               std::tie(b.patch.source,b.patch.sourceY,b.patch.sourceX);
+      });
+      for(size_t i=0;i<plan.draws.size();++i) {
+        plan.draws[i].patch.x=uint32_t(i%(w/128))*128;
+        plan.draws[i].patch.y=uint32_t(i/(w/128))*128;
+      }
+      plan.fits=true;
+      sparseResult->storedPixels -= sparseResult->omittedPixels;
+    }
+    sparseResult->requiredWidth = impl_->config.outputWidth;
+    sparseResult->requiredHeight = impl_->config.outputHeight;
+    for(const auto& draw:plan.draws) sparseResult->patches.push_back(draw.patch);
+    const auto same = [](const SparsePatch& a,const SparsePatch& b) {
+      return std::tie(a.source,a.sourceX,a.sourceY,a.x,a.y,a.width,a.height) ==
+             std::tie(b.source,b.sourceX,b.sourceY,b.x,b.y,b.width,b.height);
+    };
+    forceIdr = forceIdr || sparseResult->patches.size()!=impl_->lastSparsePatches.size() ||
+      !std::equal(sparseResult->patches.begin(), sparseResult->patches.end(), impl_->lastSparsePatches.begin(), same);
+    if (!cudaOk(composeSparseAtlas(prepared.tiles.data(),prepared.tiles.size(),plan,
+                  {impl_->rgba,impl_->rgbaPitch,impl_->alpha,impl_->alphaPitch,
+                   impl_->config.outputWidth,impl_->config.outputHeight},impl_->stream),
+                error,"compose sparse atlas") ||
+        !cudaOk(cudaStreamSynchronize(impl_->stream),error,"sparse composition completion")) {
+      impl_->poisoned=true; return false;
+    }
+  } else {
   if (!direct && (!cudaOk(composeAtlas(prepared.tiles.data(), prepared.tiles.size(),
                        {impl_->rgba, impl_->rgbaPitch, impl_->alpha, impl_->alphaPitch,
                         impl_->config.outputWidth, impl_->config.outputHeight}, impl_->stream),
@@ -629,6 +724,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
                   !cudaOk(cudaStreamSynchronize(impl_->stream), error, "atlas composition completion"))) {
     impl_->poisoned = true;
     return false;
+  }
   }
   if (!before(deadline)) {
     fail(error, "atlas deadline expired before NVENC preparation");
@@ -741,7 +837,8 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     impl_->recoveryIdr = false;
   if (ok)
     output = EncodedDmabufFrame{std::move(color), std::move(rawAlpha),
-                                metadata, actualIdr};
+                                metadata, actualIdr, std::move(sparseResult)};
+  if (ok && output.sparse) impl_->lastSparsePatches = output.sparse->patches;
   if (logTimings)
     outputDone = std::chrono::steady_clock::now();
   if (!cleanup()) {

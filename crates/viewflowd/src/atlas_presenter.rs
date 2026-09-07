@@ -535,11 +535,9 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
             frame.layout.frame_id > self.last_frame,
             "atlas presenter frame replay"
         );
-        ensure!(
-            self.warmup_shape
-                .is_none_or(|shape| shape == (frame.layout.width, frame.layout.height)),
-            "atlas live geometry differs from startup warmup"
-        );
+        // AdmittedAtlas already passed negotiated capacity, layout revision,
+        // and paired-keyframe checks. Warmup dimensions only describe startup;
+        // the native decoder may rebuild for an admitted canvas growth.
         ensure!(
             frame.layout.desktop.is_some()
                 == (self.input_mode == NativeInputMode::RecoverableDesktop),
@@ -605,11 +603,9 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
                 || (frame.layout.color_keyframe && frame.layout.alpha_keyframe),
             "expired atlas requires fresh paired keyframe"
         );
-        ensure!(
-            self.warmup_shape
-                .is_none_or(|shape| shape == (frame.layout.width, frame.layout.height)),
-            "atlas live geometry differs from startup warmup"
-        );
+        // AdmittedAtlas already passed negotiated capacity, layout revision,
+        // and paired-keyframe checks. Warmup dimensions only describe startup;
+        // the native decoder may rebuild for an admitted canvas growth.
         ensure!(
             frame.layout.desktop.is_some()
                 == (self.input_mode == NativeInputMode::RecoverableDesktop),
@@ -946,6 +942,7 @@ mod tests {
         use viewflow_protocol::{AtlasFrame, FrameManifest, Id128};
         AdmittedAtlas {
             layout: AtlasFrame {
+            patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -1254,6 +1251,112 @@ mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn warmed_pipe_accepts_growing_admitted_frames_in_both_receipt_modes() {
+        for dispositions in [false, true] {
+            let (client, mut native) = tokio::io::duplex(4096);
+            let (reader, writer) = tokio::io::split(client);
+            let mut pipe = if dispositions {
+                AtlasPresenterPipe::with_dispositions(writer, reader)
+            } else {
+                AtlasPresenterPipe::new(writer, reader)
+            };
+            let deadline = Instant::now() + std::time::Duration::from_secs(10);
+            let native_side = async {
+                let ready = if dispositions {
+                    "atlas-native-ready disposition=v1 input_enabled=false\n"
+                } else {
+                    "atlas-native-ready input_enabled=false\n"
+                };
+                native.write_all(ready.as_bytes()).await.unwrap();
+                for identity in 1..=3 {
+                    let mut header = [0; 40];
+                    native.read_exact(&mut header).await.unwrap();
+                    let count = u32::from_be_bytes(header[12..16].try_into().unwrap());
+                    let mut payload = vec![0; count as usize];
+                    native.read_exact(&mut payload).await.unwrap();
+                    native.write_all(format!("atlas-warmup-completed identity={identity} width=1024 height=1024\n").as_bytes()).await.unwrap();
+                }
+                for identity in 1..=3 {
+                    let mut header = [0; 112];
+                    native.read_exact(&mut header).await.unwrap();
+                    assert_eq!(header[4], 5);
+                    let count = u32::from_be_bytes(header[12..16].try_into().unwrap());
+                    let mut payload = vec![0; count as usize];
+                    native.read_exact(&mut payload).await.unwrap();
+                    let response = if dispositions {
+                        format!(
+                            "atlas-disposition-v1 frame_identity={identity} tile_count=0 outcome=committed deadline_ticks=200 frequency=1000 commit_ticks=199 physical_present_receipt=false\n"
+                        )
+                    } else {
+                        format!(
+                            "atlas-submitted frame_identity={identity} tile_count=0 physical_present_receipt=false\n"
+                        )
+                    };
+                    native.write_all(response.as_bytes()).await.unwrap();
+                }
+            };
+            let rust_side = async {
+                pipe.wait_ready(deadline).await.unwrap();
+                let warmup = AtlasWarmupFrame {
+                    width: 1024,
+                    height: 1024,
+                    color: test_frame().media.color,
+                    alpha: viewflow_transport::encode_alpha_rle(1024, 1024, &vec![0; 1024 * 1024])
+                        .unwrap(),
+                };
+                pipe.warmup(&[warmup.clone(), warmup.clone(), warmup], deadline, 128 << 20)
+                    .await
+                    .unwrap();
+                for (index, (width, height)) in [(1024, 1024), (2048, 2048), (8192, 4096)]
+                    .into_iter()
+                    .enumerate()
+                {
+                    let mut frame = test_frame();
+                    frame.layout.frame_id = index as u64 + 1;
+                    frame.media.manifest.frame_id = frame.layout.frame_id;
+                    frame.layout.layout_revision = index as u64;
+                    frame.layout.width = width;
+                    frame.layout.height = height;
+                    frame.media.alpha = Some(
+                        viewflow_transport::encode_alpha_rle(
+                            width,
+                            height,
+                            &vec![0; (width * height) as usize],
+                        )
+                        .unwrap(),
+                    );
+                    let native_deadline = NativePresentationDeadline {
+                        ticks: 200,
+                        frequency: 1000,
+                    };
+                    if dispositions {
+                        let mut ticks = [100, 250].into_iter();
+                        assert_eq!(
+                            pipe.submit_disposition(
+                                &frame,
+                                native_deadline,
+                                deadline,
+                                128 << 20,
+                                || Ok((ticks.next().unwrap(), 1000))
+                            )
+                            .await
+                            .unwrap(),
+                            AtlasDisposition::CommittedWithinDeadline { commit_ticks: 199 }
+                        );
+                    } else {
+                        pipe.submit(&frame, native_deadline, deadline, 128 << 20)
+                            .await
+                            .unwrap();
+                    }
+                }
+                assert!(!pipe.poisoned);
+                assert_eq!(pipe.last_committed_frame, 3);
+            };
+            tokio::join!(native_side, rust_side);
+        }
     }
 
     #[tokio::test]

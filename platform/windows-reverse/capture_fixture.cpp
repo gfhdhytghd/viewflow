@@ -3,8 +3,9 @@
 #include <cstdio>
 #include <chrono>
 #include <cstdlib>
+#include <cstring>
 int main(int argc,char** argv) {
-    const int left=argc==3?std::atoi(argv[1]):64,top=argc==3?std::atoi(argv[2]):64;
+    const int left=argc>=3?std::atoi(argv[1]):64,top=argc>=3?std::atoi(argv[2]):64;
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     const auto desktop=OpenInputDesktop(0,FALSE,GENERIC_ALL);
     if(!desktop || !SetThreadDesktop(desktop))return 1;
@@ -27,9 +28,19 @@ int main(int argc,char** argv) {
     POINT destination{left,top},origin{};SIZE size{256,128};BLENDFUNCTION blend{AC_SRC_OVER,0,255,AC_SRC_ALPHA};
     if(!UpdateLayeredWindow(window,screen,&destination,&size,memory,&origin,0,&blend,ULW_ALPHA))return 5;
     ShowWindow(window,SW_SHOWNOACTIVATE);
+    HWND helper{},popup{};
+    if(argc==4 && std::strcmp(argv[3],"--ime")==0) {
+        WNDCLASSW popup_class=cls;popup_class.lpszClassName=L"SoPY_UI";
+        if(!RegisterClassW(&popup_class))return 6;
+        helper=CreateWindowExW(WS_EX_NOACTIVATE,cls.lpszClassName,L"Hidden TSF fixture",WS_POPUP,0,0,1,1,window,nullptr,instance,nullptr);
+        popup=CreateWindowExW(WS_EX_LAYERED|WS_EX_TOOLWINDOW|WS_EX_NOACTIVATE|WS_EX_TRANSPARENT,popup_class.lpszClassName,L"Viewflow IME popup check",WS_POPUP,left+32,top+64,256,128,helper,nullptr,instance,nullptr);
+        POINT popup_position{left+32,top+64};
+        if(!popup || !UpdateLayeredWindow(popup,screen,&popup_position,&size,memory,&origin,0,&blend,ULW_ALPHA))return 7;
+        ShowWindow(popup,SW_SHOWNOACTIVATE);
+    }
     std::fprintf(stderr,"nonactivating alpha fixture ready\n");
     const auto until=std::chrono::steady_clock::now()+std::chrono::seconds(12);
     while(std::chrono::steady_clock::now()<until){MSG message{};while(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){TranslateMessage(&message);DispatchMessageW(&message);}Sleep(10);}
-    DestroyWindow(window);SelectObject(memory,previous);DeleteObject(bitmap);DeleteDC(memory);ReleaseDC(nullptr,screen);
+    if(popup)DestroyWindow(popup);if(helper)DestroyWindow(helper);DestroyWindow(window);SelectObject(memory,previous);DeleteObject(bitmap);DeleteDC(memory);ReleaseDC(nullptr,screen);
     return 0;
 }

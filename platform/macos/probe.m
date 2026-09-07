@@ -42,9 +42,10 @@ int main(int argc, const char *argv[]) {
             @"screen_recording_authorized": @(screenAccess),
             @"accessibility_authorized": @(AXIsProcessTrusted()),
             @"metal_device": (id)device.name ?: [NSNull null],
-            @"capture_implemented": @NO,
-            @"presentation_implemented": @NO,
-            @"input_implemented": @NO,
+            @"capture_implemented": @YES,
+            @"presentation_implemented": @YES,
+            @"video_backend": @"viewflow-macos-windows-not-tested-by-this-probe",
+            @"input_backend": @"viewflowd-quartz-not-tested-by-this-probe",
             @"enumeration": @"not_requested"
         } mutableCopy];
         if (!enumerate) return emit(report, 0);

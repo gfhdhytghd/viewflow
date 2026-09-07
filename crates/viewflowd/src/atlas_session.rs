@@ -2,7 +2,7 @@
 //! QUIC connection before handing its streams to other readers. Platform owners
 //! must probe native decoder support before accepting a plan. No fallback exists.
 use crate::atlas_runtime::{AtlasReceiver, AtlasReceiverPolicy};
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use prost::Message;
 use quinn::Connection;
 use tokio::time::{Instant, timeout_at};
@@ -67,8 +67,8 @@ impl AtlasSessionPlan {
             .map_err(|error| anyhow::anyhow!("invalid atlas policy: {error:?}"))?;
         for descriptor in [self.color, self.alpha] {
             ensure!(
-                descriptor.coded_width == self.policy.width
-                    && descriptor.coded_height == self.policy.height
+                descriptor.coded_width <= self.policy.width
+                    && descriptor.coded_height <= self.policy.height
                     && descriptor.geometry_epoch == self.policy.geometry_epoch
                     && descriptor.config_generation == self.policy.config_generation,
                 "atlas policy/codec shape mismatch"
@@ -104,6 +104,7 @@ impl AtlasSessionPlan {
             .map_err(|_| anyhow::anyhow!("atlas TLS connection binding unavailable"))?;
         Ok(wire::AtlasSession {
             selection_rejection_version: 1,
+            sparse_patch_version: 1,
             version: 1,
             stream_id: Some(wire::Id128 {
                 high: (self.policy.stream_id.0 >> 64) as u64,
@@ -328,7 +329,7 @@ fn validate_warmup(
             "atlas warmup encoded byte limit"
         );
         ensure!(
-            (frame.width, frame.height) == (plan.policy.width, plan.policy.height),
+            (frame.width, frame.height) == (plan.color.coded_width, plan.color.coded_height),
             "atlas warmup differs from negotiated dimensions"
         );
         crate::gpu_presenter_pipe::encode_compressed_alpha_decode_only_record(
@@ -470,7 +471,7 @@ where
 
 async fn accept_warmed_atlas_mode<F, Fut>(
     connection: &Connection,
-    plan: AtlasSessionPlan,
+    mut plan: AtlasSessionPlan,
     deadline: Instant,
     warmup: F,
     dispositions: bool,
@@ -481,7 +482,7 @@ where
 {
     let mut guard = StartupGuard(Some(connection.clone()));
     check_deadline(deadline)?;
-    let codec = plan.validate()?;
+    plan.validate()?;
     let admission = AtlasReceiver::new(plan.policy)
         .map_err(|error| anyhow::anyhow!("invalid atlas policy: {error:?}"))?;
     let result = timeout_at(deadline, async {
@@ -496,12 +497,27 @@ where
         );
         let mut payload = vec![0; length];
         rx.read_exact(&mut payload).await?;
+        let offer = wire::AtlasSession::decode(payload.as_slice())?;
+        if plan.color.coded_width < plan.policy.width
+            || plan.color.coded_height < plan.policy.height
+        {
+            let color = CodecDescriptor::decode(offer.color_descriptor.clone().into())?;
+            for descriptor in [&mut plan.color, &mut plan.alpha] {
+                descriptor.coded_width = color.coded_width;
+                descriptor.coded_height = color.coded_height;
+            }
+        }
+        let codec = plan.validate()?;
         let mut expected = plan.message(connection, false)?;
         expected.version = if dispositions { 3 } else { 2 };
-        ensure!(
-            wire::AtlasSession::decode(payload.as_slice())? == expected,
-            "atlas warmed offer mismatch"
-        );
+        if offer != expected {
+            // Keep pairing material out of diagnostics; show the mismatched
+            // public plan so deployment/configuration failures are actionable.
+            let binding_matches = offer.connection_binding == expected.connection_binding;
+            let mut offered = offer.clone(); offered.connection_binding.clear();
+            let mut wanted = expected.clone(); wanted.connection_binding.clear();
+            bail!("atlas warmed offer mismatch binding_matches={binding_matches} offered={offered:?} expected={wanted:?}");
+        }
         let frames = read_warmup_frames(&mut rx, plan).await?;
         validate_warmup(plan, &frames)?;
         check_deadline(deadline)?;
@@ -548,8 +564,8 @@ async fn read_warmup_frames(
         rx.read_exact(&mut color_bytes).await?;
         rx.read_exact(&mut alpha_bytes).await?;
         frames.push(crate::atlas_presenter::AtlasWarmupFrame {
-            width: plan.policy.width,
-            height: plan.policy.height,
+            width: plan.color.coded_width,
+            height: plan.color.coded_height,
             color: color_bytes.into(),
             alpha: alpha_bytes.into(),
         });
@@ -564,6 +580,9 @@ async fn read_warmup_frames(
 }
 
 impl AtlasSenderSession {
+    pub(crate) fn canvas_limit(&self) -> (u32, u32) {
+        (self.plan.policy.width, self.plan.policy.height)
+    }
     /// Attach the sole connection-wide writer before the first manifest. The
     /// frame identity stays unchanged; wire control sequences belong to writer.
     /// # Errors
@@ -689,7 +708,7 @@ impl AtlasSenderSession {
         let color = plane(color, viewflow_transport::MediaPlane::Color)?;
         let alpha = plane(alpha, viewflow_transport::MediaPlane::Alpha)?;
         ensure!(
-            color.len() <= 8192 && alpha.len() <= 8192,
+            color.len() <= usize::from(u16::MAX) && alpha.len() <= usize::from(u16::MAX),
             "atlas chunk limit exceeded"
         );
         self.frame_send_poisoned = true;
@@ -757,8 +776,8 @@ impl AtlasSenderSession {
                 && manifest.stream_id == policy.stream_id
                 && manifest.geometry_epoch == policy.geometry_epoch
                 && manifest.config_generation == policy.config_generation
-                && manifest.width == policy.width
-                && manifest.height == policy.height
+                && manifest.width <= policy.width
+                && manifest.height <= policy.height
                 && manifest.tiles.len() <= policy.max_tiles,
             "manifest outside negotiated atlas plan"
         );
@@ -1392,7 +1411,6 @@ impl AtlasReceiverSession {
                 && packet.geometry_epoch == self.policy.geometry_epoch
                 && packet.source_submitted_ns > 0
                 && packet.chunk_count > 0
-                && packet.chunk_count <= 8192
                 && packet.chunk_index < packet.chunk_count
                 && !packet.payload.is_empty()
                 && matches!(packet.plane, MediaPlane::Color | MediaPlane::Alpha),
@@ -1519,7 +1537,7 @@ async fn drain_handoff_after_control_error<T>(
 fn atlas_assembler(policy: AtlasReceiverPolicy) -> viewflow_transport::MediaAssembler {
     viewflow_transport::MediaAssembler::new(viewflow_transport::MediaAssemblerConfig {
         deadline_ns: policy.max_age_ns,
-        max_chunks_per_plane: 8192,
+        max_chunks_per_plane: u16::MAX,
         max_plane_bytes: policy.max_encoded_bytes,
     })
 }
@@ -1660,6 +1678,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         let manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 10,
             geometry_epoch: 1,
@@ -1712,6 +1731,7 @@ pub(crate) mod tests {
         let mut sender = sender.unwrap();
         let mut receiver = receiver.unwrap();
         let mut manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 1,
             geometry_epoch: 1,
@@ -1789,6 +1809,7 @@ pub(crate) mod tests {
                     .unwrap();
             }
             let manifest = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -1896,6 +1917,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         let manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 1,
             geometry_epoch: 1,
@@ -1943,6 +1965,7 @@ pub(crate) mod tests {
         let mut receiver = receiver.unwrap();
         for id in 1..=2 {
             let manifest = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: id,
                 geometry_epoch: 1,
@@ -2052,6 +2075,7 @@ pub(crate) mod tests {
                 .contains("future timestamp")
         );
         let manifest = |id, timestamp| AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: id,
             geometry_epoch: 1,
@@ -2153,6 +2177,7 @@ pub(crate) mod tests {
             let (controls, mut events) = tokio::sync::mpsc::channel(4);
             receiver.attach_shared_controls(controls).unwrap();
             let manifest = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -2289,6 +2314,7 @@ pub(crate) mod tests {
         receiver.attach_shared_controls(controls).unwrap();
         for frame_id in [1, 2] {
             let manifest = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id,
                 geometry_epoch: 1,
@@ -2338,6 +2364,7 @@ pub(crate) mod tests {
         let (controls, mut events) = tokio::sync::mpsc::channel(4);
         receiver.attach_shared_controls(controls).unwrap();
         let manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 1,
             geometry_epoch: 1,
@@ -2424,6 +2451,7 @@ pub(crate) mod tests {
         let (controls, _events) = tokio::sync::mpsc::channel(4);
         receiver.attach_shared_controls(controls).unwrap();
         let manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 1,
             geometry_epoch: 1,
@@ -2746,6 +2774,7 @@ pub(crate) mod tests {
                 .is_some()
         );
         let manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 1,
             geometry_epoch: 1,
@@ -2846,6 +2875,7 @@ pub(crate) mod tests {
         let mut sender = sender.unwrap();
         let mut receiver = receiver.unwrap();
         let manifest = AtlasFrame {
+            patches: None,
             color_keyframe: true,
             alpha_keyframe: true,
             desktop: None,
@@ -2936,6 +2966,7 @@ pub(crate) mod tests {
             let sender = sender.unwrap();
             let mut receiver = receiver.unwrap();
             let manifest = AtlasFrame {
+                patches: None,
                 color_keyframe: true,
                 alpha_keyframe: true,
                 desktop: None,
@@ -3065,6 +3096,7 @@ pub(crate) mod tests {
             let mut sequence = ControlSequencer::default();
             for frame_id in [1, 2, 4] {
                 let manifest = AtlasFrame {
+                    patches: None,
                     stream_id: Id128(99),
                     frame_id,
                     geometry_epoch: 1,
@@ -3180,6 +3212,7 @@ pub(crate) mod tests {
                     .all(|packet| packet.received_ns == 110)
             );
             let manifest = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -3224,6 +3257,7 @@ pub(crate) mod tests {
             assert!(receiver.push_media(packet.clone(), 110).unwrap().is_none());
             assert!(receiver.push_media(packet, 1000).unwrap().is_none()); // exact duplicate does not renew
             let manifest = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -3296,6 +3330,7 @@ pub(crate) mod tests {
                     assert!(receiver.push_media(bad, 110).is_err());
                 } else {
                     let manifest = AtlasFrame {
+                        patches: None,
                         stream_id: Id128(99),
                         frame_id: 1,
                         geometry_epoch: 1,
@@ -3337,6 +3372,7 @@ pub(crate) mod tests {
                 receiver.push_media(early_packet(1, plane), 110).unwrap();
             }
             let manifest = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -3377,6 +3413,7 @@ pub(crate) mod tests {
             let sender = sender.unwrap();
             let mut receiver = receiver.unwrap();
             let first = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -3392,6 +3429,7 @@ pub(crate) mod tests {
             };
             sender.send_manifest(first, 1, deadline).await.unwrap();
             let second = AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 2,
                 geometry_epoch: 1,
@@ -3505,6 +3543,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         let manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 1,
             geometry_epoch: 1,

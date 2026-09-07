@@ -14,8 +14,9 @@ a finished three-platform product. Implemented components are:
 - authenticated QUIC control/blob streams plus low-latency media datagrams,
   clock mapping, bounded reassembly, and separate normal-media/exact-blur
   latency statistics;
-- atomic color/alpha frame admission, latest-frame queues, and opaque tile
-  occlusion;
+- atomic color/alpha frame admission, latest-frame queues, and forward sparse
+  atlas residency with overlap/viewport culling and optional transparent
+  precomposition (see [configuration and limits](docs/occlusion-and-transparency.md));
 - device-pair atlas layout with stable reservations, transactional geometry
   invalidation and disconnect suspension, plus GPU composition/encoding adapters
   and a supervised QUIC-to-native receiver API; application orchestration remains
@@ -72,7 +73,11 @@ single-window trial completed 159 native visual submissions before a deadline
 failure; that failed boundary remains part of the acceptance record. Continuous
 recovery, product-session integration, sustained performance, physical
 presentation and physical multi-window/input acceptance remain incomplete.
-Windows capture and all macOS native backends remain incomplete. The CPU
+Native macOS ↔ Hyprland/Windows window sharing is available through the standalone
+[`vf-window-peer`](docs/macos-window-sharing.md), with live capture and interaction
+acceptance still pending. The macOS Quartz
+keyboard/mouse receiver has passed a bounded [LAN live smoke test](docs/evidence/macos-input-live-20260907/README.md);
+broader physical acceptance remains pending. The CPU
 layered-window presenter is a separate incremental endpoint, not the GPU
 hardware-decode/composition path used by the coded example.
 
@@ -95,9 +100,11 @@ ceiling.
 
 ## Build
 
-macOS native discovery and the initial build/implementation roadmap are in
-[`platform/macos`](platform/macos/README.md). This foundation does not yet provide
-macOS capture, presentation or input.
+macOS native discovery, ScreenCaptureKit capture and AppKit presentation are in
+[`platform/macos`](platform/macos/README.md). See the
+[window-sharing setup](docs/macos-window-sharing.md) for paired backends.
+Native keyboard/mouse receiving is available via
+`--input-backend native`; see [macOS input setup](deploy/macos/README.md).
 
 ```sh
 cargo test --workspace
@@ -123,7 +130,7 @@ cargo run -p viewflowd -- connect \
   --device-id 00000000000000000000000000000002
 ```
 
-`--input-backend native` is Windows-only and requires the receiver's stable
+`--input-backend native` supports Windows and macOS and requires the receiver's stable
 `--device-id`. A listening peer may send one balanced smoke-input script with
 `--input-script`; scripts must start with an offered lease, end with all keys
 and buttons released, and are transported only once per daemon lifetime. This
@@ -145,3 +152,5 @@ acknowledgement.
 
 Source-derived implementation notes for Moonlight, Sunshine, and FreeRDP RAIL
 are under `docs/`. Third-party source is not copied into Viewflow.
+
+跨系统剪切板：桌面会话自动双向同步文本和 PNG；Linux、Windows、macOS 也可运行独立的 `vf-clipboard-peer`。配置与限制见 [剪切板同步](docs/clipboard-sync.md)。

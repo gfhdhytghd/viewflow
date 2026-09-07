@@ -65,6 +65,7 @@ mod tests {
     #[test]
     fn exact_identity_and_reserved_bits_are_required() {
         let frame = AtlasFrame {
+            patches: None,
             stream_id: viewflow_protocol::Id128(99),
             frame_id: 4,
             geometry_epoch: 1,

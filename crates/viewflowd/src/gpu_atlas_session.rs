@@ -21,6 +21,16 @@ pub struct GpuAtlasSession {
 }
 
 impl GpuAtlasSession {
+    pub(crate) fn set_occlusion(
+        &mut self,
+        mode: crate::atlas_occlusion::AtlasOcclusionMode,
+    ) -> Result<()> {
+        self.device
+            .as_mut()
+            .context("atlas session retired")?
+            .set_occlusion(mode)
+    }
+
     /// Binding evidence is borrowed from the live capture owner and disappears
     /// on retirement. A committed API disposition is not an input permission.
     #[must_use]

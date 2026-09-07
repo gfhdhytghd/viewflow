@@ -16,6 +16,19 @@ pub struct AtlasTile {
     pub height: u32,
 }
 
+/// A resident image region. Empty patch lists retain native window ownership
+/// without allocating pixels for completely hidden or transparent windows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AtlasPatch {
+    pub tile_index: u32,
+    pub source_x: u32,
+    pub source_y: u32,
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AtlasFrame {
     pub stream_id: Id128,
@@ -33,6 +46,8 @@ pub struct AtlasFrame {
     pub alpha_keyframe: bool,
     /// Optional immutable logical desktop placement for every tile in this frame.
     pub desktop: Option<AtlasDesktopLayout>,
+    /// None is the legacy whole-window allocation. Some is sparse v2.
+    pub patches: Option<Vec<AtlasPatch>>,
 }
 
 impl AtlasFrame {
@@ -51,6 +66,7 @@ impl AtlasFrame {
             || self.width % 2 != 0
             || self.height % 2 != 0
             || self.tiles.len() > 4096
+            || self.patches.as_ref().is_some_and(|p| p.len() > 32768)
         {
             return Err(invalid());
         }
@@ -66,14 +82,17 @@ impl AtlasFrame {
                 || tile.width == 0
                 || tile.height == 0
                 || tile.source_submitted_ns < self.source_submitted_ns
-                || tile
-                    .x
-                    .checked_add(tile.width)
-                    .is_none_or(|right| right > self.width)
-                || tile
-                    .y
-                    .checked_add(tile.height)
-                    .is_none_or(|bottom| bottom > self.height)
+                || (self.patches.is_none()
+                    && (tile
+                        .x
+                        .checked_add(tile.width)
+                        .is_none_or(|right| right > self.width)
+                        || tile
+                            .y
+                            .checked_add(tile.height)
+                            .is_none_or(|bottom| bottom > self.height)))
+                || (self.patches.is_some()
+                    && (tile.x != 0 || tile.y != 0 || tile.width > 8192 || tile.height > 4096))
             {
                 return Err(invalid());
             }
@@ -88,14 +107,18 @@ impl AtlasFrame {
         {
             return Err(invalid());
         }
-        for (i, a) in self.tiles.iter().enumerate() {
-            for b in &self.tiles[..i] {
-                if a.x < b.x + b.width
-                    && b.x < a.x + a.width
-                    && a.y < b.y + b.height
-                    && b.y < a.y + a.height
-                {
-                    return Err(invalid());
+        if let Some(patches) = &self.patches {
+            self.validate_patches(patches)?;
+        } else {
+            for (i, a) in self.tiles.iter().enumerate() {
+                for b in &self.tiles[..i] {
+                    if a.x < b.x + b.width
+                        && b.x < a.x + a.width
+                        && a.y < b.y + b.height
+                        && b.y < a.y + a.height
+                    {
+                        return Err(invalid());
+                    }
                 }
             }
         }
@@ -104,12 +127,59 @@ impl AtlasFrame {
         }
         Ok(())
     }
+    fn validate_patches(&self, patches: &[AtlasPatch]) -> Result<(), WireError> {
+        let invalid = || WireError::InvalidField("atlas_frame.patches");
+        let mut previous = None;
+        let mut occupied = std::collections::BTreeSet::new();
+        let mut destinations: std::collections::BTreeMap<u32, Vec<&AtlasPatch>> =
+            Default::default();
+        for p in patches {
+            let key = (p.tile_index, p.source_y, p.source_x);
+            let Some(tile) = self.tiles.get(p.tile_index as usize) else {
+                return Err(invalid());
+            };
+            if previous.is_some_and(|old| old >= key)
+                || p.width == 0
+                || p.height == 0
+                || p.width > 128
+                || p.height > 128
+                || p.x % 128 != 0
+                || p.y % 128 != 0
+                || p.x.checked_add(p.width).is_none_or(|x| x > self.width)
+                || p.y.checked_add(p.height).is_none_or(|y| y > self.height)
+                || p.source_x
+                    .checked_add(p.width)
+                    .is_none_or(|x| x > tile.width)
+                || p.source_y
+                    .checked_add(p.height)
+                    .is_none_or(|y| y > tile.height)
+                || !occupied.insert((p.x, p.y))
+            {
+                return Err(invalid());
+            }
+            let others = destinations.entry(p.tile_index).or_default();
+            if others.iter().any(|q| {
+                p.source_x < q.source_x + q.width
+                    && q.source_x < p.source_x + p.width
+                    && p.source_y < q.source_y + q.height
+                    && q.source_y < p.source_y + p.height
+            }) {
+                return Err(invalid());
+            }
+            others.push(p);
+            previous = Some(key);
+        }
+        Ok(())
+    }
 }
 
 impl TryFrom<wire::AtlasFrame> for AtlasFrame {
     type Error = WireError;
     fn try_from(value: wire::AtlasFrame) -> Result<Self, Self::Error> {
-        if value.version != 1 || value.tiles.len() > 4096 {
+        if !matches!(value.version, 1 | 2)
+            || (value.version == 2) != value.patches.is_some()
+            || value.tiles.len() > 4096
+        {
             return Err(WireError::InvalidField("atlas_frame.version_or_count"));
         }
         let frame = Self {
@@ -141,6 +211,20 @@ impl TryFrom<wire::AtlasFrame> for AtlasFrame {
                 })
                 .collect::<Result<_, WireError>>()?,
             desktop: value.desktop.map(TryInto::try_into).transpose()?,
+            patches: value.patches.map(|list| {
+                list.patches
+                    .into_iter()
+                    .map(|p| AtlasPatch {
+                        tile_index: p.tile_index,
+                        source_x: p.source_x,
+                        source_y: p.source_y,
+                        x: p.x,
+                        y: p.y,
+                        width: p.width,
+                        height: p.height,
+                    })
+                    .collect()
+            }),
         };
         frame.validate()?;
         Ok(frame)
@@ -155,10 +239,24 @@ impl From<AtlasFrame> for wire::AtlasFrame {
             low: value.0 as u64,
         };
         Self {
-            version: 1,
+            version: if value.patches.is_some() { 2 } else { 1 },
             color_keyframe: value.color_keyframe,
             alpha_keyframe: value.alpha_keyframe,
             desktop: value.desktop.map(Into::into),
+            patches: value.patches.map(|list| wire::AtlasPatches {
+                patches: list
+                    .into_iter()
+                    .map(|p| wire::AtlasPatch {
+                        tile_index: p.tile_index,
+                        source_x: p.source_x,
+                        source_y: p.source_y,
+                        x: p.x,
+                        y: p.y,
+                        width: p.width,
+                        height: p.height,
+                    })
+                    .collect(),
+            }),
             stream_id: Some(id(value.stream_id)),
             frame_id: value.frame_id,
             geometry_epoch: value.geometry_epoch,
@@ -189,8 +287,59 @@ impl From<AtlasFrame> for wire::AtlasFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn sparse_windows_keep_full_geometry_and_only_resident_patches_use_capacity() {
+        let mut f = frame();
+        f.width = 256;
+        f.height = 128;
+        for t in &mut f.tiles {
+            t.x = 0;
+            t.y = 0;
+            t.width = 1024;
+            t.height = 768;
+        }
+        f.patches = Some(vec![
+            AtlasPatch {
+                tile_index: 0,
+                source_x: 256,
+                source_y: 128,
+                x: 0,
+                y: 0,
+                width: 128,
+                height: 128,
+            },
+            AtlasPatch {
+                tile_index: 1,
+                source_x: 0,
+                source_y: 0,
+                x: 128,
+                y: 0,
+                width: 128,
+                height: 128,
+            },
+        ]);
+        assert!(f.validate().is_ok());
+        let wire: wire::AtlasFrame = f.clone().into();
+        assert_eq!(wire.version, 2);
+        assert_eq!(AtlasFrame::try_from(wire).unwrap(), f);
+        let mut bad = f.clone();
+        bad.patches.as_mut().unwrap()[1].x = 0;
+        assert!(bad.validate().is_err());
+        let mut bad = f.clone();
+        bad.patches.as_mut().unwrap()[0].source_x = 1000;
+        assert!(bad.validate().is_err());
+        let mut bad = f.clone();
+        bad.patches.as_mut().unwrap().reverse();
+        assert!(bad.validate().is_err());
+        f.patches = Some(vec![]);
+        assert!(f.validate().is_ok()); // both HWNDs survive complete occlusion
+        f.patches = None;
+        assert!(f.validate().is_err()); // legacy full geometry cannot masquerade as sparse
+    }
+
     fn frame() -> AtlasFrame {
         AtlasFrame {
+            patches: None,
             color_keyframe: true,
             alpha_keyframe: true,
             desktop: None,

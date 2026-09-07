@@ -60,6 +60,10 @@ pub struct AtlasMediaPolicyConfig {
     pub stream_id: String,
     pub geometry_epoch: u64,
     pub config_generation: u64,
+    #[serde(default)]
+    pub max_width: Option<u32>,
+    #[serde(default)]
+    pub max_height: Option<u32>,
     pub width: u32,
     pub height: u32,
     pub max_tiles: usize,
@@ -82,6 +86,8 @@ pub struct AtlasSourceWindow {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AtlasSourceConfig {
+    #[serde(default)]
+    pub occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
     #[serde(default)]
     pub reverse: Option<crate::reverse_bridge::ReverseBridgeConfig>,
     #[serde(default)]
@@ -152,7 +158,9 @@ impl AtlasSourceConfig {
     /// # Errors
     /// Validates authorized membership and deterministically packs capture pixels.
     pub fn layout(&self) -> Result<viewflow_core::AtlasSnapshot> {
-        if let Some(reverse) = &self.reverse { reverse.validate()?; }
+        if let Some(reverse) = &self.reverse {
+            reverse.validate()?;
+        }
         use std::collections::BTreeSet;
         use viewflow_core::{AtlasConfig, StableAtlas};
         if let Some(pointer) = &self.pointer {
@@ -222,7 +230,12 @@ impl AtlasSourceConfig {
             ensure!(path.is_absolute(), "atlas identity paths must be absolute");
         }
         ensure!(
-            (!self.windows.is_empty() || self.desktop.as_ref().is_some_and(|desktop| desktop.auto_enroll)) && self.windows.len() <= self.media.max_tiles,
+            (!self.windows.is_empty()
+                || self
+                    .desktop
+                    .as_ref()
+                    .is_some_and(|desktop| desktop.auto_enroll))
+                && self.windows.len() <= self.media.max_tiles,
             "invalid atlas source membership count"
         );
         let mut ids = BTreeSet::new();
@@ -268,11 +281,39 @@ impl AtlasSourceConfig {
             max_windows: self.media.max_tiles,
         })
         .map_err(|e| anyhow::anyhow!("invalid source atlas: {e:?}"))?;
-        for (id, window) in windows {
-            atlas
-                .place(id, window.geometry_epoch, window.width, window.height)
-                .map_err(|e| anyhow::anyhow!("source window does not fit atlas: {e:?}"))?;
+        let captures = windows
+            .into_iter()
+            .map(|(id, window)| (id, window.geometry_epoch, window.width, window.height));
+        if self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off
+            && plan.policy.width >= 128
+            && plan.policy.height >= 128
+        {
+            let initial = atlas.snapshot();
+            let (mut virtual_layout, paused) = crate::atlas_growth::stage_sparse_capture_layout(
+                &initial,
+                captures,
+                (plan.policy.width, plan.policy.height),
+            )?;
+            ensure!(
+                paused.is_empty(),
+                "source window exceeds negotiated capture dimensions"
+            );
+            // Startup pictures only warm the codec. Whole source geometry is
+            // retained separately; it consumes no startup atlas allocations.
+            virtual_layout.width = initial.width;
+            virtual_layout.height = initial.height;
+            return Ok(virtual_layout);
         }
+        let (grown, paused) = crate::atlas_growth::stage_capture_layout_with_limit(
+            &atlas,
+            captures,
+            (plan.policy.width, plan.policy.height),
+        )?;
+        ensure!(
+            paused.is_empty(),
+            "initial source windows exceed atlas capacity"
+        );
+        atlas = grown;
         Ok(atlas.snapshot())
     }
 }
@@ -356,6 +397,10 @@ pub struct AtlasReceiverConfig {
     pub stream_id: String,
     pub geometry_epoch: u64,
     pub config_generation: u64,
+    #[serde(default)]
+    pub max_width: Option<u32>,
+    #[serde(default)]
+    pub max_height: Option<u32>,
     pub width: u32,
     pub height: u32,
     pub max_tiles: usize,
@@ -381,7 +426,9 @@ impl AtlasReceiverConfig {
     /// # Errors
     /// Establishes exactly two refresh periods as the live media age limit.
     pub fn plan(&self) -> Result<AtlasSessionPlan> {
-        if let Some(reverse) = &self.reverse { reverse.validate()?; }
+        if let Some(reverse) = &self.reverse {
+            reverse.validate()?;
+        }
         ensure!(
             self.color_codec == AtlasColorCodec::H264 || self.desktop.is_some(),
             "AV1 native presentation currently requires desktop mode"
@@ -442,6 +489,8 @@ impl AtlasReceiverConfig {
     #[must_use]
     pub fn media_policy(&self) -> AtlasMediaPolicyConfig {
         AtlasMediaPolicyConfig {
+            max_width: self.max_width,
+            max_height: self.max_height,
             color_codec: self.color_codec,
             stream_id: self.stream_id.clone(),
             geometry_epoch: self.geometry_epoch,
@@ -472,6 +521,15 @@ impl AtlasMediaPolicyConfig {
             (1..=1000).contains(&self.refresh_hz),
             "invalid atlas refresh rate"
         );
+        let max_width = self.max_width.unwrap_or(self.width);
+        let max_height = self.max_height.unwrap_or(self.height);
+        ensure!(
+            max_width >= self.width
+                && max_height >= self.height
+                && max_width <= 8192
+                && max_height <= 4096,
+            "atlas canvas exceeds 8192x4096 or initial size exceeds capacity"
+        );
         let color = CodecDescriptor {
             codec: self.color_codec.wire(),
             plane: VideoPlaneRole::Color,
@@ -488,8 +546,8 @@ impl AtlasMediaPolicyConfig {
                 stream_id: Id128(u128::from_str_radix(&self.stream_id, 16)?),
                 geometry_epoch: self.geometry_epoch,
                 config_generation: self.config_generation,
-                width: self.width,
-                height: self.height,
+                width: max_width,
+                height: max_height,
                 max_tiles: self.max_tiles,
                 max_encoded_bytes: self.max_encoded_bytes,
                 max_age_ns: 2_000_000_000 / u64::from(self.refresh_hz),
@@ -693,6 +751,7 @@ mod receiver {
                 input.is_some(),
                 config.input_recovery
             );
+            let _clipboard = crate::clipboard_sync::ClipboardSync::start(&connection, false);
             let _reverse = config.reverse.as_ref()
                 .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&connection, reverse, true, None))
                 .transpose()?;
@@ -955,9 +1014,30 @@ mod tests {
         assert_eq!(config().plan().unwrap().color.codec, VideoCodec::H264);
     }
 
+    #[test]
+    fn dynamic_canvas_negotiates_capacity_separately_from_initial_codec() {
+        let mut policy = config().media_policy();
+        policy.max_width = Some(8192);
+        policy.max_height = Some(4096);
+        policy.max_decoded_bytes = 256 * 1024 * 1024;
+        let plan = policy.plan().unwrap();
+        assert_eq!((plan.policy.width, plan.policy.height), (8192, 4096));
+        assert_eq!(
+            (plan.color.coded_width, plan.color.coded_height),
+            (policy.width, policy.height)
+        );
+        policy.max_width = Some(8194);
+        assert!(policy.plan().is_err());
+        policy.max_width = Some(8192);
+        policy.max_height = Some(4098);
+        assert!(policy.plan().is_err());
+    }
+
     fn config() -> AtlasReceiverConfig {
         let root = std::env::temp_dir();
         AtlasReceiverConfig {
+            max_width: None,
+            max_height: None,
             reverse: None,
             color_codec: Default::default(),
             desktop: None,
@@ -1095,6 +1175,7 @@ mod tests {
     fn source_layout_rejects_aliases_and_is_order_independent() {
         let receiver = config();
         let mut source = AtlasSourceConfig {
+            occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
             reverse: None,
             desktop: None,
             pointer: None,
@@ -1121,6 +1202,31 @@ mod tests {
                 })
                 .collect(),
         };
+        let mut overlapping = source.clone();
+        overlapping.media.width = 1024;
+        overlapping.media.height = 1024;
+        overlapping.media.max_width = Some(8192);
+        overlapping.media.max_height = Some(4096);
+        overlapping.media.max_decoded_bytes = 256 * 1024 * 1024;
+        overlapping.media.max_tiles = 8;
+        overlapping.windows = (1..=8)
+            .map(|id| AtlasSourceWindow {
+                window_id: format!("{id:032x}"),
+                address: format!("0x{id:x}"),
+                width: 4096,
+                height: 4096,
+                geometry_epoch: 1,
+            })
+            .collect();
+        let virtual_layout = overlapping.layout().unwrap();
+        assert_eq!((virtual_layout.width, virtual_layout.height), (1024, 1024));
+        assert_eq!(virtual_layout.placements.len(), 8);
+        assert!(
+            virtual_layout
+                .placements
+                .iter()
+                .all(|p| p.allocation.x == 0 && p.allocation.y == 0)
+        );
         let layout = source.layout().unwrap();
         source.pointer = Some(AtlasSourcePointerConfig {
             cursor_monitor_id: None,

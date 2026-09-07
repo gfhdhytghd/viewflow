@@ -1,0 +1,14 @@
+[Unit]
+Description=Viewflow static wallpaper sync to the Windows virtual display
+After=viewflow-desktop.service
+PartOf=viewflow-desktop.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/data/viewflow
+ExecStart=/usr/bin/python3 %h/data/viewflow/tools/wallpaper/sync.py --config %h/.config/viewflow/wallpaper.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=viewflow-desktop.service

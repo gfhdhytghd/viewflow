@@ -41,6 +41,8 @@ pub mod alpha_reference;
 pub mod atlas_clock;
 #[cfg(target_os = "linux")]
 mod atlas_cursor_handoff;
+#[cfg(target_os = "linux")]
+pub mod cursor_source;
 mod atlas_cursor_receiver;
 pub mod atlas_feedback;
 #[cfg(target_os = "linux")]
@@ -61,6 +63,7 @@ mod atlas_source_input;
 #[cfg(windows)]
 mod bootstrap_runtime;
 pub mod clipboard_runtime;
+pub mod clipboard_sync;
 mod clock_retention;
 pub mod desktop_config;
 pub mod desktop_pointer;
@@ -139,6 +142,7 @@ pub mod nvenc_runtime;
 pub mod pixel_runtime;
 pub mod raw_session;
 pub mod reverse_bridge;
+pub mod native_window_wire;
 mod readiness_runtime;
 #[cfg(unix)]
 mod sidecar_runtime;
@@ -180,6 +184,7 @@ Usage:
   viewflowd acceptance-arm --acceptance-socket <PATH> --operation-id <ID> --source-display-id <ID> --target-device-id <ID> --linux-viewflow-sha256 <LOWER64> --windows-viewflow-sha256 <LOWER64> --deployment-release-receipt <PATH> --deployment-release-receipt-sha256 <LOWER64>
   viewflowd acceptance-query --acceptance-socket <PATH> --operation-id <ID>
   viewflowd force-release-input --receipt <PATH> --operation-id <ID> --linux-evidence-sha256 <LOWER64>  (Windows only)
+  viewflowd input-status  (macOS only; checks permission without posting input)
 
 Serve options:
   --input-script <PATH>            Send one validated smoke-input script once
@@ -195,7 +200,7 @@ Serve options:
 Common options:
   --probe-interval-ms <MS>         Delay between successful probes (default: 1000)
   --probe-timeout-ms <MS>          Per-probe timeout (default: 3000)
-  --input-backend <MODE>           disabled (default) or native (Windows only)
+  --input-backend <MODE>           disabled (default) or native (Windows/macOS)
   --device-id <32_HEX_DIGITS>      Stable local device identity (required for native)
 
 Connect options:
@@ -267,6 +272,8 @@ pub struct ConnectConfig {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
+    #[cfg(target_os = "macos")]
+    InputStatus,
     Serve(ServeConfig),
     Connect(ConnectConfig),
     #[cfg(unix)]
@@ -298,6 +305,11 @@ where
         .ok_or_else(|| anyhow!("missing command: expected serve or connect"))?;
     let options = parse_options(arguments)?;
     match mode.as_str() {
+        #[cfg(target_os = "macos")]
+        "input-status" => {
+            reject_unknown(&options, &[])?;
+            Ok(Command::InputStatus)
+        }
         "serve" | "connect" => {
             let identity = IdentityPaths {
                 certificate: required_path(&options, "cert")?,
@@ -826,6 +838,15 @@ impl ProcessClock {
 /// are logged and retried with a bounded exponential delay.
 pub async fn run(command: Command) -> Result<()> {
     match command {
+        #[cfg(target_os = "macos")]
+        Command::InputStatus => {
+            println!("{}", serde_json::json!({
+                "backend": "macos-quartz",
+                "event_post_authorized": viewflow_platform::macos_input::MacOsInputBackend::is_authorized(),
+                "input_injected": false,
+            }));
+            Ok(())
+        }
         Command::Serve(config) => run_server(config).await,
         Command::Connect(config) => run_client(config).await,
         #[cfg(unix)]
@@ -1526,7 +1547,7 @@ type LeaseRevokeAckSender = oneshot::Sender<std::result::Result<InputLeaseRevoke
 
 struct PendingLeaseRevokeAckEntry {
     sender: LeaseRevokeAckSender,
-    deadline: tokio::time::Instant,
+    deadline: Option<tokio::time::Instant>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1569,10 +1590,16 @@ impl LeaseRevokeAckRegistry {
         key: LeaseRevokeAckKey,
         deadline: tokio::time::Instant,
     ) -> Result<PendingLeaseRevokeAck, LeaseRevokeDeliveryError> {
+        self.register_with_deadline(key, Some(deadline))
+    }
+
+    fn register_with_deadline(
+        &self, key: LeaseRevokeAckKey, deadline: Option<tokio::time::Instant>,
+    ) -> Result<PendingLeaseRevokeAck, LeaseRevokeDeliveryError> {
         let (sender, receiver) = oneshot::channel();
         let mut state = self.lock();
         Self::prune_tombstones(&mut state, Instant::now());
-        if tokio::time::Instant::now() >= deadline {
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
             return Err(LeaseRevokeDeliveryError::DefinitelyNotSent(
                 "lease revoke deadline expired before acknowledgment registration".into(),
             ));
@@ -1609,7 +1636,7 @@ impl LeaseRevokeAckRegistry {
         let now = Instant::now();
         Self::prune_tombstones(&mut state, now);
         if let Some(entry) = state.pending.remove(&key) {
-            if received_at >= entry.deadline {
+            if entry.deadline.is_some_and(|deadline| received_at >= deadline) {
                 Self::insert_tombstone(
                     &mut state,
                     key,
@@ -2931,6 +2958,26 @@ pub(crate) async fn send_input_confirmed_until(
     }
     let result = pending.wait_until(deadline).await?;
     classify_input_result(result)
+}
+
+// Desktop handoffs retain the ordered revoke until its actual receipt. A slow
+// peer cannot turn this cleanup into a whole-session failure.
+#[cfg(any(unix, test))]
+pub(crate) async fn send_desktop_revoke_confirmed(
+    outbound: &OutboundSender,
+    revoke: InputLeaseRevoke,
+    target: tokio::time::Instant,
+) -> std::result::Result<InputLeaseRevokedAck, LeaseRevokeDeliveryError> {
+    let key = LeaseRevokeAckKey::from(&revoke);
+    let mut pending = outbound.lease_revoke_acks.register_with_deadline(key, None)?;
+    pending.may_have_been_sent = true;
+    crate::shared_control::send_bounded_control(outbound, input_lease_revoke_payload(revoke), target)
+        .await.map_err(|error| LeaseRevokeDeliveryError::DeliveryUnknown(error.to_string()))?;
+    let ack = PendingLeaseRevokeAck::map_result((&mut pending.receiver).await)?;
+    if tokio::time::Instant::now() > target {
+        eprintln!("desktop revoke delayed; ordered cleanup confirmed");
+    }
+    Ok(ack)
 }
 
 #[cfg(any(unix, test))]
@@ -5137,3 +5184,7 @@ mod tests {
         }
     }
 }
+
+pub(crate) mod atlas_growth;
+
+pub mod atlas_occlusion;

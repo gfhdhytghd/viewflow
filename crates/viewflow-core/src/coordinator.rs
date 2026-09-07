@@ -480,6 +480,7 @@ mod tests {
     #[test]
     fn atlas_metadata_requires_dedicated_runtime() {
         let frame = viewflow_protocol::AtlasFrame {
+            patches: None,
             color_keyframe: true,
             alpha_keyframe: true,
             desktop: None,

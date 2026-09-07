@@ -224,6 +224,33 @@ impl StableAtlas {
         })
     }
 
+    /// Increase canvas capacity without moving existing reservations.
+    /// # Errors
+    /// Rejects shrinking, invalid extents and revision exhaustion atomically.
+    pub fn grow(&mut self, width: u32, height: u32) -> Result<(), AtlasError> {
+        if width < self.config.width || height < self.config.height {
+            return Err(AtlasError::InvalidConfig);
+        }
+        if width == self.config.width && height == self.config.height {
+            return Ok(());
+        }
+        let mut next = Self::new(AtlasConfig {
+            width,
+            height,
+            ..self.config
+        })?;
+        next.revision = self
+            .revision
+            .checked_add(1)
+            .ok_or(AtlasError::RevisionExhausted)?;
+        for slot in self.slots.values() {
+            next.reserve_existing(slot.placement.allocation)?;
+        }
+        next.slots = self.slots.clone();
+        *self = next;
+        Ok(())
+    }
+
     #[must_use]
     pub fn snapshot(&self) -> AtlasSnapshot {
         AtlasSnapshot {
@@ -321,7 +348,11 @@ impl StableAtlas {
                 });
             }
             candidate.merge_free();
-            AtlasRect { width: aligned_width, height: aligned_height, ..previous }
+            AtlasRect {
+                width: aligned_width,
+                height: aligned_height,
+                ..previous
+            }
         } else {
             if let Some(slot) = old {
                 candidate.free.push(slot.placement.allocation);
@@ -413,7 +444,10 @@ impl StableAtlas {
         self.merge_free();
         if self.slots.is_empty() {
             self.free = vec![AtlasRect {
-                x: 0, y: 0, width: self.config.width, height: self.config.height,
+                x: 0,
+                y: 0,
+                width: self.config.width,
+                height: self.config.height,
             }];
         }
         self.revision = revision;
@@ -601,8 +635,12 @@ mod tests {
     #[test]
     fn taller_second_window_can_use_full_height_beside_first() {
         let mut atlas = StableAtlas::new(AtlasConfig {
-            width: 4096, height: 2560, alignment: 2, max_windows: 8,
-        }).unwrap();
+            width: 4096,
+            height: 2560,
+            alignment: 2,
+            max_windows: 8,
+        })
+        .unwrap();
         atlas.place(Id128(1), 1, 1690, 1348).unwrap();
         // Startup hands off a published snapshot to the live GPU device.
         atlas = StableAtlas::from_snapshot(atlas.config, &atlas.snapshot()).unwrap();
@@ -613,8 +651,12 @@ mod tests {
     #[test]
     fn shrinking_full_canvas_releases_space_for_another_window() {
         let mut atlas = StableAtlas::new(AtlasConfig {
-            width: 4096, height: 2560, alignment: 2, max_windows: 8,
-        }).unwrap();
+            width: 4096,
+            height: 2560,
+            alignment: 2,
+            max_windows: 8,
+        })
+        .unwrap();
         atlas.place(Id128(1), 1, 4096, 2560).unwrap();
         let small = atlas.place(Id128(1), 2, 1690, 1348).unwrap();
         let second = atlas.place(Id128(2), 1, 1894, 1582).unwrap();
@@ -645,7 +687,10 @@ mod tests {
             Err(AtlasError::StaleGeometry)
         );
         let next = atlas.place(Id128(1), 5, 32, 32).unwrap();
-        assert_eq!((next.allocation.x, next.allocation.y), (old.allocation.x, old.allocation.y));
+        assert_eq!(
+            (next.allocation.x, next.allocation.y),
+            (old.allocation.x, old.allocation.y)
+        );
         assert_eq!((next.allocation.width, next.allocation.height), (32, 32));
         assert!(next.generation > old.generation);
     }

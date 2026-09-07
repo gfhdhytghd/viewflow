@@ -22,6 +22,7 @@ typedef enum vf_gpu_dmabuf_status {
   VF_GPU_DMABUF_INTERNAL_ERROR = 7,
   VF_GPU_DMABUF_EXPIRED_CLEAN = 8,
   VF_GPU_DMABUF_EXPIRED_AFTER_SUBMISSION = 9,
+  VF_GPU_DMABUF_NEEDS_CANVAS = 10,
 } vf_gpu_dmabuf_status;
 
 typedef struct vf_gpu_dmabuf_encoder_config {
@@ -88,6 +89,24 @@ typedef struct vf_gpu_dmabuf_atlas {
   uint64_t geometry_epoch;
 } vf_gpu_dmabuf_atlas;
 
+typedef struct vf_gpu_dmabuf_sparse_source {
+  int64_t x, y;
+  uint32_t z, grid;
+  uint32_t clip_enabled, clip_x, clip_y, clip_width, clip_height;
+} vf_gpu_dmabuf_sparse_source;
+typedef struct vf_gpu_dmabuf_sparse_scene {
+  uint32_t mode; // 1: opaque culling, 2: transparent precomposition
+  uint32_t max_width, max_height, source_count;
+  const vf_gpu_dmabuf_sparse_source* sources;
+} vf_gpu_dmabuf_sparse_scene;
+typedef struct vf_gpu_dmabuf_sparse_patch {
+  uint32_t source, source_x, source_y, x, y, width, height;
+} vf_gpu_dmabuf_sparse_patch;
+typedef struct vf_gpu_dmabuf_sparse_info {
+  uint32_t enabled, patch_count, required_width, required_height;
+  uint64_t input_pixels, stored_pixels, occluded_pixels, empty_pixels, omitted_pixels;
+} vf_gpu_dmabuf_sparse_info;
+
 typedef struct vf_gpu_dmabuf_output_info {
   uint64_t frame_id;
   uint64_t capture_timestamp_ns;
@@ -138,6 +157,18 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_encode_atlas_recoverable(
     vf_gpu_dmabuf_encoder* encoder, const vf_gpu_dmabuf_atlas* atlas,
     uint32_t force_idr, int64_t deadline_monotonic_ns,
     vf_gpu_dmabuf_output** output);
+
+// NEEDS_CANVAS returns an owned output with only sparse_info, after all source
+// reads have completed. Release leases before reallocating the encoder.
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_encode_sparse_recoverable(
+    vf_gpu_dmabuf_encoder* encoder, const vf_gpu_dmabuf_atlas* atlas,
+    const vf_gpu_dmabuf_sparse_scene* scene, uint32_t force_idr,
+    int64_t deadline_monotonic_ns, vf_gpu_dmabuf_output** output);
+vf_gpu_dmabuf_status vf_gpu_dmabuf_output_get_sparse_info(
+    const vf_gpu_dmabuf_output* output, vf_gpu_dmabuf_sparse_info* info);
+vf_gpu_dmabuf_status vf_gpu_dmabuf_output_copy_sparse_patches(
+    const vf_gpu_dmabuf_output* output, vf_gpu_dmabuf_sparse_patch* destination,
+    size_t capacity, size_t* required);
 
 vf_gpu_dmabuf_status vf_gpu_dmabuf_output_get_info(
     const vf_gpu_dmabuf_output* output, vf_gpu_dmabuf_output_info* info);

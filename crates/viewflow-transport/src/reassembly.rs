@@ -215,15 +215,37 @@ impl MediaAssembler {
             return Err(MediaAssemblerError::StaleFrame);
         }
         if packet.frame_id > *newest {
+            // Only the newest frame for this plane can be pending. Remove it
+            // directly instead of scanning every other window on each frame.
+            self.pending.remove(&FrameKey {
+                plane: plane_key,
+                frame_id: *newest,
+            });
             *newest = packet.frame_id;
-            self.pending
-                .retain(|key, _| key.plane != plane_key || key.frame_id >= packet.frame_id);
         }
 
         let frame_key = FrameKey {
             plane: plane_key,
             frame_id: packet.frame_id,
         };
+        // A whole plane already owns a contiguous payload. Skip the slot
+        // allocation and final copy, but retain consistency checks if an
+        // earlier packet declared this same frame to have multiple chunks.
+        if packet.chunk_count == 1 && !self.pending.contains_key(&frame_key) {
+            if packet.payload.len() > self.config.max_plane_bytes {
+                return Err(MediaAssemblerError::PlaneTooLarge);
+            }
+            self.completed_frame.insert(plane_key, packet.frame_id);
+            return Ok(Some(AssembledMedia {
+                window_id: packet.window_id,
+                frame_id: packet.frame_id,
+                geometry_epoch: packet.geometry_epoch,
+                plane: packet.plane,
+                source_submitted_ns,
+                received_ns,
+                payload: packet.payload,
+            }));
+        }
         let pending = self
             .pending
             .entry(frame_key)
@@ -388,6 +410,94 @@ mod tests {
             source_submitted_ns: 1,
             payload: Bytes::from_static(payload),
         }
+    }
+
+    #[test]
+    fn single_chunk_retains_payload_allocation_and_checks_limits() {
+        let mut assembler = MediaAssembler::new(MediaAssemblerConfig {
+            max_plane_bytes: 3,
+            ..Default::default()
+        });
+        let mut single = packet(1, 0, b"abc");
+        single.chunk_count = 1;
+        single.payload = Bytes::from(vec![1, 2, 3]);
+        let original = single.payload.clone();
+        let frame = assembler.push_latest(single.clone(), 100).unwrap().unwrap();
+        assert_eq!(frame.payload.as_ptr(), original.as_ptr());
+        assert_eq!(frame.payload, original);
+        assert_eq!(
+            assembler.push_latest(single.clone(), 100),
+            Err(MediaAssemblerError::StaleFrame)
+        );
+        single.frame_id = 2;
+        single.payload = Bytes::from_static(b"abcd");
+        assert_eq!(
+            assembler.push_latest(single, 100),
+            Err(MediaAssemblerError::PlaneTooLarge)
+        );
+        assert!(assembler.pending.is_empty());
+    }
+
+    #[test]
+    fn single_chunk_cannot_replace_inconsistent_pending_frame() {
+        let mut assembler = MediaAssembler::new(MediaAssemblerConfig::default());
+        assembler.push_latest(packet(1, 0, b"a"), 100).unwrap();
+        let mut single = packet(1, 0, b"a");
+        single.chunk_count = 1;
+        assert_eq!(
+            assembler.push_latest(single, 100),
+            Err(MediaAssemblerError::InconsistentChunkCount)
+        );
+        assert_eq!(
+            assembler
+                .push_latest(packet(1, 1, b"b"), 100)
+                .unwrap()
+                .unwrap()
+                .payload
+                .as_ref(),
+            b"ab"
+        );
+    }
+
+    #[test]
+    fn replacing_frame_preserves_other_windows_and_planes() {
+        let mut assembler = MediaAssembler::new(MediaAssemblerConfig::default());
+        for (window, plane) in [
+            (1, MediaPlane::Color),
+            (2, MediaPlane::Color),
+            (1, MediaPlane::Alpha),
+        ] {
+            let mut first = packet(1, 0, b"a");
+            first.window_id = Id128(window);
+            first.plane = plane;
+            assembler.push_latest(first, 100).unwrap();
+        }
+        assembler.push_latest(packet(2, 0, b"new"), 100).unwrap();
+        assert_eq!(assembler.pending.len(), 3);
+        for (window, plane) in [(2, MediaPlane::Color), (1, MediaPlane::Alpha)] {
+            let mut last = packet(1, 1, b"b");
+            last.window_id = Id128(window);
+            last.plane = plane;
+            assert_eq!(
+                assembler
+                    .push_latest(last, 100)
+                    .unwrap()
+                    .unwrap()
+                    .payload
+                    .as_ref(),
+                b"ab"
+            );
+        }
+        assert_eq!(
+            assembler
+                .push_latest(packet(2, 1, b" frame"), 100)
+                .unwrap()
+                .unwrap()
+                .payload
+                .as_ref(),
+            b"new frame"
+        );
+        assert!(assembler.pending.is_empty());
     }
 
     #[test]

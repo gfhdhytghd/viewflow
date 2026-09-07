@@ -176,6 +176,7 @@ mod tests {
 
     fn committed() -> AtlasFrame {
         AtlasFrame {
+            patches: None,
             stream_id: Id128(2),
             frame_id: 9,
             geometry_epoch: 4,

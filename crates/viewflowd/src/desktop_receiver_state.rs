@@ -234,6 +234,7 @@ mod tests {
     fn frame(movable: bool) -> AtlasFrame {
         let bounds = bounds();
         AtlasFrame {
+            patches: None,
             stream_id: STREAM,
             frame_id: 100,
             geometry_epoch: 2,

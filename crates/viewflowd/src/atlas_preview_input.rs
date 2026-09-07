@@ -287,6 +287,7 @@ mod tests {
         for notice_ahead in [false, true] {
             let origin = Instant::now();
             let old = AtlasFrame {
+            patches: None,
                 stream_id: Id128(99),
                 frame_id: 100,
                 geometry_epoch: 2,
@@ -489,6 +490,7 @@ mod tests {
         };
         let origin = Instant::now();
         let frame = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 100,
             geometry_epoch: 2,
@@ -915,6 +917,7 @@ mod tests {
         let source = source.unwrap();
         let origin = Instant::now();
         let manifest = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 100,
             geometry_epoch: 2,

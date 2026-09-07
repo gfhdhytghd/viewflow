@@ -243,7 +243,7 @@ impl AtlasPresenterChild {
         );
         let mut command = Command::new(executable);
         command
-            .args(["--stdin-atlas-v5", "--max-frame-bytes"])
+            .args(["--stdin-atlas-v5", "--atlas-sparse-v1", "--max-frame-bytes"])
             .arg(max_frame_bytes.to_string())
             .arg("--atlas-proxy-capacity")
             .arg(proxy_capacity.to_string())
@@ -350,7 +350,8 @@ impl AtlasPresenterChild {
     /// Spawn/readiness errors retire the child, with bounded kill/reap waiting.
     pub async fn spawn(executable: &Path, deadline: Instant) -> Result<Self> {
         let mut command = Command::new(executable);
-        command.arg("--stdin-atlas-v5");
+        command.arg("--stdin-atlas-v5")
+            .arg("--atlas-sparse-v1");
         #[cfg(windows)]
         command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
         Self::spawn_command(command, deadline).await
@@ -427,6 +428,7 @@ impl AtlasPresenterChild {
         let mut command = Command::new(executable);
         command
             .arg("--stdin-atlas-v5")
+            .arg("--atlas-sparse-v1")
             .arg("--max-frame-bytes")
             .arg(max_frame_bytes.to_string());
         if let Some(capacity) = proxy_capacity {

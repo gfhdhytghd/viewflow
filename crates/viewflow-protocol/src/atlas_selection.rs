@@ -151,6 +151,7 @@ mod tests {
     #[test]
     fn selection_is_exact_frame_bound_and_wire_validated() {
         let frame = AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 10,
             geometry_epoch: 2,

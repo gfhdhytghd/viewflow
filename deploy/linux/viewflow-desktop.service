@@ -1,0 +1,21 @@
+[Unit]
+Description=Viewflow desktop streaming in the user's Hyprland session
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=EGL_PLATFORM=wayland
+Environment=__EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/10_nvidia.json
+Environment=__GLX_VENDOR_LIBRARY_NAME=nvidia
+Environment=DRI_PRIME=1
+WorkingDirectory=%h/data/viewflow
+ExecStart=/usr/bin/python3 %h/data/viewflow/tools/desktop-autostart-linux.py --config %h/.config/viewflow/desktop-source.json --monitor DP-4 --peer %h/data/viewflow/target/release/vf-media-peer
+Restart=on-failure
+RestartSec=3
+KillMode=mixed
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

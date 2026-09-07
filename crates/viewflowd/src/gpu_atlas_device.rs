@@ -1,4 +1,7 @@
 //! One persistent device-pair capture -> encode -> transport owner.
+#[cfg(test)]
+use crate::atlas_growth::stage_capture_layout;
+use crate::atlas_growth::stage_capture_layout_with_limit;
 use anyhow::{Result, ensure};
 use tokio::time::Instant;
 use viewflow_core::{AtlasConfig, AtlasSnapshot, StableAtlas};
@@ -22,12 +25,16 @@ pub enum AtlasDevicePoll {
 /// The application supplies authenticated capture connections, a prepared
 /// encoder/sender, negotiated clock mapping and a scheduling cadence. Source
 /// geometry may change within the negotiated canvas. Oversized captures pause
-/// publication until they fit; canvas growth still requires negotiation.
+/// publication until they fit; canvas growth stays within negotiated capacity.
 pub struct GpuAtlasDevice {
     active: Option<(AtlasCapturePool, GpuAtlasSender)>,
     codec: CodecIdentity,
     layout: StableAtlas,
+    sparse_snapshot: Option<AtlasSnapshot>,
+    sparse_enabled: bool,
+    max_windows: usize,
     geometry_epoch: u64,
+    canvas_limit: (u32, u32),
     capacity_paused: std::collections::BTreeSet<viewflow_protocol::WindowId>,
     capture_geometry: std::collections::BTreeMap<viewflow_protocol::WindowId, (u64, u32, u32)>,
     next_frame: u64,
@@ -38,6 +45,24 @@ pub struct GpuAtlasDevice {
 }
 
 impl GpuAtlasDevice {
+    pub(crate) fn set_occlusion(
+        &mut self,
+        mode: crate::atlas_occlusion::AtlasOcclusionMode,
+    ) -> Result<()> {
+        let mode = if self.canvas_limit.0 < 128 || self.canvas_limit.1 < 128 {
+            crate::atlas_occlusion::AtlasOcclusionMode::Off
+        } else {
+            mode
+        };
+        let (_, sender) = self
+            .active
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("atlas device retired"))?;
+        sender.set_occlusion(mode)?;
+        self.sparse_enabled = mode != crate::atlas_occlusion::AtlasOcclusionMode::Off;
+        Ok(())
+    }
+
     /// # Errors
     /// Rejects zero identities, stream/source aliasing or layout membership drift.
     pub fn new(
@@ -80,21 +105,38 @@ impl GpuAtlasDevice {
             "atlas device source membership mismatch"
         );
         let next_frame = sender.next_frame_id()?;
-        let layout = StableAtlas::from_snapshot(
-            AtlasConfig {
+        let canvas_limit = sender.canvas_limit();
+        let sparse_enabled = sender.occlusion_enabled();
+        let sparse_snapshot = sparse_enabled.then(|| layout.clone());
+        let layout = if sparse_enabled {
+            StableAtlas::new(AtlasConfig {
                 width: layout.width,
                 height: layout.height,
                 alignment: 2,
                 max_windows,
-            },
-            &layout,
-        )
-        .map_err(|error| anyhow::anyhow!("invalid negotiated atlas snapshot: {error:?}"))?;
+            })
+            .map_err(|e| anyhow::anyhow!("invalid sparse canvas: {e:?}"))?
+        } else {
+            StableAtlas::from_snapshot(
+                AtlasConfig {
+                    width: layout.width,
+                    height: layout.height,
+                    alignment: 2,
+                    max_windows,
+                },
+                &layout,
+            )
+            .map_err(|error| anyhow::anyhow!("invalid negotiated atlas snapshot: {error:?}"))?
+        };
         Ok(Self {
             active: Some((pool, sender)),
             codec,
             layout,
+            sparse_snapshot,
+            sparse_enabled,
+            max_windows,
             geometry_epoch,
+            canvas_limit,
             capacity_paused: Default::default(),
             capture_geometry: Default::default(),
             next_frame,
@@ -162,21 +204,30 @@ impl GpuAtlasDevice {
         window: viewflow_protocol::WindowId,
         frame: &crate::hyprcapture_gpu_wire::HcgfFrame,
     ) -> Result<bool> {
-        let mut candidate = self.layout.clone();
-        match candidate.place(
-            window,
-            frame.geometry_epoch,
-            frame.crop_width,
-            frame.crop_height,
-        ) {
-            Ok(_) => Ok(true),
-            Err(viewflow_core::AtlasError::NoSpace | viewflow_core::AtlasError::WindowLimit) => {
-                Ok(false)
-            }
-            Err(error) => Err(anyhow::anyhow!(
-                "invalid desktop candidate allocation: {error:?}"
-            )),
+        if self.sparse_enabled {
+            let (pool, _) = self
+                .active
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("atlas device retired"))?;
+            return Ok(window.0 != 0
+                && window != self.codec.window_id
+                && frame.geometry_epoch > 0
+                && frame.crop_width > 0
+                && frame.crop_height > 0
+                && frame.crop_width <= self.canvas_limit.0
+                && frame.crop_height <= self.canvas_limit.1
+                && (pool.windows().contains(&window) || pool.windows().len() < self.max_windows));
         }
+        crate::atlas_growth::can_enroll_capture_with_limit(
+            &self.layout,
+            (
+                window,
+                frame.geometry_epoch,
+                frame.crop_width,
+                frame.crop_height,
+            ),
+            self.canvas_limit,
+        )
     }
 
     /// Poll each source at most once, then submit a complete batch. Waiting
@@ -202,8 +253,10 @@ impl GpuAtlasDevice {
             }
         }
         if pool.windows().is_empty()
-            && (self.empty_published || self.last_empty_submission
-                .is_some_and(|last| last.elapsed() < std::time::Duration::from_nanos(1_000_000_000 / 60)))
+            && (self.empty_published
+                || self.last_empty_submission.is_some_and(|last| {
+                    last.elapsed() < std::time::Duration::from_nanos(1_000_000_000 / 60)
+                }))
         {
             self.active = Some((pool, sender));
             return Ok(AtlasDevicePoll::Waiting);
@@ -228,18 +281,69 @@ impl GpuAtlasDevice {
             }
             self.capture_geometry.insert(source.window, geometry);
         }
-        let (layout, paused) = stage_capture_layout(
-            &self.layout,
-            sources.iter().map(|source| {
-                let frame = source.frame.metadata();
-                (
-                    source.window,
-                    frame.geometry_epoch,
-                    frame.crop_width,
-                    frame.crop_height,
-                )
-            }),
-        )?;
+        let captures: Vec<_> = sources
+            .iter()
+            .map(|source| {
+                let f = source.frame.metadata();
+                (source.window, f.geometry_epoch, f.crop_width, f.crop_height)
+            })
+            .collect();
+        let (mut layout, paused, mut planned_snapshot) = if self.sparse_enabled {
+            let previous = self
+                .sparse_snapshot
+                .clone()
+                .unwrap_or_else(|| self.layout.snapshot());
+            let (snapshot, paused) = crate::atlas_growth::stage_sparse_capture_layout(
+                &previous,
+                captures,
+                self.canvas_limit,
+            )?;
+            let mut layout = self.layout.clone();
+            if (snapshot.width, snapshot.height)
+                != (layout.snapshot().width, layout.snapshot().height)
+            {
+                layout
+                    .grow(snapshot.width, snapshot.height)
+                    .map_err(|e| anyhow::anyhow!("sparse source growth: {e:?}"))?;
+            }
+            (layout, paused, snapshot)
+        } else {
+            let (layout, paused) =
+                stage_capture_layout_with_limit(&self.layout, captures, self.canvas_limit)?;
+            let snapshot = layout.snapshot();
+            (layout, paused, snapshot)
+        };
+        if (layout.snapshot().width, layout.snapshot().height)
+            != (self.layout.snapshot().width, self.layout.snapshot().height)
+        {
+            // Nothing in this batch was read by the GPU. Return producer leases
+            // before draining feedback and allocating the larger codec canvas.
+            let mut receivers = Vec::with_capacity(sources.len());
+            for mut source in sources {
+                source.receiver.release_after_source_reads(&source.frame)?;
+                receivers.push((source.window, source.receiver));
+            }
+            pool.restore(receivers)?;
+            let snapshot = layout.snapshot();
+            let publication = sender.grow_canvas(snapshot.width, snapshot.height).await?;
+            eprintln!(
+                "atlas-source-canvas grew={}x{} maximum={}x{}",
+                snapshot.width, snapshot.height, self.canvas_limit.0, self.canvas_limit.1
+            );
+            self.layout = layout;
+            if self.sparse_enabled {
+                self.sparse_snapshot = Some(planned_snapshot);
+            }
+            self.empty_published = false;
+            self.active = Some((pool, sender));
+            if let Some(publication) = publication {
+                self.committed_input = publication.committed_input;
+                if let Some(manifest) = publication.manifest {
+                    return Ok(AtlasDevicePoll::Enqueued(manifest));
+                }
+            }
+            return Ok(AtlasDevicePoll::Waiting);
+        }
         for window in paused.symmetric_difference(&self.capacity_paused) {
             eprintln!(
                 "atlas-source-capacity window={window:?} paused={} canvas={}x{}",
@@ -310,7 +414,7 @@ impl GpuAtlasDevice {
             .submit_batch(
                 AtlasBatch {
                     codec: self.codec,
-                    layout: layout.snapshot(),
+                    layout: planned_snapshot.clone(),
                     identity: GpuAtlasIdentity {
                         frame_id: self.next_frame,
                         capture_monotonic_ns: captured,
@@ -327,8 +431,24 @@ impl GpuAtlasDevice {
             .await?;
         withheld_receivers.extend(result.receivers);
         pool.restore(withheld_receivers)?;
-        if let Some(manifest) = &result.manifest { self.empty_published = manifest.tiles.is_empty(); }
+        if let Some(manifest) = &result.manifest {
+            self.empty_published = manifest.tiles.is_empty();
+        }
         self.committed_input = result.committed_input;
+        if let Some((width, height)) = result.grown_canvas {
+            layout
+                .grow(width, height)
+                .map_err(|e| anyhow::anyhow!("sparse residency growth: {e:?}"))?;
+            planned_snapshot.width = width;
+            planned_snapshot.height = height;
+            planned_snapshot.revision = planned_snapshot
+                .revision
+                .checked_add(1)
+                .ok_or_else(|| anyhow::anyhow!("sparse scene revision exhausted"))?;
+        }
+        if self.sparse_enabled {
+            self.sparse_snapshot = Some(planned_snapshot);
+        }
         self.layout = layout;
         self.next_frame = next_frame;
         self.active = Some((pool, sender));
@@ -345,37 +465,6 @@ impl GpuAtlasDevice {
         self.active.as_ref()?;
         self.committed_input.as_ref()
     }
-}
-
-/// Capacity pressure changes publication membership, never capture scale or
-/// authenticated source ownership. Other layout errors remain terminal.
-fn stage_capture_layout(
-    current: &StableAtlas,
-    captures: impl IntoIterator<Item = (viewflow_protocol::WindowId, u64, u32, u32)>,
-) -> Result<(
-    StableAtlas,
-    std::collections::BTreeSet<viewflow_protocol::WindowId>,
-)> {
-    let mut layout = current.clone();
-    let mut paused = std::collections::BTreeSet::new();
-    for (window, epoch, width, height) in captures {
-        match layout.place(window, epoch, width, height) {
-            Ok(_) => {}
-            Err(viewflow_core::AtlasError::NoSpace | viewflow_core::AtlasError::FragmentLimit) => {
-                // Do not publish the old size/epoch after a failed resize.
-                if layout.placement(window).is_some() {
-                    layout
-                        .remove(window)
-                        .map_err(|e| anyhow::anyhow!("atlas removal: {e:?}"))?;
-                }
-                paused.insert(window);
-            }
-            Err(error) => {
-                anyhow::bail!("invalid atlas capture geometry: {error:?}; window={window:?}")
-            }
-        }
-    }
-    Ok((layout, paused))
 }
 
 #[cfg(test)]

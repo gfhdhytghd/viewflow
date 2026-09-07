@@ -189,6 +189,9 @@ impl AtlasSourceInput {
                 drag: drag_transfer,
                 reverse_drag: reverse_drag.clone(),
                 remote_scale: desktop.remote_display.scale,
+                position_offset: (0.0, 0.0),
+                position_scale: (1.0, 1.0),
+                ready_file: None,
                 local: crate::atlas_cursor_handoff::local_displays(&desktop.hyprland_socket, monitor_id)?,
                 remote: desktop.remote_display.rect()?,
                 monitor_id,
@@ -1587,6 +1590,7 @@ mod tests {
             height: 16,
         };
         viewflow_protocol::AtlasFrame {
+            patches: None,
             stream_id: viewflow_protocol::Id128(99),
             frame_id,
             geometry_epoch: atlas_epoch,

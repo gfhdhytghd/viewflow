@@ -16,7 +16,7 @@ struct Tile {
     std::int32_t x{}, y{};
     std::uint32_t width{},height{},atlas_x{},atlas_y{};
     std::string title;
-    std::uint32_t flags{}; // bit 0: active native move, excluding resize
+    std::uint32_t flags{}; // bit 0: native move; bit 1: input-method popup
     std::uint64_t geometry_ack{};
 };
 struct Frame {
@@ -64,7 +64,7 @@ inline void validate(const Frame& frame) {
     std::set<std::uint64_t> ids;
     for(const auto& tile:frame.tiles) {
         if(!tile.id || !ids.insert(tile.id).second || !tile.width || !tile.height || tile.width>frame.width || tile.height>frame.height ||
-           tile.atlas_x>frame.width-tile.width || tile.atlas_y>frame.height-tile.height || tile.title.size()>4096 || tile.flags>1)
+           tile.atlas_x>frame.width-tile.width || tile.atlas_y>frame.height-tile.height || tile.title.size()>4096 || tile.flags>3)
             throw std::runtime_error("invalid reverse tile");
     }
 }
@@ -121,6 +121,7 @@ inline std::vector<std::uint8_t> decode_alpha(std::span<const std::uint8_t> enco
         const auto count=r.u32();if(!count || count>size-result.size() || r.offset==r.bytes.size())throw std::runtime_error("invalid alpha run");
         result.insert(result.end(),count,r.bytes[r.offset++]);
     }
-    if(result.size()!=size)throw std::runtime_error("incomplete alpha plane");return result;
+    if(result.size()!=size)throw std::runtime_error("incomplete alpha plane");
+    return result;
 }
 }

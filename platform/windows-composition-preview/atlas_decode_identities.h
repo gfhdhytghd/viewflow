@@ -16,9 +16,7 @@ struct AtlasDecodeIdentity {
 class AtlasDecodeIdentities {
  public:
   std::optional<uint64_t> Stage(uint64_t source, uint32_t width, uint32_t height, bool warmup) {
-    if (!source || !width || !height || pending_.size() >= 8 || next_ == UINT64_MAX ||
-        (shape_ && *shape_ != std::pair{width,height})) return {};
-    shape_ = std::pair{width,height};
+    if (!source || !width || !height || pending_.size() >= 8 || next_ == UINT64_MAX) return {};
     const uint64_t local = ++next_;
     pending_.emplace(local, AtlasDecodeIdentity{source,width,height,warmup});
     return local;
@@ -33,7 +31,6 @@ class AtlasDecodeIdentities {
   bool Empty() const { return pending_.empty(); }
  private:
   uint64_t next_{};
-  std::optional<std::pair<uint32_t,uint32_t>> shape_;
   std::map<uint64_t, AtlasDecodeIdentity> pending_;
 };
 } // namespace viewflow::windows_preview

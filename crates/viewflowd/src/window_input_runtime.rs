@@ -3068,6 +3068,7 @@ mod tests {
             height: 100,
         };
         let manifest = viewflow_protocol::AtlasFrame {
+            patches: None,
             stream_id: Id128(99),
             frame_id: 123,
             geometry_epoch: 2,
@@ -4083,6 +4084,7 @@ mod tests {
                 SharedEnd::ForwardedPreview | SharedEnd::KeyboardForwarded
             ) {
                 let manifest = viewflow_protocol::AtlasFrame {
+            patches: None,
                     stream_id: Id128(99),
                     frame_id: 1,
                     geometry_epoch: 1,
@@ -4445,6 +4447,7 @@ mod tests {
         }
         if let Some(atlas) = atlas_sender {
             let manifest = viewflow_protocol::AtlasFrame {
+            patches: None,
                 stream_id: Id128(99),
                 frame_id: 10,
                 geometry_epoch: 1,

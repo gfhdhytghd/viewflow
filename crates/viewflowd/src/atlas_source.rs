@@ -37,7 +37,7 @@ fn prepare(plan: AtlasSessionPlan) -> Result<GpuAtlasCompatibleEncoder> {
         max_pending_frames: 2,
     })?;
     encoder.set_color_codec(plan.color.codec)?;
-    encoder.prepare_size(plan.policy.width, plan.policy.height)?;
+    encoder.prepare_size(plan.color.coded_width, plan.color.coded_height)?;
     Ok(encoder)
 }
 
@@ -131,7 +131,11 @@ pub async fn run_until(
         }
     }
     let layout = config.layout()?;
-    let plan = config.media.plan()?;
+    let mut plan = config.media.plan()?;
+    for descriptor in [&mut plan.color, &mut plan.alpha] {
+        descriptor.coded_width = layout.width;
+        descriptor.coded_height = layout.height;
+    }
     let identity = viewflow_transport::PeerIdentity::from_pem(
         &read_bounded(&config.certificate, 1 << 20)?,
         &read_bounded(&config.private_key, 1 << 20)?,
@@ -163,6 +167,7 @@ pub async fn run_until(
         };
         let streams = start_sources(&config, deadline, &stop_rx).await?;
         let mut warmup = GpuAtlasWarmup::new(streams, warm_encoder, plan, layout.clone()).await?;
+        warmup.set_occlusion(config.occlusion);
         let startup = async {
             let frames = warmup
                 .collect_active_until(deadline, stopped(&mut stop_rx.clone()))
@@ -212,11 +217,22 @@ pub async fn run_until(
                 };
             }
         };
-        let _reverse = config.reverse.as_ref()
-            .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&peer.connection, reverse, false, input.as_ref().map(|input| input.reverse_drag())))
+        let _clipboard = crate::clipboard_sync::ClipboardSync::start(&peer.connection, true);
+        let _reverse = config
+            .reverse
+            .as_ref()
+            .map(|reverse| {
+                crate::reverse_bridge::ReverseBridge::start(
+                    &peer.connection,
+                    reverse,
+                    false,
+                    input.as_ref().map(|input| input.reverse_drag()),
+                )
+            })
             .transpose()?;
         let session = warmup.into_live(peer.sender).await?;
         let mut session = session;
+        session.set_occlusion(config.occlusion)?;
         let desktop = if let Some(lane) = desktop_setup {
             session.attach_desktop_source(lane.clone())?;
             Some(crate::desktop_source::DesktopEnrollmentSupervisor::new(
@@ -485,6 +501,7 @@ mod tests {
         eprintln!("owned capture geometry={geometry:?}");
         let root = std::env::temp_dir();
         let config = AtlasSourceConfig {
+            occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
             reverse: None,
             pointer: None,
             desktop: None,
@@ -501,6 +518,8 @@ mod tests {
             startup_timeout_ms: 10000,
             media_idle_timeout_ms: 3000,
             media: crate::atlas_peer::AtlasMediaPolicyConfig {
+                max_width: None,
+                max_height: None,
                 color_codec: Default::default(),
                 stream_id: format!("{:032x}", 99),
                 geometry_epoch: 1,

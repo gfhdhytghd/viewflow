@@ -1,4 +1,4 @@
-name: macOS foundation
+name: macOS native backends
 on:
   push:
   pull_request:
@@ -16,7 +16,11 @@ jobs:
         run: cargo +stable check --locked -p viewflowd --lib --bins
       - name: Test portable foundation
         run: cargo +stable test --locked -p viewflow-protocol -p viewflow-core -p viewflow-platform -p viewflow-transport
-      - name: Build native probe for Apple Silicon and Intel
+      - name: Test input receiver without posting desktop events
+        run: cargo +stable test --locked -p viewflowd --lib input_runtime::
+      - name: Test window bridge without desktop events
+        run: cargo +stable test --locked -p viewflowd --bin vf-window-peer --test window_bridge_quic
+      - name: Build native backends for Apple Silicon and Intel
         run: cmake -S platform/macos -B build/macos -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" && cmake --build build/macos
-      - name: Check probe CLI without requesting desktop permissions
+      - name: Check native codecs and CLI without desktop permissions
         run: ctest --test-dir build/macos --output-on-failure

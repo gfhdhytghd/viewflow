@@ -1,5 +1,10 @@
 # Linux Wayland clipboard boundary
 
+This document describes the older explicit-transfer adapter. Automatic desktop
+clipboard synchronization now uses the cross-platform lane documented in
+[clipboard sync](clipboard-sync.md); the old per-operation consent boundary
+below does not govern that session-level feature.
+
 `crates/viewflow-platform/src/linux_clipboard.rs` adds a build-tested native
 boundary around the real `wl-clipboard` clients. It does not make the Clipboard
 acceptance gate complete: a protocol receipt or a successful `wl-copy` launcher

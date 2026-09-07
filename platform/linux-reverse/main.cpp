@@ -74,7 +74,8 @@ struct Window {
     int logical_width{},logical_height{},region_width{},region_height{};
     std::uint64_t alpha_revision{},native_address{};std::array<unsigned,4> alpha_rect{};bool drag_announced{};
     ~Window();
-    std::string app_id() const {return "ViewflowReverse-"+std::to_string(id);}
+    bool ime_popup() const {return (tile.flags&2)!=0;}
+    std::string app_id() const {return std::string(ime_popup()?"ViewflowReverse-IME-":"ViewflowReverse-")+std::to_string(id);}
 };
 struct App {
     wl_display* display{};wl_registry* registry{};wl_compositor* compositor{};xdg_wm_base* wm{};
@@ -144,7 +145,7 @@ struct App {
     }
     static void pointer_button(void* data,wl_pointer*,std::uint32_t serial,std::uint32_t,std::uint32_t button,std::uint32_t state) {
         auto& a=*static_cast<App*>(data);
-        if(button==272 && state==WL_POINTER_BUTTON_STATE_PRESSED && !a.held_super.empty() && a.windows.contains(a.pointer_window)) {
+        if(button==272 && state==WL_POINTER_BUTTON_STATE_PRESSED && !a.held_super.empty() && a.windows.contains(a.pointer_window) && !a.windows.at(a.pointer_window)->ime_popup()) {
             a.super_drag=true;a.pending_super.clear();a.send(a.pointer_window,vf::InputKind::release);
             xdg_toplevel_move(a.windows.at(a.pointer_window)->top,a.seat,serial);return;
         }
@@ -270,6 +271,10 @@ float a=texture(opacity,p).r;vec3 rgb=vec3(y+1.5748*c.y,y-0.187324*c.x-0.468124*
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
         eval("hl.window_rule({name='viewflow-windows-reverse',match={class='^ViewflowReverse-.*$'},float=true,no_initial_focus=true,decorate=false,border_size=0,no_shadow=true,rounding=0,no_blur=true,no_anim=true})");
+        // The compositor animates tiled layout goals locally; only the final
+        // goal from j/clients is mirrored to Windows, never animation samples.
+        eval("hl.window_rule({name='viewflow-windows-reverse-tiled-animation',match={class='^ViewflowReverse-.*$',float=false},no_anim=false})");
+        eval("hl.window_rule({name='viewflow-windows-reverse-ime',match={class='^ViewflowReverse-IME-.*$'},float=true,no_initial_focus=true,no_focus=true,decorate=false,border_size=0,no_shadow=true,rounding=0,no_blur=true,no_anim=true})");
         std::fprintf(stderr,"reverse-presenter ready renderer=%s\n",glGetString(GL_RENDERER));
     }
     void make_current(EGLSurface surface) {if(!eglMakeCurrent(egl_display,surface,surface,context))throw std::runtime_error("reverse EGL make current failed");}
@@ -352,16 +357,21 @@ float a=texture(opacity,p).r;vec3 rgb=vec3(y+1.5748*c.y,y-0.187324*c.x-0.468124*
             for(auto it=windows.begin();it!=windows.end();) {
                 if(!ids.contains(it->first)){if(it->second->drag_announced)send(it->first,vf::InputKind::proxy_drag,getpid(),0,static_cast<int>(it->second->native_address),static_cast<int>(it->second->native_address>>32));if(pointer_window==it->first)pointer_window=0;if(keyboard_window==it->first){send(it->first,vf::InputKind::release);keyboard_window=0;}it=windows.erase(it);}else ++it;
             }
-            for(auto& [_,w]:windows)draw(*w);
+            for(auto& [_,w]:windows) {
+                xdg_toplevel_set_parent(w->top,w->tile.owner && windows.contains(w->tile.owner)?windows.at(w->tile.owner)->top:nullptr);
+                draw(*w);
+            }
         }
         if(pending.size()>16)throw std::runtime_error("reverse decoder produced no frames");
     }
     void synchronize_geometry() {
         if(windows.empty())return;
-        const auto clients=nlohmann::json::parse(ipc("j/clients"));
+        nlohmann::json clients,monitors;
+        try {clients=nlohmann::json::parse(ipc("j/clients"));monitors=nlohmann::json::parse(ipc("j/monitors"));}
+        catch(const std::exception& error){std::fprintf(stderr,"reverse geometry inventory retry: %s\n",error.what());return;}
         for(const auto& client:clients) {
             const auto name=client.value("class",std::string{});if(!name.starts_with("ViewflowReverse-") || !client.value("mapped",false) || client.value("pid",0)!=getpid())continue;
-            std::uint64_t id{};try{id=std::stoull(name.substr(16));}catch(...){continue;}
+            std::uint64_t id{};try{id=std::stoull(name.substr(name.starts_with("ViewflowReverse-IME-")?20:16));}catch(...){continue;}
             auto found=windows.find(id);if(found==windows.end())continue;auto& w=*found->second;
             const auto address=client.at("address").get<std::string>();
             if(!address.starts_with("0x") || address.size()>18 || address.find_first_not_of("0123456789abcdefABCDEF",2)!=std::string::npos)throw std::runtime_error("invalid local Hyprland address");
@@ -370,13 +380,30 @@ float a=texture(opacity,p).r;vec3 rgb=vec3(y+1.5748*c.y,y-0.187324*c.x-0.468124*
             const int target_x=static_cast<int>(std::lround(double(w.tile.x)/scale))+origin_x,target_y=static_cast<int>(std::lround(double(w.tile.y)/scale))+origin_y;
             const int target_width=(w.tile.width+scale-1)/scale,target_height=(w.tile.height+scale-1)/scale;
             const vf::Geometry local{x,y,width,height},remote{target_x,target_y,target_width,target_height};
-            const auto action=w.geometry_sync.observe(local,remote,w.tile.geometry_ack,client.value("floating",false));
+            const auto action=w.ime_popup()?(local==remote?vf::GeometryAction::none:vf::GeometryAction::apply_remote):w.geometry_sync.observe(local,remote,w.tile.geometry_ack,client.value("floating",false));
             if(action==vf::GeometryAction::send_local) {
                 if(!held_super.empty() && !super_drag){super_drag=true;pending_super.clear();send(id,vf::InputKind::release);}
-                w.geometry_sync.sent(send(id,vf::InputKind::geometry,(x-origin_x)*scale,(y-origin_y)*scale,width*scale,height*scale));
+                auto backing=local;
+                if(!client.value("floating",false)) {
+                    for(const auto& monitor:monitors) {
+                        if(monitor.value("id",-1)!=client.value("monitor",-2))continue;
+                        const double monitor_scale=monitor.value("scale",1.0);
+                        const bool rotated=monitor.value("transform",0)%2!=0;
+                        const int mw=monitor.at(rotated?"height":"width"),mh=monitor.at(rotated?"width":"height");
+                        backing=vf::tiled_backing_geometry(local,{monitor.at("x"),monitor.at("y"),
+                            static_cast<int>(std::lround(mw/monitor_scale)),static_cast<int>(std::lround(mh/monitor_scale))});
+                        break;
+                    }
+                }
+                w.geometry_sync.sent(send(id,vf::InputKind::geometry,(backing.x-origin_x)*scale,(backing.y-origin_y)*scale,width*scale,height*scale));
             } else if(action==vf::GeometryAction::apply_remote) {
                 const std::string selector="'address:"+address+"'";
+                try {
                 eval("hl.dispatch(hl.dsp.window.resize({x="+std::to_string(target_width)+",y="+std::to_string(target_height)+",window="+selector+"}));hl.dispatch(hl.dsp.window.move({x="+std::to_string(target_x)+",y="+std::to_string(target_y)+",window="+selector+"}))");
+                } catch(const std::exception& error) {
+                    std::fprintf(stderr,"reverse geometry retry id=%llu: %s\n",static_cast<unsigned long long>(id),error.what());
+                    continue;
+                }
                 w.geometry_sync.applied(remote);
             }
             w.placed=true;

@@ -31,7 +31,6 @@ public:
     } else {
       const auto &old = latest_->layout;
       if (frame.identity <= latest_->identity ||
-          frame.width != latest_->width || frame.height != latest_->height ||
           layout.stream != old.stream ||
           layout.geometry_epoch != old.geometry_epoch ||
           layout.config_generation != old.config_generation ||
@@ -41,8 +40,10 @@ public:
           layout.desktop->topology_generation <
               old.desktop->topology_generation)
         return false;
-      const bool changed = !SamePlacement(layout.tiles, old.tiles) ||
-                           !SameDesktopPlacement(layout.desktop, old.desktop);
+      // Desktop position is per-frame metadata, not an encoded atlas placement.
+      // Match Rust admission: moving a window alone needs no new atlas revision
+      // or codec keyframe. Each pending binding still retains its exact desktop.
+      const bool changed = layout.patches != old.patches || frame.width != latest_->width || frame.height != latest_->height || !SamePlacement(layout.tiles, old.tiles);
       if ((changed && layout.revision == old.revision) ||
           ((changed || layout.revision != old.revision ||
             frame.identity - latest_->identity != 1) &&

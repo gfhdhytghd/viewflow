@@ -1,6 +1,6 @@
 //! Single-owner batch handoff: GPU source leases, encoder and QUIC sender.
 //! This is not the capture discovery loop or a native presentation receipt.
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use tokio::time::Instant;
 use viewflow_core::AtlasSnapshot;
 use viewflow_protocol::WindowId;
@@ -85,6 +85,7 @@ impl AtlasBatch {
 
 /// Reusable capture receivers are returned only after all releases succeeded.
 pub struct AtlasBatchSent {
+    pub grown_canvas: Option<(u32, u32)>,
     pub submitted: bool,
     pub receivers: Vec<(WindowId, HyprCaptureGpuSocketReceiver)>,
     /// Previous frame's exact native disposition, collected while the current
@@ -109,7 +110,9 @@ struct SendCompletion {
 // owner crosses into it; the next capture can encode while feedback is pending.
 struct PendingAtlasSend(tokio::task::JoinHandle<Result<SendCompletion>>);
 impl Drop for PendingAtlasSend {
-    fn drop(&mut self) { self.0.abort(); }
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 pub struct GpuAtlasSender {
@@ -117,35 +120,96 @@ pub struct GpuAtlasSender {
     sender: Option<AtlasSenderSession>,
     pending: Option<PendingAtlasSend>,
     reference_gap: bool,
+    canvas_limit: (u32, u32),
     last_batch_return_ns: Option<i64>,
 }
 
 impl GpuAtlasSender {
+    pub(crate) fn occlusion_enabled(&self) -> bool {
+        self.encoder
+            .as_ref()
+            .is_some_and(GpuAtlasCompatibleEncoder::occlusion_enabled)
+    }
+
+    pub(crate) fn set_occlusion(
+        &mut self,
+        mode: crate::atlas_occlusion::AtlasOcclusionMode,
+    ) -> Result<()> {
+        self.encoder
+            .as_mut()
+            .context("atlas encoder retired")?
+            .set_occlusion(mode, self.canvas_limit);
+        Ok(())
+    }
+
     pub(crate) fn next_frame_id(&self) -> Result<u64> {
-        self.encoder.as_ref().ok_or_else(|| anyhow::anyhow!("atlas sender retired"))?.next_frame_id()
+        self.encoder
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("atlas sender retired"))?
+            .next_frame_id()
     }
 
     #[must_use]
-    pub fn is_retired(&self) -> bool { self.encoder.is_none() }
+    pub fn is_retired(&self) -> bool {
+        self.encoder.is_none()
+    }
 
     #[must_use]
     pub fn new(encoder: GpuAtlasCompatibleEncoder, sender: AtlasSenderSession) -> Self {
-        Self { encoder: Some(encoder), sender: Some(sender), pending: None,
-            reference_gap: false, last_batch_return_ns: None }
+        let canvas_limit = sender.canvas_limit();
+        Self {
+            encoder: Some(encoder),
+            sender: Some(sender),
+            pending: None,
+            canvas_limit,
+            reference_gap: false,
+            last_batch_return_ns: None,
+        }
+    }
+
+    pub(crate) fn canvas_limit(&self) -> (u32, u32) {
+        self.canvas_limit
+    }
+
+    pub(crate) async fn grow_canvas(
+        &mut self,
+        width: u32,
+        height: u32,
+    ) -> Result<Option<AtlasPublication>> {
+        ensure!(
+            width <= self.canvas_limit.0 && height <= self.canvas_limit.1,
+            "atlas growth exceeds negotiated capacity"
+        );
+        let publication = self.finish_pending().await?;
+        self.encoder
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("atlas encoder retired"))?
+            .grow_canvas(width, height)?;
+        Ok(publication)
     }
 
     async fn finish_pending(&mut self) -> Result<Option<AtlasPublication>> {
-        let Some(mut pending) = self.pending.take() else { return Ok(None); };
-        let completed = (&mut pending.0).await.map_err(|error| anyhow::anyhow!("atlas send worker: {error}"))??;
+        let Some(mut pending) = self.pending.take() else {
+            return Ok(None);
+        };
+        let completed = (&mut pending.0)
+            .await
+            .map_err(|error| anyhow::anyhow!("atlas send worker: {error}"))??;
         self.reference_gap |= completed.reference_gap;
         self.sender = Some(completed.sender);
         Ok(Some(completed.publication))
     }
 
     pub(crate) async fn poll_feedback(&mut self) -> Result<Option<AtlasPublication>> {
-        if self.pending.as_ref().is_some_and(|pending| pending.0.is_finished()) {
+        if self
+            .pending
+            .as_ref()
+            .is_some_and(|pending| pending.0.is_finished())
+        {
             self.finish_pending().await
-        } else { Ok(None) }
+        } else {
+            Ok(None)
+        }
     }
 
     /// The encoder must have been prepared before capture leases were acquired.
@@ -161,8 +225,13 @@ impl GpuAtlasSender {
         sequence: u64,
         deadline: Instant,
     ) -> Result<AtlasBatchSent> {
-        let mut encoder = self.encoder.take().ok_or_else(|| anyhow::anyhow!("GPU atlas sender is retired"))?;
-        if self.reference_gap { encoder.request_keyframe(); }
+        let mut encoder = self
+            .encoder
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("GPU atlas sender is retired"))?;
+        if self.reference_gap {
+            encoder.request_keyframe();
+        }
         // If the scheduling target elapsed before this turn, the zero native
         // budget below follows the encoder's clean-drop path and keeps owners.
 
@@ -223,14 +292,32 @@ impl GpuAtlasSender {
         // At most one frame is on the wire and one is encoded ahead. Keep the
         // original capture deadline when waiting for the previous disposition.
         let previous = self.finish_pending().await?;
-        let (sent, committed_input) = previous.map(|publication| (publication.manifest, publication.committed_input)).unwrap_or((None, None));
+        let (sent, committed_input) = previous
+            .map(|publication| (publication.manifest, publication.committed_input))
+            .unwrap_or((None, None));
         let mut submitted = false;
+        let mut grown_canvas = None;
         match outcome {
+            AtlasSubmitOutcome::NeedsCanvas { width, height } => {
+                ensure!(
+                    width <= self.canvas_limit.0 && height <= self.canvas_limit.1,
+                    "sparse growth exceeds negotiated capacity"
+                );
+                // Every producer lease was released above, and prior wire work
+                // was drained before the old encoder is replaced.
+                encoder.grow_canvas(width, height)?;
+                grown_canvas = Some((width, height));
+                eprintln!("atlas-source-canvas sparse_grew={width}x{height}");
+            }
             AtlasSubmitOutcome::ExpiredClean => {
                 encoder.request_keyframe();
                 self.reference_gap = true;
             }
-            AtlasSubmitOutcome::Encoded { manifest, mut media, .. } => {
+            AtlasSubmitOutcome::Encoded {
+                manifest,
+                mut media,
+                ..
+            } => {
                 let manifest = *manifest;
                 ensure!(media.len() == 1, "atlas encoder did not return one pair");
                 if self.reference_gap && !(manifest.color_keyframe && manifest.alpha_keyframe) {
@@ -238,17 +325,43 @@ impl GpuAtlasSender {
                     // picture. Start a fresh pair next turn without sending it.
                     encoder.request_keyframe();
                 } else {
-                    let mut sender = self.sender.take().ok_or_else(|| anyhow::anyhow!("atlas wire sender missing"))?;
+                    let mut sender = self
+                        .sender
+                        .take()
+                        .ok_or_else(|| anyhow::anyhow!("atlas wire sender missing"))?;
                     self.reference_gap = false;
                     self.pending = Some(PendingAtlasSend(tokio::spawn(async move {
-                        let enqueued = send_or_expire(&mut sender, manifest.clone(), media.remove(0), sequence, deadline).await?;
+                        let enqueued = send_or_expire(
+                            &mut sender,
+                            manifest.clone(),
+                            media.remove(0),
+                            sequence,
+                            deadline,
+                        )
+                        .await?;
                         let disposition = sender.last_disposition();
-                        let reference_gap = !enqueued || disposition == Some(crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound);
+                        let reference_gap = !enqueued
+                            || disposition
+                                == Some(
+                                    crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound,
+                                );
                         let committed_input = if enqueued {
-                            crate::window_input_runtime::AtlasCommittedInput::from_feedback(&manifest, input_snapshots, disposition)?
-                        } else { None };
-                        Ok(SendCompletion { sender, reference_gap,
-                            publication: AtlasPublication { manifest: if reference_gap { None } else { Some(manifest) }, committed_input } })
+                            crate::window_input_runtime::AtlasCommittedInput::from_feedback(
+                                &manifest,
+                                input_snapshots,
+                                disposition,
+                            )?
+                        } else {
+                            None
+                        };
+                        Ok(SendCompletion {
+                            sender,
+                            reference_gap,
+                            publication: AtlasPublication {
+                                manifest: if reference_gap { None } else { Some(manifest) },
+                                committed_input,
+                            },
+                        })
                     })));
                     submitted = true;
                 }
@@ -308,6 +421,7 @@ impl GpuAtlasSender {
         self.last_batch_return_ns = batch_return_ns;
         self.encoder = Some(encoder);
         Ok(AtlasBatchSent {
+            grown_canvas,
             submitted,
             receivers: batch
                 .sources

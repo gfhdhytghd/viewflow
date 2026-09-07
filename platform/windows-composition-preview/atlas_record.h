@@ -1,6 +1,9 @@
 #pragma once
 #include <cstdint>
 #include <optional>
+#include <set>
+#include <map>
+#include <tuple>
 #include <span>
 #include <utility>
 #include <vector>
@@ -32,17 +35,22 @@ struct DesktopLayout {
   std::vector<DesktopWindow>
       windows; // Exact, canonical AtlasLayout::tiles order.
 };
+struct AtlasPatch {
+  uint32_t tile_index{},source_x{},source_y{},x{},y{},width{},height{};
+  constexpr bool operator==(const AtlasPatch&) const = default;
+};
 struct AtlasLayout {
   AtlasId stream;
   uint64_t geometry_epoch{}, config_generation{}, revision{}, source_ns{};
   bool color_keyframe{}, alpha_keyframe{};
   std::vector<AtlasTile> tiles;
   std::optional<DesktopLayout> desktop;
+  std::optional<std::vector<AtlasPatch>> patches;
 };
 
 inline std::optional<AtlasLayout>
 DecodeAtlasLayout(std::span<const uint8_t> bytes, uint32_t width,
-                  uint32_t height) {
+                  uint32_t height, bool sparse = false) {
   auto u32 = [&](size_t at) {
     return (uint32_t(bytes[at]) << 24) | (uint32_t(bytes[at + 1]) << 16) |
            (uint32_t(bytes[at + 2]) << 8) | bytes[at + 3];
@@ -52,10 +60,10 @@ DecodeAtlasLayout(std::span<const uint8_t> bytes, uint32_t width,
   if (bytes.size() < 112 || !width || !height || (width | height) & 1u)
     return {};
   const auto count = u32(104), flags = u32(108);
-  if (count > 4096 || bytes.size() != 112 + size_t(count) * 64 || flags > 3)
+  if (count > 4096 || bytes.size() != 112 + size_t(count) * 64 || flags > (sparse ? 7u : 3u))
     return {};
   AtlasLayout layout{id(56),  u64(72),         u64(80),         u64(88),
-                     u64(96), bool(flags & 1), bool(flags & 2), {}};
+                     u64(96), bool(flags & 1), bool(flags & 2), {}, std::nullopt, std::nullopt};
   if (layout.stream == AtlasId{} || !layout.geometry_epoch ||
       !layout.config_generation || !layout.source_ns)
     return {};
@@ -70,10 +78,11 @@ DecodeAtlasLayout(std::span<const uint8_t> bytes, uint32_t width,
         !tile.placement_generation ||
         tile.placement_generation > layout.revision || !tile.geometry_epoch ||
         !tile.source_frame || tile.source_ns < layout.source_ns ||
-        !tile.width || !tile.height || uint64_t(tile.x) + tile.width > width ||
-        uint64_t(tile.y) + tile.height > height)
+        !tile.width || !tile.height ||
+        (!sparse && (uint64_t(tile.x) + tile.width > width || uint64_t(tile.y) + tile.height > height)) ||
+        (sparse && (tile.x || tile.y || tile.width > 8192 || tile.height > 4096)))
       return {};
-    for (const auto &other : layout.tiles) {
+    if (!sparse) for (const auto &other : layout.tiles) {
       if (tile.x < uint64_t(other.x) + other.width &&
           other.x < uint64_t(tile.x) + tile.width &&
           tile.y < uint64_t(other.y) + other.height &&
@@ -139,3 +148,35 @@ DecodeDesktopLayout(std::span<const uint8_t> bytes, const AtlasLayout &atlas) {
   return layout;
 }
 } // namespace viewflow::vfgp
+
+namespace viewflow::vfgp {
+inline bool DecodeSparsePatches(std::span<const uint8_t> bytes, uint32_t width,
+                                uint32_t height, AtlasLayout& layout) {
+  auto u32=[&](size_t at) { return uint32_t(bytes[at])<<24 | uint32_t(bytes[at+1])<<16 |
+                                 uint32_t(bytes[at+2])<<8 | bytes[at+3]; };
+  if(bytes.size()<8) return false;
+  const auto count=u32(0);
+  if(count>32768 || u32(4) || bytes.size()!=8+size_t(count)*28) return false;
+  std::vector<AtlasPatch> patches;
+  std::set<std::pair<uint32_t,uint32_t>> slots;
+  std::map<uint32_t,std::vector<AtlasPatch>> destinations;
+  std::optional<std::tuple<uint32_t,uint32_t,uint32_t>> previous;
+  for(uint32_t i=0;i<count;++i) {
+    const size_t at=8+size_t(i)*28;
+    AtlasPatch p{u32(at),u32(at+4),u32(at+8),u32(at+12),u32(at+16),u32(at+20),u32(at+24)};
+    const auto key=std::tuple{p.tile_index,p.source_y,p.source_x};
+    if(p.tile_index>=layout.tiles.size() || (previous && *previous>=key) || !p.width || !p.height ||
+        p.width>128 || p.height>128 || p.x%128 || p.y%128 ||
+        uint64_t(p.x)+p.width>width || uint64_t(p.y)+p.height>height ||
+        uint64_t(p.source_x)+p.width>layout.tiles[p.tile_index].width ||
+        uint64_t(p.source_y)+p.height>layout.tiles[p.tile_index].height || !slots.emplace(p.x,p.y).second) return false;
+    auto& others=destinations[p.tile_index];
+    for(const auto& q:others)
+      if(p.source_x<q.source_x+q.width && q.source_x<p.source_x+p.width &&
+          p.source_y<q.source_y+q.height && q.source_y<p.source_y+p.height) return false;
+    others.push_back(p); patches.push_back(p); previous=key;
+  }
+  layout.patches=std::move(patches);
+  return true;
+}
+}

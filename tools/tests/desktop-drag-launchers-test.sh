@@ -65,7 +65,7 @@ if [[ $1 == probe ]]; then
   exit 0
 fi
 if [[ $1 == validate-send && $2 == --config ]]; then
-  jq -e '.desktop.candidates[0].address == "0x1a" and .windows[0].width == 640' "$3" >/dev/null
+  jq -e '(.desktop.candidates[0].address == "0x1a" and .windows[0].width == 640) or (.desktop.auto_enroll == true and .windows == [] and .desktop.candidates == [])' "$3" >/dev/null
   exit 0
 fi
 [[ $1 == send && $2 == --config ]] || exit 8
@@ -112,6 +112,13 @@ jq -e 'length == 1 and .[0].filename == "/opt/hyprcapture.so"' "$TEST_STATE/plug
 rg -q -- '-j clients' "$TEST_LOG"
 "$root/tools/desktop-drag-linux.sh" stop --state-dir "$tmp/runtime/owned"
 
+"$root/tools/desktop-drag-linux.sh" start \
+  --config "$tmp/source.json" --monitor DP-4 --empty-desktop --peer "$tmp/peer" \
+  --capture-plugin "$tmp/plugins/capture.so" --input-plugin "$tmp/plugins/input.so" \
+  --state-dir "$tmp/runtime/owned"
+jq -e '.windows == [] and .desktop.candidates == [] and .desktop.auto_enroll and .pointer.cursor_monitor_id == 99' "$tmp/runtime/owned/config" >/dev/null
+"$root/tools/desktop-drag-linux.sh" stop --state-dir "$tmp/runtime/owned"
+
 loads_before=$(rg -c 'plugin load' "$TEST_LOG")
 if TEST_ZERO_OUTPUT=1 "$root/tools/desktop-drag-linux.sh" start \
     --config "$tmp/source.json" --monitor DP-4 --window 0x1a --peer "$tmp/peer" \
@@ -129,8 +136,8 @@ PATH="$tmp/bin:$PATH" "$root/tools/desktop-drag-pair.sh" prepare --dir "$tmp/pai
 [[ $(stat -c '%a' "$tmp/pair") == 700 ]]
 [[ $(stat -c '%a' "$tmp/pair/source.key") == 600 ]]
 [[ $(stat -c '%a' "$tmp/pair/receiver.key") == 600 ]]
-jq -e '.desktop.remote_display == {x:1000,y:0,width:800,height:500,scale:1} and .desktop.hyprland_socket == "'"$tmp"'/runtime/hypr/test-instance/.socket.sock" and .media.width == 4096 and .windows == []' "$tmp/pair/send.json" >/dev/null
-jq -e '.desktop.display.x == 1000 and .desktop.display.width == 800 and .width == 4096 and .max_decoded_bytes == 268435456' "$tmp/pair/receive.json" >/dev/null
+jq -e '.desktop.remote_display == {x:1000,y:0,width:800,height:500,scale:1} and .desktop.hyprland_socket == "'"$tmp"'/runtime/hypr/test-instance/.socket.sock" and .occlusion == "opaque" and .media.width == 1024 and .media.max_width == 8192 and .media.max_height == 4096 and .media.max_encoded_bytes == 134217728 and .windows == []' "$tmp/pair/send.json" >/dev/null
+jq -e '.desktop.display.x == 1000 and .desktop.display.width == 800 and .width == 1024 and .max_width == 8192 and .max_height == 4096 and .max_encoded_bytes == 134217728 and .max_decoded_bytes == 268435456' "$tmp/pair/receive.json" >/dev/null
 PATH="$tmp/bin:$PATH" "$root/tools/desktop-drag-pair.sh" prepare --dir "$tmp/left-pair" --monitor DP-4 \
   --linux-ip 192.0.2.10 --windows-host viewflow-windows --windows-ip 192.0.2.20 \
   --windows-resolution 1920x1080 --windows-scale 1.5 --windows-position -1280x40 >/dev/null

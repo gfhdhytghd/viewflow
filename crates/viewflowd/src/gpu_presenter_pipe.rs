@@ -52,7 +52,9 @@ pub fn encode_atlas_record(
         extension.extend_from_slice(&value.to_be_bytes());
     }
     extension.extend_from_slice(&u32::try_from(layout.tiles.len())?.to_be_bytes());
-    let flags = u32::from(layout.color_keyframe) | (u32::from(layout.alpha_keyframe) << 1);
+    let flags = u32::from(layout.color_keyframe)
+        | (u32::from(layout.alpha_keyframe) << 1)
+        | (u32::from(layout.patches.is_some() && desktop.is_some()) << 2);
     extension.extend_from_slice(&flags.to_be_bytes());
     for tile in &layout.tiles {
         extension.extend_from_slice(&tile.window_id.0.to_be_bytes());
@@ -98,6 +100,23 @@ pub fn encode_atlas_record(
             extension.extend_from_slice(&placement.z_order.to_be_bytes());
         }
     }
+    if let Some(patches) = &layout.patches {
+        extension.extend_from_slice(&u32::try_from(patches.len())?.to_be_bytes());
+        extension.extend_from_slice(&0u32.to_be_bytes());
+        for p in patches {
+            for value in [
+                p.tile_index,
+                p.source_x,
+                p.source_y,
+                p.x,
+                p.y,
+                p.width,
+                p.height,
+            ] {
+                extension.extend_from_slice(&value.to_be_bytes());
+            }
+        }
+    }
     if record
         .len()
         .checked_add(extension.len())
@@ -105,7 +124,13 @@ pub fn encode_atlas_record(
     {
         bail!("VFGP atlas header exceeds record limit");
     }
-    record[4] = if desktop.is_some() { 7 } else { 5 };
+    record[4] = if layout.patches.is_some() {
+        8
+    } else if desktop.is_some() {
+        7
+    } else {
+        5
+    };
     record[8..12].copy_from_slice(&u32::try_from(56 + extension.len())?.to_be_bytes());
     record.splice(56..56, extension);
     Ok(record)
@@ -396,6 +421,7 @@ mod tests {
         use viewflow_protocol::{AtlasFrame, AtlasTile, FrameManifest, Id128};
         let mut admitted = crate::atlas_runtime::AdmittedAtlas {
             layout: AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 9,
                 geometry_epoch: 3,
@@ -466,6 +492,7 @@ mod tests {
 
         let mut admitted = crate::atlas_runtime::AdmittedAtlas {
             layout: AtlasFrame {
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 9,
                 geometry_epoch: 3,
