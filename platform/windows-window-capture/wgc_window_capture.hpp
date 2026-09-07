@@ -51,7 +51,8 @@ public:
     WindowCapture& operator=(const WindowCapture&) = delete;
 
     [[nodiscard]] StartResult start(HWND window, CaptureLimits limits,
-                                    FrameCallbacks callbacks);
+                                    FrameCallbacks callbacks,
+                                    ID3D11Device* shared_device = nullptr);
     void stop() noexcept;
     [[nodiscard]] bool running() const noexcept;
 

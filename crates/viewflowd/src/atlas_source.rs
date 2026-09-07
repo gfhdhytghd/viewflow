@@ -212,6 +212,9 @@ pub async fn run_until(
                 };
             }
         };
+        let _reverse = config.reverse.as_ref()
+            .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&peer.connection, reverse, false))
+            .transpose()?;
         let session = warmup.into_live(peer.sender).await?;
         let mut session = session;
         let desktop = if let Some(lane) = desktop_setup {
@@ -481,6 +484,7 @@ mod tests {
         eprintln!("owned capture geometry={geometry:?}");
         let root = std::env::temp_dir();
         let config = AtlasSourceConfig {
+            reverse: None,
             pointer: None,
             desktop: None,
             capture_provider: crate::atlas_peer::AtlasCaptureProvider::Hyprcapture,

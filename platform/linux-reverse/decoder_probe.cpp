@@ -1,0 +1,56 @@
+#include "gpu_decoder.hpp"
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <GLES3/gl3.h>
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
+#include <fstream>
+#include <iterator>
+#include <cstdio>
+#include <stdexcept>
+int main(int argc,char** argv) {
+    if(argc!=2) return 2;
+    try {
+        auto query=reinterpret_cast<PFNEGLQUERYDEVICESEXTPROC>(eglGetProcAddress("eglQueryDevicesEXT"));
+        auto display_for=reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
+        EGLDeviceEXT devices[8]{}; EGLint count{};
+        if(!query || !display_for || !query(8,devices,&count) || !count) return 3;
+        EGLDisplay display=display_for(EGL_PLATFORM_DEVICE_EXT,devices[0],nullptr);
+        if(!eglInitialize(display,nullptr,nullptr) || !eglBindAPI(EGL_OPENGL_ES_API)) return 4;
+        const EGLint attrs[]={EGL_SURFACE_TYPE,EGL_PBUFFER_BIT,EGL_RENDERABLE_TYPE,EGL_OPENGL_ES3_BIT_KHR,EGL_RED_SIZE,8,EGL_GREEN_SIZE,8,EGL_BLUE_SIZE,8,EGL_NONE};
+        EGLConfig config{}; if(!eglChooseConfig(display,attrs,&config,1,&count) || !count) return 5;
+        const EGLint size[]={EGL_WIDTH,2,EGL_HEIGHT,2,EGL_NONE};
+        EGLSurface surface=eglCreatePbufferSurface(display,config,size);
+        const EGLint version[]={EGL_CONTEXT_CLIENT_VERSION,3,EGL_NONE};
+        EGLContext context=eglCreateContext(display,config,EGL_NO_CONTEXT,version);
+        if(!eglMakeCurrent(display,surface,surface,context)) return 6;
+        {
+            viewflow::reverse::GpuDecoder decoder; decoder.start();
+            std::ifstream file(argv[1],std::ios::binary);
+            std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(file)),{});
+            const auto total=bytes.size(); bytes.resize(total+AV_INPUT_BUFFER_PADDING_SIZE,0);
+            AVCodecParserContext* parser=av_parser_init(AV_CODEC_ID_H264);
+            AVCodecContext* codec=avcodec_alloc_context3(nullptr);
+            std::size_t offset=0; unsigned decoded=0,units=0;
+            for(;;) {
+                std::uint8_t* unit{};int length{};
+                int consumed=av_parser_parse2(parser,codec,&unit,&length,bytes.data()+offset,static_cast<int>(total-offset),AV_NOPTS_VALUE,AV_NOPTS_VALUE,0);
+                if(consumed<0) throw std::runtime_error("parser failure");
+                offset+=consumed;
+                if(length) {
+                    auto frames=decoder.submit({unit,static_cast<std::size_t>(length)},units++*166667ll);
+                    for(auto& frame:frames) {decoder.upload(frame);++decoded;}
+                }
+                if(!length && offset==total) break;
+                if(!consumed && offset!=total && !length) throw std::runtime_error("parser stalled");
+            }
+            av_parser_close(parser);avcodec_free_context(&codec);
+            std::fprintf(stderr,"reverse GPU decode units=%u decoded=%u gl_error=%u renderer=%s\n",units,decoded,glGetError(),glGetString(GL_RENDERER));
+            if(decoded<59) return 7;
+        }
+        eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
+        eglDestroyContext(display,context);eglDestroySurface(display,surface);eglTerminate(display);
+        return 0;
+    } catch(const std::exception& error) {std::fprintf(stderr,"%s\n",error.what());return 8;}
+}

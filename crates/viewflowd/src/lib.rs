@@ -138,6 +138,7 @@ pub mod media_runtime;
 pub mod nvenc_runtime;
 pub mod pixel_runtime;
 pub mod raw_session;
+pub mod reverse_bridge;
 mod readiness_runtime;
 #[cfg(unix)]
 mod sidecar_runtime;

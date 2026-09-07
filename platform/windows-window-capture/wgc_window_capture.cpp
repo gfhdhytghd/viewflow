@@ -46,15 +46,20 @@ NativeWindowBounds readBounds(HWND window) noexcept {
     return result;
 }
 
-IDirect3DDevice createDirect3DDevice(winrt::com_ptr<ID3D11Device>& d3d_device) {
+IDirect3DDevice createDirect3DDevice(winrt::com_ptr<ID3D11Device>& d3d_device,
+                                    ID3D11Device* shared_device) {
     static constexpr D3D_FEATURE_LEVEL levels[] = {
         D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
     };
     D3D_FEATURE_LEVEL selected{};
+    if (shared_device) {
+        d3d_device.copy_from(shared_device);
+    } else {
     winrt::check_hresult(D3D11CreateDevice(
         nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
         D3D11_CREATE_DEVICE_BGRA_SUPPORT, levels, ARRAYSIZE(levels),
         D3D11_SDK_VERSION, d3d_device.put(), &selected, nullptr));
+    }
 
     const auto multithread = d3d_device.as<ID3D11Multithread>();
     multithread->SetMultithreadProtected(TRUE);
@@ -251,7 +256,7 @@ WindowCapture::WindowCapture() : impl_(std::make_unique<Impl>()) {}
 WindowCapture::~WindowCapture() { stop(); }
 
 StartResult WindowCapture::start(HWND window, CaptureLimits limits,
-                                 FrameCallbacks callbacks) {
+                                 FrameCallbacks callbacks, ID3D11Device* shared_device) {
     stop();
     if (!IsWindow(window)) return {CaptureFailure::invalid_window, 0};
     if (limits.max_width == 0 || limits.max_height == 0 || limits.max_pixels == 0) {
@@ -269,7 +274,7 @@ StartResult WindowCapture::start(HWND window, CaptureLimits limits,
         state->limits = limits;
         state->callbacks = std::move(callbacks);
         failure_stage = CaptureFailure::d3d_device_unavailable;
-        state->winrt_device = createDirect3DDevice(state->d3d_device);
+        state->winrt_device = createDirect3DDevice(state->d3d_device, shared_device);
         failure_stage = CaptureFailure::setup_failed;
         state->item = createItemForWindow(window);
         state->pool_size = state->item.Size();
@@ -289,6 +294,8 @@ StartResult WindowCapture::start(HWND window, CaptureLimits limits,
         state->frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
             state->winrt_device, kPixelFormat, kFramePoolBuffers, state->pool_size);
         state->session = state->frame_pool.CreateCaptureSession(state->item);
+        // Receiver draws the pointer locally; do not bake it into a window.
+        state->session.IsCursorCaptureEnabled(false);
         state->frame_arrived = state->frame_pool.FrameArrived(
             [state](const Direct3D11CaptureFramePool& sender,
                     const winrt::Windows::Foundation::IInspectable&) {

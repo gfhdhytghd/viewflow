@@ -1177,38 +1177,15 @@ impl DesktopMoveController {
     }
 }
 
-/// The physical Windows cursor cannot travel beyond its display edge. Finish
-/// a drag toward the adjoining Linux viewport by placing the window inside it,
-/// once the requested bounds cross that shared edge. Only source authority
-/// computes this placement; the receiver still waits for captured geometry.
+/// Preserve the exact requested rectangle, including partial seam overlap.
+/// Completing a gesture must never fit the entire window into another display:
+/// that turns a continuous pointer drag into a release-time jump.
 fn desktop_return_bounds(
-    local: viewflow_protocol::DesktopRect,
-    remote: viewflow_protocol::DesktopRect,
-    initial: viewflow_protocol::DesktopRect,
-    mut desired: viewflow_protocol::DesktopRect,
+    _local: viewflow_protocol::DesktopRect,
+    _remote: viewflow_protocol::DesktopRect,
+    _initial: viewflow_protocol::DesktopRect,
+    desired: viewflow_protocol::DesktopRect,
 ) -> Result<viewflow_protocol::DesktopRect> {
-    let lr = local.x_millidip + i64::try_from(local.width_millidip)?;
-    let lb = local.y_millidip + i64::try_from(local.height_millidip)?;
-    let rr = remote.x_millidip + i64::try_from(remote.width_millidip)?;
-    let rb = remote.y_millidip + i64::try_from(remote.height_millidip)?;
-    let width = i64::try_from(desired.width_millidip)?;
-    let height = i64::try_from(desired.height_millidip)?;
-    let intersects_local = desired.x_millidip < lr
-        && desired.x_millidip + width > local.x_millidip
-        && desired.y_millidip < lb
-        && desired.y_millidip + height > local.y_millidip;
-    let toward_local = (lr <= remote.x_millidip && desired.x_millidip < initial.x_millidip)
-        || (rr <= local.x_millidip && desired.x_millidip > initial.x_millidip)
-        || (lb <= remote.y_millidip && desired.y_millidip < initial.y_millidip)
-        || (rb <= local.y_millidip && desired.y_millidip > initial.y_millidip);
-    if intersects_local && toward_local {
-        desired.x_millidip = desired
-            .x_millidip
-            .clamp(local.x_millidip, (lr - width).max(local.x_millidip));
-        desired.y_millidip = desired
-            .y_millidip
-            .clamp(local.y_millidip, (lb - height).max(local.y_millidip));
-    }
     desired
         .validate()
         .map_err(|error| anyhow::anyhow!("desktop return bounds invalid: {error:?}"))?;
@@ -1304,7 +1281,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn desktop_return_finishes_crossing_on_each_adjoining_edge() {
+    fn desktop_return_preserves_partial_overlap_on_each_adjoining_edge() {
         let rect = |x, y, w, h| viewflow_protocol::DesktopRect {
             x_millidip: x,
             y_millidip: y,
@@ -1335,7 +1312,7 @@ mod tests {
             ),
         ] {
             let returned = desktop_return_bounds(local, remote, initial, requested).unwrap();
-            assert!(local.contains(returned));
+            assert_eq!(returned, requested);
             assert_eq!(returned.width_millidip, requested.width_millidip);
             assert_eq!(returned.height_millidip, requested.height_millidip);
             // Motion away from Linux or a no-op drag must not snap back.

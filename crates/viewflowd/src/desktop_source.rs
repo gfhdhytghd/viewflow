@@ -238,6 +238,7 @@ impl DesktopSourceLane {
 /// Candidate addresses, PIDs and IDs originate in the local source config; no
 /// remote message supplies any of them.
 pub(crate) struct DesktopEnrollmentSupervisor {
+    local_display: crate::desktop_config::AtlasDisplayConfig,
     lane: SharedDesktopSourceLane,
     queued: VecDeque<DesktopCandidate>,
     provider: crate::atlas_peer::AtlasCaptureProvider,
@@ -272,6 +273,7 @@ impl DesktopEnrollmentSupervisor {
         stream_id: Id128,
     ) -> Self {
         Self {
+            local_display: desktop.local_display,
             lane,
             queued: VecDeque::new(),
             provider,
@@ -377,6 +379,7 @@ impl DesktopEnrollmentSupervisor {
                                 "desktop candidate exceeds available atlas capacity: window={:?} capture={}x{}",
                                 candidate.window, frame.crop_width, frame.crop_height
                             );
+                            self.return_capacity_rejected(candidate.clone());
                             return Ok(false);
                         }
                         self.lane
@@ -421,16 +424,21 @@ impl DesktopEnrollmentSupervisor {
         }
         if self.probe.is_none() {
             while let Some(candidate) = self.queued.pop_front() {
-                let eligible = {
+                let (eligible, has_capacity) = {
                     let lane = self
                         .lane
                         .lock()
                         .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?;
-                    !self.retired.contains(&candidate.window)
-                        && !lane.is_enrolled(candidate.window)
-                        && lane.enrollment_capacity_remaining()
+                    (!self.retired.contains(&candidate.window)
+                        && !lane.is_enrolled(candidate.window),
+                        lane.enrollment_capacity_remaining())
                 };
                 if !eligible {
+                    continue;
+                }
+                if !has_capacity {
+                    self.capacity_retry.insert(candidate.window, Instant::now() + Duration::from_secs(2));
+                    self.return_capacity_rejected(candidate);
                     continue;
                 }
                 self.probing = Some(candidate.window);
@@ -446,6 +454,21 @@ impl DesktopEnrollmentSupervisor {
             }
         }
         Ok(())
+    }
+
+    fn return_capacity_rejected(&mut self, candidate: DesktopCandidate) {
+        let socket = self.socket.clone();
+        let display = self.local_display;
+        self.cleanup.spawn(async move {
+            let result = tokio::task::spawn_blocking(move || {
+                return_rejected_to_local(socket, display, &candidate)
+            }).await;
+            match result {
+                Ok(Ok(())) => eprintln!("desktop capacity rejected: window returned to local display"),
+                other => eprintln!("desktop capacity return failed; existing stream retained: {other:?}"),
+            }
+            Ok(())
+        });
     }
 
     async fn reap_discovery(&mut self) -> Result<Vec<WindowId>> {
@@ -722,6 +745,7 @@ fn discover_local_candidates(
     let mut icons = BTreeMap::new();
     for client in windows {
         if !client.mapped
+            || client.class.starts_with("ViewflowReverse-")
             || client.hidden
             || !client.visible
             || client.stable_id.is_empty()
@@ -899,6 +923,56 @@ async fn probe_candidate(
 
 /// The HCGI result must still name the same mapped, visible local client that
 /// discovery saw. This closes address/PID reuse races before lane insertion.
+fn return_rejected_to_local(
+    socket: PathBuf,
+    display: crate::desktop_config::AtlasDisplayConfig,
+    candidate: &DesktopCandidate,
+) -> Result<()> {
+    if !locally_observed_exact(socket.clone(), candidate)? {
+        return Ok(());
+    }
+    let ipc = viewflow_hyprland::HyprIpcClient::new(socket)
+        .with_timeout(Duration::from_millis(250));
+    let clients: serde_json::Value = serde_json::from_str(&ipc.request("j/clients")?)?;
+    let client = clients.as_array().context("invalid clients")?.iter()
+        .find(|c| c["address"].as_str() == Some(candidate.address.as_str()))
+        .context("rejected window already closed")?;
+    let monitors: serde_json::Value = serde_json::from_str(&ipc.request("j/monitors")?)?;
+    let monitor = monitors.as_array().context("invalid monitors")?.iter()
+        .find(|m| m["x"].as_i64() == Some(i64::from(display.x))
+            && m["y"].as_i64() == Some(i64::from(display.y)))
+        .context("local display unavailable")?;
+    let workspace = monitor["activeWorkspace"]["id"].as_i64().context("local workspace unavailable")?;
+    let rect = display.rect()?;
+    let (x, y, width, height) = capacity_return_rect(
+        display.x, display.y,
+        (rect.width_millidip / 1000) as i64, (rect.height_millidip / 1000) as i64,
+        client["size"][0].as_i64().context("missing window width")?,
+        client["size"][1].as_i64().context("missing window height")?,
+    );
+    // Only locally parsed numeric addresses/coordinates enter Lua. No focus or
+    // input command is issued. A failed return must not retire other windows.
+    let selector = format!("\"address:0x{:x}\"", candidate.native_address);
+    let script = format!(
+        "eval hl.dispatch(hl.dsp.window.float({{action=\"enable\",window={selector}}})); \
+         hl.dispatch(hl.dsp.window.move({{workspace={workspace},follow=false,window={selector}}})); \
+         hl.dispatch(hl.dsp.window.resize({{x={width},y={height},window={selector}}})); \
+         hl.dispatch(hl.dsp.window.move({{x={x},y={y},window={selector}}}))"
+    );
+    let response = ipc.request(&script)?;
+    ensure!(response.trim() == "ok", "local window return: {response}");
+    Ok(())
+}
+
+fn capacity_return_rect(x: i32, y: i32, screen_w: i64, screen_h: i64,
+                        window_w: i64, window_h: i64) -> (i64, i64, i64, i64) {
+    // Keep decorations and oversized clients away from the cross-screen seam.
+    let w = window_w.max(1).min((screen_w - 96).max(1));
+    let h = window_h.max(1).min((screen_h - 160).max(1));
+    (i64::from(x) + (screen_w - w) / 2,
+     i64::from(y) + (screen_h - h) / 2, w, h)
+}
+
 fn locally_observed_exact(socket: PathBuf, candidate: &DesktopCandidate) -> Result<bool> {
     let Some(stable_id) = candidate.stable_id.as_deref() else {
         return Ok(true);
@@ -1183,6 +1257,19 @@ fn intersects(a: DesktopRect, b: DesktopRect) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn capacity_return_keeps_oversized_window_inside_local_display() {
+        for (sx, sy, sw, sh, ww, wh) in [
+            (0, 0, 3072, 1728, 6000, 4000),
+            (-1920, 390, 1920, 1200, 1030, 860),
+        ] {
+            let (x, y, w, h) = super::capacity_return_rect(sx, sy, sw, sh, ww, wh);
+            assert!(x > i64::from(sx) && y > i64::from(sy));
+            assert!(x + w < i64::from(sx) + sw);
+            assert!(y + h < i64::from(sy) + sh);
+            assert!(w <= ww && h <= wh);
+        }
+    }
     use super::*;
 
     #[test]

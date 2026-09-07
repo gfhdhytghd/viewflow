@@ -83,6 +83,8 @@ pub struct AtlasSourceWindow {
 #[serde(deny_unknown_fields)]
 pub struct AtlasSourceConfig {
     #[serde(default)]
+    pub reverse: Option<crate::reverse_bridge::ReverseBridgeConfig>,
+    #[serde(default)]
     pub desktop: Option<crate::desktop_config::AtlasSourceDesktopConfig>,
     #[serde(default)]
     pub pointer: Option<AtlasSourcePointerConfig>,
@@ -150,6 +152,7 @@ impl AtlasSourceConfig {
     /// # Errors
     /// Validates authorized membership and deterministically packs capture pixels.
     pub fn layout(&self) -> Result<viewflow_core::AtlasSnapshot> {
+        if let Some(reverse) = &self.reverse { reverse.validate()?; }
         use std::collections::BTreeSet;
         use viewflow_core::{AtlasConfig, StableAtlas};
         if let Some(pointer) = &self.pointer {
@@ -329,6 +332,8 @@ impl AtlasReceiverPointerConfig {
 #[serde(deny_unknown_fields)]
 pub struct AtlasReceiverConfig {
     #[serde(default)]
+    pub reverse: Option<crate::reverse_bridge::ReverseBridgeConfig>,
+    #[serde(default)]
     pub color_codec: AtlasColorCodec,
     #[serde(default)]
     pub desktop: Option<crate::desktop_config::AtlasReceiverDesktopConfig>,
@@ -376,6 +381,7 @@ impl AtlasReceiverConfig {
     /// # Errors
     /// Establishes exactly two refresh periods as the live media age limit.
     pub fn plan(&self) -> Result<AtlasSessionPlan> {
+        if let Some(reverse) = &self.reverse { reverse.validate()?; }
         ensure!(
             self.color_codec == AtlasColorCodec::H264 || self.desktop.is_some(),
             "AV1 native presentation currently requires desktop mode"
@@ -687,6 +693,9 @@ mod receiver {
                 input.is_some(),
                 config.input_recovery
             );
+            let _reverse = config.reverse.as_ref()
+                .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&connection, reverse, true))
+                .transpose()?;
             let reception = async {
                 if let Some(input) = input {
                     let pointer = config.pointer.as_ref().context("atlas pointer config missing")?;
@@ -949,6 +958,7 @@ mod tests {
     fn config() -> AtlasReceiverConfig {
         let root = std::env::temp_dir();
         AtlasReceiverConfig {
+            reverse: None,
             color_codec: Default::default(),
             desktop: None,
             pointer: None,
@@ -1085,6 +1095,7 @@ mod tests {
     fn source_layout_rejects_aliases_and_is_order_independent() {
         let receiver = config();
         let mut source = AtlasSourceConfig {
+            reverse: None,
             desktop: None,
             pointer: None,
             capture_provider: AtlasCaptureProvider::Viewflow,
