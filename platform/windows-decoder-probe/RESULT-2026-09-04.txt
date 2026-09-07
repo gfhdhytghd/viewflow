@@ -1,0 +1,54 @@
+Host: wilf@172.16.105.70 (Windows 11 x64)
+Toolchain: MSVC 14.44.35207, Windows SDK 10.0.26100.0
+Invocation: cl /nologo /EHsc /std:c++20 decoder_probe.cpp /Fe:decoder_probe.exe
+
+query_input=H264
+result=0x0
+count=0
+fallback_query=all_hardware_video_decoders
+fallback_result=0x0
+count=2
+decoder[0]:
+  friendly_name=Intel® Hardware M-JPEG Decoder MFT
+  clsid={00C69F81-0524-48C0-A353-4DD9D54F9A6E}
+  h264_profile=unknown (no H264 candidate; static enumeration cannot prove High444Predictive support)
+  d3d11_aware=true
+    input_types:
+      <error 0xc00d6d77>
+    output_types:
+      <error 0xc00d6d77>
+  h264_input_type=not-listed
+decoder[1]:
+  friendly_name=Intel® Hardware M-JPEG Decoder MFT
+  clsid={00C69F81-0524-48C0-A353-4DD9D54F9A6E}
+  h264_profile=unknown (no H264 candidate; static enumeration cannot prove High444Predictive support)
+  d3d11_aware=true
+    input_types:
+      <error 0xc00d6d77>
+    output_types:
+      <error 0xc00d6d77>
+  h264_input_type=not-listed
+
+Interpretation: this machine exposed no hardware video decoder matching an
+H.264 input type. The fallback list exposed only Intel hardware M-JPEG MFTs;
+this is not evidence for or against NVENC High444Predictive.
+
+D3D11 capability probe:
+adapter[0]: Intel(R) Graphics
+  create_device_hr=0x0 feature_level=0xb000
+  video_device=present
+  decoder_profile_count=68
+  profile={1B81BE68-A0C7-11D3-B984-00C04F2E73C5} h264_vld_present=true
+    format=NV12 hr=0x0 supported=true
+    format=AYUV(YUV444-8) hr=0x0 supported=true
+    format=Y410(YUV444-10) hr=0x0 supported=false
+    format=Y416(YUV444-16) hr=0x0 supported=false
+  profile={1B81BE69-A0C7-11D3-B984-00C04F2E73C5} h264_vld_present=false
+adapter[1]: Microsoft Basic Render Driver
+  create_device_hr=0x887a0004 feature_level=0x0
+
+Interpretation: Intel exposes the standard H.264 VLD profile and accepts
+NV12 plus AYUV (8-bit packed 4:4:4), but this does not prove High444Predictive
+profile acceptance. There is no separate D3D11 High444Predictive profile GUID;
+a positive claim requires a real High444Predictive sample decode and negotiated
+profile verification. No software fallback was implemented or used.

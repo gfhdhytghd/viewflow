@@ -1,0 +1,704 @@
+syntax = "proto3";
+
+package viewflow.v1;
+
+message Id128 {
+  fixed64 high = 1;
+  fixed64 low = 2;
+}
+
+message Point { double x = 1; double y = 2; }
+message Size { double width = 1; double height = 2; }
+message Rect { Point origin = 1; Size size = 2; }
+
+message DisplayDescriptor {
+  Id128 id = 1;
+  Id128 device_id = 2;
+  Rect bounds_dip = 3;
+  double scale = 4;
+  uint32 refresh_millihz = 5;
+}
+
+message DeviceTopology {
+  uint64 generation = 1;
+  repeated DisplayDescriptor displays = 2;
+}
+
+enum WindowRole {
+  WINDOW_ROLE_UNSPECIFIED = 0;
+  WINDOW_ROLE_MAIN = 1;
+  WINDOW_ROLE_DIALOG = 2;
+  WINDOW_ROLE_MENU = 3;
+  WINDOW_ROLE_TOOLTIP = 4;
+  WINDOW_ROLE_UTILITY = 5;
+}
+
+message WindowDescriptor {
+  Id128 id = 1;
+  Id128 family_id = 2;
+  Id128 source_device = 3;
+  WindowRole role = 4;
+  Rect bounds_dip = 5;
+  Size min_size_dip = 6;
+  optional Size max_size_dip = 7;
+  bool has_alpha = 8;
+  optional float blur_radius_dip = 9;
+}
+
+enum GeometryPhase {
+  GEOMETRY_PHASE_UNSPECIFIED = 0;
+  GEOMETRY_PHASE_BEGIN = 1;
+  GEOMETRY_PHASE_UPDATE = 2;
+  GEOMETRY_PHASE_END = 3;
+}
+
+message GeometryEpoch {
+  Id128 window_id = 1;
+  uint64 epoch = 2;
+  GeometryPhase phase = 3;
+  Rect bounds_dip = 4;
+}
+
+enum FramePlane {
+  FRAME_PLANE_UNSPECIFIED = 0;
+  FRAME_PLANE_COLOR = 1;
+  FRAME_PLANE_ALPHA = 2;
+}
+
+message FramePlaneReady {
+  Id128 window_id = 1;
+  uint64 frame_id = 2;
+  uint64 geometry_epoch = 3;
+  FramePlane plane = 4;
+  uint64 source_submitted_ns = 5;
+  uint64 received_ns = 6;
+}
+
+enum InputLeaseState {
+  INPUT_LEASE_STATE_UNSPECIFIED = 0;
+  INPUT_LEASE_STATE_OFFERED = 1;
+  INPUT_LEASE_STATE_ACTIVE = 2;
+  INPUT_LEASE_STATE_REVOKED = 3;
+}
+
+message InputLease {
+  uint64 generation = 1;
+  Id128 owner = 2;
+  Id128 route_to = 3;
+  InputLeaseState state = 4;
+}
+
+// Safety-critical revocation request. Completion requires an exact
+// InputLeaseRevokedAck emitted only after the target applies this transition.
+message InputLeaseRevoke {
+  Id128 operation_id = 1;
+  uint64 lease_generation = 2;
+  Id128 owner_device = 3;
+  Id128 target_device = 4;
+  InputLeaseState state = 5;
+}
+
+message ClipboardFlavor {
+  string mime_type = 1;
+  uint64 size_bytes = 2;
+}
+
+message ClipboardOffer {
+  Id128 id = 1;
+  Id128 owner = 2;
+  repeated ClipboardFlavor flavors = 3;
+  uint64 generation = 4;
+}
+
+// The legacy ClipboardOffer remains a discovery-only announcement. A transfer
+// must use ClipboardTransferOffer so every offered flavor has a required,
+// immutable digest and is bound to one authenticated connection.
+message ClipboardTransferFlavor {
+  string mime_type = 1;
+  uint64 size_bytes = 2;
+  // Required SHA-256 digest. Receivers reject missing or non-32-byte values.
+  bytes sha256 = 3;
+}
+
+message ClipboardTransferOffer {
+  ClipboardOffer offer = 1;
+  // Must be a one-to-one, unordered correspondence with offer.flavors by
+  // mime_type and size_bytes. No duplicate MIME types are permitted.
+  repeated ClipboardTransferFlavor flavors = 2;
+  // Random, per-offer 16-byte nonce. It is echoed by every later phase.
+  bytes offer_nonce = 3;
+  // Opaque 16-byte audit correlation. It does not prove a user approved a
+  // transfer: both peers must independently hold local consent capability.
+  bytes consent_correlation = 4;
+  // TLS exporter value for this exact mTLS connection. It prevents a valid
+  // offer from one connection being replayed through another connection.
+  bytes connection_binding = 5;
+  // Sender-chosen, non-zero payload sequence. Every later phase echoes it so
+  // even an offer-stage rejection names the exact attempted delivery.
+  uint64 payload_sequence = 6;
+}
+
+message ClipboardAccept {
+  Id128 offer_id = 1;
+  uint64 generation = 2;
+  bytes offer_nonce = 3;
+  string mime_type = 4;
+  uint64 payload_sequence = 5;
+}
+
+message ClipboardPayload {
+  Id128 offer_id = 1;
+  uint64 generation = 2;
+  bytes offer_nonce = 3;
+  // Strictly increasing in the direction that sends clipboard payloads.
+  uint64 payload_sequence = 4;
+  string mime_type = 5;
+  // The runtime bounds this to 1 MiB, below the transport control limit.
+  bytes data = 6;
+}
+
+enum ClipboardCompletionStatus {
+  CLIPBOARD_COMPLETION_STATUS_UNSPECIFIED = 0;
+  // Only report COMPLETED after the native adapter installed clipboard ownership.
+  CLIPBOARD_COMPLETION_STATUS_COMPLETED = 1;
+  CLIPBOARD_COMPLETION_STATUS_CANCELLED = 2;
+  CLIPBOARD_COMPLETION_STATUS_REJECTED = 3;
+  CLIPBOARD_COMPLETION_STATUS_FAILED = 4;
+}
+
+message ClipboardComplete {
+  Id128 offer_id = 1;
+  uint64 generation = 2;
+  bytes offer_nonce = 3;
+  uint64 payload_sequence = 4;
+  ClipboardCompletionStatus status = 5;
+  optional string error_message = 6;
+}
+
+enum DragOperation {
+  DRAG_OPERATION_UNSPECIFIED = 0;
+  DRAG_OPERATION_COPY = 1;
+  DRAG_OPERATION_MOVE = 2;
+}
+
+message FileDragItem {
+  string relative_path = 1;
+  uint64 size_bytes = 2;
+  optional bytes content_sha256 = 3;
+}
+
+message FileDragOffer {
+  Id128 id = 1;
+  Id128 source_device = 2;
+  Id128 target_device = 3;
+  DragOperation operation = 4;
+  repeated FileDragItem items = 5;
+  uint64 generation = 6;
+}
+
+message FileDragAccept {
+  Id128 offer_id = 1;
+  DragOperation operation = 2;
+  string destination_token = 3;
+  uint64 generation = 4;
+}
+
+message FileDragProgress {
+  Id128 offer_id = 1;
+  uint64 bytes_transferred = 2;
+  uint64 total_bytes = 3;
+  uint64 generation = 4;
+  uint32 item_index = 5;
+  uint64 offset_bytes = 6;
+  uint64 chunk_size_bytes = 7;
+  optional bytes chunk_sha256 = 8;
+}
+
+enum FileDragCompletionStatus {
+  FILE_DRAG_COMPLETION_STATUS_UNSPECIFIED = 0;
+  FILE_DRAG_COMPLETION_STATUS_COMPLETED = 1;
+  FILE_DRAG_COMPLETION_STATUS_CANCELLED = 2;
+  FILE_DRAG_COMPLETION_STATUS_FAILED = 3;
+}
+
+message FileDragItemResult {
+  uint32 item_index = 1;
+  uint64 bytes_received = 2;
+  optional bytes content_sha256 = 3;
+}
+
+message FileDragComplete {
+  Id128 offer_id = 1;
+  FileDragCompletionStatus status = 2;
+  optional string error_message = 3;
+  uint64 generation = 4;
+  repeated FileDragItemResult item_results = 5;
+}
+
+message ApplicationAudioRoute {
+  uint64 generation = 1;
+  Id128 family_id = 2;
+  Id128 source_device = 3;
+  Id128 target_device = 4;
+  string target_output_id = 5;
+  bool enabled = 6;
+}
+
+message HidDeviceOffer {
+  Id128 id = 1;
+  Id128 owner = 2;
+  uint32 vendor_id = 3;
+  uint32 product_id = 4;
+  uint32 interface_count = 5;
+}
+
+enum HidLeaseState {
+  HID_LEASE_STATE_UNSPECIFIED = 0;
+  HID_LEASE_STATE_OFFERED = 1;
+  HID_LEASE_STATE_ACTIVE = 2;
+  HID_LEASE_STATE_REVOKED = 3;
+}
+
+message HidDeviceLease {
+  uint64 generation = 1;
+  Id128 device_id = 2;
+  Id128 owner = 3;
+  Id128 route_to = 4;
+  HidLeaseState state = 5;
+}
+
+message ClockSyncProbe {
+  uint64 probe_id = 1;
+  uint64 t0_send_ns = 2;
+}
+
+message ClockSyncReply {
+  uint64 probe_id = 1;
+  uint64 t0_send_ns = 2;
+  uint64 t1_receive_ns = 3;
+  uint64 t2_send_ns = 4;
+}
+
+message RelativePointerMotion {
+  // Target-independent logical pixels; positive X is right and positive Y is down.
+  double delta_x_dip = 1;
+  double delta_y_dip = 2;
+}
+
+enum PointerButton {
+  POINTER_BUTTON_UNSPECIFIED = 0;
+  POINTER_BUTTON_LEFT = 1;
+  POINTER_BUTTON_MIDDLE = 2;
+  POINTER_BUTTON_RIGHT = 3;
+  POINTER_BUTTON_BACK = 4;
+  POINTER_BUTTON_FORWARD = 5;
+}
+
+enum InputSwitchState {
+  INPUT_SWITCH_STATE_UNSPECIFIED = 0;
+  INPUT_SWITCH_STATE_PRESSED = 1;
+  INPUT_SWITCH_STATE_RELEASED = 2;
+}
+
+message PointerButtonEvent {
+  PointerButton button = 1;
+  InputSwitchState state = 2;
+}
+
+message PointerWheelEvent {
+  // One unit is one standard detent; fractional values carry high-resolution input.
+  double vertical_delta_detents = 1;
+  double horizontal_delta_detents = 2;
+}
+
+message KeyboardHidUsage {
+  // USB HID usage page and usage ID. Both must fit in uint16 and be non-zero.
+  uint32 usage_page = 1;
+  uint32 usage_id = 2;
+  InputSwitchState state = 3;
+  bool repeat = 4;
+}
+
+// Idempotently releases every pressed pointer button and keyboard usage.
+message ReleaseAllInput {}
+
+// Window-relative motion is a distinct payload, never an InputEvent extension:
+// an older device-input receiver must not interpret it as global seat input.
+// Parsing grants no authority. Receiver must bind an authenticated peer's
+// window lease and validate the exact presented geometry/frame before mapping.
+message WindowPointerAck {
+  uint64 lease_generation = 1;
+  Id128 target_device = 2;
+  Id128 target_window = 3;
+  uint64 geometry_epoch = 4;
+  uint64 presented_frame = 5;
+  uint64 event_sequence = 6;
+  // 0 invalid, 1 native motion confirmed, 2 rejected, 3 native button confirmed,
+  // 4 native wheel confirmed. A receipt kind must match its pending event.
+  uint32 result = 7;
+}
+
+message WindowPointerMotion {
+  uint64 lease_generation = 1;
+  Id128 target_device = 2;
+  Id128 target_window = 3;
+  uint64 geometry_epoch = 4;
+  uint64 presented_frame = 5;
+  uint64 event_sequence = 6;
+  uint64 sender_not_after_ns = 7;
+  uint32 x_pixels = 8;
+  uint32 y_pixels = 9;
+  uint32 viewport_width = 10;
+  uint32 viewport_height = 11;
+}
+
+// Source-created only after local policy, native binding and a verified
+// presentation receipt. Scoped to this authenticated connection. Disconnect
+// invalidates it; source_not_after_ns uses the source connection clock.
+message WindowPointerAuthorization {
+  uint64 lease_generation = 1;
+  Id128 owner_device = 2;
+  Id128 target_device = 3;
+  Id128 target_window = 4;
+  uint64 geometry_epoch = 5;
+  uint64 presented_frame = 6;
+  uint64 source_not_after_ns = 7;
+}
+
+// Explicit window-scoped transition. Position carries the same complete
+// presentation binding and deadline as motion; this is never device-wide input.
+message WindowPointerButton {
+  WindowPointerMotion position = 1;
+  PointerButtonEvent transition = 2;
+}
+
+// Window-scoped scroll, never an extension of device-wide InputEvent. Keep the
+// original event position/visual/deadline and fractional detents on both axes.
+message WindowPointerWheel {
+  WindowPointerMotion position = 1;
+  PointerWheelEvent delta = 2;
+}
+
+// Physical keys have no cursor coordinates. The focused proxy must retain its
+// exact committed visual identity; focus or parsing alone grants no authority.
+// This is deliberately not an InputEvent: no device-wide injection fallback.
+message WindowKeyboardEvent {
+  uint64 lease_generation = 1;
+  Id128 target_device = 2;
+  Id128 target_window = 3;
+  uint64 geometry_epoch = 4;
+  uint64 presented_frame = 5;
+  uint64 event_sequence = 6;
+  uint64 sender_not_after_ns = 7;
+  KeyboardHidUsage key = 8;
+}
+
+// Exact key receipt, not a pointer receipt. Echo the full key/deadline so a
+// delayed or wrong-key result cannot clear the receiver's pending operation.
+message WindowKeyboardAck {
+  WindowKeyboardEvent event = 1;
+  // 0 invalid, 1 native key confirmed, 2 rejected.
+  uint32 result = 2;
+}
+
+// Source-created only after local keyboard policy AND native binding succeed.
+// A WindowPointerAuthorization cannot be used as this capability.
+message WindowKeyboardAuthorization {
+  uint64 lease_generation = 1;
+  Id128 owner_device = 2;
+  Id128 target_device = 3;
+  Id128 target_window = 4;
+  uint64 geometry_epoch = 5;
+  uint64 presented_frame = 6;
+  uint64 source_not_after_ns = 7;
+  // 0 invalid, 1 direct application (active Wayland IME grabs unsupported).
+  uint32 mode = 8;
+}
+
+// Receiver request only. It conveys no input lease or native object identity.
+message AtlasWindowSelection {
+  Id128 stream_id = 1;
+  uint64 atlas_frame_id = 2;
+  uint64 atlas_geometry_epoch = 3;
+  uint64 config_generation = 4;
+  uint64 layout_revision = 5;
+  Id128 window_id = 6;
+  uint64 placement_generation = 7;
+  uint64 source_frame_id = 8;
+  uint64 source_geometry_epoch = 9;
+  uint64 sequence = 10;
+  uint64 sender_not_after_ns = 11;
+  // Explicit local button-down or focused keyboard event; never inferred from hover.
+  bool activate_keyboard = 12;
+}
+
+message DesktopPointerPosition {
+  sint64 x_millidip = 1;
+  sint64 y_millidip = 2;
+}
+
+message InputEvent {
+  // Must match the active lease and increase strictly within that lease/target pair.
+  uint64 lease_generation = 1;
+  Id128 target_device = 2;
+  uint64 event_sequence = 3;
+  // Absolute not-after time on the sender's monotonic ProcessClock. Zero is
+  // reserved for ReleaseAllInput so safety cleanup never depends on clock sync.
+  uint64 sender_not_after_ns = 4;
+  oneof event {
+    RelativePointerMotion pointer_motion = 10;
+    PointerButtonEvent pointer_button = 11;
+    PointerWheelEvent pointer_wheel = 12;
+    KeyboardHidUsage keyboard_hid_usage = 13;
+    ReleaseAllInput release_all = 14;
+    DesktopPointerPosition desktop_pointer_position = 15;
+  }
+}
+
+enum InputAppliedResult {
+  INPUT_APPLIED_RESULT_UNSPECIFIED = 0;
+  INPUT_APPLIED_RESULT_APPLIED = 1;
+  INPUT_APPLIED_RESULT_REJECTED_NO_LEASE = 2;
+  INPUT_APPLIED_RESULT_REJECTED_LEASE_NOT_ACTIVE = 3;
+  INPUT_APPLIED_RESULT_REJECTED_LEASE_GENERATION = 4;
+  INPUT_APPLIED_RESULT_REJECTED_TARGET_DEVICE = 5;
+  INPUT_APPLIED_RESULT_REJECTED_EVENT_SEQUENCE = 6;
+  INPUT_APPLIED_RESULT_REJECTED_UNSUPPORTED_INPUT = 7;
+  INPUT_APPLIED_RESULT_REJECTED_INVALID_INPUT = 8;
+  INPUT_APPLIED_RESULT_INJECTION_FAILED = 9;
+  INPUT_APPLIED_RESULT_REJECTED_EXPIRED = 10;
+  INPUT_APPLIED_RESULT_REJECTED_CLOCK_UNSYNCHRONIZED = 11;
+}
+
+// Confirms the target finished validation and, when native injection is
+// enabled, that the target input backend accepted this exact event. This is a
+// processing result, not an exactly-once delivery guarantee.
+message InputAppliedAck {
+  uint64 lease_generation = 1;
+  Id128 target_device = 2;
+  uint64 event_sequence = 3;
+  InputAppliedResult result = 4;
+}
+
+enum InputLeaseRevokedResult {
+  INPUT_LEASE_REVOKED_RESULT_UNSPECIFIED = 0;
+  INPUT_LEASE_REVOKED_RESULT_APPLIED = 1;
+}
+
+// Confirms the target applied this exact revoked lease, including releasing
+// any native input state owned by the preceding active generation. The sender
+// must accept this only on the same authenticated peer connection that carried
+// the revoke.
+message InputLeaseRevokedAck {
+  Id128 operation_id = 1;
+  uint64 lease_generation = 2;
+  Id128 owner_device = 3;
+  Id128 target_device = 4;
+  InputLeaseState state = 5;
+  InputLeaseRevokedResult result = 6;
+}
+
+// A complete layout bound to one paired atlas frame. Not input authorization.
+message AtlasTile {
+  Id128 window_id = 1;
+  uint64 placement_generation = 2;
+  uint64 geometry_epoch = 3;
+  uint64 source_frame_id = 4;
+  uint64 source_submitted_ns = 5;
+  uint32 x = 6;
+  uint32 y = 7;
+  uint32 width = 8;
+  uint32 height = 9;
+}
+
+// Immutable native desktop bounds in logical millidips, not atlas-pixel
+// allocation. Coordinates are signed so heterogeneous desktop origins retain
+// their native topology relationship.
+message DesktopRect {
+  sint64 x_millidip = 1;
+  sint64 y_millidip = 2;
+  uint64 width_millidip = 3;
+  uint64 height_millidip = 4;
+}
+
+message AtlasWindowPlacement {
+  Id128 window_id = 1;
+  DesktopRect bounds = 2;
+  bool movable = 3;
+  // Bottom to top source compositor rank; zero means unknown.
+  uint32 z_order = 4;
+  uint32 raise_serial = 5;
+}
+
+// Captures the complete immutable logical desktop relationship for every atlas
+// tile. This intentionally does not describe allocation inside the atlas.
+message AtlasDesktopLayout {
+  uint64 topology_generation = 1;
+  DesktopRect viewport = 2;
+  repeated AtlasWindowPlacement windows = 3;
+}
+
+message AtlasFrame {
+  uint32 version = 1;
+  Id128 stream_id = 2;
+  uint64 frame_id = 3;
+  uint64 geometry_epoch = 4;
+  uint64 config_generation = 5;
+  uint64 layout_revision = 6;
+  uint32 width = 7;
+  uint32 height = 8;
+  uint64 source_submitted_ns = 9;
+  repeated AtlasTile tiles = 10;
+  bool color_keyframe = 11;
+  bool alpha_keyframe = 12;
+  optional AtlasDesktopLayout desktop = 13;
+}
+
+enum DesktopWindowMovePhase {
+  DESKTOP_WINDOW_MOVE_PHASE_UNSPECIFIED = 0;
+  DESKTOP_WINDOW_MOVE_PHASE_BEGIN = 1;
+  DESKTOP_WINDOW_MOVE_PHASE_UPDATE = 2;
+  DESKTOP_WINDOW_MOVE_PHASE_END = 3;
+  DESKTOP_WINDOW_MOVE_PHASE_CANCEL = 4;
+}
+
+// Source-requested logical desktop drag. Parsing grants no window-management
+// authority; native integration must bind this to authenticated ownership and
+// the exact base atlas desktop layout before moving a window.
+message DesktopWindowMove {
+  Id128 source_device = 1;
+  Id128 owner_device = 2;
+  Id128 stream_id = 3;
+  uint64 config_generation = 4;
+  uint64 topology_generation = 5;
+  Id128 window_id = 6;
+  Id128 drag_id = 7;
+  uint64 sequence = 8;
+  DesktopWindowMovePhase phase = 9;
+  uint64 base_atlas_frame = 10;
+  uint64 base_geometry_epoch = 11;
+  uint64 sender_not_after_ns = 12;
+  sint64 desired_x_millidip = 13;
+  sint64 desired_y_millidip = 14;
+  uint64 desired_width_millidip = 15;
+  uint64 desired_height_millidip = 16;
+}
+
+enum DesktopWindowMoveResult {
+  DESKTOP_WINDOW_MOVE_RESULT_UNSPECIFIED = 0;
+  DESKTOP_WINDOW_MOVE_RESULT_APPLIED = 1;
+  DESKTOP_WINDOW_MOVE_RESULT_REJECTED = 2;
+  DESKTOP_WINDOW_MOVE_RESULT_ENDED = 3;
+}
+
+message DesktopWindowMoveAck {
+  Id128 source_device = 1;
+  Id128 owner_device = 2;
+  Id128 stream_id = 3;
+  uint64 config_generation = 4;
+  uint64 topology_generation = 5;
+  Id128 window_id = 6;
+  Id128 drag_id = 7;
+  uint64 sequence = 8;
+  DesktopWindowMoveResult result = 9;
+  DesktopRect actual_bounds = 10;
+}
+
+// Dedicated bidirectional QUIC startup exchange, not a control-envelope event.
+message AtlasSession {
+  uint32 version = 1;
+  Id128 stream_id = 2;
+  uint64 geometry_epoch = 3;
+  uint64 config_generation = 4;
+  uint32 width = 5;
+  uint32 height = 6;
+  uint32 max_tiles = 7;
+  uint64 max_encoded_bytes = 8;
+  uint64 max_age_ns = 9;
+  uint64 max_future_ns = 10;
+  bytes color_descriptor = 11;
+  bytes alpha_descriptor = 12;
+  bytes connection_binding = 13;
+  bool accepted = 14;
+  uint64 max_decoded_bytes = 15;
+  // Required and echoed exactly: v1 confirms source END before selection rejection.
+  uint32 selection_rejection_version = 16;
+}
+
+message ControlEnvelope {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  uint64 sequence = 3;
+  oneof payload {
+    DeviceTopology topology = 10;
+    GeometryEpoch geometry = 11;
+    FramePlaneReady frame_plane_ready = 12;
+    InputLease input_lease = 13;
+    WindowDescriptor window_descriptor = 14;
+    ClipboardOffer clipboard_offer = 15;
+    FileDragOffer file_drag_offer = 16;
+    FileDragAccept file_drag_accept = 17;
+    FileDragProgress file_drag_progress = 18;
+    FileDragComplete file_drag_complete = 19;
+    ApplicationAudioRoute application_audio_route = 20;
+    HidDeviceOffer hid_device_offer = 21;
+    HidDeviceLease hid_device_lease = 22;
+    ClockSyncProbe clock_sync_probe = 23;
+    ClockSyncReply clock_sync_reply = 24;
+    InputEvent input_event = 25;
+    InputAppliedAck input_applied_ack = 26;
+    InputLeaseRevoke input_lease_revoke = 27;
+    InputLeaseRevokedAck input_lease_revoked_ack = 28;
+    WindowPointerMotion window_pointer_motion = 29;
+    WindowPointerAck window_pointer_ack = 30;
+    WindowPointerAuthorization window_pointer_authorization = 31;
+    WindowPointerButton window_pointer_button = 32;
+    AtlasFrame atlas_frame = 33;
+    AtlasWindowSelection atlas_window_selection = 34;
+    WindowPointerWheel window_pointer_wheel = 35;
+    WindowKeyboardEvent window_keyboard_event = 36;
+    WindowKeyboardAck window_keyboard_ack = 37;
+    WindowKeyboardAuthorization window_keyboard_authorization = 38;
+    ClipboardTransferOffer clipboard_transfer_offer = 39;
+    ClipboardAccept clipboard_accept = 40;
+    ClipboardPayload clipboard_payload = 41;
+    ClipboardComplete clipboard_complete = 42;
+    DesktopWindowMove desktop_window_move = 43;
+    DesktopWindowMoveAck desktop_window_move_ack = 44;
+    AtlasWindowSelectionRejected atlas_window_selection_rejected = 45;
+    AtlasWindowSelectionAccepted atlas_window_selection_accepted = 46;
+    ApplicationIcon application_icon = 47;
+    WindowInputRelease window_input_release = 48;
+  }
+}
+
+// A rejection is sent only after the source has confirmed native input cleanup.
+enum AtlasSelectionRejectionReason {
+  ATLAS_SELECTION_REJECTION_REASON_UNSPECIFIED = 0;
+  ATLAS_SELECTION_REJECTION_REASON_CAPTURE_EXPIRED = 1;
+  ATLAS_SELECTION_REJECTION_REASON_EVENT_EXPIRED = 2;
+  ATLAS_SELECTION_REJECTION_REASON_WINDOW_WITHDRAWN = 3;
+  ATLAS_SELECTION_REJECTION_REASON_NATIVE_UNAVAILABLE = 4;
+}
+message AtlasWindowSelectionRejected {
+  AtlasWindowSelection selection = 1;
+  AtlasSelectionRejectionReason reason = 2;
+  uint64 released_generation = 3;
+  uint64 capture_age_ns = 4;
+  uint64 capture_limit_ns = 5;
+}
+
+// Exact response after source native authorization has been installed.
+message AtlasWindowSelectionAccepted {
+  AtlasWindowSelection selection = 1;
+  WindowPointerAuthorization authorization = 2;
+}
+
+// Optional presentation metadata for a source application. Never input authority.
+message ApplicationIcon {
+  Id128 window_id = 1;
+  string app_id = 2;
+  bytes png = 3;
+}
+
+message WindowInputRelease { Id128 window_id = 1; }

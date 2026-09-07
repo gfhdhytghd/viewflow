@@ -1,0 +1,288 @@
+{
+  "schema_version": 1,
+  "state": "viewflow-failed-v21-rollback-abort-845ce422-v2-command-manifest",
+  "execution_authorized": false,
+  "operation_id": "845ce4223e4f426a8a0015d3355595e8",
+  "coordinator_instance_id": "271b68b5-2058-4c73-9f17-977d8f7fb18c",
+  "source_display_id": "00000000-0000-0000-0000-000000000101",
+  "target_device_id": "00000000-0000-0000-0000-000000000002",
+  "marker_generation": "1",
+  "recovery_marker_generation": "2",
+  "recovery_boundary": "windows-rolled-back-mutation-possible-original-generation-active",
+  "coordinator": {
+    "path": "/home/wilf/data/viewflow/deploy/coordinated-v13-to-v2.sh",
+    "sha256": "6e50c84886895959b954c7b4fa682258c4484e47f3663741ead4d1fb5f74b995",
+    "mode": 755,
+    "checker_path": "/home/wilf/data/viewflow/deploy/check-cross-host-coordinator.sh",
+    "checker_sha256": "7250b330771d71e90df5411e90251b69f84c7fe6de72da7d0e2ab89e5bcf68da",
+    "semantic_test_path": "/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-semantic-test.sh",
+    "semantic_test_sha256": "a03e37c49c6b761901d17d8054f112c11a3086066a1f12a42b61c278fed4213d",
+    "negative_test_path": "/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-static-negative-test.sh",
+    "negative_test_sha256": "93c30a3818246b0ddc3d5a152542ea80415a532280e06841590cdb7ac93f2299",
+    "transient_adoption_test_path": "/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-transient-adoption-test.sh",
+    "transient_adoption_test_sha256": "6be2282f6a58684396f391cf955f70d05fe66153d6e98df443d64fa7821f7882"
+  },
+  "immutable_inputs": {
+    "fresh_lineage": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/v4-inactive-terminal-to-fresh-v21.json",
+      "sha256": "0c32f1f3524945355c20dfdf5cd7ce6a15e5d02a0331362288a9d8c22646aa78",
+      "mode": 600
+    },
+    "old_source_validation": {
+      "path": "/home/wilf/.local/state/viewflow/v4-inactive-bridges/a18635e6e23f4304afaca816333f3455/inactive-source-validated.json",
+      "sha256": "54422d17466f721e6a3eaa2f62501f5cbb893bf72d68fb81d2f270f88b452ee5",
+      "mode": 600
+    },
+    "old_abort_terminal": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/a18635e6e23f4304afaca816333f3455/no-retry-v4-abort-terminal.json",
+      "sha256": "d1376cb7c98286970d4f5f28251bd5546e88cb7e98d29d7f2eee6b7170063ca9",
+      "mode": 600
+    },
+    "old_abort_authorization": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/a18635e6e23f4304afaca816333f3455/no-retry-v4-abort-authorization.json",
+      "sha256": "2e5c1b924344d38569183240d5a7711100d41c36a359c875da41cfb14e820062",
+      "mode": 600
+    },
+    "old_abort_receipt": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/a18635e6e23f4304afaca816333f3455/no-retry-v4-abort-receipt.json",
+      "sha256": "8d4179406bd5456f88e5c9d469d7afeedb35f41d011d677c297f6605eda66a2e",
+      "mode": 600
+    },
+    "old_abort_query": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/a18635e6e23f4304afaca816333f3455/no-retry-v4-abort-query-receipt.json",
+      "sha256": "8d4179406bd5456f88e5c9d469d7afeedb35f41d011d677c297f6605eda66a2e",
+      "mode": 600
+    },
+    "old_vfdqa": {
+      "path": "/home/wilf/.local/state/viewflow/v4-inactive-bridges/a18635e6e23f4304afaca816333f3455/immutable-inputs/durable-vfdqa.bin",
+      "sha256": "62f290a0a3ec9e7413dece5a09e2f06e79fa5f4520d4e25d3de5b2d70423e862",
+      "mode": 400
+    },
+    "old_durable_vfdqa": {
+      "path": "/home/wilf/.local/state/viewflow/.deployment-quarantine.v1.abort-receipt.78ed27a19befc7e3520ae266b8e8de8060708d45603ec2b93447db742d3975a1.2e5c1b924344d38569183240d5a7711100d41c36a359c875da41cfb14e820062.v1",
+      "sha256": "62f290a0a3ec9e7413dece5a09e2f06e79fa5f4520d4e25d3de5b2d70423e862",
+      "mode": 600
+    },
+    "bridge_persistent_started": {
+      "path": "/home/wilf/.local/state/viewflow/v4-inactive-bridges/a18635e6e23f4304afaca816333f3455/persistent-started.json",
+      "sha256": "d57ade1d7d53bbb8a736a23b437acde6c1d74ce9e1fd7d7f3fac629fff81fa1d",
+      "mode": 600
+    },
+    "coordinator_state": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/coordinator-state.json",
+      "sha256": "6653e38910c957775fca6beea08b07fcd3e6b64d678694e53d9f5bbd2e4b406c",
+      "mode": 600
+    },
+    "marker_handoff": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/marker-handoff.json",
+      "sha256": "fd756922bcd68bfc07592dfae041c2cdf354b9ae59d7174484ad3267448ee4a1",
+      "mode": 600
+    },
+    "deployment_publish": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/deployment-publish.json",
+      "sha256": "8f0b17ba500391213e0fc049065b144e0efaf3073366ef950899905ca449970b",
+      "mode": 600
+    },
+    "linux_frozen": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/linux-frozen.json",
+      "sha256": "73d5512284ee71a749ab05d917489c4bf0c4e9bb287e8c71a89a5609e36c96e0",
+      "mode": 600
+    },
+    "windows_request": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-bootstrap-request.json",
+      "sha256": "7620201fc0568c140ec123ef90773e8e5e240fe55da1d4a9a0aae09ed17ba5ce",
+      "mode": 600
+    },
+    "windows_prepared": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-prepared.json",
+      "sha256": "e1624222f4bd9b72d48f178b0174ac774dc62074cda22ea33b0ea68a58d8aaa9",
+      "mode": 600
+    },
+    "mutation_permit": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-mutation-permit.json",
+      "sha256": "78e12b13d267e68dfff350a1cab8f55020fdefa1b9bb8fbfac0fc27836958c83",
+      "mode": 600
+    },
+    "force_envelope": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-force-envelope.json",
+      "sha256": "d557d106d29f23999f8a52ce4621f347b8a866c1dd12679e63e6d03f53bb49d6",
+      "mode": 600
+    },
+    "windows_stop": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/coordinator-state.json.windows-stop-evidence.json",
+      "sha256": "a208a191e6f819013b1913596b5796d2f826d20b49c37454e5bbcfc1eea9246a",
+      "mode": 600
+    },
+    "recovery_bundle": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/coordinator-state.json.recovery-bundle.json",
+      "sha256": "83a980a9a08a177bfbc3ca62ddc7531a8c5b88dfc97956af67f92ef7d5971324",
+      "mode": 600
+    },
+    "linux_deactivation_transcript": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/linux-deactivation-transcript.json",
+      "sha256": "27e6b31a98fcc90435b505d6e0fe3b037d511e71c8a1df45d5d4722a9e62c152",
+      "mode": 600
+    },
+    "linux_deactivation": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/linux-deactivation.json",
+      "sha256": "9cfc634ec36173d885771c2675cb3c95f0294c085900cd4d7141f05929c5b5d6",
+      "mode": 600
+    },
+    "windows_validation": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-validation.json",
+      "sha256": "4835493203be287b05d1d91c955d139615a75ff5aa390d7fc3d2c2b2e84931f4",
+      "mode": 600
+    },
+    "windows_rollback": {
+      "path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-rollback.json",
+      "sha256": "af42e55cb6efb77359390acda646e899bf6682fbf9a26b7d82ef31dfaba785cd",
+      "mode": 600
+    },
+    "candidate_manifest": {
+      "path": "/home/wilf/.local/state/viewflow/candidates/v21-operation-845ce4223e4f426a8a0015d3355595e8/candidate-manifest.json",
+      "sha256": "e6f5f7c1921f61b5710283bc30e6d3ea9d30fb8db8ae8086560ebcb4583038d6",
+      "mode": 600
+    }
+  },
+  "active_marker": {
+    "path": "/home/wilf/.local/state/viewflow/deployment-quarantine.v1",
+    "sha256": "12c7e6a5ce122f67c1d190a5ad122d51f17b360aa844589d6b23aa019055fe97",
+    "mode": 600,
+    "size": 256,
+    "magic": "VFDQT001"
+  },
+  "installed_linux": {
+    "viewflowd": {"path": "/home/wilf/.local/lib/viewflow/viewflowd", "sha256": "d142fbbc65e311fa17b3307c252689afbb3963dda3e265cedc3bca7887daf96d", "mode": 755},
+    "marker_cli": {"path": "/home/wilf/.local/lib/viewflow/viewflow-deployment-marker", "sha256": "8d0945c582d249eb12b27f0e2eea109cc5fe20fe45358eacb3a43ff0d3880c54", "mode": 755},
+    "deskflow": {"path": "/home/wilf/.local/lib/deskflow-scale-fix/deskflow", "sha256": "033065b0495a2b996a6731ecf6e47c2af476e1c120ab5d62dafb8b8aa3394c3f", "mode": 755},
+    "deskflow_core": {"path": "/home/wilf/.local/lib/deskflow-scale-fix/deskflow-core", "sha256": "e2ebbfe39a1b7f5f3e30953340c000e5b249e8d957ceda5fb0e9c4efad0ffd52", "mode": 755},
+    "viewflow_unit": {"path": "/home/wilf/.config/systemd/user/viewflow-peer.service", "sha256": "2a9595405c449fc36c45c6cf82c4906321ca15e18c2f4ee92f42313a845487ec", "mode": 644},
+    "deskflow_dropin": {"path": "/home/wilf/.config/systemd/user/deskflow.service.d/viewflow.conf", "sha256": "533b0aa11e495bb542e75a974ce31aef01e264949335d227545793565a7a524a", "mode": 644}
+  },
+  "windows_expected": {
+    "ssh_target": "wilf@172.16.105.70",
+    "user_sid": "S-1-5-21-1940417919-1835306932-1635351729-1001",
+    "old_task_name": "\\Viewflow Peer",
+    "old_task_pre_state": "Ready",
+    "old_task_post_state": "Running",
+    "old_task_xml_sha256": "89ab8d07d19a99614361900a718e2300f6d239bf8d17b1d32101664369758b33",
+    "old_binary_sha256": "f4f29e16ccf678a75199b4af1c1ec3975434991bd54ca9688e961262466fcc26",
+    "old_wrapper_sha256": "3ca9b5f498a5b80a8a54c98666e62ea84019a41fab08d2dbd8fb6f0307f47698",
+    "old_rollback_sha256": "f57a3a997eb69f9d99f8d4d0bc0c5f4766f6fc8c26835e0476340356ef0930eb",
+    "deployment_task_name": "Viewflow Deployment 845ce4223e4f426a8a0015d3355595e8",
+    "deployment_task_state": "Disabled",
+    "deployment_task_xml_sha256": "6de080cc53d16febf69147f0f19e66c46f068bee1c244bd15cf47fd41569135f",
+    "operation_root": "C:\\Users\\wilf\\AppData\\Local\\Viewflow\\Deployments\\845ce4223e4f426a8a0015d3355595e8",
+    "forbidden_members": [
+      "linux-stage-receipt.json",
+      "windows-install-success.json",
+      "readiness.json",
+      "readiness.lock",
+      "readiness-commit-request.json",
+      "post-release-restart-intent.json",
+      "post-release-restart-claim.json",
+      "post-release-restart-terminal.json"
+    ],
+    "exact_members": [
+      {"name": "bootstrap-prepared.json", "size": 5643, "sha256": "e1624222f4bd9b72d48f178b0174ac774dc62074cda22ea33b0ea68a58d8aaa9"},
+      {"name": "force-release-envelope.json", "size": 1069, "sha256": "d557d106d29f23999f8a52ce4621f347b8a866c1dd12679e63e6d03f53bb49d6"},
+      {"name": "install-viewflow.ps1", "size": 220494, "sha256": "0104a6cefc1fc00c0a1de3832170b1dc1b8d40abdfad84d5a087b2d25a76c62d"},
+      {"name": "installer-exit.json", "size": 435, "sha256": "86492f436d78fdf54f282b29f5344dec4621bdc9f6266160b85c23ca2997fe0e"},
+      {"name": "installer.stderr.log", "size": 1094, "sha256": "f25166d8bb31ec2973b4d85e41365c01d5d5b00010b9ffb4a7199970a095d47d"},
+      {"name": "installer.stdout.log", "size": 0, "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+      {"name": "launcher-claim.json", "size": 1029, "sha256": "b1a2c1cbc77cd65c0b68b39ed5938a856ad48e2c5894f158524aca01e21af4d7"},
+      {"name": "launcher-installer-process.json", "size": 670, "sha256": "54565b6d87c614bfa1320bbdca998eee12522094174169b18513670c355232d5"},
+      {"name": "launcher-stop-evidence.json", "size": 606, "sha256": "50fc9751126ba768a996faacae75db4d7de954c4d3e4aede96e32e16838fbc9d"},
+      {"name": "linux-deactivation-proof.json", "size": 2425, "sha256": "9cfc634ec36173d885771c2675cb3c95f0294c085900cd4d7141f05929c5b5d6"},
+      {"name": "linux-deactivation-transcript.json", "size": 1048, "sha256": "27e6b31a98fcc90435b505d6e0fe3b037d511e71c8a1df45d5d4722a9e62c152"},
+      {"name": "linux-v13-frozen-evidence.consumed.845ce4223e4f426a8a0015d3355595e8.json", "size": 2554, "sha256": "73d5512284ee71a749ab05d917489c4bf0c4e9bb287e8c71a89a5609e36c96e0"},
+      {"name": "marker-handoff-receipt.json", "size": 1686, "sha256": "fd756922bcd68bfc07592dfae041c2cdf354b9ae59d7174484ad3267448ee4a1"},
+      {"name": "mutation-permit.json", "size": 1504, "sha256": "78e12b13d267e68dfff350a1cab8f55020fdefa1b9bb8fbfac0fc27836958c83"},
+      {"name": "raw-force-release.json", "size": 670, "sha256": "e748129f02b945dff5761cab973a865699ca0460eebea4b5c88ed98dd6e37d96"},
+      {"name": "recovery-bundle.json", "size": 738, "sha256": "83a980a9a08a177bfbc3ca62ddc7531a8c5b88dfc97956af67f92ef7d5971324"},
+      {"name": "recovery-force-release.json", "size": 670, "sha256": "5d7be3306146dc0c67d07b03c3ebc530a58771c77ad1db99ca731c6f1eca1239"},
+      {"name": "request.json", "size": 4405, "sha256": "7620201fc0568c140ec123ef90773e8e5e240fe55da1d4a9a0aae09ed17ba5ce"},
+      {"name": "rollback-manifest.json", "size": 3091, "sha256": "f8f03d6385697bff95c235394612add26598c31ebcd5142c7751894d9b33e12e"},
+      {"name": "rollback-token.consumed.845ce4223e4f426a8a0015d3355595e8.json", "size": 388, "sha256": "1979bab5db9f85e45c5df196ea3811af05842ba753e71da139fd1a536ecd0a0e"},
+      {"name": "rollback-viewflow.ps1", "size": 138002, "sha256": "f57a3a997eb69f9d99f8d4d0bc0c5f4766f6fc8c26835e0476340356ef0930eb"},
+      {"name": "start-viewflow-bootstrap.ps1", "size": 65752, "sha256": "5880e945533d36c99200d6b0663ff9ffcdc465cdcff80d7b8ee6c59950ea4904"},
+      {"name": "viewflow-client.ps1", "size": 5950, "sha256": "2791c959914eb9bf5662577e52773a9bbb6d83a8015625fb938969715f74781a"},
+      {"name": "viewflowd.exe", "size": 4172800, "sha256": "82fa145707e795aebd23d1eca5b62fc50c22134dfe8ff4a1fa24787cd7b2c463"},
+      {"name": "windows-rollback-dispatch-claim.json", "size": 249, "sha256": "994b2a56b3fe63cb561282f10fdaeaed80668bfeaa36d68561bc4a48f666fe6b"},
+      {"name": "windows-rollback-receipt.json", "size": 1956, "sha256": "af42e55cb6efb77359390acda646e899bf6682fbf9a26b7d82ef31dfaba785cd"}
+    ],
+    "required_members": [
+      "request.json",
+      "start-viewflow-bootstrap.ps1",
+      "install-viewflow.ps1",
+      "viewflowd.exe",
+      "viewflow-client.ps1",
+      "rollback-viewflow.ps1",
+      "marker-handoff-receipt.json",
+      "linux-v13-frozen-evidence.consumed.845ce4223e4f426a8a0015d3355595e8.json",
+      "bootstrap-prepared.json",
+      "mutation-permit.json",
+      "raw-force-release.json",
+      "force-release-envelope.json",
+      "recovery-bundle.json",
+      "linux-deactivation-proof.json",
+      "linux-deactivation-transcript.json",
+      "recovery-force-release.json",
+      "windows-rollback-receipt.json"
+    ]
+  },
+  "required_absent": [
+    "/home/wilf/.local/state/viewflow/deskflow-quarantine.v2",
+    "/home/wilf/.local/state/viewflow/deployment-quarantine.v1.abort-claim",
+    "/home/wilf/.local/state/viewflow/deployment-quarantine.v1.release-claim",
+    "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/deployment-release.json",
+    "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/recovery-deployment-publish.json"
+  ],
+  "approval_path": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-execution-approval.json",
+  "outputs": {
+    "linux_pre": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-linux-pre.json",
+    "windows_pre": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-windows-pre.json",
+    "authorization": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-authorization.json",
+    "abort_receipt": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-receipt.json",
+    "abort_query": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-query.json",
+    "linux_started": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-linux-v13-started.json",
+    "windows_started": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-windows-v13-started.json",
+    "authenticated": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-authenticated-v13-peer.json",
+    "transition": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-transition.json",
+    "linux_post": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-linux-post.json",
+    "windows_post": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-windows-post.json",
+    "terminal": "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-terminal.json"
+  },
+  "argv": [
+    "/home/wilf/data/viewflow/deploy/coordinated-v13-to-v2.sh",
+    "--abort-failed-v13",
+    "--fresh-operation-lineage-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/v4-inactive-terminal-to-fresh-v21.json",
+    "--fresh-operation-lineage-receipt-sha256", "0c32f1f3524945355c20dfdf5cd7ce6a15e5d02a0331362288a9d8c22646aa78",
+    "--failed-v13-original-generation-only",
+    "--operation-id", "845ce4223e4f426a8a0015d3355595e8",
+    "--coordinator-instance-id", "271b68b5-2058-4c73-9f17-977d8f7fb18c",
+    "--marker-generation", "1",
+    "--recovery-marker-generation", "2",
+    "--source-display-id", "00000000-0000-0000-0000-000000000101",
+    "--target-device-id", "00000000-0000-0000-0000-000000000002",
+    "--old-coordinator-state-sha256", "6653e38910c957775fca6beea08b07fcd3e6b64d678694e53d9f5bbd2e4b406c",
+    "--coordinator-state", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/coordinator-state.json",
+    "--bootstrap-handoff-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/marker-handoff.json",
+    "--deployment-publish-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/deployment-publish.json",
+    "--recovery-deployment-publish-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/recovery-deployment-publish.json",
+    "--deployment-release-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/deployment-release.json",
+    "--bootstrap-linux-evidence", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/linux-frozen.json",
+    "--windows-bootstrap-request", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-bootstrap-request.json",
+    "--windows-force-release-envelope", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-force-envelope.json",
+    "--local-windows-rollback-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/windows-rollback.json",
+    "--linux-deactivation-proof", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/linux-deactivation.json",
+    "--windows-user-sid", "S-1-5-21-1940417919-1835306932-1635351729-1001",
+    "--windows-task-xml-sha256", "89ab8d07d19a99614361900a718e2300f6d239bf8d17b1d32101664369758b33",
+    "--deployment-abort-authorization", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-authorization.json",
+    "--deployment-abort-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-receipt.json",
+    "--failed-v13-abort-transition-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-transition.json",
+    "--linux-v13-started-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-linux-v13-started.json",
+    "--windows-v13-started-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-windows-v13-started.json",
+    "--authenticated-v13-peer-receipt", "/home/wilf/.local/state/viewflow/deployments/845ce4223e4f426a8a0015d3355595e8/failed-v21-rollback-abort-845ce422-v2-authenticated-v13-peer.json"
+  ]
+}

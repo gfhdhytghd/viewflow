@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.24)
+project(viewflow_windows_decode_sample LANGUAGES CXX)
+
+add_executable(viewflow_windows_decode_sample main.cpp)
+target_compile_features(viewflow_windows_decode_sample PRIVATE cxx_std_20)
+target_compile_definitions(viewflow_windows_decode_sample PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+if(MSVC)
+  target_compile_options(viewflow_windows_decode_sample PRIVATE /EHsc /W4 /permissive-)
+endif()
+target_link_libraries(viewflow_windows_decode_sample PRIVATE mfplat mfuuid ole32 d3d11 dxgi wmcodecdspuuid)

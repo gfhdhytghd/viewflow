@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "state": "viewflow-failed-v13-abort-replay16-command-manifest",
+  "execution_authorized": false,
+  "operation_id": "481366c6c9654a679a96d4b6b1447ecb",
+  "recovery_boundary": "post-vfdqa-committed-pre-terminal-transition",
+  "abort_replay_policy": {
+    "abort_command_forbidden": true,
+    "pinned_query_required": true,
+    "marker_required_absent": true,
+    "abort_claim_required_absent": true,
+    "release_claim_required_absent": true,
+    "runtime_marker_required_absent": true
+  },
+  "immutable_base_plan": {
+    "path": "/home/wilf/data/viewflow/deploy/failed-v13-abort-481366c6-args.json",
+    "sha256": "8f029bbb3d18abeaf5fe70d8bafcfbe3381e0aa84dbb88826f382032d6363b3d"
+  },
+  "prior_replay": {
+    "manifest_path": "/home/wilf/data/viewflow/deploy/failed-v13-abort-481366c6-replay15-manifest.json",
+    "manifest_sha256": "bed8833fe221b7621ac6f312fab793f5269072c41617dcd27e3c41f7f201c857",
+    "launcher_path": "/home/wilf/data/viewflow/deploy/launch-failed-v13-abort-481366c6-replay15-formal.sh",
+    "launcher_sha256": "2687f10621c6a69bc84e5f18a0b96b5b5ab9e1bded25c14c52db94d57621a80d",
+    "approval_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-replay15-execution-approval.json",
+    "approval_sha256": "c34fe243b35d0564100965e604517a1a2a94e454d817e10edd0f108f4f4978dc"
+  },
+  "reviewed_replay": {
+    "launcher_path": "/home/wilf/data/viewflow/deploy/launch-failed-v13-abort-481366c6-replay16-formal.sh",
+    "approval_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-replay16-execution-approval.json",
+    "coordinator_path": "/home/wilf/data/viewflow/deploy/coordinated-v13-to-v2.sh",
+    "coordinator_sha256": "a8e6456e02bcb1f54ef366d32bddfa1af16c474088994479f344317dfc4a6e26",
+    "checker_path": "/home/wilf/data/viewflow/deploy/check-cross-host-coordinator.sh",
+    "checker_sha256": "f946eec8c1a21838e7a9ac19b11a804b8443e0138012568f6b309cb3ae4e5301",
+    "semantic_test_path": "/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-semantic-test.sh",
+    "semantic_test_sha256": "e9a349b6f2545c5a071f9d3c8f498cd16fdd7b4962127c4601bb2bda45ee8ceb",
+    "negative_test_path": "/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-static-negative-test.sh",
+    "negative_test_sha256": "e16689023de6ec3baba2c21d2a92e5e1fae45c925702f88ecc2b14220ef3d1fe",
+    "transient_adoption_test_path": "/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-transient-adoption-test.sh",
+    "transient_adoption_test_sha256": "6be2282f6a58684396f391cf955f70d05fe66153d6e98df443d64fa7821f7882"
+  },
+  "committed_abort": {
+    "marker_sha256": "0adec6f0c87081b352dacfef0d5ab2158145a149e4583b48239cc51fa55065e8",
+    "authorization_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-authorization.json",
+    "authorization_sha256": "1c7ea381dc11e1ae75868d3d4b44e8e289d84a1d82153f157f58c1cfa42e2202",
+    "local_receipt_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-receipt.json",
+    "local_receipt_sha256": "e63d46c9f211e32a1e8401f258d0849f48c641edd48bdbf31a591dee5ca5e42c",
+    "durable_receipt_path": "/home/wilf/.local/state/viewflow/.deployment-quarantine.v1.abort-receipt.0adec6f0c87081b352dacfef0d5ab2158145a149e4583b48239cc51fa55065e8.1c7ea381dc11e1ae75868d3d4b44e8e289d84a1d82153f157f58c1cfa42e2202.v1",
+    "durable_receipt_sha256": "e761acd655d14a4af7564577ac8b26d4c0318cfd7237e2ef09b02eb44fdf51fd",
+    "durable_receipt_size": 384,
+    "durable_receipt_magic": "VFDQA001"
+  },
+  "existing_outputs": [
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/linux-v13-started.json","sha256":"a6cb9399aeaa379f8359b9db4cb5db144d4b87d5d7fa315c07458587a00bc3c9"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/windows-v13-started.json","sha256":"9426a4a22dafbc0f5283d69162bbcc04bf4819ccecde124f2628c1c0212ca763"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/authenticated-v13-peer.json","sha256":"606be9ef6c3788211088859e7cba31eb7a5b037f9cbceaf4cb13192f27b29a61"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-authorization.json","sha256":"1c7ea381dc11e1ae75868d3d4b44e8e289d84a1d82153f157f58c1cfa42e2202"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-receipt.json","sha256":"e63d46c9f211e32a1e8401f258d0849f48c641edd48bdbf31a591dee5ca5e42c"}
+  ],
+  "fresh_transition": {
+    "path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-transition.json",
+    "required_absent": true
+  },
+  "immutable_gates": {
+    "terminal_state_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/coordinator-state.json",
+    "terminal_state_sha256": "83922f9e26a8e6c09d8363eab646f3143357b7859514e801f83d6f84b6128b8a",
+    "slot_cleanup_receipt_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/cleanup-attempt3-exchange-slots-complete.json",
+    "slot_cleanup_receipt_sha256": "7c995aee63c51d12d0c1fc8436161b94f42161cbf21f435ffeb29548477bc96e",
+    "release_receipt_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/deployment-release.json",
+    "recovery_publish_receipt_path": "/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/recovery-deployment-publish.json",
+    "runtime_marker_path": "/home/wilf/.local/state/viewflow/deskflow-quarantine.v2",
+    "active_marker_path": "/home/wilf/.local/state/viewflow/deployment-quarantine.v1",
+    "abort_claim_path": "/home/wilf/.local/state/viewflow/deployment-quarantine.v1.abort-claim",
+    "release_claim_path": "/home/wilf/.local/state/viewflow/deployment-quarantine.v1.release-claim"
+  },
+  "live_viewflow_gate": {
+    "unit": "viewflow-v13-recovery-481366c6c9654a679a96d4b6b1447ecb.service",
+    "main_pid": 4166137,
+    "start_ticks": 10921072,
+    "invocation_id": "0e9121c532794a069227d62dbb7f90a8",
+    "control_group": "/user.slice/user-1000.slice/user@1000.service/app.slice/viewflow-v13-recovery-481366c6c9654a679a96d4b6b1447ecb.service",
+    "executable_sha256": "d142fbbc65e311fa17b3307c252689afbb3963dda3e265cedc3bca7887daf96d"
+  },
+  "failed_deskflow_gate": {
+    "unit": "deskflow-v13-recovery-481366c6c9654a679a96d4b6b1447ecb.service",
+    "load_state": "loaded",
+    "active_state": "failed",
+    "sub_state": "failed",
+    "result": "core-dump",
+    "exec_main_code": "3",
+    "exec_main_status": "6",
+    "main_pid": 0,
+    "control_group": "",
+    "invocation_id": "8e264ce3f29445d8ab77b066cbf9d01c",
+    "exec_start_observation_sha256": "54bf525ad26f45519a5c456ef769f20a2035c322e7c740ff9e0bb6a4bc322682",
+    "fatal_message": "[2026-08-30T20:28:16.484] FATAL: core server binary does not exist",
+    "fatal_record_sha256": "8eb5d9371ff4fe889f5b6672417a64e841bda9f8935f8cee46f3ad229545deb7",
+    "fatal_record_cursor": "s=2a0ce0964fe643b7bf5d5c7bc1b91535;i=6746c189;b=c7274f2216534b8388479f336d4bc5b9;m=1aba2dfff1;t=65a4ce0d74970;x=4505bb3cf10e3fd3"
+  },
+  "sealed_inputs": [
+    {"path":"/home/wilf/data/viewflow/deploy/failed-v13-abort-481366c6-args.json","sha256":"8f029bbb3d18abeaf5fe70d8bafcfbe3381e0aa84dbb88826f382032d6363b3d"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-replay15-execution-approval.json","sha256":"c34fe243b35d0564100965e604517a1a2a94e454d817e10edd0f108f4f4978dc"},
+    {"path":"/home/wilf/data/viewflow/deploy/coordinated-v13-to-v2.sh","sha256":"a8e6456e02bcb1f54ef366d32bddfa1af16c474088994479f344317dfc4a6e26"},
+    {"path":"/home/wilf/data/viewflow/deploy/check-cross-host-coordinator.sh","sha256":"f946eec8c1a21838e7a9ac19b11a804b8443e0138012568f6b309cb3ae4e5301"},
+    {"path":"/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-semantic-test.sh","sha256":"e9a349b6f2545c5a071f9d3c8f498cd16fdd7b4962127c4601bb2bda45ee8ceb"},
+    {"path":"/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-static-negative-test.sh","sha256":"e16689023de6ec3baba2c21d2a92e5e1fae45c925702f88ecc2b14220ef3d1fe"},
+    {"path":"/home/wilf/data/viewflow/deploy/tests/cross-host-coordinator-transient-adoption-test.sh","sha256":"6be2282f6a58684396f391cf955f70d05fe66153d6e98df443d64fa7821f7882"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/coordinator-state.json","sha256":"83922f9e26a8e6c09d8363eab646f3143357b7859514e801f83d6f84b6128b8a"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/cleanup-attempt3-exchange-slots-complete.json","sha256":"7c995aee63c51d12d0c1fc8436161b94f42161cbf21f435ffeb29548477bc96e"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/marker-handoff.json","sha256":"c0d0fe93112202a446dd5cdb7c2c628cb7fcb88a1f884d24ba53b3c287175ea8"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/deployment-publish.json","sha256":"2950bce967a88f9b21b66da1fd74de022af66891ec3f730c834dfbffc0026947"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/linux-frozen.json","sha256":"8f5566b406e3debc8f4e7bff62ba7fa8fcf73d118aa59e6e2a8810bd44490397"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/windows-bootstrap-request.json","sha256":"776924cf3bbbb3f8d7048dbb003b9a2f183ccef08bfd6dfb0c05007cff4d4447"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/windows-force-envelope.json","sha256":"a5b82f927e41e88597ee0259b9efc1f237198cf18d6d9058f3f7fbf993c347d0"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/coordinator-state.json.windows-stop-evidence.json","sha256":"abb844dbb522414b7e741c5799b862df7bddf84670089e9d1c41356e7a693006"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/windows-rollback.json","sha256":"21addb8d8085b445b26edc9601a3c1442222f4e0af9975eb395eb740d18c4498"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/linux-deactivation.json","sha256":"a77bdb3175902909df83196a22d9d59481072843e4b50602894014c784ceeb1e"},
+    {"path":"/home/wilf/.local/lib/viewflow/viewflowd","sha256":"d142fbbc65e311fa17b3307c252689afbb3963dda3e265cedc3bca7887daf96d"},
+    {"path":"/home/wilf/.local/lib/viewflow/viewflow-deployment-marker","sha256":"8bf296f22d63d8740d8d4eaf3170f55167ceea8bf701bd8a39642acc4909bfa3"},
+    {"path":"/home/wilf/.local/lib/deskflow-scale-fix/deskflow","sha256":"033065b0495a2b996a6731ecf6e47c2af476e1c120ab5d62dafb8b8aa3394c3f"},
+    {"path":"/home/wilf/.local/lib/deskflow-scale-fix/deskflow-core","sha256":"e2ebbfe39a1b7f5f3e30953340c000e5b249e8d957ceda5fb0e9c4efad0ffd52"},
+    {"path":"/home/wilf/.config/systemd/user/viewflow-peer.service","sha256":"2a9595405c449fc36c45c6cf82c4906321ca15e18c2f4ee92f42313a845487ec"},
+    {"path":"/home/wilf/.config/systemd/user/deskflow.service.d/viewflow.conf","sha256":"533b0aa11e495bb542e75a974ce31aef01e264949335d227545793565a7a524a"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/linux-v13-started.json","sha256":"a6cb9399aeaa379f8359b9db4cb5db144d4b87d5d7fa315c07458587a00bc3c9"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/windows-v13-started.json","sha256":"9426a4a22dafbc0f5283d69162bbcc04bf4819ccecde124f2628c1c0212ca763"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/authenticated-v13-peer.json","sha256":"606be9ef6c3788211088859e7cba31eb7a5b037f9cbceaf4cb13192f27b29a61"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-authorization.json","sha256":"1c7ea381dc11e1ae75868d3d4b44e8e289d84a1d82153f157f58c1cfa42e2202"},
+    {"path":"/home/wilf/.local/state/viewflow/deployments/481366c6c9654a679a96d4b6b1447ecb/failed-v13-abort-receipt.json","sha256":"e63d46c9f211e32a1e8401f258d0849f48c641edd48bdbf31a591dee5ca5e42c"},
+    {"path":"/home/wilf/.local/state/viewflow/.deployment-quarantine.v1.abort-receipt.0adec6f0c87081b352dacfef0d5ab2158145a149e4583b48239cc51fa55065e8.1c7ea381dc11e1ae75868d3d4b44e8e289d84a1d82153f157f58c1cfa42e2202.v1","sha256":"e761acd655d14a4af7564577ac8b26d4c0318cfd7237e2ef09b02eb44fdf51fd"}
+  ]
+}

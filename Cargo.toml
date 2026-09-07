@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "crates/viewflow-protocol",
+    "crates/viewflow-core",
+    "crates/viewflow-deployment-marker",
+    "crates/viewflow-platform",
+    "crates/viewflow-hyprland",
+    "crates/viewflow-transport",
+    "crates/viewflowd",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+rust-version = "1.85"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"

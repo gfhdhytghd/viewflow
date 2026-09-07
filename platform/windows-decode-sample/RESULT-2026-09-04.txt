@@ -1,0 +1,27 @@
+Host: wilf@172.16.105.70 (WindowsVM)
+Staging: C:\Users\wilf\AppData\Local\Temp\viewflow-native-decode-sample-20260905
+Toolchain: MSVC 19.44.35228.0 / Windows SDK 10.0.26100.0
+Fixture: /tmp/viewflow-native-decode-fixture-20260905-b, three 256x256 Annex-B AUs per stream
+
+The inbox CLSID_CMSH264DecoderMFT was created with an Intel D3D11 video
+device and an MF DXGI device manager. MF_SA_D3D11_AWARE was 1 and
+MFT_MESSAGE_SET_D3D_MANAGER returned 0x0 for both streams.
+
+Color (profile 100 / High):
+- SetInputType H264 returned 0x0; the negotiated input profile was 100.
+- The negotiated output subtype was NV12.
+- All three ProcessInput calls returned 0x0.
+- After the stream change and output-type reset, all three frames were
+  256x256 NV12 IMFDXGIBuffer/D3D11 textures (`gpu_backed=true`).
+- Final result: `color_result_hr=0x0 frames=3 gpu_status=all_gpu`.
+
+Alpha (profile 244 / High 4:4:4 Predictive):
+- SetInputType H264 returned 0x0; the negotiated input profile was 244.
+- The decoder accepted an NV12 output type, but ProcessOutput for alpha AU 1
+  returned 0x80004005 before any output frame.
+- Final result: `alpha_result_hr=0x80004005 frames=0 gpu_status=not_observed`.
+  Therefore there is no alpha GPU-frame result and no byte-exact alpha claim.
+
+This is execution evidence for the color GPU-backed output path only. It does
+not establish High 4:4:4 decode, alpha reconstruction, a GPU composition
+pipeline, window presentation, or blur.
