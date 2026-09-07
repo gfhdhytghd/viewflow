@@ -103,7 +103,8 @@ public:
       auto capture = std::make_unique<TouchpadCapture>();
       if (!capture->open(entry.path().string())) continue;
       unsigned long properties{};
-      if (::ioctl(capture->fd(), EVIOCGPROP(sizeof(properties)), &properties) == 0 && (properties & (1UL << INPUT_PROP_POINTER))) return capture;
+      // EVIOCGPROP returns the number of bytes copied (8 here), not just zero.
+      if (::ioctl(capture->fd(), EVIOCGPROP(sizeof(properties)), &properties) >= 0 && (properties & (1UL << INPUT_PROP_POINTER))) return capture;
     }
     return {};
   }

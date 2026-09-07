@@ -32,11 +32,14 @@ type CreateDevice = unsafe extern "system" fn(*const CreationParams) -> HSYNTHET
 pub(crate) struct WindowsTouchpad {
     device: HSYNTHETICPOINTERDEVICE,
     state: crate::touchpad_state::TouchpadState,
+    diagnostic_frames: u64,
+    diagnostic_failures: u64,
+    diagnostic_count: u8,
 }
 
 impl Default for WindowsTouchpad {
     fn default() -> Self {
-        Self { device: core::ptr::null_mut(), state: crate::touchpad_state::TouchpadState::default() }
+        Self { device: core::ptr::null_mut(), state: crate::touchpad_state::TouchpadState::default(), diagnostic_frames: 0, diagnostic_failures: 0, diagnostic_count: u8::MAX }
     }
 }
 
@@ -81,6 +84,30 @@ impl WindowsTouchpad {
     }
 
     pub(crate) fn apply(&mut self, frame: TouchpadFrame) -> Result<(), WindowsInputError> {
+        self.diagnostic_frames += 1;
+        let result = self.apply_frame(frame);
+        let native_error = std::io::Error::last_os_error();
+        if result.is_err() { self.diagnostic_failures += 1; }
+        if self.diagnostic_count != frame.count || (result.is_err() && self.diagnostic_failures.is_power_of_two()) {
+            use std::io::Write;
+            let message = format!("touchpad frames={} count={} size={}x{} device={} failures={} result={result:?} native_error={native_error}",
+                self.diagnostic_frames, frame.count, frame.width, frame.height, !self.device.is_null(), self.diagnostic_failures);
+            eprintln!("{message}");
+            // Service workers have no stderr reader. Keep contact-count and API
+            // results alongside the executable; never record contact locations.
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(parent) = exe.parent() {
+                    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(parent.join("touchpad.log")) {
+                        let _ = writeln!(file, "{:?} {message}", std::time::SystemTime::now());
+                    }
+                }
+            }
+        }
+        self.diagnostic_count = frame.count;
+        result
+    }
+
+    fn apply_frame(&mut self, frame: TouchpadFrame) -> Result<(), WindowsInputError> {
         frame.validate().map_err(|_| WindowsInputError::DeltaOutOfRange)?;
         if !self.device.is_null() && (frame.width, frame.height) != (self.state.previous.width, self.state.previous.height) {
             self.release_all()?;

@@ -74,3 +74,27 @@ Hyprland 无配置错误。Linux 备份在 `build/touchpad-backup-20260907`，Wi
 
 实际缩放、三／四指滑动、Windows 自定义动作以及返回 Linux 后恢复手势，
 仍需用户手动验收。此次没有自动注入鼠标、键盘、触点或执行焦点测试。
+
+## 2026-09-07 手势失效排查
+
+发现并修正两处问题：
+
+- 实际 Linux 服务一度运行不含触点解析的旧兼容程序，插件发送的触点没有
+  到达 Windows 服务。已统一使用当前集成源码构建的程序，并将已部署副本
+  放在 `~/.local/lib/viewflow/desktop/vf-media-peer-main`；用户服务的
+  `90-integrated-runtime.conf` 固定该路径，避免普通构建覆盖正在使用的版本。
+  两端 sparse 画布握手和持续提交已确认恢复。
+- reverse 的 evdev 自动发现仅接受 `EVIOCGPROP` 返回零，但本机成功时返回
+  实际读取长度 8，导致一直未打开触控板。改为接受非负返回值后，只读探针
+  成功发现 Magic Trackpad（16195 × 11511 himetric）；运行中的 reverse
+  已持有 `/dev/input/event17`。没有发送模拟输入。
+
+`capture_status()` 新增 `local_gesture_events`、`gesture_remote_now`、
+`swipe_remote_latched` 和 `pinch_remote_latched`，区分本地放行与远端归属。
+Windows 输入后端在程序目录的 `touchpad.log` 记录触点数量变化、累计帧数
+和 API 结果；不记录触点位置。失败重复日志按累计失败次数的二次幂采样。
+
+验证：已有触点状态／服务协议／有序传输测试通过；Windows 后端交叉编译
+通过；Hyprland 插件 10 项及 reverse 2 项测试通过。已观察到 Linux 本地
+事件继续放行、没有远端手势锁定残留；这不等同于本地动作或 Windows
+手势的用户验收结果，实际滚动和三／四指动作仍由用户确认。

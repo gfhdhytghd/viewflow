@@ -97,42 +97,42 @@ void InputCapture::start() {
     if (m_cancelLocalGesture) return;
     auto decision = m_swipeRoute.begin(remoteGesture());
     if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onSwipeEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
-    if (decision.suppress) ++m_suppressedGestureEvents;
+    if (decision.suppress) ++m_suppressedGestureEvents; else ++m_localGestureEvents;
     info.cancelled = info.cancelled || decision.suppress;
   });
   m_gestures[1] = events.gesture.swipe.update.listen([this](IPointer::SSwipeUpdateEvent e, Event::SCallbackInfo& info) {
     if (m_cancelLocalGesture) return;
     auto decision = m_swipeRoute.update(remoteGesture());
     if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onSwipeEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
-    if (decision.suppress) ++m_suppressedGestureEvents;
+    if (decision.suppress) ++m_suppressedGestureEvents; else ++m_localGestureEvents;
     info.cancelled = info.cancelled || decision.suppress;
   });
   m_gestures[2] = events.gesture.swipe.end.listen([this](IPointer::SSwipeEndEvent e, Event::SCallbackInfo& info) {
     if (m_cancelLocalGesture) return;
     auto decision = m_swipeRoute.end(remoteGesture());
     if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onSwipeEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
-    if (decision.suppress) ++m_suppressedGestureEvents;
+    if (decision.suppress) ++m_suppressedGestureEvents; else ++m_localGestureEvents;
     info.cancelled = info.cancelled || decision.suppress;
   });
   m_gestures[3] = events.gesture.pinch.begin.listen([this](IPointer::SPinchBeginEvent e, Event::SCallbackInfo& info) {
     if (m_cancelLocalGesture) return;
     auto decision = m_pinchRoute.begin(remoteGesture());
     if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onPinchEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
-    if (decision.suppress) ++m_suppressedGestureEvents;
+    if (decision.suppress) ++m_suppressedGestureEvents; else ++m_localGestureEvents;
     info.cancelled = info.cancelled || decision.suppress;
   });
   m_gestures[4] = events.gesture.pinch.update.listen([this](IPointer::SPinchUpdateEvent e, Event::SCallbackInfo& info) {
     if (m_cancelLocalGesture) return;
     auto decision = m_pinchRoute.update(remoteGesture());
     if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onPinchEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
-    if (decision.suppress) ++m_suppressedGestureEvents;
+    if (decision.suppress) ++m_suppressedGestureEvents; else ++m_localGestureEvents;
     info.cancelled = info.cancelled || decision.suppress;
   });
   m_gestures[5] = events.gesture.pinch.end.listen([this](IPointer::SPinchEndEvent e, Event::SCallbackInfo& info) {
     if (m_cancelLocalGesture) return;
     auto decision = m_pinchRoute.end(remoteGesture());
     if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onPinchEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
-    if (decision.suppress) ++m_suppressedGestureEvents;
+    if (decision.suppress) ++m_suppressedGestureEvents; else ++m_localGestureEvents;
     info.cancelled = info.cancelled || decision.suppress;
   });
   reconcileDevices();
@@ -673,6 +673,10 @@ std::string InputCapture::captureStatusJson() const {
       << ",\"held_keys\":" << (g_pInputManager ? g_pInputManager->getKeysFromAllKBs().size() : 0)
       << ",\"raw_touchpad\":" << rawTouchpad() << ",\"touchpad_frames\":" << m_touchpadFrames
       << ",\"suppressed_gesture_events\":" << m_suppressedGestureEvents
+      << ",\"local_gesture_events\":" << m_localGestureEvents
+      << ",\"gesture_remote_now\":" << remoteGesture()
+      << ",\"swipe_remote_latched\":" << m_swipeRoute.remoteStarted
+      << ",\"pinch_remote_latched\":" << m_pinchRoute.remoteStarted
       << ",\"click_serial\":" << m_clickSerial << ",\"clicked_window\":" << m_clickedWindow
       << ",\"remote\":";
   if (const auto& r = m_core.remote()) out << "[" << r->monitorId << "," << r->x << "," << r->y << "," << r->width << "," << r->height << "]";

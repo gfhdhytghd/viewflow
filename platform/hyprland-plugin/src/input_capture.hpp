@@ -79,7 +79,7 @@ private:
 
   std::unique_ptr<TouchpadCapture> m_touchpad;
   IPointer* m_touchpadPointer{};
-  std::uint64_t m_touchpadFrames{}, m_suppressedGestureEvents{};
+  std::uint64_t m_touchpadFrames{}, m_suppressedGestureEvents{}, m_localGestureEvents{};
   std::array<CHyprSignalListener, 6> m_gestures;
   GestureRoute m_swipeRoute, m_pinchRoute;
   bool m_cancelLocalGesture{};
