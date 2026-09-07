@@ -374,7 +374,7 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
         returnValid = std::isfinite(x) && std::isfinite(y);
         // Return must land on a real currently present local output.
         returnValid = returnValid && std::ranges::any_of(State::monitorState()->monitors(), [&](const auto &monitor) {
-          if (!monitor || !m_core.activeEdge() || monitor->m_id != m_core.activeEdge()->monitorId) return false;
+          if (!monitor || !m_core.remote() || monitor->m_id == m_core.remote()->monitorId) return false;
           const auto box = monitor->logicalBox();
           return x >= box.x && x < box.x + box.width && y >= box.y && y < box.y + box.height;
         });

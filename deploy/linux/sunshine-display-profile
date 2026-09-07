@@ -1,0 +1,284 @@
+#!/usr/bin/env python3
+"""Sunshine/Hyprland display profiles. No shell interpolation of client values."""
+import fcntl
+import json
+import math
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import time
+
+ROOT = Path(os.environ.get('XDG_STATE_HOME', str(Path.home() / '.local/state'))) / 'sunshine-display-profile'
+STATE = ROOT / 'session.json'
+VIRTUAL = 'HEADLESS-1'
+MAIN = 'DP-4'
+
+
+def log(message):
+    with (ROOT / 'profile.log').open('a') as stream:
+        stream.write(time.strftime('%Y-%m-%dT%H:%M:%S%z ') + message + '\n')
+    try:
+        print(message, file=sys.stderr)
+    except OSError:
+        pass  # Sunshine may close its inherited stderr during shutdown/undo.
+
+
+def ctl(*args):
+    result = subprocess.run(['hyprctl', *args], capture_output=True, text=True, timeout=15)
+    output = result.stdout.strip()
+    if result.returncode or (args[0] in ('eval', 'dispatch', 'output') and output != 'ok'):
+        raise RuntimeError(f'hyprctl {args[0]}: {output} {result.stderr.strip()}')
+    return output
+
+
+def query(name):
+    return json.loads(ctl('-j', name))
+
+
+def lua(value):
+    if isinstance(value, dict):
+        return '{' + ','.join('[' + lua(k) + ']=' + lua(v) for k, v in value.items()) + '}'
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if isinstance(value, str):
+        return '"' + ''.join('\\%03d' % b for b in value.encode()) + '"'
+    return str(value)
+
+
+def monitor(spec):
+    ctl('eval', 'hl.monitor(' + lua(spec) + ')')
+
+
+def dispatch(name, spec):
+    ctl('dispatch', 'hl.dsp.' + name + '(' + lua(spec) + ')')
+
+
+def save(state):
+    temporary = STATE.with_suffix('.tmp')
+    temporary.write_text(json.dumps(state, indent=2) + '\n')
+    temporary.replace(STATE)
+
+
+def wait_for(test, description):
+    for _ in range(30):
+        if test(query('monitors')):
+            return
+        time.sleep(0.1)
+    raise RuntimeError('Display verification failed: ' + description)
+
+
+def spec_for(m):
+    return dict(output=m['name'], disabled=False,
+                mode=f"{m['width']}x{m['height']}@{m['refreshRate']}",
+                position=f"{m['x']}x{m['y']}", scale=m['scale'], transform=m['transform'],
+                bitdepth=10 if '2101010' in m.get('currentFormat', '') else 8,
+                cm=m.get('colorManagementPreset', 'srgb'), vrr=int(m.get('vrr', False)),
+                mirror='' if m.get('mirrorOf', 'none') == 'none' else m['mirrorOf'])
+
+
+def matches(m, width, height, fps):
+    return (m['width'] == width and m['height'] == height
+            and abs(m['refreshRate'] - fps) < 0.6)
+
+
+def extend_position(monitors, height, scale=2):
+    others = [m for m in monitors if not m['name'].startswith('HEADLESS-')
+              and not m.get('disabled') and m.get('mirrorOf', 'none') == 'none']
+    if not others:
+        raise RuntimeError('Required active physical display is unavailable')
+    anchor = next((m for m in others if m['name'] == MAIN), others[0])
+    rotated = anchor['transform'] % 2
+    anchor_width = (anchor['height'] if rotated else anchor['width']) / anchor['scale']
+    anchor_height = (anchor['width'] if rotated else anchor['height']) / anchor['scale']
+    right = math.ceil(anchor['x'] + anchor_width)
+    # Match hyprland-monitors.lua's rotation offset; retain the calibrated
+    # bottom edge when the client requests a different logical height.
+    top = anchor['y'] + 1590 + math.floor((anchor_height - 1728) / 2)
+    return right, math.floor(top + 1032 - height / scale)
+
+
+def pin_other_displays(monitors):
+    # Reapplying a virtual output can auto-place outputs that have no persistent
+    # rule (including Viewflow). Register their current geometry first.
+    for m in monitors:
+        if m['name'] != VIRTUAL and not m.get('disabled'):
+            monitor(spec_for(m))
+
+
+def restore_extend(state):
+    # Extend changes only the Sunshine output. Never restore an old snapshot
+    # over the user's main screen, Viewflow output, workspaces, or focus.
+    current = query('monitors all')
+    pin_other_displays(current)
+    original = next((m for m in state['monitors'] if m['name'] == VIRTUAL), None)
+    if state['created']:
+        if any(m['name'] == VIRTUAL for m in current):
+            ctl('output', 'remove', VIRTUAL)
+    elif original:
+        if original.get('disabled'):
+            monitor({'output': VIRTUAL, 'disabled': True})
+        else:
+            monitor(spec_for(original))
+            wait_for(lambda ms: any(m['name'] == VIRTUAL and
+                matches(m, original['width'], original['height'], original['refreshRate']) and
+                m['x'] == original['x'] and m['y'] == original['y'] and
+                m['scale'] == original['scale'] for m in ms), 'restore Sunshine output')
+    ctl('eval', 'hl.device(' + lua(state['touch']) + ')')
+    STATE.unlink()
+    log('Sunshine output restored; other display positions preserved')
+
+
+def restore():
+    if not STATE.exists():
+        return
+    state = json.loads(STATE.read_text())
+    if state['instance'] != os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
+        raise RuntimeError('Snapshot belongs to a previous Hyprland session; inspect it before restoring.')
+    if state['profile'] == 'extend':
+        restore_extend(state)
+        return
+    errors = []
+
+    def attempt(operation):
+        try:
+            operation()
+        except Exception as error:
+            errors.append(str(error))
+
+    for m in state['monitors']:
+        if not m.get('disabled'):
+            attempt(lambda m=m: monitor(spec_for(m)))
+            attempt(lambda m=m: wait_for(lambda ms: any(n['name'] == m['name'] and
+                    matches(n, m['width'], m['height'], m['refreshRate']) and
+                    n['x'] == m['x'] and n['y'] == m['y'] and
+                    n['scale'] == m['scale'] and n['transform'] == m['transform']
+                    for n in ms), 'restore ' + m['name']))
+    if errors:
+        raise RuntimeError('; '.join(errors) + '; snapshot retained for retry')
+    current = {w['id']: w for w in query('workspaces')}
+    for w in state['workspaces']:
+        if w['id'] in current and current[w['id']]['monitor'] != w['monitor']:
+            attempt(lambda w=w: dispatch('workspace.move', {'workspace': 'name:' + w['name'], 'monitor': w['monitor']}))
+    if state['created'] and any(m['name'] == VIRTUAL for m in query('monitors all')):
+        attempt(lambda: ctl('output', 'remove', VIRTUAL))
+    for m in state['monitors']:
+        if m.get('disabled'):
+            attempt(lambda m=m: monitor({'output': m['name'], 'disabled': True}))
+        else:
+            if m['activeWorkspace']['id'] > 0:
+                attempt(lambda m=m: dispatch('focus', {'workspace': 'name:' + m['activeWorkspace']['name']}))
+    for m in state['monitors']:
+        if m.get('focused'):
+            attempt(lambda m=m: dispatch('focus', {'monitor': m['name']}))
+    for m in state['monitors']:
+        if not m.get('disabled') and not m.get('dpmsStatus', True):
+            attempt(lambda m=m: dispatch('dpms', {'action': 'off', 'monitor': m['name']}))
+    attempt(lambda: ctl('eval', 'hl.device(' + lua(state['touch']) + ')'))
+    if errors:
+        raise RuntimeError('; '.join(errors) + '; snapshot retained for retry')
+    STATE.unlink()
+    log('Original display layout restored')
+
+
+def start(profile):
+    if profile not in ('extend', 'remote-first'):
+        raise ValueError('Unknown profile')
+    dimensions = [int(os.environ[key]) for key in
+                  ('SUNSHINE_CLIENT_WIDTH', 'SUNSHINE_CLIENT_HEIGHT', 'SUNSHINE_CLIENT_FPS')]
+    width, height, fps = dimensions
+    if not (320 <= width <= 8192 and 320 <= height <= 8192 and 1 <= fps <= 240):
+        raise ValueError('Invalid client dimensions or FPS')
+    if STATE.exists():
+        state = json.loads(STATE.read_text())
+        if state['instance'] != os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
+            raise RuntimeError('Snapshot belongs to a previous Hyprland session; inspect it before starting.')
+        if state['profile'] == profile and state['dimensions'] == dimensions and state.get('ready'):
+            log('Profile already active; original snapshot preserved')
+            return
+        raise RuntimeError('Another profile or recovery is pending; run restore first')
+    monitors = query('monitors all')
+    names_by_id = {str(m['id']): m['name'] for m in monitors}
+    for m in monitors:
+        m['mirrorOf'] = names_by_id.get(str(m.get('mirrorOf')), m.get('mirrorOf', 'none'))
+    active = [m for m in monitors if not m.get('disabled')]
+    if not active or (profile == 'remote-first' and not any(m['name'] == MAIN for m in active)):
+        raise RuntimeError('Required active physical display is unavailable')
+    touch_output = json.loads(ctl('-j', 'getoption', 'input:touchdevice:output'))['str']
+    touch_transform = json.loads(ctl('-j', 'getoption', 'input:touchdevice:transform'))['int']
+    state = dict(instance=os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'), profile=profile,
+                 dimensions=dimensions, monitors=monitors, workspaces=query('workspaces'),
+                 created=False, ready=False, touch={'name': 'touch-passthrough',
+                 'output': '' if touch_output == '[[Auto]]' else touch_output, 'transform': touch_transform})
+    save(state)
+    try:
+        target = VIRTUAL
+        if profile == 'extend':
+            pin_other_displays(active)
+        if not any(m['name'] == VIRTUAL for m in monitors):
+            state['created'] = True
+            save(state)
+            ctl('output', 'create', 'headless', VIRTUAL)
+        right, top = extend_position(active, height) if profile == 'extend' else (0, 0)
+        failures = []
+        for rate in dict.fromkeys((fps, 60)):
+            try:
+                monitor(dict(output=target, disabled=False, mode=f'{width}x{height}@{rate}',
+                             position=f'{right}x{top}', scale=2, transform=0))
+                wait_for(lambda ms: any(m['name'] == target and matches(m, width, height, rate)
+                         and m['scale'] == 2 and m['transform'] == 0
+                         and m['x'] == right and m['y'] == top for m in ms), f'{target} {width}x{height}@{rate}')
+                break
+            except Exception as error:
+                failures.append(str(error))
+        else:
+            raise RuntimeError('Requested resolution unsupported: ' + '; '.join(failures))
+        if profile == 'remote-first':
+            main = next(m for m in active if m['name'] == MAIN)
+            physical = spec_for(main)
+            physical['mirror'] = VIRTUAL
+            monitor(physical)
+            def mirrored(_):
+                all_outputs = query('monitors all')
+                virtual_ids = {str(m['id']) for m in all_outputs if m['name'] == VIRTUAL}
+                return any(m['name'] == MAIN and str(m.get('mirrorOf')) in virtual_ids | {VIRTUAL}
+                           for m in all_outputs)
+            wait_for(mirrored, 'DP-4 mirrors HEADLESS-1')
+            for m in active:
+                if m['name'] not in (MAIN, VIRTUAL):
+                    monitor({'output': m['name'], 'disabled': True})
+            wait_for(lambda ms: VIRTUAL in [m['name'] for m in ms] and
+                     all(m['name'] in (MAIN, VIRTUAL) for m in ms), 'only virtual desktop and physical mirror active')
+        ctl('eval', 'hl.device(' + lua({'name': 'touch-passthrough', 'output': target, 'transform': 0}) + ')')
+        state['ready'] = True
+        save(state)
+        log(f'{profile} ready: {target} {width}x{height}@{rate}, scale 2')
+    except BaseException:
+        restore()
+        raise
+
+
+def main():
+    ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with (ROOT / 'lock').open('w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if sys.argv[1:] == ['status']:
+            print(STATE.read_text() if STATE.exists() else '{"active": false}')
+        elif sys.argv[1:] == ['restore']:
+            restore()
+        elif len(sys.argv) == 3 and sys.argv[1] == 'start':
+            start(sys.argv[2])
+        else:
+            raise ValueError('Usage: sunshine-display-profile start extend|remote-first / restore / status')
+
+
+if __name__ == '__main__':
+    def interrupted(signum, frame):
+        raise RuntimeError(f'Interrupted by signal {signum}')
+    signal.signal(signal.SIGTERM, interrupted)
+    try:
+        main()
+    except Exception as error:
+        log(str(error))
+        sys.exit(1)

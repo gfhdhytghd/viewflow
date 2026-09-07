@@ -21,7 +21,7 @@ pub(crate) struct CursorConfig {
     pub drag: SharedDragTransfer,
     pub reverse_drag: crate::reverse_bridge::SharedNativeDrag,
     pub remote_scale: f64,
-    pub local: DesktopRect,
+    pub local: Vec<DesktopRect>,
     pub remote: DesktopRect,
     pub monitor_id: i64,
     pub topology_generation: u64,
@@ -328,10 +328,9 @@ async fn run(
         config.fps > 0 && config.monitor_id >= 0 && config.remote_scale.is_finite() && config.remote_scale > 0.0,
         "invalid cursor capture policy"
     );
-    config
-        .local
-        .validate()
-        .map_err(|e| anyhow::anyhow!("local desktop: {e:?}"))?;
+    for local in &config.local {
+        local.validate().map_err(|e| anyhow::anyhow!("local desktop: {e:?}"))?;
+    }
     config
         .remote
         .validate()
@@ -353,8 +352,8 @@ async fn run(
     )
     .await?;
     eprintln!(
-        "atlas-cursor-handoff phase=configured topology_generation={}",
-        config.topology_generation
+        "atlas-cursor-handoff phase=configured topology_generation={} local_displays={:?}",
+        config.topology_generation, config.local
     );
     let mut generation = 0u64;
     let mut active = false;
@@ -389,8 +388,8 @@ async fn run(
                 "cursor native event replay"
             );
             native_sequence = Some(next);
-            (x, y) = advance(
-                config.local,
+            (x, y) = advance_displays(
+                &config.local,
                 config.remote,
                 (x, y),
                 (double(bytes, 36)?, double(bytes, 44)?),
@@ -405,19 +404,17 @@ async fn run(
             );
             x = double(bytes, 17)?;
             y = double(bytes, 25)?;
-            ensure!(
-                contains(config.local, x, y),
-                "cursor entry outside local shared rectangle"
-            );
+            let local = config.local.iter().copied().find(|local| contains(*local, x, y))
+                .context("cursor entry outside local displays")?;
             match bytes[8] {
-                0 => x = config.local.x_millidip as f64 / 1000. - 0.001,
+                0 => x = local.x_millidip as f64 / 1000. - 0.001,
                 1 => {
-                    x = (config.local.x_millidip as f64 + config.local.width_millidip as f64)
+                    x = (local.x_millidip as f64 + local.width_millidip as f64)
                         / 1000.
                 }
-                2 => y = config.local.y_millidip as f64 / 1000. - 0.001,
+                2 => y = local.y_millidip as f64 / 1000. - 0.001,
                 3 => {
-                    y = (config.local.y_millidip as f64 + config.local.height_millidip as f64)
+                    y = (local.y_millidip as f64 + local.height_millidip as f64)
                         / 1000.
                 }
                 _ => bail!("invalid shared edge"),
@@ -499,8 +496,8 @@ async fn run(
             match tag {
                 31 => {
                     ensure!(bytes.len() == 68, "invalid motion packet");
-                    (x, y) = advance(
-                        config.local,
+                    (x, y) = advance_displays(
+                        &config.local,
                         config.remote,
                         (x, y),
                         (double(bytes, 36)?, double(bytes, 44)?),
@@ -585,11 +582,11 @@ async fn run(
         let mut reverse_drag = config.reverse_drag.lock().await;
         let candidate = transfer.as_ref().filter(|drag| !drag.handed_off && !drag.resizing && drag.move_confirmed);
         let seam_return = if tag == 31 && (candidate.is_some() || reverse_drag.as_ref().is_some_and(|drag| !drag.handed_off)) {
-            drag_seam_return(config.local, config.remote, config.remote_scale, previous_position, (x, y))
+            config.local.iter().find_map(|local| drag_seam_return(*local, config.remote, config.remote_scale, previous_position, (x, y)))
         } else { None };
         if let Some(point) = seam_return { (x, y) = point; }
-        if contains(config.local, x, y) || matches!(event, InputEventKind::ReleaseAll) {
-            let drag_target = if contains(config.local, x, y) && tag == 31 {
+        if config.local.iter().any(|local| contains(*local, x, y)) || matches!(event, InputEventKind::ReleaseAll) {
+            let drag_target = if config.local.iter().any(|local| contains(*local, x, y)) && tag == 31 {
                 transfer.as_mut().filter(|drag| !drag.handed_off && !drag.resizing && drag.move_confirmed).map(|drag| {
                     drag.handed_off = true;
                     drag.target
@@ -620,7 +617,7 @@ async fn run(
                 CaptureCommand::Release {
                     generation: native_generation,
                     drag_target,
-                return_position: if contains(config.local, x, y) {
+                return_position: if config.local.iter().any(|local| contains(*local, x, y)) {
                         Some((x, y))
                     } else {
                         None
@@ -869,6 +866,33 @@ fn keyboard_usage(code: u32) -> Option<u16> {
     })
 }
 
+/// Use each real display separately: a bounding box would create paths through gaps.
+fn advance_displays(locals: &[DesktopRect], remote: DesktopRect,
+    previous: (f64, f64), delta: (f64, f64)) -> (f64, f64) {
+    for local in locals {
+        let point = advance(*local, remote, previous, delta);
+        if contains(*local, point.0, point.1) { return point; }
+    }
+    (previous.0 + delta.0, previous.1 + delta.1)
+}
+
+pub(crate) fn local_displays(socket: &std::path::Path, remote_id: i64) -> Result<Vec<DesktopRect>> {
+    let ipc = viewflow_hyprland::HyprIpcClient::new(socket.to_path_buf());
+    let monitors = viewflow_hyprland::parse_monitors(&ipc.request("j/monitors")?)?;
+    monitors.into_iter().filter(|monitor| !monitor.disabled && monitor.id != remote_id)
+        .map(|monitor| {
+            let bounds = monitor.bounds_dip();
+            let rect = DesktopRect {
+                x_millidip: (bounds.origin.x * 1000.).round() as i64,
+                y_millidip: (bounds.origin.y * 1000.).round() as i64,
+                width_millidip: (bounds.size.width * 1000.).round() as u64,
+                height_millidip: (bounds.size.height * 1000.).round() as u64,
+            };
+            rect.validate().map_err(|e| anyhow::anyhow!("local display: {e:?}"))?;
+            Ok(rect)
+        }).collect()
+}
+
 /// Detect crossing of the shared seam even when one motion skips the whole local display.
 fn advance(
     local: DesktopRect,
@@ -912,6 +936,27 @@ fn advance(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn bottom_neighbor_supports_pointer_and_drag_without_filling_gap() {
+        let main = DesktopRect { x_millidip: 0, y_millidip: 0,
+            width_millidip: 3_072_000, height_millidip: 1_728_000 };
+        let remote = DesktopRect { x_millidip: 3_072_000, y_millidip: 390_000,
+            width_millidip: 1_920_000, height_millidip: 1_200_000 };
+        let bottom = DesktopRect { x_millidip: 3_072_000, y_millidip: 1_590_000,
+            width_millidip: 1_376_000, height_millidip: 1_032_000 };
+        let locals = [main, bottom];
+        for delta in [(0., 3.), (0., 3000.)] {
+            let point = advance_displays(&locals, remote, (3500., 1589.), delta);
+            assert!(contains(bottom, point.0, point.1));
+        }
+        let point = advance_displays(&locals, remote, (4800., 1589.), (0., 3.));
+        assert!(!locals.iter().any(|local| contains(*local, point.0, point.1)));
+        let returned = locals.iter().find_map(|local|
+            drag_seam_return(*local, remote, 2., (3500., 1587.), (3500., 1589.)));
+        let point = returned.unwrap();
+        assert!(contains(bottom, point.0, point.1));
+    }
+
     #[tokio::test]
     async fn cursor_without_any_event_acks_preserves_connection_and_click_position() {
         use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
@@ -947,7 +992,7 @@ mod tests {
         let queue = Arc::new(NativeCaptureQueue::default());
         let worker = tokio::spawn(run(CursorConfig {
             drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0,
-            local: rect(0, 0), remote: rect(100_000, 0), monitor_id: 1,
+            local: vec![rect(0, 0)], remote: rect(100_000, 0), monitor_id: 1,
             topology_generation: 1, owner: Id128(1), target: Id128(2), fps: 60,
         }, writer, origin, queue.clone(), commands, clock));
         let mut edge = vec![0; 57];
@@ -1159,7 +1204,7 @@ mod tests {
             let (commands, mut native_requests) = mpsc::channel(4);
             let config = CursorConfig {
                 drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0,
-                local: rect(0, 0),
+                local: vec![rect(0, 0)],
                 remote: rect(100_000, 0),
                 monitor_id: 1,
                 topology_generation: 1,

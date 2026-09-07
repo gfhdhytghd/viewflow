@@ -189,7 +189,7 @@ impl AtlasSourceInput {
                 drag: drag_transfer,
                 reverse_drag: reverse_drag.clone(),
                 remote_scale: desktop.remote_display.scale,
-                local: desktop.local_display.rect()?,
+                local: crate::atlas_cursor_handoff::local_displays(&desktop.hyprland_socket, monitor_id)?,
                 remote: desktop.remote_display.rect()?,
                 monitor_id,
                 topology_generation: desktop.topology_generation,
