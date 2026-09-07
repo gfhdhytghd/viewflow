@@ -222,7 +222,7 @@ impl AtlasSourceConfig {
             ensure!(path.is_absolute(), "atlas identity paths must be absolute");
         }
         ensure!(
-            !self.windows.is_empty() && self.windows.len() <= self.media.max_tiles,
+            (!self.windows.is_empty() || self.desktop.as_ref().is_some_and(|desktop| desktop.auto_enroll)) && self.windows.len() <= self.media.max_tiles,
             "invalid atlas source membership count"
         );
         let mut ids = BTreeSet::new();
@@ -694,7 +694,7 @@ mod receiver {
                 config.input_recovery
             );
             let _reverse = config.reverse.as_ref()
-                .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&connection, reverse, true))
+                .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&connection, reverse, true, None))
                 .transpose()?;
             let reception = async {
                 if let Some(input) = input {

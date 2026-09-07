@@ -7,10 +7,61 @@
 #include <vector>
 #include <cstring>
 #include <cwchar>
+#include <algorithm>
+#include <cstdint>
+namespace {
+bool virtualAdapter(const std::wstring& selected) {
+    for(DWORD index=0;;++index) {
+        DISPLAY_DEVICEW device{};device.cb=sizeof(device);
+        if(!EnumDisplayDevicesW(nullptr,index,&device,0))break;
+        if(selected==device.DeviceName && wcsstr(device.DeviceString,L"Virtual"))return true;
+    }
+    return false;
+}
+// Windows Settings uses these source DPI packet types. Validate their layout
+// and the driver's returned range before writing only the selected VDD source.
+struct DpiGet { DISPLAYCONFIG_DEVICE_INFO_HEADER header; std::int32_t minimum,current,maximum; };
+struct DpiSet { DISPLAYCONFIG_DEVICE_INFO_HEADER header; std::int32_t scale; };
+static_assert(sizeof(DpiGet)==32 && sizeof(DpiSet)==24);
+int dpi(const std::wstring& selected,int percent) {
+    if(!virtualAdapter(selected))return 6;
+    UINT32 pathCount{},modeCount{};
+    auto result=GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS,&pathCount,&modeCount);
+    if(result!=ERROR_SUCCESS)return 9;
+    std::vector<DISPLAYCONFIG_PATH_INFO> paths(pathCount);
+    std::vector<DISPLAYCONFIG_MODE_INFO> modes(modeCount);
+    result=QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS,&pathCount,paths.data(),&modeCount,modes.data(),nullptr);
+    if(result!=ERROR_SUCCESS)return 10;
+    constexpr int scales[]{100,125,150,175,200,225,250,300,350,400,450,500};
+    for(UINT32 index=0;index<pathCount;++index) {
+        const auto& source=paths[index].sourceInfo;
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME name{};
+        name.header={DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME,sizeof(name),source.adapterId,source.id};
+        if(DisplayConfigGetDeviceInfo(&name.header)!=ERROR_SUCCESS || selected!=name.viewGdiDeviceName)continue;
+        DpiGet get{};get.header={static_cast<DISPLAYCONFIG_DEVICE_INFO_TYPE>(-3),sizeof(get),source.adapterId,source.id};
+        if(DisplayConfigGetDeviceInfo(&get.header)!=ERROR_SUCCESS)return 11;
+        const auto current=std::int64_t(get.current)-get.minimum;
+        if(current<0 || current>=std::size(scales) || get.minimum>0 || get.maximum<0)return 12;
+        std::wprintf(L"%ls dpi_before=%d recommended_step=%d\n",selected.c_str(),scales[current],-get.minimum);
+        if(percent==0)return 0;
+        const auto desired=std::find(std::begin(scales),std::end(scales),percent);
+        if(desired==std::end(scales))return 13;
+        const auto step=static_cast<int>(desired-std::begin(scales))+get.minimum;
+        if(step<get.minimum || step>get.maximum)return 14;
+        DpiSet set{};set.header={static_cast<DISPLAYCONFIG_DEVICE_INFO_TYPE>(-4),sizeof(set),source.adapterId,source.id};set.scale=step;
+        result=DisplayConfigSetDeviceInfo(&set.header);
+        if(result!=ERROR_SUCCESS){std::fprintf(stderr,"virtual DPI set=%ld\n",result);return 15;}
+        if(DisplayConfigGetDeviceInfo(&get.header)!=ERROR_SUCCESS || get.current!=step)return 16;
+        std::wprintf(L"%ls dpi_verified=%d\n",selected.c_str(),percent);return 0;
+    }
+    return 17;
+}
+}
 // Installs one PnP instance using an independently signed driver package. It
 // never adds certificates or alters Windows driver-signature policy.
 int wmain(int argc,wchar_t** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    if((argc==3 || argc==4) && wcscmp(argv[1],L"dpi")==0)return dpi(argv[2],argc==4?std::stoi(argv[3]):0);
     if(argc==3 && wcscmp(argv[1],L"install")==0) {
         HDEVINFO set=SetupDiCreateDeviceInfoList(&GUID_DEVCLASS_DISPLAY,nullptr);
         if(set==INVALID_HANDLE_VALUE)return 2;

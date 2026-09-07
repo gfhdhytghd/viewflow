@@ -131,7 +131,7 @@ impl AtlasCapturePool {
         max_windows: usize,
     ) -> Result<Self> {
         ensure!(
-            !receivers.is_empty() && receivers.len() <= max_windows && max_windows <= 4096,
+            max_windows > 0 && receivers.len() <= max_windows && max_windows <= 4096,
             "invalid atlas source count"
         );
         ensure!(
@@ -289,5 +289,20 @@ fn poll_slot(
             }
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod empty_desktop_tests {
+    use super::*;
+    #[test]
+    fn empty_pool_returns_transparent_batches_and_keeps_enrollment_capacity() {
+        let mut pool = AtlasCapturePool::new_with_capacity(vec![], 33_333_333, 8).unwrap();
+        for _ in 0..3 {
+            assert!(pool.poll_ready_at(100).unwrap().unwrap().is_empty());
+            pool.restore(vec![]).unwrap();
+        }
+        assert!(pool.windows().is_empty());
+        assert!(AtlasCapturePool::new_with_capacity(vec![], 33_333_333, 0).is_err());
     }
 }

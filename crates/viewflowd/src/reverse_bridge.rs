@@ -30,6 +30,15 @@ impl ReverseBridgeConfig {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NativeDrag {
+    pub id: u64,
+    pub pid: u32,
+    pub address: u64,
+    pub handed_off: bool,
+}
+pub(crate) type SharedNativeDrag = std::sync::Arc<tokio::sync::Mutex<Option<NativeDrag>>>;
+
 pub(crate) struct ReverseBridge {
     stop: Option<watch::Sender<bool>>,
 }
@@ -41,7 +50,7 @@ impl Drop for ReverseBridge {
 }
 
 impl ReverseBridge {
-    pub(crate) fn start(connection: &quinn::Connection, config: &ReverseBridgeConfig, windows_source: bool) -> Result<Self> {
+    pub(crate) fn start(connection: &quinn::Connection, config: &ReverseBridgeConfig, windows_source: bool, drag: Option<SharedNativeDrag>) -> Result<Self> {
         config.validate()?;
         ensure!(connection.peer_identity().is_some(), "reverse bridge needs a paired connection");
         let connection = connection.clone();
@@ -50,9 +59,10 @@ impl ReverseBridge {
         tokio::spawn(async move {
             loop {
                 if *stopped.borrow() || connection.close_reason().is_some() { break; }
-                if let Err(error) = run(&connection, &config, windows_source, &mut stopped).await {
+                if let Err(error) = run(&connection, &config, windows_source, &mut stopped, drag.as_ref()).await {
                     eprintln!("reverse-window-bridge recovering: {error:#}; forward desktop retained");
                 }
+                if let Some(drag) = &drag { *drag.lock().await = None; }
                 if *stopped.borrow() || connection.close_reason().is_some() { break; }
                 tokio::select! {
                     _ = stopped.changed() => break,
@@ -64,7 +74,7 @@ impl ReverseBridge {
     }
 }
 
-async fn run(connection: &quinn::Connection, config: &ReverseBridgeConfig, windows_source: bool, stopped: &mut watch::Receiver<bool>) -> Result<()> {
+async fn run(connection: &quinn::Connection, config: &ReverseBridgeConfig, windows_source: bool, stopped: &mut watch::Receiver<bool>, drag: Option<&SharedNativeDrag>) -> Result<()> {
     let negotiate = async {
         let (mut send, mut receive) = if windows_source { connection.open_bi().await? } else { connection.accept_bi().await? };
         if windows_source { send.write_all(MAGIC).await?; }
@@ -87,8 +97,13 @@ async fn run(connection: &quinn::Connection, config: &ReverseBridgeConfig, windo
     eprintln!("reverse-window-bridge ready direction=windows-to-linux paired_connection=true");
     let outgoing_type = if windows_source { 1 } else { 2 };
     let incoming_type = if windows_source { 2 } else { 1 };
+    let child_pid = child.id().context("reverse child PID missing")?;
+    let outgoing = async {
+        if windows_source { relay_records(&mut output, &mut send, outgoing_type).await }
+        else { relay_reverse_inputs(&mut output, &mut send, drag, child_pid).await }
+    };
     let result = tokio::select! {
-        result = relay_records(&mut output, &mut send, outgoing_type) => result,
+        result = outgoing => result,
         result = relay_records(&mut receive, &mut input, incoming_type) => result,
         _ = stopped.changed() => Ok(()),
     };
@@ -104,6 +119,37 @@ async fn run(connection: &quinn::Connection, config: &ReverseBridgeConfig, windo
         Err(_) => { child.kill().await.context("stop native reverse backend")?; }
     }
     result
+}
+
+// Proxy drag identities are local child control records, never remote input.
+// The local Wayland child reports its own PID/address only after mapping the
+// proxy. Windows native move state is carried in the paired frame metadata.
+async fn relay_reverse_inputs<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(reader: &mut R, writer: &mut W,
+    drag: Option<&SharedNativeDrag>, child_pid: u32) -> Result<()> {
+    loop {
+        let mut record = [0u8; 44];
+        reader.read_exact(&mut record).await.context("reverse input record")?;
+        ensure!(u32::from_le_bytes(record[..4].try_into()?) == 40 && u32::from_le_bytes(record[4..8].try_into()?) == 2,
+            "reverse input record format");
+        ensure!(u64::from_le_bytes(record[16..24].try_into()?) > 0, "reverse input sequence is zero");
+        if u32::from_le_bytes(record[24..28].try_into()?) == 9 {
+            let id = u64::from_le_bytes(record[8..16].try_into()?);
+            let pid = u32::from_le_bytes(record[28..32].try_into()?);
+            let active = u32::from_le_bytes(record[32..36].try_into()?);
+            let address = u64::from_le_bytes(record[36..44].try_into()?);
+            ensure!(id > 0 && pid == child_pid && address > 0 && active <= 1, "invalid local reverse proxy binding");
+            if let Some(drag) = drag {
+                let mut current = drag.lock().await;
+                if active != 0 {
+                    if !current.as_ref().is_some_and(|old| old.id == id && old.pid == pid && old.address == address) {
+                        *current = Some(NativeDrag { id, pid, address, handed_off: false });
+                    }
+                } else if current.as_ref().is_some_and(|old| old.id == id) { *current = None; }
+            }
+        } else {
+            writer.write_all(&record).await?; writer.flush().await?;
+        }
+    }
 }
 
 async fn relay_records<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(reader: &mut R, writer: &mut W, kind: u32) -> Result<()> {
@@ -130,6 +176,30 @@ async fn relay_records<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(reader: &mut
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn local_proxy_binding_is_consumed_and_cannot_reclaim_a_transferred_drag() {
+        let drag = SharedNativeDrag::default();
+        let record = |pid: u32, active: u32| {
+            let mut bytes = Vec::new();
+            bytes.extend(40u32.to_le_bytes()); bytes.extend(2u32.to_le_bytes());
+            bytes.extend(42u64.to_le_bytes()); bytes.extend(1u64.to_le_bytes());
+            bytes.extend(9u32.to_le_bytes()); bytes.extend(pid.to_le_bytes());
+            bytes.extend(active.to_le_bytes()); bytes.extend(0x9876u64.to_le_bytes()); bytes
+        };
+        let mut forwarded = Vec::new();
+        assert!(relay_reverse_inputs(&mut record(99, 1).as_slice(), &mut forwarded, Some(&drag), 123).await.is_err());
+        assert!(drag.lock().await.is_none() && forwarded.is_empty());
+        assert!(relay_reverse_inputs(&mut record(123, 1).as_slice(), &mut forwarded, Some(&drag), 123).await.is_err()); // finite fixture EOF
+        { let mut state = drag.lock().await; let current = state.as_mut().unwrap(); assert_eq!(current.id, 42); current.handed_off = true; }
+        assert!(relay_reverse_inputs(&mut record(123, 1).as_slice(), &mut forwarded, Some(&drag), 123).await.is_err());
+        assert!(drag.lock().await.as_ref().unwrap().handed_off);
+        assert!(relay_reverse_inputs(&mut record(123, 0).as_slice(), &mut forwarded, Some(&drag), 123).await.is_err());
+        assert!(drag.lock().await.is_none() && forwarded.is_empty());
+        let mut pointer = record(123, 0); pointer[24..28].copy_from_slice(&1u32.to_le_bytes());
+        assert!(relay_reverse_inputs(&mut pointer.as_slice(), &mut forwarded, Some(&drag), 123).await.is_err());
+        assert_eq!(forwarded, pointer);
+    }
+
     #[tokio::test]
     async fn rejects_wrong_direction_and_oversize_before_forwarding() {
         for (kind, length, tag) in [(2, 41_u32, 2_u32), (1, MAX_FRAME + 1, 1), (2, 40, 1)] {

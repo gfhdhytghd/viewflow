@@ -81,6 +81,7 @@ public:
   [[nodiscard]] bool button(std::uint32_t code, bool pressed);
   [[nodiscard]] bool key(std::uint32_t code, bool pressed);
 
+  [[nodiscard]] bool physicalButtonHeld(std::uint32_t code) const { return m_physicalButtons.contains(code); }
   [[nodiscard]] CapturePhase phase() const noexcept;
   [[nodiscard]] bool captured() const noexcept;
   [[nodiscard]] const std::optional<EdgeCandidate> &activeEdge() const noexcept;

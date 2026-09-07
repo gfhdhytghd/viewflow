@@ -156,6 +156,13 @@ pub struct AuthorizedWindow {
 }
 
 impl AuthorizedWindow {
+    /// Internal empty-desktop state, never announced as an authorization.
+    pub(crate) fn unbound(owner: DeviceId, target_device: DeviceId) -> Self {
+        Self { owner, target_device, generation: 0, geometry: PresentedInputGeometry::unbound(),
+            expires_local_ns: 0, native_address: 0, native_surface: 0, native_pid: 0,
+            surface_extent: [1.; 2], content_origin: [0.; 2], content_scale: [1.; 2] }
+    }
+
     /// Construct from one retained source GPU frame and its exact, source-verified
     /// presentation receipt. The caller must authorize this peer/window first;
     /// neither a raw remote receipt nor incoming motion grants this authority.
@@ -931,15 +938,16 @@ impl WindowInputSession {
         {
             bail!("invalid content scale");
         }
-        let mut grant = WindowPointerGrant::new(
-            authorized.owner,
-            authorized.target_device,
-            authorized.generation,
-            authorized.geometry,
-            authorized.expires_local_ns,
-        )
-        .ok_or_else(|| anyhow!("invalid window grant"))?;
-        let deadline = native_deadline(origin, authorized.expires_local_ns)?;
+        let unbound = deferred && authorized.geometry.identity().window.0 == 0
+            && authorized.generation == 0 && authorized.expires_local_ns == 0
+            && authorized.native_address == 0 && authorized.native_surface == 0 && authorized.native_pid == 0;
+        let mut grant = if unbound {
+            WindowPointerGrant::idle(authorized.owner, authorized.target_device)
+        } else {
+            WindowPointerGrant::new(authorized.owner, authorized.target_device, authorized.generation,
+                authorized.geometry, authorized.expires_local_ns)
+        }.ok_or_else(|| anyhow!("invalid window grant"))?;
+        let deadline = if unbound { 0 } else { native_deadline(origin, authorized.expires_local_ns)? };
         let mut keyboard_grant = (allow_keyboard && !deferred)
             .then(|| Self::new_keyboard_grant(&authorized))
             .transpose()?;
@@ -952,26 +960,15 @@ impl WindowInputSession {
         } else {
             Request::begin
         };
-        let request = begin(
-            1,
-            authorized.generation,
-            authorized.native_address,
-            authorized.native_pid,
-            deadline,
-            authorized.surface_extent,
-            authorized.native_surface,
-        )
-        .map_err(|e| anyhow!("native begin: {e:?}"))?;
         let desktop_suspension = if deferred {
-            let previous = grant
-                .authorization(elapsed_ns(origin)?)
-                .context("initial atlas grant expired")?;
+            let previous = if unbound { None } else { Some(grant.authorization(elapsed_ns(origin)?).context("initial atlas grant expired")?) };
             grant.revoke();
-            if let Some(keyboard) = &mut keyboard_grant {
-                keyboard.revoke();
-            }
-            Some(previous)
+            if let Some(keyboard) = &mut keyboard_grant { keyboard.revoke(); }
+            previous
         } else {
+            let request = begin(1, authorized.generation, authorized.native_address, authorized.native_pid,
+                deadline, authorized.surface_extent, authorized.native_surface)
+                .map_err(|e| anyhow!("native begin: {e:?}"))?;
             connection.send(request)?;
             None
         };
@@ -1170,9 +1167,8 @@ impl WindowInputSession {
             "desktop resume requires a confirmed native end"
         );
         let now = elapsed_ns(self.origin)?;
-        let previous = self
-            .desktop_suspension
-            .context("missing desktop pause authorization")?;
+        let previous = self.desktop_suspension;
+        let (owner, target_device) = self.grant.devices();
         let grant = window_switch::switch_grant(&authorized, self.origin)?;
         let next = grant
             .authorization(now)
@@ -1181,7 +1177,10 @@ impl WindowInputSession {
             !self.closed_windows.contains(&next.target_window),
             "closed atlas target cannot resume"
         );
-        anyhow::ensure!(
+        anyhow::ensure!(next.owner_device == owner && next.target_device == target_device && next.lease_generation > self.generation,
+            "desktop resume changed paired devices or regressed generation");
+        if let Some(previous) = previous {
+            anyhow::ensure!(
             next.owner_device == previous.owner_device
                 && next.target_device == previous.target_device
                 && next.lease_generation > previous.lease_generation,
@@ -1208,6 +1207,10 @@ impl WindowInputSession {
                 ) != self.native_binding,
                 "desktop resume changed window without a fresh native binding"
             );
+        }
+        } else {
+            anyhow::ensure!(!self.native_grant_ever_active && self.generation == 0,
+                "missing desktop pause authorization");
         }
         // A capture cancellation releases input but leaves the native authority
         // revoked. Complete END before BEGIN; DesktopPaused alone is not an END
@@ -2324,6 +2327,28 @@ mod tests {
     use viewflow_protocol::{Id128, Point, Rect, Size};
 
     #[test]
+    fn empty_atlas_starts_without_native_window_and_accepts_first_real_selection() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = directory.path().join("empty.sock");
+        let listener = Listener::bind(&path, i32::try_from(std::process::id()).unwrap()).unwrap();
+        let native = socket::socket(AddressFamily::Unix, SockType::SeqPacket, SockFlag::SOCK_NONBLOCK, None).unwrap();
+        socket::connect(native.as_raw_fd(), &UnixAddr::new(&path).unwrap()).unwrap();
+        let actual = window_switch::tests::authorization(3, 7);
+        let mut session = WindowInputSession::prepare_atlas(listener.accept().unwrap(),
+            AuthorizedWindow::unbound(actual.owner, actual.target_device), Instant::now(), true, true).unwrap();
+        assert_eq!(session.state, State::DesktopPaused);
+        assert!(session.grant.authorization(0).is_none());
+        assert!(session.poll().unwrap().is_none());
+        let mut bytes = [0; 256];
+        assert_eq!(socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT).unwrap_err(), nix::errno::Errno::EAGAIN);
+        session.resume_after_desktop_pause(actual).unwrap();
+        assert_eq!(session.state, State::Beginning);
+        assert!(socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT).unwrap() > 0);
+    }
+
+    #[test]
     fn membership_watch_retains_withdrawal_even_when_intermediate_layout_is_skipped() {
         let mut state = AtlasInputMembership::default();
         state.update([Id128(3)].into()).unwrap();
@@ -2745,7 +2770,8 @@ mod tests {
                 .connection
                 .send_capture(CaptureCommand::Release {
                     generation: 2,
-                    return_position: None,
+                    drag_target: None,
+                return_position: None,
                 })
                 .unwrap();
             window_switch::tests::receive(&native);

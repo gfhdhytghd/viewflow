@@ -313,8 +313,7 @@ impl AtlasInputPolicy {
             "invalid atlas input device policy"
         );
         ensure!(
-            !allowed.is_empty()
-                && allowed.len() <= 4096
+            allowed.len() <= 4096
                 && allowed
                     .iter()
                     .all(|(id, address)| id.0 != 0 && *address != 0),

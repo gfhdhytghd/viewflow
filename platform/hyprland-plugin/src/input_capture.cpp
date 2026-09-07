@@ -9,6 +9,10 @@
 #include <hyprland/src/pointer/PointerManager.hpp>
 #include <hyprland/src/state/MonitorState.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
+#include <hyprland/src/desktop/state/WindowState.hpp>
+#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/layout/LayoutManager.hpp>
+#include <hyprland/src/layout/supplementary/DragController.hpp>
 
 #include <algorithm>
 #include <array>
@@ -54,6 +58,8 @@ void appendTarget(protocol::PacketBuilder &payload,
 InputCapture::InputCapture(MetadataBridge &bridge) : m_bridge(bridge), m_windowPointer(bridge) {}
 
 InputCapture::~InputCapture() {
+  if (const auto target = m_returnDrag.lock(); target && g_layoutManager->dragController()->target() == target)
+    g_layoutManager->endDragTarget();
   m_bridge.onCommandsReady({});
   release(true);
 }
@@ -296,12 +302,12 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
       if (!applied && !m_core.captured()) { release(false); m_lastReleasedGeneration = *generation; }
       receipt(*generation, packet->type, applied);
     } else if (packet->type == protocol::MessageType::INPUT_LEASE_RELEASE) {
-      if (packet->payload.size() != 8 && packet->payload.size() != 24)
+      if (packet->payload.size() != 8 && packet->payload.size() != 24 && packet->payload.size() != 44 && packet->payload.size() != 52)
         continue;
       const auto generation = readIntegral<std::uint64_t>(packet->payload, 0);
       std::optional<Vector2D> returnPosition;
       bool returnValid = true;
-      if (packet->payload.size() == 24) {
+      if (packet->payload.size() >= 24) {
         const auto x = std::bit_cast<double>(*readIntegral<std::uint64_t>(packet->payload, 8));
         const auto y = std::bit_cast<double>(*readIntegral<std::uint64_t>(packet->payload, 16));
         returnValid = std::isfinite(x) && std::isfinite(y);
@@ -318,8 +324,31 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
       const bool applied = alreadyReleased || (returnValid && generation && m_core.lease() &&
           *generation == m_core.lease()->generation);
       if (applied) {
+        SP<Layout::ITarget> dragTarget;
+        // Look up the live object by identity; never dereference a wire address.
+        // Physical release during the revoke round trip means a normal return.
+        if (packet->payload.size() >= 44 && m_core.physicalButtonHeld(272)) {
+          const auto pid = *readIntegral<std::uint32_t>(packet->payload, 24);
+          const auto address = *readIntegral<std::uint64_t>(packet->payload, 28);
+          const auto surface = *readIntegral<std::uint64_t>(packet->payload, 36);
+          const auto reverseId = packet->payload.size() == 52 ? *readIntegral<std::uint64_t>(packet->payload, 44) : 0;
+          for (const auto& window : Desktop::windowState()->windows()) {
+            if (window && window->m_isMapped && window->m_isFloating &&
+                window->getPID() == static_cast<pid_t>(pid) &&
+                reinterpret_cast<std::uintptr_t>(window.get()) == address &&
+                ((surface != 0 && reinterpret_cast<std::uintptr_t>(window->resource().get()) == surface) ||
+                 (surface == 0 && reverseId != 0 && window->m_class == "ViewflowReverse-" + std::to_string(reverseId)))) {
+              dragTarget = window->layoutTarget();
+              break;
+            }
+          }
+        }
         release(true);
         if (returnPosition) Pointer::mgr()->warpTo(*returnPosition);
+        if (dragTarget && returnPosition && !g_layoutManager->dragController()->target()) {
+          g_layoutManager->beginDragTarget(dragTarget, MBIND_MOVE, std::nullopt, true);
+          m_returnDrag = dragTarget;
+        }
       }
       if (generation)
         receipt(*generation, packet->type, applied);
@@ -387,6 +416,11 @@ void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event) {
 
 void InputCapture::onPointerButton(const IPointer::SButtonEvent &event) {
   const bool pressed = event.state == WL_POINTER_BUTTON_STATE_PRESSED;
+  if (!pressed && event.button == 272) {
+    if (const auto target = m_returnDrag.lock(); target && g_layoutManager->dragController()->target() == target)
+      g_layoutManager->endDragTarget();
+    m_returnDrag.reset();
+  }
   if (pressed && !m_core.captured()) m_clickPending = true;
   if (!m_core.button(event.button, pressed)) {
     if (!pressed && g_pInputManager) {

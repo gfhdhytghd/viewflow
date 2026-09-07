@@ -104,8 +104,7 @@ impl DesktopSourceLane {
         );
         let enrolled: BTreeSet<_> = initially_enrolled.into_iter().collect();
         ensure!(
-            !enrolled.is_empty()
-                && enrolled.len() <= max_enrolled
+            enrolled.len() <= max_enrolled
                 && enrolled
                     .iter()
                     .all(|window| candidates.contains_key(window)),
@@ -1013,7 +1012,7 @@ async fn first_frame(
 }
 
 /// Refresh automatic enrollment from the live compositor, never an old launcher
-/// PID. With no crossing window the caller waits without opening GPU producers.
+/// PID. An empty desktop starts a transparent atlas with no capture producers.
 pub(crate) async fn refresh_automatic_seed(
     config: &mut crate::atlas_peer::AtlasSourceConfig,
 ) -> Result<bool> {
@@ -1067,7 +1066,9 @@ pub(crate) async fn refresh_automatic_seed(
             }];
         return Ok(true);
     }
-    Ok(false)
+    config.windows.clear();
+    config.desktop.as_mut().expect("automatic desktop").candidates.clear();
+    Ok(true)
 }
 
 /// Build identities for the already-selected initial sources. Dynamic clients
@@ -1257,6 +1258,15 @@ fn intersects(a: DesktopRect, b: DesktopRect) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn empty_desktop_can_start_and_reserve_later_windows() {
+        let viewport = DesktopViewport { topology_generation: 1, bounds: viewflow_protocol::DesktopRect {
+            x_millidip: 0, y_millidip: 0, width_millidip: 100_000, height_millidip: 100_000 } };
+        let lane = DesktopSourceLane::new(viewport, vec![], [], 8).unwrap();
+        assert!(lane.enrolled.is_empty());
+        assert!(lane.enrollment_capacity_remaining());
+    }
+
     #[test]
     fn capacity_return_keeps_oversized_window_inside_local_display() {
         for (sx, sy, sw, sh, ww, wh) in [

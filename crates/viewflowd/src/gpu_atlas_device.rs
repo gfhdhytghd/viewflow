@@ -15,6 +15,7 @@ use crate::{
 pub enum AtlasDevicePoll {
     Waiting,
     ExpiredClean,
+    Submitted,
     Enqueued(AtlasFrame),
 }
 
@@ -31,6 +32,7 @@ pub struct GpuAtlasDevice {
     capture_geometry: std::collections::BTreeMap<viewflow_protocol::WindowId, (u64, u32, u32)>,
     next_frame: u64,
     last_empty_submission: Option<Instant>,
+    empty_published: bool,
     committed_input: Option<crate::window_input_runtime::AtlasCommittedInput>,
     desktop: Option<crate::desktop_source::SharedDesktopSourceLane>,
 }
@@ -97,6 +99,7 @@ impl GpuAtlasDevice {
             capture_geometry: Default::default(),
             next_frame,
             last_empty_submission: None,
+            empty_published: false,
             committed_input: None,
             desktop: None,
         })
@@ -128,6 +131,7 @@ impl GpuAtlasDevice {
             window != self.codec.window_id,
             "atlas source aliases stream ID"
         );
+        self.empty_published = false;
         pool.add_at_frame_boundary(window, receiver)
     }
 
@@ -149,6 +153,7 @@ impl GpuAtlasDevice {
         self.capture_geometry.remove(&window);
         self.committed_input = None;
         self.last_empty_submission = None;
+        self.empty_published = false;
         Ok(())
     }
 
@@ -188,10 +193,17 @@ impl GpuAtlasDevice {
             .active
             .take()
             .ok_or_else(|| anyhow::anyhow!("atlas device is retired"))?;
+        if let Some(publication) = sender.poll_feedback().await? {
+            self.committed_input = publication.committed_input;
+            if let Some(manifest) = publication.manifest {
+                self.empty_published = manifest.tiles.is_empty();
+                self.active = Some((pool, sender));
+                return Ok(AtlasDevicePoll::Enqueued(manifest));
+            }
+        }
         if pool.windows().is_empty()
-            && self
-                .last_empty_submission
-                .is_some_and(|last| last.elapsed() < std::time::Duration::from_millis(16))
+            && (self.empty_published || self.last_empty_submission
+                .is_some_and(|last| last.elapsed() < std::time::Duration::from_nanos(1_000_000_000 / 60)))
         {
             self.active = Some((pool, sender));
             return Ok(AtlasDevicePoll::Waiting);
@@ -315,12 +327,14 @@ impl GpuAtlasDevice {
             .await?;
         withheld_receivers.extend(result.receivers);
         pool.restore(withheld_receivers)?;
+        if let Some(manifest) = &result.manifest { self.empty_published = manifest.tiles.is_empty(); }
         self.committed_input = result.committed_input;
         self.layout = layout;
         self.next_frame = next_frame;
         self.active = Some((pool, sender));
         Ok(match result.manifest {
             Some(manifest) => AtlasDevicePoll::Enqueued(manifest),
+            None if result.submitted => AtlasDevicePoll::Submitted,
             None => AtlasDevicePoll::ExpiredClean,
         })
     }

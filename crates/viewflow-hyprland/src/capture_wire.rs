@@ -3,6 +3,14 @@
 use std::io;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DragTarget {
+    pub pid: u32,
+    pub address: u64,
+    pub surface: u64,
+    pub reverse_id: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CaptureCommand {
     Configure {
         generation: u64,
@@ -20,6 +28,7 @@ pub enum CaptureCommand {
     Release {
         generation: u64,
         return_position: Option<(f64, f64)>,
+        drag_target: Option<DragTarget>,
     },
 }
 
@@ -91,7 +100,7 @@ impl CaptureCommand {
                 payload.push(u8::from(loopback));
             }
             Self::Release {
-                return_position, ..
+                return_position, drag_target, ..
             } => {
                 if let Some((x, y)) = return_position {
                     if !x.is_finite() || !y.is_finite() {
@@ -99,6 +108,15 @@ impl CaptureCommand {
                     }
                     payload.extend(x.to_le_bytes());
                     payload.extend(y.to_le_bytes());
+                }
+                if let Some(target) = drag_target {
+                    if return_position.is_none() || target.pid == 0 || target.address == 0 || (target.surface == 0 && target.reverse_id == 0) {
+                        return Err(invalid());
+                    }
+                    payload.extend(target.pid.to_le_bytes());
+                    payload.extend(target.address.to_le_bytes());
+                    payload.extend(target.surface.to_le_bytes());
+                    if target.reverse_id != 0 { payload.extend(target.reverse_id.to_le_bytes()); }
                 }
             }
         }
@@ -134,5 +152,28 @@ impl CaptureCommand {
             command,
             applied: bytes[30] == 1,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn drag_return_requires_a_position_and_complete_native_identity() {
+        let target = DragTarget { pid: 12, address: 0x1234, surface: 0x5678, reverse_id: 0 };
+        let command = CaptureCommand::Release { generation: 3, return_position: Some((99.999, 40.)), drag_target: Some(target) };
+        let packet = command.packet(1).unwrap();
+        assert_eq!(packet.len(), 64);
+        let proxy = DragTarget { surface: 0, reverse_id: 42, ..target };
+        let returned = CaptureCommand::Release { generation: 3, return_position: Some((99.999, 40.)), drag_target: Some(proxy) }.packet(2).unwrap();
+        assert_eq!(returned.len(), 72);
+        assert_eq!(&returned[64..72], &42u64.to_le_bytes());
+        assert_eq!(&packet[44..48], &12u32.to_le_bytes());
+        assert_eq!(&packet[48..56], &0x1234u64.to_le_bytes());
+        assert_eq!(&packet[56..64], &0x5678u64.to_le_bytes());
+        for (position, target) in [(None, target), (Some((0., 0.)), DragTarget { pid: 0, ..target }), (Some((f64::NAN, 0.)), target)] {
+            assert!(CaptureCommand::Release { generation: 3, return_position: position, drag_target: Some(target) }.packet(1).is_err());
+        }
+        assert_eq!(CaptureCommand::Release { generation: 3, return_position: None, drag_target: None }.packet(1).unwrap().len(), 28);
     }
 }

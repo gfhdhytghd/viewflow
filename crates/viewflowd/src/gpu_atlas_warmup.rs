@@ -213,7 +213,7 @@ impl GpuAtlasWarmup {
             .iter()
             .map(|s| s.frame.metadata().capture_monotonic_ns)
             .min()
-            .context("empty warmup batch")?;
+            .unwrap_or(u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?);
         let native_now = crate::gpu_nvenc_runtime::monotonic_ns()?;
         let remaining = deadline.saturating_duration_since(Instant::now());
         let limit = native_now
@@ -333,7 +333,7 @@ fn reconcile_warmup_layout(
             width: expected.width,
             height: expected.height,
             alignment: 2,
-            max_windows: expected.placements.len(),
+            max_windows: expected.placements.len().max(1),
         })
         .map_err(|error| anyhow::anyhow!("invalid warmup capacity: {error:?}"))?,
     };
@@ -357,6 +357,14 @@ fn reconcile_warmup_layout(
 mod tests {
     use super::*;
     use viewflow_protocol::Id128;
+    #[test]
+    fn empty_startup_layout_reconciles_without_inventing_a_window() {
+        let empty = AtlasSnapshot { revision: 0, width: 64, height: 64, placements: vec![] };
+        let first = reconcile_warmup_layout(None, &empty, []).unwrap();
+        assert!(first.snapshot().placements.is_empty());
+        assert!(reconcile_warmup_layout(Some(&first), &empty, []).unwrap().snapshot().placements.is_empty());
+    }
+
     #[test]
     fn real_startup_capture_replaces_probe_dimensions_but_later_epochs_remain_strict() {
         let mut probe = StableAtlas::new(AtlasConfig {

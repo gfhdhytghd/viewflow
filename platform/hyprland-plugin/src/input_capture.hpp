@@ -8,6 +8,7 @@
 #include <hyprland/src/devices/IKeyboard.hpp>
 #include <hyprland/src/devices/IPointer.hpp>
 #include <hyprland/src/helpers/signal/Signal.hpp>
+#include <hyprland/src/layout/target/Target.hpp>
 
 #include <chrono>
 #include <cstdint>
@@ -77,6 +78,7 @@ private:
   std::uint64_t m_eventSequence = 1;
   bool m_loopback = false;
   bool m_clickPending = false;
+  WP<Layout::ITarget> m_returnDrag;
   std::uint32_t m_clickSerial = 0;
   std::uintptr_t m_clickedWindow = 0;
   std::uint64_t m_lastReleasedGeneration = 0;

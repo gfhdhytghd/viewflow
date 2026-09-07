@@ -16,19 +16,25 @@
 #include <thread>
 #include <algorithm>
 #include <set>
+#include <mmsystem.h>
 
 namespace vf=viewflow::reverse;
 using Microsoft::WRL::ComPtr;
 using Clock=std::chrono::steady_clock;
 namespace {
 void check(HRESULT hr) {if(FAILED(hr))throw std::runtime_error("Windows reverse HRESULT="+std::to_string(static_cast<unsigned long>(hr)));}
+struct TimerResolution {
+    MMRESULT result=timeBeginPeriod(1);
+    ~TimerResolution(){if(result==TIMERR_NOERROR)timeEndPeriod(1);}
+};
 struct Source {
     HWND window{};std::uint64_t id{},owner{};DWORD pid{};
     viewflow::windows_capture::WindowCapture capture;
     std::mutex mutex;
     ComPtr<ID3D11Texture2D> texture;
     viewflow::windows_capture::CaptureGeometry geometry;
-    std::int64_t pts{};bool dirty{},closed{};
+    std::uint64_t geometry_ack{};
+    std::int64_t pts{};bool dirty{},closed{},in_move{},was_resized{};RECT move_origin{};
     ~Source(){capture.stop();}
 };
 struct App {
@@ -39,6 +45,7 @@ struct App {
     std::uint64_t next_id{1};int left{-6144},top{-780},right{0},bottom{2676};
     std::map<unsigned,INPUT> held_keys,held_buttons;
     std::uint64_t last_input{};
+    bool inventory_logged{};
     void release() {
         for(auto& [_,input]:held_keys){input.ki.dwFlags|=KEYEVENTF_KEYUP;SendInput(1,&input,sizeof(input));}
         for(auto& [_,input]:held_buttons){
@@ -68,13 +75,14 @@ struct App {
     void input(const vf::Input& event) {
         if(event.sequence<=last_input)throw std::runtime_error("reverse input sequence regression");last_input=event.sequence;
         if(event.kind==vf::InputKind::release){release();return;}
+        if(event.kind==vf::InputKind::proxy_drag)throw std::runtime_error("local proxy control arrived on Windows input");
         auto source=source_for(event.id);if(!source)return;
         DWORD pid{};GetWindowThreadProcessId(source->window,&pid);if(pid!=source->pid || !IsWindow(source->window))return;
         const auto rect=bounds(source->window);
         INPUT native{};
         switch(event.kind) {
         case vf::InputKind::pointer: {
-            const auto x=std::int64_t(rect.left)+event.a,y=std::int64_t(rect.top)+event.b;
+            const auto x=std::int64_t(event.c==1?0:rect.left)+event.a,y=std::int64_t(event.c==1?0:rect.top)+event.b;
             if(x>=LONG_MIN && x<=LONG_MAX && y>=LONG_MIN && y<=LONG_MAX)SetCursorPos(static_cast<int>(x),static_cast<int>(y));
             break;
         }
@@ -102,8 +110,10 @@ struct App {
         case vf::InputKind::geometry: {
             if(event.c<=0 || event.d<=0 || event.c>16384 || event.d>16384)return;
             RECT outer{};if(!GetWindowRect(source->window,&outer))return;
-            SetWindowPos(source->window,nullptr,event.a-(rect.left-outer.left),event.b-(rect.top-outer.top),
+            const bool applied=SetWindowPos(source->window,nullptr,event.a-(rect.left-outer.left),event.b-(rect.top-outer.top),
                 event.c+(outer.right-outer.left)-(rect.right-rect.left),event.d+(outer.bottom-outer.top)-(rect.bottom-rect.top),SWP_NOACTIVATE|SWP_NOZORDER);
+            if(applied){std::lock_guard lock(source->mutex);source->geometry_ack=event.sequence;}
+            else std::fprintf(stderr,"reverse geometry failed id=%llu error=%lu\n",static_cast<unsigned long long>(source->id),GetLastError());
             break;
         }
         case vf::InputKind::close:PostMessageW(source->window,WM_CLOSE,0,0);break;
@@ -126,7 +136,7 @@ struct App {
         if(!IsWindowVisible(window) || IsIconic(window))return false;
         DWORD pid{};GetWindowThreadProcessId(window,&pid);if(!pid || pid==GetCurrentProcessId())return false;
         wchar_t cls[256]{};GetClassNameW(window,cls,256);
-        if(wcsncmp(cls,L"Viewflow",8)==0 || wcscmp(cls,L"Progman")==0 || wcscmp(cls,L"WorkerW")==0 || wcscmp(cls,L"Shell_TrayWnd")==0)return false;
+        if(wcsncmp(cls,L"Viewflow",8)==0 || wcscmp(cls,L"Progman")==0 || wcscmp(cls,L"WorkerW")==0 || wcscmp(cls,L"Shell_TrayWnd")==0 || wcscmp(cls,L"Shell_SecondaryTrayWnd")==0)return false;
         DWORD cloaked{};DwmGetWindowAttribute(window,DWMWA_CLOAKED,&cloaked,sizeof(cloaked));if(cloaked)return false;
         const auto rect=bounds(window);
         return rect.right>left && rect.left<right && rect.bottom>top && rect.top<bottom && rect.right>rect.left && rect.bottom>rect.top;
@@ -134,6 +144,7 @@ struct App {
     void inventory() {
         std::vector<HWND> found;
         EnumWindows([](HWND w,LPARAM p)->BOOL {auto* out=reinterpret_cast<std::vector<HWND>*>(p);out->push_back(w);return TRUE;},reinterpret_cast<LPARAM>(&found));
+        if(!inventory_logged){std::fprintf(stderr,"reverse-inventory windows=%zu viewport=%d,%d,%d,%d\n",found.size(),left,top,right,bottom);inventory_logged=true;}
         std::set<HWND> eligible;
         for(auto window:found)if(candidate(window) && eligible.size()<16)eligible.insert(window);
         std::vector<std::shared_ptr<Source>> removed;
@@ -188,7 +199,11 @@ int main(int argc,char** argv) {
     try {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        const auto input_desktop=OpenInputDesktop(0,FALSE,GENERIC_ALL);
+        if(!input_desktop || !SetThreadDesktop(input_desktop))throw std::runtime_error("reverse capture input desktop unavailable="+std::to_string(GetLastError()));
+        // Keep the bound desktop handle alive for this process's capture lifetime.
         winrt::init_apartment(winrt::apartment_type::multi_threaded);
+        TimerResolution timer_resolution;
         App app;
         if(argc==5){app.left=std::stoi(argv[1]);app.top=std::stoi(argv[2]);app.right=std::stoi(argv[3]);app.bottom=std::stoi(argv[4]);}
         D3D_FEATURE_LEVEL level{};
@@ -199,6 +214,7 @@ int main(int argc,char** argv) {
         std::unique_ptr<vf::HardwareEncoder> encoder;std::unique_ptr<vf::AlphaPlane> alpha;
         ComPtr<ID3D11Texture2D> atlas;ComPtr<ID3D11ShaderResourceView> atlas_view;ComPtr<ID3D11RenderTargetView> atlas_target;
         bool force_keyframe=true;
+        std::vector<std::uint8_t> last_raw_alpha,last_encoded_alpha;
         unsigned width=0,height=0;std::map<std::int64_t,vf::Frame> pending;
         auto inventory_at=Clock::now();auto next_frame=Clock::now();std::int64_t pts=0;
         try {
@@ -213,10 +229,9 @@ int main(int argc,char** argv) {
                     }
                 }
                 if(Clock::now()<next_frame || pending.size()>=4){std::this_thread::sleep_for(std::chrono::milliseconds(1));continue;}
-                next_frame=Clock::now()+std::chrono::milliseconds(16);
                 std::vector<std::shared_ptr<Source>> sources;
                 {std::lock_guard lock(app.source_mutex);for(auto& [_,source]:app.sources)sources.push_back(source);}
-                vf::Frame frame;unsigned row_x=0,row_y=0,row_height=0,needed_width=64,needed_height=64;
+                vf::Frame frame;unsigned row_x=0,row_y=0,row_height=0,needed_width=192,needed_height=192;
                 for(auto& source:sources) {
                     std::lock_guard lock(source->mutex);if(!source->texture || source->closed)continue;
                     const auto w=source->geometry.content_width,h=source->geometry.content_height;
@@ -224,17 +239,27 @@ int main(int argc,char** argv) {
                     if(row_x+w>8192){row_y+=row_height;row_x=0;row_height=0;}
                     if(row_y+h>4096)continue;
                     const auto rect=App::bounds(source->window);
-                    frame.tiles.push_back({source->id,source->owner,rect.left,rect.top,w,h,row_x,row_y,title(source->window)});
+                    GUITHREADINFO gui{};gui.cbSize=sizeof(gui);
+                    const bool moving=GetGUIThreadInfo(GetWindowThreadProcessId(source->window,nullptr),&gui) &&
+                        (gui.flags&GUI_INMOVESIZE) && gui.hwndMoveSize==source->window;
+                    if(moving && !source->in_move){source->move_origin=rect;source->was_resized=false;}
+                    if(moving && (rect.right-rect.left!=source->move_origin.right-source->move_origin.left ||
+                        rect.bottom-rect.top!=source->move_origin.bottom-source->move_origin.top))source->was_resized=true;
+                    source->in_move=moving;
+                    const bool native_drag=moving && !source->was_resized &&
+                        (rect.left!=source->move_origin.left || rect.top!=source->move_origin.top);
+                    frame.tiles.push_back({source->id,source->owner,rect.left,rect.top,w,h,row_x,row_y,title(source->window),native_drag?1u:0u,
+                        rect.right-rect.left==static_cast<int>(w) && rect.bottom-rect.top==static_cast<int>(h)?source->geometry_ack:0});
                     row_x+=w;row_height=std::max(row_height,h);needed_width=std::max(needed_width,row_x);needed_height=std::max(needed_height,row_y+h);
                 }
-                if(frame.tiles.empty() && !encoder)continue;
+                if(frame.tiles.empty() && !encoder){next_frame=Clock::now()+std::chrono::milliseconds(16);continue;}
                 needed_width=(needed_width+63)&~63u;needed_height=(needed_height+63)&~63u;
                 if(needed_width>width || needed_height>height || !encoder) {
                     // Drain ownership before replacing a codec; no old metadata is
                     // ever attached to a frame from the new dimensions.
                     if(!pending.empty())continue;
                     width=std::max(width,needed_width);height=std::max(height,needed_height);
-                    force_keyframe=true;
+                    force_keyframe=true;last_raw_alpha.clear();last_encoded_alpha.clear();
                     encoder=std::make_unique<vf::HardwareEncoder>();check(encoder->start(app.device.Get(),width,height,60,2));
                     alpha=std::make_unique<vf::AlphaPlane>();check(alpha->start(app.device.Get(),width,height));
                     atlas_view.Reset();atlas_target.Reset();atlas.Reset();
@@ -253,9 +278,12 @@ int main(int argc,char** argv) {
                 const auto now=ticks.QuadPart/frequency.QuadPart*10000000+(ticks.QuadPart%frequency.QuadPart)*10000000/frequency.QuadPart;
                 pts=std::max(pts+1,now);frame.pts=pts;frame.width=width;frame.height=height;
                 const auto result=encoder->submit(atlas.Get(),pts,force_keyframe);check(result);
-                if(result==S_FALSE)continue;
+                if(result==S_FALSE){std::this_thread::sleep_for(std::chrono::milliseconds(1));continue;}
+                next_frame=std::max(next_frame+std::chrono::nanoseconds(1'000'000'000/60),Clock::now());
                 force_keyframe=false;
-                std::vector<std::uint8_t> raw_alpha;check(alpha->read(atlas_view.Get(),raw_alpha));frame.alpha=vf::encode_alpha(raw_alpha);
+                std::vector<std::uint8_t> raw_alpha;check(alpha->read(atlas_view.Get(),raw_alpha));
+                if(raw_alpha!=last_raw_alpha){last_encoded_alpha=vf::encode_alpha(raw_alpha);last_raw_alpha=std::move(raw_alpha);}
+                frame.alpha=last_encoded_alpha;
                 pending.emplace(pts,std::move(frame));
             }
         }catch(...){app.running=false;CancelSynchronousIo(input.native_handle());input.join();throw;}

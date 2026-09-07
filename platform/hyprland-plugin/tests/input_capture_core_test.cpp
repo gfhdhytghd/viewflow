@@ -45,7 +45,9 @@ int main() {
       core.phase() != CapturePhase::LOCAL)
     return 6;
 
+  if (!core.physicalButtonHeld(0x110)) return 160; // Return retains the actual held gesture.
   (void)core.button(0x110, false);
+  if (core.physicalButtonHeld(0x110)) return 161;
   (void)core.key(30, false);
   core.observePosition(199.5, 99.5, monitors);
   const auto bottom = core.observeMotion(0.25, 2.0);

@@ -213,7 +213,7 @@ pub async fn run_until(
             }
         };
         let _reverse = config.reverse.as_ref()
-            .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&peer.connection, reverse, false))
+            .map(|reverse| crate::reverse_bridge::ReverseBridge::start(&peer.connection, reverse, false, input.as_ref().map(|input| input.reverse_drag())))
             .transpose()?;
         let session = warmup.into_live(peer.sender).await?;
         let mut session = session;
@@ -385,6 +385,7 @@ async fn run_live(
                 media.await?
             };
             match &poll {
+                AtlasDevicePoll::Submitted => {},
                 AtlasDevicePoll::Waiting => waiting = waiting.saturating_add(1),
                 AtlasDevicePoll::ExpiredClean => expired = expired.saturating_add(1),
                 AtlasDevicePoll::Enqueued(_) => {
@@ -399,7 +400,7 @@ async fn run_live(
                 AtlasDevicePoll::Waiting => tokio::time::sleep(Duration::from_millis(1)).await,
                 // A clean expiry can complete without network I/O. Give other
                 // tasks a turn without delaying an already-ready fresh capture.
-                AtlasDevicePoll::ExpiredClean => tokio::task::yield_now().await,
+                AtlasDevicePoll::ExpiredClean | AtlasDevicePoll::Submitted => tokio::task::yield_now().await,
                 AtlasDevicePoll::Enqueued(_) => {}
             }
         }

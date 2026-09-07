@@ -7,7 +7,20 @@ use viewflow_protocol::{
     DesktopRect, Id128, InputEvent, InputEventKind, InputLease, InputLeaseState,
 };
 
+#[derive(Clone, Copy)]
+pub(crate) struct DragTransfer {
+    pub window: viewflow_protocol::WindowId,
+    pub target: viewflow_hyprland::capture_wire::DragTarget,
+    pub handed_off: bool,
+    pub resizing: bool,
+    pub move_confirmed: bool,
+}
+pub(crate) type SharedDragTransfer = std::sync::Arc<tokio::sync::Mutex<Option<DragTransfer>>>;
+
 pub(crate) struct CursorConfig {
+    pub drag: SharedDragTransfer,
+    pub reverse_drag: crate::reverse_bridge::SharedNativeDrag,
+    pub remote_scale: f64,
     pub local: DesktopRect,
     pub remote: DesktopRect,
     pub monitor_id: i64,
@@ -137,6 +150,7 @@ impl CursorBridge {
         bridge.pending = Some(NativeRequest {
             command: CaptureCommand::Release {
                 generation,
+                drag_target: None,
                 return_position: None,
             },
             deadline: tokio::time::Instant::now() + Duration::from_secs(1),
@@ -277,6 +291,31 @@ fn position(x: f64, y: f64) -> Result<InputEventKind> {
         },
     ))
 }
+// Claim only the shared edge, within two physical remote pixels and while
+// moving toward the local screen. Other Windows edges retain native Snap.
+fn drag_seam_return(local: DesktopRect, remote: DesktopRect, scale: f64,
+    previous: (f64, f64), current: (f64, f64)) -> Option<(f64, f64)> {
+    let (lx, ly) = (local.x_millidip as f64 / 1000., local.y_millidip as f64 / 1000.);
+    let (lr, lb) = (lx + local.width_millidip as f64 / 1000., ly + local.height_millidip as f64 / 1000.);
+    let (rx, ry) = (remote.x_millidip as f64 / 1000., remote.y_millidip as f64 / 1000.);
+    let (rr, rb) = (rx + remote.width_millidip as f64 / 1000., ry + remote.height_millidip as f64 / 1000.);
+    let (x, y) = current;
+    let band = 2. / scale;
+    if (lr-rx).abs() < 0.001 && x < previous.0 && x <= rx+band && x >= lx && y >= ly.max(ry) && y < lb.min(rb) {
+        return Some((x.min(lr-0.001), y));
+    }
+    if (rr-lx).abs() < 0.001 && x > previous.0 && x >= rr-band && x < lr && y >= ly.max(ry) && y < lb.min(rb) {
+        return Some((x.max(lx), y));
+    }
+    if (lb-ry).abs() < 0.001 && y < previous.1 && y <= ry+band && y >= ly && x >= lx.max(rx) && x < lr.min(rr) {
+        return Some((x, y.min(lb-0.001)));
+    }
+    if (rb-ly).abs() < 0.001 && y > previous.1 && y >= rb-band && y < lb && x >= lx.max(rx) && x < lr.min(rr) {
+        return Some((x, y.max(ly)));
+    }
+    None
+}
+
 async fn run(
     config: CursorConfig,
     writer: crate::shared_control::SharedControlSender,
@@ -286,7 +325,7 @@ async fn run(
     _clocks: watch::Receiver<Option<crate::input_runtime::ClockSnapshot>>,
 ) -> Result<()> {
     ensure!(
-        config.fps > 0 && config.monitor_id >= 0,
+        config.fps > 0 && config.monitor_id >= 0 && config.remote_scale.is_finite() && config.remote_scale > 0.0,
         "invalid cursor capture policy"
     );
     config
@@ -358,6 +397,7 @@ async fn run(
             );
             continue;
         }
+        let previous_position = (x, y);
         let event = if tag == 30 {
             ensure!(
                 !active && (bytes.len() == 37 || bytes.len() == 53),
@@ -523,7 +563,25 @@ async fn run(
                 _ => bail!("unexpected capture packet"),
             }
         };
+        // Serialize takeover with source geometry writes. Once claimed, queued
+        // remote Update/End messages must not move this native drag backwards.
+        let mut transfer = config.drag.lock().await;
+        let mut reverse_drag = config.reverse_drag.lock().await;
+        let candidate = transfer.as_ref().filter(|drag| !drag.handed_off && !drag.resizing && drag.move_confirmed);
+        let seam_return = if tag == 31 && (candidate.is_some() || reverse_drag.as_ref().is_some_and(|drag| !drag.handed_off)) {
+            drag_seam_return(config.local, config.remote, config.remote_scale, previous_position, (x, y))
+        } else { None };
+        if let Some(point) = seam_return { (x, y) = point; }
         if contains(config.local, x, y) || matches!(event, InputEventKind::ReleaseAll) {
+            let drag_target = if contains(config.local, x, y) && tag == 31 {
+                transfer.as_mut().filter(|drag| !drag.handed_off && !drag.resizing && drag.move_confirmed).map(|drag| {
+                    drag.handed_off = true;
+                    drag.target
+                }).or_else(|| reverse_drag.as_mut().filter(|drag| !drag.handed_off).map(|drag| {
+                    drag.handed_off = true;
+                    viewflow_hyprland::capture_wire::DragTarget { pid: drag.pid, address: drag.address, surface: 0, reverse_id: drag.id }
+                }))
+            } else { None };
             let native_generation = generation;
             generation = generation
                 .checked_add(1)
@@ -545,7 +603,8 @@ async fn run(
                 &commands,
                 CaptureCommand::Release {
                     generation: native_generation,
-                    return_position: if contains(config.local, x, y) {
+                    drag_target,
+                return_position: if contains(config.local, x, y) {
                         Some((x, y))
                     } else {
                         None
@@ -560,6 +619,8 @@ async fn run(
             active = false;
             continue;
         }
+        drop(transfer);
+        drop(reverse_drag);
         // Clamp only nonshared exterior boundaries; local return was checked first.
         x = x.clamp(
             config.remote.x_millidip as f64 / 1000.,
@@ -655,7 +716,8 @@ async fn rollback_capture(
         commands,
         CaptureCommand::Release {
             generation,
-            return_position: None,
+            drag_target: None,
+                return_position: None,
         },
         cleanup_deadline,
     )
@@ -868,6 +930,7 @@ mod tests {
         let native = tokio::spawn(async move { while let Some(request) = requests.recv().await { let _ = request.reply.send(Ok(())); } });
         let queue = Arc::new(NativeCaptureQueue::default());
         let worker = tokio::spawn(run(CursorConfig {
+            drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0,
             local: rect(0, 0), remote: rect(100_000, 0), monitor_id: 1,
             topology_generation: 1, owner: Id128(1), target: Id128(2), fps: 60,
         }, writer, origin, queue.clone(), commands, clock));
@@ -994,6 +1057,28 @@ mod tests {
     }
 
     #[test]
+    fn drag_return_claims_only_two_physical_pixels_toward_shared_edge() {
+        let local = rect(0, 0);
+        for scale in [1., 1.25, 2., 3.] {
+            let band = 2. / scale;
+            let remote = rect(100_000, 0);
+            let point = drag_seam_return(local, remote, scale, (103., 50.), (100.+band, 50.)).unwrap();
+            assert!(contains(local, point.0, point.1));
+            assert!(drag_seam_return(local, remote, scale, (104., 50.), (100.+band+0.01, 50.)).is_none());
+            assert!(drag_seam_return(local, remote, scale, (100., 50.), (100.+band, 50.)).is_none());
+            assert!(drag_seam_return(local, remote, scale, (103., 101.), (100., 101.)).is_none());
+        }
+        for (remote, previous, current) in [
+            (rect(100_000, 0), (105., 40.), (75., 40.)),
+            (rect(-100_000, 0), (-5., 40.), (25., 40.)),
+            (rect(0, 100_000), (40., 105.), (40., 75.)),
+            (rect(0, -100_000), (40., -5.), (40., 25.)),
+        ] {
+            assert_eq!(drag_seam_return(local, remote, 2., previous, current), Some(current));
+        }
+    }
+
+    #[test]
     fn revoked_native_tail_is_discarded_without_reading_its_expired_timestamp() {
         for tag in 31..=36 {
             assert!(revoked_capture_tail(false, tag));
@@ -1033,6 +1118,7 @@ mod tests {
             ));
             let (commands, mut native_requests) = mpsc::channel(4);
             let config = CursorConfig {
+                drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0,
                 local: rect(0, 0),
                 remote: rect(100_000, 0),
                 monitor_id: 1,
@@ -1090,7 +1176,8 @@ mod tests {
                     request.command,
                     CaptureCommand::Release {
                         generation: 2,
-                        return_position: None
+                        drag_target: None,
+                return_position: None
                     }
                 ));
                 assert!(
@@ -1323,6 +1410,7 @@ mod tests {
         bridge.pending = Some(NativeRequest {
             command: CaptureCommand::Release {
                 generation: 2,
+                drag_target: None,
                 return_position: None,
             },
             deadline: tokio::time::Instant::now() + Duration::from_secs(1),

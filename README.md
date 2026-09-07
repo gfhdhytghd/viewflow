@@ -95,6 +95,10 @@ ceiling.
 
 ## Build
 
+macOS native discovery and the initial build/implementation roadmap are in
+[`platform/macos`](platform/macos/README.md). This foundation does not yet provide
+macOS capture, presentation or input.
+
 ```sh
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings

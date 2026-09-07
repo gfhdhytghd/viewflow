@@ -1,0 +1,22 @@
+name: macOS foundation
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Check portable daemon
+        run: cargo +stable check --locked -p viewflowd --lib --bins
+      - name: Test portable foundation
+        run: cargo +stable test --locked -p viewflow-protocol -p viewflow-core -p viewflow-platform -p viewflow-transport
+      - name: Build native probe for Apple Silicon and Intel
+        run: cmake -S platform/macos -B build/macos -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" && cmake --build build/macos
+      - name: Check probe CLI without requesting desktop permissions
+        run: ctest --test-dir build/macos --output-on-failure

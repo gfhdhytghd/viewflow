@@ -42,6 +42,7 @@ pub(crate) struct AtlasSourceInput {
     origin: Instant,
     startup_deadline: Instant,
     initial_window: viewflow_protocol::WindowId,
+    idle_initial: AuthorizedWindow,
     policy: AtlasInputPolicy,
     history: VecDeque<AtlasCommittedInput>,
     membership: watch::Sender<crate::window_input_runtime::AtlasInputMembership>,
@@ -49,6 +50,7 @@ pub(crate) struct AtlasSourceInput {
     request_sender: Option<mpsc::Sender<AtlasSelectionRequest>>,
     desktop_history: watch::Sender<Arc<VecDeque<AtlasCommittedInput>>>,
     desktop_phase: Arc<AtomicU8>,
+    reverse_drag: crate::reverse_bridge::SharedNativeDrag,
     desktop_sender: Option<mpsc::Sender<crate::window_input_runtime::DesktopMoveRequest>>,
     desktop: Option<DesktopMoveWorker>,
     waiting: Option<AtlasSelectionRequest>,
@@ -65,6 +67,8 @@ pub(crate) struct AtlasSourceInput {
 }
 
 impl AtlasSourceInput {
+    pub(crate) fn reverse_drag(&self) -> crate::reverse_bridge::SharedNativeDrag { self.reverse_drag.clone() }
+
     pub(crate) async fn publish_application_icon(&self, icon: viewflow_protocol::ApplicationIcon) -> Result<()> {
         self.writer.send(viewflow_protocol::wire::control_envelope::Payload::ApplicationIcon(icon.into()),
             tokio::time::Instant::now() + std::time::Duration::from_secs(5)).await
@@ -145,7 +149,7 @@ impl AtlasSourceInput {
                 ))
             })
             .collect::<Result<_>>()?;
-        let initial_window = allowed.first().context("atlas source has no windows")?.0;
+        let initial_window = allowed.first().map(|entry| entry.0).unwrap_or(viewflow_protocol::Id128(0));
         let policy = AtlasInputPolicy::new(owner, source, allowed, 5_000_000_000)?;
         let listener = Listener::bind(
             &pointer.native_socket,
@@ -158,13 +162,15 @@ impl AtlasSourceInput {
         let origin = Instant::now();
         let (desktop_history, history_receive) = watch::channel(Arc::new(VecDeque::new()));
         let desktop_phase = Arc::new(AtomicU8::new(0));
+        let reverse_drag = crate::reverse_bridge::SharedNativeDrag::default();
+        let drag_transfer = crate::atlas_cursor_handoff::SharedDragTransfer::default();
         let (desktop_sender, desktop) =
             if let (Some(desktop), Some(lane)) = (&config.desktop, desktop_lane) {
                 let (sender, receiver) = mpsc::channel(16);
                 (
                     Some(sender),
                     Some(DesktopMoveWorker::start(
-                        DesktopMoveController::new(config, desktop, lane, origin)?,
+                        DesktopMoveController::new(config, desktop, lane, origin, drag_transfer.clone())?,
                         receiver,
                         history_receive,
                         desktop_phase.clone(),
@@ -180,6 +186,9 @@ impl AtlasSourceInput {
                 .as_ref()
                 .context("cursor handoff requires global desktop configuration")?;
             Some(crate::atlas_cursor_handoff::CursorConfig {
+                drag: drag_transfer,
+                reverse_drag: reverse_drag.clone(),
+                remote_scale: desktop.remote_display.scale,
                 local: desktop.local_display.rect()?,
                 remote: desktop.remote_display.rect()?,
                 monitor_id,
@@ -210,6 +219,7 @@ impl AtlasSourceInput {
             origin,
             startup_deadline: origin + Duration::from_millis(config.startup_timeout_ms),
             initial_window,
+            idle_initial: AuthorizedWindow::unbound(owner, source),
             policy,
             history: VecDeque::new(),
             membership: watch::channel(Default::default()).0,
@@ -217,6 +227,7 @@ impl AtlasSourceInput {
             request_sender: Some(sender),
             desktop_history,
             desktop_phase,
+            reverse_drag,
             desktop_sender,
             desktop,
             waiting: None,
@@ -304,21 +315,10 @@ impl AtlasSourceInput {
                 Instant::now() < self.startup_deadline,
                 "atlas native pointer startup timed out"
             );
-            if self.native.is_none() || self.history.is_empty() {
-                return Ok(());
-            }
-            let Some(initial) = self.policy.maintain_capture(
-                self.history.back().context("atlas capture missing")?,
-                self.initial_window,
-                now,
-                native_now,
-                self.max_capture_age_ns,
-            )?
-            else {
-                // Retain the connected native owner while awaiting a fresh
-                // committed capture; the original startup deadline still runs.
-                return Ok(());
-            };
+            if self.native.is_none() { return Ok(()); }
+            let initial = if let Some(committed) = self.history.back() {
+                self.policy.maintain_capture(committed, self.initial_window, now, native_now, self.max_capture_age_ns)?
+            } else { None }.unwrap_or_else(|| self.idle_initial.clone());
             let mut session = WindowInputSession::prepare_atlas(
                 self.native
                     .take()
@@ -709,6 +709,17 @@ impl DesktopMoveWorker {
                             None => break,
                         },
                     };
+                    let transfer_state = controller.transfer.clone();
+                    let mut transfer = transfer_state.lock().await;
+                    let begin = request.movement.phase == viewflow_protocol::DesktopWindowMovePhase::Begin;
+                    if transfer.as_ref().is_some_and(|drag| drag.handed_off && drag.window == request.movement.window_id) && !begin {
+                        let result = controller.finish_transfer(request.movement.window_id).await.and_then(|()|
+                            desktop_ack(request.movement, viewflow_protocol::DesktopWindowMoveResult::Ended, controller.local_viewport));
+                        phase.store(2, Ordering::Release);
+                        let _ = request.completion.send(result);
+                        continue;
+                    }
+                    if begin { *transfer = None; }
                     let started = Instant::now();
                     let now = u64::try_from(origin.elapsed().as_nanos())?;
                     let native_now = u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?;
@@ -742,6 +753,24 @@ impl DesktopMoveWorker {
                         (begin && ack.result == viewflow_protocol::DesktopWindowMoveResult::Rejected)) {
                         phase.store(2, Ordering::Release);
                     }
+                    if result.as_ref().is_ok_and(|ack| ack.result == viewflow_protocol::DesktopWindowMoveResult::Applied) {
+                        if let Some(active) = controller.active.get(&request.movement.window_id) {
+                            let binding = controller.lane.lock().map_err(|_| anyhow::anyhow!("desktop source state poisoned"))?.native_binding(request.movement.window_id);
+                            if let Some(binding) = binding {
+                                let resizing = transfer.as_ref().is_some_and(|drag| drag.resizing)
+                                    || (request.movement.desired_width_millidip != 0 && request.movement.desired_width_millidip != active.initial_bounds.width_millidip)
+                                    || (request.movement.desired_height_millidip != 0 && request.movement.desired_height_millidip != active.initial_bounds.height_millidip);
+                                *transfer = Some(crate::atlas_cursor_handoff::DragTransfer {
+                                    window: request.movement.window_id,
+                                    target: viewflow_hyprland::capture_wire::DragTarget { pid: binding.pid, address: binding.address, surface: binding.surface, reverse_id: 0 },
+                                    handed_off: false, resizing, move_confirmed: !begin,
+                                });
+                            }
+                        }
+                    } else if !controller.active.contains_key(&request.movement.window_id) {
+                        *transfer = None;
+                    }
+                    drop(transfer);
                     if std::env::var_os("VIEWFLOW_DESKTOP_TIMING").is_some() {
                         eprintln!("desktop-source-timing phase={:?} sequence={} queue_us={} handler_us={} outcome={:?}",
                             request.movement.phase, request.movement.sequence,
@@ -805,6 +834,7 @@ impl Drop for DesktopMoveWorker {
 }
 
 struct DesktopMoveController {
+    transfer: crate::atlas_cursor_handoff::SharedDragTransfer,
     client: viewflow_hyprland::DesktopWindowClient,
     lane: crate::desktop_source::SharedDesktopSourceLane,
     stream_id: viewflow_protocol::Id128,
@@ -823,6 +853,7 @@ impl DesktopMoveController {
         desktop: &crate::desktop_config::AtlasSourceDesktopConfig,
         lane: crate::desktop_source::SharedDesktopSourceLane,
         _origin: Instant,
+        transfer: crate::atlas_cursor_handoff::SharedDragTransfer,
     ) -> Result<Self> {
         let pointer = config
             .pointer
@@ -831,6 +862,7 @@ impl DesktopMoveController {
         let (owner, source) = pointer.devices.devices()?;
         let request_path = desktop.native_control_dir.join("desktop-window.json");
         Ok(Self {
+            transfer,
             client: viewflow_hyprland::DesktopWindowClient::new(
                 viewflow_hyprland::HyprIpcClient::new(desktop.hyprland_socket.clone()),
                 request_path,
@@ -1106,10 +1138,26 @@ impl DesktopMoveController {
         }
     }
 
+    async fn finish_transfer(&mut self, window: viewflow_protocol::WindowId) -> Result<()> {
+        let Some(active) = self.active.get(&window) else { return Ok(()); };
+        let request = viewflow_hyprland::ReleaseRequest {
+            local_window_id: format!("{:032x}", window.0), token: active.token.clone(),
+            sequence: active.last_sequence.checked_add(1).context("desktop release sequence overflow")?,
+            not_after_monotonic_ns: desktop_cleanup_deadline(u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?, active.expires_native_ns)?,
+            restore: false,
+        };
+        let client = self.client.clone();
+        tokio::task::spawn_blocking(move || client.release(&request)).await.context("desktop transfer release failed")??;
+        self.active.remove(&window);
+        Ok(())
+    }
+
     /// Release every locally owned compositor enrollment on normal source
     /// retirement. This is distinct from the plugin's expiry fallback and
     /// requests restoration because no remote End was confirmed.
     async fn shutdown(&mut self) -> Result<()> {
+        let handed_off = self.transfer.lock().await.as_ref().filter(|drag| drag.handed_off).map(|drag| drag.window);
+        if let Some(window) = handed_off { self.finish_transfer(window).await?; }
         let active = std::mem::take(&mut self.active);
         self.release_enrollments(active).await
     }
@@ -1403,6 +1451,7 @@ mod tests {
         .shared();
         let now = u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns().unwrap()).unwrap();
         let mut controller = DesktopMoveController {
+            transfer: Default::default(),
             client: viewflow_hyprland::DesktopWindowClient::new(
                 viewflow_hyprland::HyprIpcClient::new(socket),
                 request,
@@ -1460,6 +1509,7 @@ mod tests {
         .unwrap()
         .shared();
         let controller = DesktopMoveController {
+            transfer: Default::default(),
             client: viewflow_hyprland::DesktopWindowClient::new(
                 viewflow_hyprland::HyprIpcClient::new(directory.path().join("absent.sock")),
                 directory.path().join("request.json"),
