@@ -26,7 +26,7 @@ struct Frame {
     std::vector<Tile> tiles;
     std::vector<std::uint8_t> alpha, color;
 };
-enum class InputKind : std::uint32_t { pointer=1, button=2, wheel=3, key=4, focus=5, geometry=6, close=7, release=8, proxy_drag=9 };
+enum class InputKind : std::uint32_t { pointer=1, button=2, wheel=3, key=4, focus=5, geometry=6, close=7, release=8, proxy_drag=9, touchpad_contact=10, touchpad_frame=11 };
 struct Input {
     std::uint64_t id{},sequence{};
     InputKind kind{};
@@ -97,7 +97,7 @@ inline std::vector<std::uint8_t> pack_input(const Input& input) {
 inline Input unpack_input(std::span<const std::uint8_t> bytes) {
     Reader r{bytes};if(r.u32()!=2)throw std::runtime_error("unexpected reverse input type");
     Input result;result.id=r.u64();result.sequence=r.u64();auto kind=r.u32();
-    if(kind<1 || kind>9 || !result.sequence)throw std::runtime_error("invalid reverse input");
+    if(kind<1 || kind>11 || !result.sequence)throw std::runtime_error("invalid reverse input");
     result.kind=static_cast<InputKind>(kind);result.a=r.i32();result.b=r.i32();result.c=r.i32();result.d=r.i32();r.finish();return result;
 }
 // Exact 8-bit alpha: choose raw when RLE would expand. RLE stores length then

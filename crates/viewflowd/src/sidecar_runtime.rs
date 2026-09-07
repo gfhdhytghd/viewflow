@@ -2450,7 +2450,7 @@ mod tests {
             while let Some(control) = received.recv().await {
                 let event = match &control.payload {
                     viewflow_protocol::wire::control_envelope::Payload::InputEvent(event) => {
-                        InputEvent::try_from(*event).ok()
+                        InputEvent::try_from(event.clone()).ok()
                     }
                     _ => None,
                 };
@@ -2556,7 +2556,7 @@ mod tests {
             while let Some(control) = received.recv().await {
                 let release = match &control.payload {
                     viewflow_protocol::wire::control_envelope::Payload::InputEvent(event) => {
-                        InputEvent::try_from(*event)
+                        InputEvent::try_from(event.clone())
                             .ok()
                             .filter(|event| matches!(event.event, InputEventKind::ReleaseAll))
                     }
@@ -2638,7 +2638,7 @@ mod tests {
             &payloads[0],
             viewflow_protocol::wire::control_envelope::Payload::InputEvent(event)
                 if matches!(
-                    InputEvent::try_from(*event).unwrap().event,
+                    InputEvent::try_from(event.clone()).unwrap().event,
                     InputEventKind::ReleaseAll
                 )
         ));
@@ -2767,7 +2767,7 @@ mod tests {
             while let Some(control) = first_received.recv().await {
                 let event = match &control.payload {
                     viewflow_protocol::wire::control_envelope::Payload::InputEvent(event) => {
-                        InputEvent::try_from(*event).ok()
+                        InputEvent::try_from(event.clone()).ok()
                     }
                     _ => None,
                 };
@@ -2873,7 +2873,7 @@ mod tests {
             while let Some(control) = received.recv().await {
                 let release = match &control.payload {
                     viewflow_protocol::wire::control_envelope::Payload::InputEvent(event) => {
-                        InputEvent::try_from(*event)
+                        InputEvent::try_from(event.clone())
                             .ok()
                             .filter(|event| matches!(event.event, InputEventKind::ReleaseAll))
                     }
@@ -3127,7 +3127,7 @@ mod tests {
             while let Some(control) = received.recv().await {
                 let release = match &control.payload {
                     viewflow_protocol::wire::control_envelope::Payload::InputEvent(event) => {
-                        InputEvent::try_from(*event)
+                        InputEvent::try_from(event.clone())
                             .ok()
                             .filter(|event| matches!(event.event, InputEventKind::ReleaseAll))
                     }
@@ -3611,7 +3611,7 @@ mod tests {
             while let Some(control) = received.recv().await {
                 let event = match &control.payload {
                     viewflow_protocol::wire::control_envelope::Payload::InputEvent(event) => {
-                        InputEvent::try_from(*event).ok()
+                        InputEvent::try_from(event.clone()).ok()
                     }
                     _ => None,
                 };
@@ -3788,7 +3788,7 @@ mod tests {
             while let Some(control) = received.recv().await {
                 let event = match &control.payload {
                     viewflow_protocol::wire::control_envelope::Payload::InputEvent(event) => {
-                        InputEvent::try_from(*event).ok()
+                        InputEvent::try_from(event.clone()).ok()
                     }
                     _ => None,
                 };

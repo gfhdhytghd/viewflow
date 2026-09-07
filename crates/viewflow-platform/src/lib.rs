@@ -10,6 +10,10 @@ pub mod linux_application_audio_capture;
 pub mod linux_clipboard;
 pub mod sidecar;
 pub mod windows_input;
+#[cfg(any(windows, test))]
+mod touchpad_state;
+#[cfg(windows)]
+mod windows_touchpad;
 pub mod windows_proxy;
 pub use fake::FakeBackend;
 #[cfg(target_os = "linux")]

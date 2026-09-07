@@ -437,6 +437,18 @@ message DesktopPointerPosition {
   sint64 y_millidip = 2;
 }
 
+// Full touchpad snapshot in physical 1/100 mm units; stable IDs survive frames.
+message TouchpadContact {
+  uint32 id = 1;
+  uint32 x = 2;
+  uint32 y = 3;
+}
+message TouchpadFrame {
+  uint32 width = 1;
+  uint32 height = 2;
+  repeated TouchpadContact contacts = 3;
+}
+
 message InputEvent {
   // Must match the active lease and increase strictly within that lease/target pair.
   uint64 lease_generation = 1;
@@ -452,6 +464,7 @@ message InputEvent {
     KeyboardHidUsage keyboard_hid_usage = 13;
     ReleaseAllInput release_all = 14;
     DesktopPointerPosition desktop_pointer_position = 15;
+    TouchpadFrame touchpad = 16;
   }
 }
 

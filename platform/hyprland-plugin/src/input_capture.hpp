@@ -2,6 +2,8 @@
 #pragma once
 
 #include "input_capture_core.hpp"
+#include "touchpad_capture.hpp"
+#include "gesture_route.hpp"
 #include "metadata_bridge.hpp"
 #include "window_pointer_controller.hpp"
 
@@ -59,6 +61,9 @@ private:
   void onPointerButton(const IPointer::SButtonEvent &event);
   void onPointerAxis(const IPointer::SAxisEvent &event);
   void onPointerFrame();
+  void drainTouchpad();
+  bool remoteGesture() const;
+  bool rawTouchpad() const { return m_touchpad && m_touchpad->available(); }
   void onKey(const IKeyboard::SKeyEvent &event);
   void suppressKeyboard(KeyboardListeners &listeners);
   void suppressLocalKeyboards();
@@ -72,6 +77,12 @@ private:
   [[nodiscard]] bool physical(IPointer &pointer) const;
   [[nodiscard]] bool physical(IKeyboard &keyboard) const;
 
+  std::unique_ptr<TouchpadCapture> m_touchpad;
+  IPointer* m_touchpadPointer{};
+  std::uint64_t m_touchpadFrames{}, m_suppressedGestureEvents{};
+  std::array<CHyprSignalListener, 6> m_gestures;
+  GestureRoute m_swipeRoute, m_pinchRoute;
+  bool m_cancelLocalGesture{};
   MetadataBridge &m_bridge;
   WindowPointerController m_windowPointer;
   InputCaptureCore m_core;

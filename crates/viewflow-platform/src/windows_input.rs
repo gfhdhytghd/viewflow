@@ -218,7 +218,7 @@ impl<S: InputSink> StatefulInput<S> {
 
     fn apply(&mut self, event: &InputEvent) -> Result<(), WindowsInputError> {
         match event.event {
-            InputEventKind::DesktopPointerPosition(_) => {
+            InputEventKind::DesktopPointerPosition(_) | InputEventKind::Touchpad(_) => {
                 return Err(WindowsInputError::DeltaOutOfRange);
             }
             InputEventKind::PointerMotion(motion) => {
@@ -496,7 +496,7 @@ mod native {
         ForceReleaseReport, ForceReleaseSpec, InputSink, InputSwitchState, PointerButton,
         StatefulInput, VIEWFLOW_INPUT_TAG, WindowsInputError, WindowsScanCode, force_release_specs,
     };
-    use viewflow_protocol::InputEvent;
+    use viewflow_protocol::{InputEvent, InputEventKind};
 
     const XBUTTON1: u32 = 1;
     const XBUTTON2: u32 = 2;
@@ -630,6 +630,7 @@ mod native {
     /// `SendInput` cannot cross UIPI into a higher-integrity target.
     #[derive(Debug)]
     pub struct DirectWindowsInputBackend {
+        touchpad: crate::windows_touchpad::WindowsTouchpad,
         input: StatefulInput<SendInputSink>,
         desktop_display: Option<super::DesktopPointerDisplay>,
     }
@@ -645,6 +646,7 @@ mod native {
         pub fn new() -> Self {
             Self {
                 input: StatefulInput::new(SendInputSink),
+                touchpad: crate::windows_touchpad::WindowsTouchpad::default(),
                 desktop_display: None,
             }
         }
@@ -684,6 +686,8 @@ mod native {
                 }
                 return Ok(());
             }
+            if let InputEventKind::Touchpad(frame) = event.event { return self.touchpad.apply(frame); }
+            if matches!(event.event, InputEventKind::ReleaseAll) { return self.release_all(); }
             self.input.apply(event)
         }
 
@@ -694,7 +698,9 @@ mod native {
         /// Returns `SendInputFailed` if Windows rejects a release. State for
         /// successfully released inputs is removed even if a later release fails.
         pub fn release_all(&mut self) -> Result<(), WindowsInputError> {
-            self.input.release_all()
+            let touchpad = self.touchpad.release_all();
+            let keys = self.input.release_all();
+            touchpad.and(keys)
         }
     }
 

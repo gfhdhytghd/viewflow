@@ -166,7 +166,7 @@ impl CursorBridge {
             return Ok(false);
         }
         let tag = u16::from_le_bytes(bytes[6..8].try_into()?);
-        if !(30..=36).contains(&tag) {
+        if !(30..=37).contains(&tag) {
             return Ok(false);
         }
         let mut received = Instant::now();
@@ -559,6 +559,22 @@ async fn run(
                         repeat: false,
                     })
                 }
+                37 => {
+                    ensure!(bytes.len() == 104, "invalid touchpad packet");
+                    let word = |offset| -> Result<u32> { Ok(u32::from_le_bytes(bytes[offset..offset+4].try_into()?)) };
+                    let count = word(40)?;
+                    ensure!(count <= 5, "invalid touchpad count");
+                    let mut frame = viewflow_protocol::TouchpadFrame {
+                        width: word(32)?, height: word(36)?, count: count as u8,
+                        ..viewflow_protocol::TouchpadFrame::default()
+                    };
+                    for (i, c) in frame.contacts.iter_mut().enumerate() {
+                        let base = 44 + i * 12;
+                        *c = viewflow_protocol::TouchpadContact { id: word(base)?, x: word(base+4)?, y: word(base+8)? };
+                    }
+                    frame.validate().map_err(|e| anyhow::anyhow!("invalid touchpad frame: {e:?}"))?;
+                    InputEventKind::Touchpad(frame)
+                }
                 36 => InputEventKind::ReleaseAll,
                 _ => bail!("unexpected capture packet"),
             }
@@ -681,7 +697,7 @@ fn retire_on_failure(network: &quinn::Connection, result: &Result<()>) {
 }
 
 fn revoked_capture_tail(active: bool, tag: u16) -> bool {
-    !active && (31..=36).contains(&tag)
+    !active && (31..=37).contains(&tag)
 }
 
 async fn rollback_capture(
@@ -974,6 +990,30 @@ mod tests {
             }
         }).await.unwrap();
         assert!(!worker.is_finished() && connection.close_reason().is_none());
+        // Full touchpad frames use the same FIFO and need no frame/clock ack.
+        for (native_sequence, count) in [(82u64, 5u32), (83, 0)] {
+            let mut packet = vec![0; 124];
+            packet[6..8].copy_from_slice(&37u16.to_le_bytes());
+            packet[20..28].copy_from_slice(&2u64.to_le_bytes());
+            packet[28..44].copy_from_slice(&2u128.to_be_bytes());
+            packet[44..52].copy_from_slice(&native_sequence.to_le_bytes());
+            packet[52..56].copy_from_slice(&16000u32.to_le_bytes());
+            packet[56..60].copy_from_slice(&11000u32.to_le_bytes());
+            packet[60..64].copy_from_slice(&count.to_le_bytes());
+            for i in 0..5usize {
+                let base = 64 + i * 12;
+                packet[base..base+4].copy_from_slice(&(i as u32 + 100).to_le_bytes());
+                packet[base+4..base+8].copy_from_slice(&2000u32.to_le_bytes());
+                packet[base+8..base+12].copy_from_slice(&4000u32.to_le_bytes());
+            }
+            queue.push(packet, Instant::now()).unwrap();
+            let event = tokio::time::timeout(Duration::from_secs(1), events_seen.recv()).await.unwrap().unwrap();
+            let InputEventKind::Touchpad(frame) = event.event else { panic!("touchpad lost in native/network bridge") };
+            assert_eq!(u32::from(frame.count), count);
+            assert_eq!((frame.width, frame.height), (16000, 11000));
+            if count > 0 { assert_eq!(frame.contacts[4].id, 104); }
+        }
+        assert!(!worker.is_finished() && connection.close_reason().is_none());
         worker.abort(); native.abort(); reader.abort(); drop(clock_owner);
     }
 
@@ -1080,7 +1120,7 @@ mod tests {
 
     #[test]
     fn revoked_native_tail_is_discarded_without_reading_its_expired_timestamp() {
-        for tag in 31..=36 {
+        for tag in 31..=37 {
             assert!(revoked_capture_tail(false, tag));
             assert!(!revoked_capture_tail(true, tag));
         }

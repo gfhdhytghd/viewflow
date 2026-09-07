@@ -273,8 +273,48 @@ pub struct KeyboardHidUsage {
     pub repeat: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct TouchpadContact {
+    pub id: u32,
+    pub x: u32,
+    pub y: u32,
+}
+
+/// Full contact snapshot. Missing contacts are lifted, including on empty frames.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct TouchpadFrame {
+    pub width: u32,
+    pub height: u32,
+    pub count: u8,
+    pub contacts: [TouchpadContact; 5],
+}
+impl TouchpadFrame {
+    pub fn validate(&self) -> Result<(), WireError> {
+        if self.width == 0 || self.height == 0 || self.width > 100_000 || self.height > 100_000 || self.count > 5 {
+            return Err(WireError::InvalidField("touchpad.dimensions_or_count"));
+        }
+        for (i, contact) in self.contacts[..usize::from(self.count)].iter().enumerate() {
+            if contact.x > self.width || contact.y > self.height || self.contacts[..i].iter().any(|old| old.id == contact.id) {
+                return Err(WireError::InvalidField("touchpad.contact"));
+            }
+        }
+        Ok(())
+    }
+}
+impl TryFrom<wire::TouchpadFrame> for TouchpadFrame {
+    type Error = WireError;
+    fn try_from(value: wire::TouchpadFrame) -> Result<Self, Self::Error> {
+        if value.contacts.len() > 5 { return Err(WireError::InvalidField("touchpad.count")); }
+        let mut frame = Self { width: value.width, height: value.height, count: value.contacts.len() as u8, ..Self::default() };
+        for (out, c) in frame.contacts.iter_mut().zip(value.contacts) { *out = TouchpadContact { id: c.id, x: c.x, y: c.y }; }
+        frame.validate()?;
+        Ok(frame)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum InputEventKind {
+    Touchpad(TouchpadFrame),
     DesktopPointerPosition(DesktopPointerPosition),
     PointerMotion(RelativePointerMotion),
     PointerButton(PointerButtonEvent),
@@ -997,6 +1037,7 @@ impl TryFrom<wire::InputEvent> for InputEvent {
             wire::input_event::Event::KeyboardHidUsage(value) => {
                 InputEventKind::KeyboardHidUsage(value.try_into()?)
             }
+            wire::input_event::Event::Touchpad(value) => InputEventKind::Touchpad(value.try_into()?),
             wire::input_event::Event::ReleaseAll(_) => InputEventKind::ReleaseAll,
             wire::input_event::Event::DesktopPointerPosition(value) => {
                 if value.x_millidip.unsigned_abs() > 1_000_000_000

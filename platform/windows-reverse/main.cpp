@@ -1,5 +1,6 @@
 #include "hardware_encoder.hpp"
 #include "alpha_plane.hpp"
+#include "touchpad.hpp"
 #include "../reverse-common/wire.hpp"
 #include "../windows-window-capture/wgc_window_capture.hpp"
 #include <d3d11_4.h>
@@ -44,9 +45,12 @@ struct App {
     std::atomic<bool> running{true};
     std::uint64_t next_id{1};int left{-6144},top{-780},right{0},bottom{2676};
     std::map<unsigned,INPUT> held_keys,held_buttons;
-    std::uint64_t last_input{};
+    std::uint64_t last_input{},touchpad_target{};
+    vf::TouchpadAssembler touchpad_frames;
+    vf::TouchpadInjector touchpad;
     bool inventory_logged{};
     void release() {
+        touchpad_frames.reset();touchpad.release();touchpad_target=0;
         for(auto& [_,input]:held_keys){input.ki.dwFlags|=KEYEVENTF_KEYUP;SendInput(1,&input,sizeof(input));}
         for(auto& [_,input]:held_buttons){
             const auto down=input.mi.dwFlags;
@@ -76,8 +80,22 @@ struct App {
         if(event.sequence<=last_input)throw std::runtime_error("reverse input sequence regression");last_input=event.sequence;
         if(event.kind==vf::InputKind::release){release();return;}
         if(event.kind==vf::InputKind::proxy_drag)throw std::runtime_error("local proxy control arrived on Windows input");
-        auto source=source_for(event.id);if(!source)return;
+        const bool touchpad_input=event.kind==vf::InputKind::touchpad_contact || event.kind==vf::InputKind::touchpad_frame;
+        if(event.kind==vf::InputKind::touchpad_frame && event.c==0){
+            touchpad_frames.reset();if(touchpad_target==event.id){touchpad.release();touchpad_target=0;}return;
+        }
+        auto source=source_for(event.id);if(!source){if(touchpad_input){touchpad_frames.reset();if(touchpad_target==event.id){touchpad.release();touchpad_target=0;}}return;}
         DWORD pid{};GetWindowThreadProcessId(source->window,&pid);if(pid!=source->pid || !IsWindow(source->window))return;
+        if(touchpad_input){
+            try {
+                if(auto frame=touchpad_frames.input(event)){
+                    if(touchpad_target && touchpad_target!=event.id && !touchpad.release()){std::fprintf(stderr,"reverse touchpad release failed error=%lu\n",GetLastError());return;}
+                    touchpad_target=event.id;
+                    if(!touchpad.apply(*frame))std::fprintf(stderr,"reverse touchpad injection failed error=%lu\n",GetLastError());
+                }
+            }catch(const std::exception& error){touchpad_frames.reset();touchpad.release();std::fprintf(stderr,"reverse touchpad: %s\n",error.what());}
+            return;
+        }
         const auto rect=bounds(source->window);
         INPUT native{};
         switch(event.kind) {

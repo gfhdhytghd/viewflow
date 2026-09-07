@@ -1,5 +1,6 @@
 #include "gpu_decoder.hpp"
 #include "../reverse-common/wire.hpp"
+#include "../hyprland-plugin/src/touchpad_capture.hpp"
 #include "../reverse-common/geometry_sync.hpp"
 #include "xdg-shell-client-protocol.h"
 #include "viewporter-client-protocol.h"
@@ -83,6 +84,9 @@ struct App {
     GLuint program{},alpha_texture{};unsigned codec{},atlas_width{},atlas_height{};
     std::map<std::uint64_t,std::unique_ptr<Window>> windows;
     std::map<std::int64_t,vf::Frame> pending;
+    std::unique_ptr<viewflow::hyprland::TouchpadCapture> touchpad;
+    std::uint64_t touchpad_target{};
+    std::uint32_t axis_source=UINT32_MAX;
     std::uint64_t pointer_window{},keyboard_window{},sequence{};double pointer_x{},pointer_y{};
     xkb_context* key_context=xkb_context_new(XKB_CONTEXT_NO_FLAGS);xkb_keymap* key_map{};
     std::set<std::uint32_t> held_super,pending_super;bool super_drag{};
@@ -104,6 +108,20 @@ struct App {
     std::uint64_t send(std::uint64_t id,vf::InputKind kind,int a=0,int b=0,int c=0,int d=0) {
         auto bytes=vf::pack_input({id,++sequence,kind,a,b,c,d});vf::Writer prefix;prefix.u32(static_cast<std::uint32_t>(bytes.size()));
         write_all(STDOUT_FILENO,prefix.bytes);write_all(STDOUT_FILENO,bytes);return sequence;
+    }
+    void drain_touchpad() {
+        if(!touchpad)return;
+        const auto target=super_drag?0:pointer_window;
+        if(touchpad_target && touchpad_target!=target){
+            const auto frame=touchpad->current();
+            send(touchpad_target,vf::InputKind::touchpad_frame,frame.width,frame.height,0);
+            touchpad->drain(false,[](const auto&){});
+        }
+        touchpad_target=target;
+        touchpad->drain(target!=0,[&](const auto& frame){
+            for(unsigned i=0;i<frame.count;++i){const auto& c=frame.contacts[i];send(target,vf::InputKind::touchpad_contact,c.id,c.x,c.y);}
+            send(target,vf::InputKind::touchpad_frame,frame.width,frame.height,frame.count);
+        });
     }
     std::uint64_t identify(wl_surface* surface) {for(auto& [id,w]:windows)if(w->surface==surface)return id;return 0;}
     void forward_pointer() {
@@ -135,9 +153,9 @@ struct App {
     }
     static void pointer_axis(void* data,wl_pointer*,std::uint32_t,std::uint32_t axis,wl_fixed_t value) {if(axis<2)static_cast<App*>(data)->axes[axis]+=wl_fixed_to_double(value);}
     static void pointer_frame(void* data,wl_pointer*) {
-        auto& a=*static_cast<App*>(data);for(unsigned i=0;i<2;++i){const auto delta=a.axis120[i]?a.axis120[i]:static_cast<int>(std::lround(a.axes[i]*12));if(delta && a.pointer_window)a.send(a.pointer_window,vf::InputKind::wheel,i,i?-delta:-delta);a.axes[i]=0;a.axis120[i]=0;}
+        auto& a=*static_cast<App*>(data);for(unsigned i=0;i<2;++i){const auto delta=a.axis120[i]?a.axis120[i]:static_cast<int>(std::lround(a.axes[i]*12));if(delta && a.pointer_window && !(a.touchpad && a.touchpad->available() && a.axis_source==WL_POINTER_AXIS_SOURCE_FINGER))a.send(a.pointer_window,vf::InputKind::wheel,i,i?-delta:-delta);a.axes[i]=0;a.axis120[i]=0;}a.axis_source=UINT32_MAX;
     }
-    static void pointer_axis_source(void*,wl_pointer*,std::uint32_t){}
+    static void pointer_axis_source(void* data,wl_pointer*,std::uint32_t source){static_cast<App*>(data)->axis_source=source;}
     static void pointer_axis_stop(void*,wl_pointer*,std::uint32_t,std::uint32_t){}
     static void pointer_axis_discrete(void*,wl_pointer*,std::uint32_t,std::int32_t){}
     static void pointer_value120(void* data,wl_pointer*,std::uint32_t axis,std::int32_t value){if(axis<2)static_cast<App*>(data)->axis120[axis]+=value;}
@@ -383,11 +401,13 @@ float a=texture(opacity,p).r;vec3 rgb=vec3(y+1.5748*c.y,y-0.187324*c.x-0.468124*
         input_done=true;const std::uint64_t one=1;::write(wake,&one,sizeof(one));
     }
     void run() {
+        if(!validate_only)touchpad=viewflow::hyprland::TouchpadCapture::discover();
         std::thread receiver([&]{reader();});auto geometry_at=Clock::now();
         try {
             while(running) {
                 if(wl_display_dispatch_pending(display)<0)break;
                 repeat_keys();
+                drain_touchpad();
                 std::optional<vf::Frame> frame;
                 {std::lock_guard lock(queue_mutex);if(!queue.empty()){frame=std::move(queue.front());queue.pop_front();queue_changed.notify_all();}}
                 if(frame)accept(std::move(*frame));
@@ -396,8 +416,8 @@ float a=texture(opacity,p).r;vec3 rgb=vec3(y+1.5748*c.y,y-0.187324*c.x-0.468124*
                 if(Clock::now()>=geometry_at){synchronize_geometry();geometry_at=Clock::now()+std::chrono::milliseconds(33);}
                 while(wl_display_prepare_read(display)!=0)if(wl_display_dispatch_pending(display)<0)throw std::runtime_error("Wayland dispatch failed");
                 wl_display_flush(display);
-                pollfd fds[]={{wl_display_get_fd(display),POLLIN,0},{wake,POLLIN,0}};
-                const int status=poll(fds,2,frame?0:8);
+                pollfd fds[]={{wl_display_get_fd(display),POLLIN,0},{wake,POLLIN,0},{touchpad?touchpad->fd():-1,POLLIN,0}};
+                const int status=poll(fds,3,frame?0:8);
                 if(status<0 && errno!=EINTR){wl_display_cancel_read(display);break;}
                 if(fds[0].revents&POLLIN){if(wl_display_read_events(display)<0)break;}else wl_display_cancel_read(display);
                 if(fds[1].revents&POLLIN){std::uint64_t value;::read(wake,&value,sizeof(value));}

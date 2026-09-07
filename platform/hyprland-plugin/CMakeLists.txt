@@ -11,6 +11,7 @@ include(GNUInstallDirs)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(HYPRLAND REQUIRED IMPORTED_TARGET hyprland>=0.56)
 pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
+pkg_check_modules(LIBINPUT REQUIRED IMPORTED_TARGET libinput)
 
 add_library(viewflow-hyprland SHARED
     src/main.cpp
@@ -26,7 +27,7 @@ add_library(viewflow-hyprland SHARED
     src/window_keyboard_session.cpp
 )
 target_include_directories(viewflow-hyprland PRIVATE include src)
-target_link_libraries(viewflow-hyprland PRIVATE PkgConfig::HYPRLAND PkgConfig::XKBCOMMON ${CMAKE_DL_LIBS})
+target_link_libraries(viewflow-hyprland PRIVATE PkgConfig::HYPRLAND PkgConfig::XKBCOMMON PkgConfig::LIBINPUT ${CMAKE_DL_LIBS})
 target_compile_options(viewflow-hyprland PRIVATE
     -Wall
     -Wextra
@@ -40,6 +41,10 @@ set_target_properties(viewflow-hyprland PROPERTIES PREFIX "" OUTPUT_NAME "viewfl
 install(TARGETS viewflow-hyprland LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 if(BUILD_TESTING)
+    add_executable(viewflow-touchpad-capture-test tests/touchpad_capture_test.cpp)
+    target_include_directories(viewflow-touchpad-capture-test PRIVATE src)
+    target_compile_options(viewflow-touchpad-capture-test PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror -UNDEBUG)
+    add_test(NAME viewflow-touchpad-capture-test COMMAND viewflow-touchpad-capture-test)
     add_executable(viewflow-window-input-lifecycle-test tests/window_input_lifecycle_test.cpp)
     target_include_directories(viewflow-window-input-lifecycle-test PRIVATE src)
     target_compile_options(viewflow-window-input-lifecycle-test PRIVATE -Wall -Wextra -Wpedantic -Werror)

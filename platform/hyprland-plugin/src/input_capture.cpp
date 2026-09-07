@@ -14,6 +14,8 @@
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/layout/supplementary/DragController.hpp>
 
+#include <aquamarine/input/Input.hpp>
+#include <libinput.h>
 #include <algorithm>
 #include <array>
 #include <cstring>
@@ -91,6 +93,48 @@ void InputCapture::start() {
         if (m_core.captured())
           info.cancelled = true;
       });
+  m_gestures[0] = events.gesture.swipe.begin.listen([this](IPointer::SSwipeBeginEvent e, Event::SCallbackInfo& info) {
+    if (m_cancelLocalGesture) return;
+    auto decision = m_swipeRoute.begin(remoteGesture());
+    if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onSwipeEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
+    if (decision.suppress) ++m_suppressedGestureEvents;
+    info.cancelled = info.cancelled || decision.suppress;
+  });
+  m_gestures[1] = events.gesture.swipe.update.listen([this](IPointer::SSwipeUpdateEvent e, Event::SCallbackInfo& info) {
+    if (m_cancelLocalGesture) return;
+    auto decision = m_swipeRoute.update(remoteGesture());
+    if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onSwipeEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
+    if (decision.suppress) ++m_suppressedGestureEvents;
+    info.cancelled = info.cancelled || decision.suppress;
+  });
+  m_gestures[2] = events.gesture.swipe.end.listen([this](IPointer::SSwipeEndEvent e, Event::SCallbackInfo& info) {
+    if (m_cancelLocalGesture) return;
+    auto decision = m_swipeRoute.end(remoteGesture());
+    if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onSwipeEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
+    if (decision.suppress) ++m_suppressedGestureEvents;
+    info.cancelled = info.cancelled || decision.suppress;
+  });
+  m_gestures[3] = events.gesture.pinch.begin.listen([this](IPointer::SPinchBeginEvent e, Event::SCallbackInfo& info) {
+    if (m_cancelLocalGesture) return;
+    auto decision = m_pinchRoute.begin(remoteGesture());
+    if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onPinchEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
+    if (decision.suppress) ++m_suppressedGestureEvents;
+    info.cancelled = info.cancelled || decision.suppress;
+  });
+  m_gestures[4] = events.gesture.pinch.update.listen([this](IPointer::SPinchUpdateEvent e, Event::SCallbackInfo& info) {
+    if (m_cancelLocalGesture) return;
+    auto decision = m_pinchRoute.update(remoteGesture());
+    if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onPinchEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
+    if (decision.suppress) ++m_suppressedGestureEvents;
+    info.cancelled = info.cancelled || decision.suppress;
+  });
+  m_gestures[5] = events.gesture.pinch.end.listen([this](IPointer::SPinchEndEvent e, Event::SCallbackInfo& info) {
+    if (m_cancelLocalGesture) return;
+    auto decision = m_pinchRoute.end(remoteGesture());
+    if (decision.cancelLocal) { m_cancelLocalGesture = true; g_pInputManager->onPinchEnd({e.timeMs, true}); m_cancelLocalGesture = false; }
+    if (decision.suppress) ++m_suppressedGestureEvents;
+    info.cancelled = info.cancelled || decision.suppress;
+  });
   reconcileDevices();
   if (g_pInputManager) {
     const auto position = g_pInputManager->getMouseCoordsInternal();
@@ -129,6 +173,7 @@ void InputCapture::tick(InputDispatchOrigin origin) {
     if (!topologyLive || !PROTO::sessionLock || PROTO::sessionLock->isLocked()) release(true);
   }
   reconcileDevices();
+  drainTouchpad();
   processCommands(tickStarted, origin);
   // A receive callback may have discovered disconnect after the first poll.
   m_windowPointer.poll(routeAllowed());
@@ -150,6 +195,15 @@ void InputCapture::reconcileDevices() {
       continue;
     auto *raw = pointer.get();
     livePointers.insert(raw);
+    if (!m_touchpad && pointer->m_isTouchpad) {
+      const auto aq = pointer->aq();
+      auto* device = aq ? aq->getLibinputHandle() : nullptr;
+      if (device) {
+        auto capture = std::make_unique<TouchpadCapture>();
+        const auto path = std::string("/dev/input/") + libinput_device_get_sysname(device);
+        if (capture->open(path)) { m_touchpad = std::move(capture); m_touchpadPointer = raw; }
+      }
+    }
     if (m_pointers.contains(raw))
       continue;
 
@@ -169,10 +223,17 @@ void InputCapture::reconcileDevices() {
           onPointerButton(event);
         });
     listeners->axis = pointer->m_pointerEvents.axis.listen(
-        [this](const IPointer::SAxisEvent &event) { onPointerAxis(event); });
+        [this, raw](const IPointer::SAxisEvent &event) {
+          // Only the captured raw device's derived wheel is redundant.
+          if (raw == m_touchpadPointer && rawTouchpad() && m_core.captured() && event.source == WL_POINTER_AXIS_SOURCE_FINGER) return;
+          onPointerAxis(event);
+        });
     listeners->frame =
         pointer->m_pointerEvents.frame.listen([this] { onPointerFrame(); });
     m_pointers.emplace(raw, std::move(listeners));
+  }
+  if (m_touchpadPointer && !livePointers.contains(m_touchpadPointer)) {
+    m_touchpad.reset(); m_touchpadPointer = nullptr;
   }
   const bool pointerDisappeared =
       std::ranges::any_of(m_pointers, [&](const auto &entry) {
@@ -460,7 +521,39 @@ void InputCapture::onPointerAxis(const IPointer::SAxisEvent &event) {
     release(false);
 }
 
+bool InputCapture::remoteGesture() const {
+  if (m_core.captured()) return true;
+  // Pointer ownership, not keyboard focus: a pinch on an unfocused Windows
+  // proxy still belongs to Windows. Native proxy surfaces have this app ID.
+  const auto surface = g_pSeatManager ? g_pSeatManager->m_state.pointerFocus.lock() : nullptr;
+  if (!surface) return false;
+  return std::ranges::any_of(Desktop::windowState()->windows(), [&](const auto& window) {
+    return window && window->m_class.starts_with("ViewflowReverse-") && window->resource() == surface;
+  });
+}
+
+void InputCapture::drainTouchpad() {
+  if (!m_touchpad) return;
+  m_touchpad->drain(m_core.captured(), [this](const TouchpadSnapshot& frame) {
+    if (!m_core.captured()) return;
+    const auto& lease = *m_core.lease();
+    protocol::PacketBuilder payload{protocol::MessageType::INPUT_TOUCHPAD_FRAME, 0};
+    payload.appendIntegral(lease.generation);
+    appendTarget(payload, lease);
+    payload.appendIntegral(m_eventSequence++);
+    payload.appendIntegral(frame.width);
+    payload.appendIntegral(frame.height);
+    payload.appendIntegral(frame.count);
+    for (const auto& c : frame.contacts) {
+      payload.appendIntegral(c.id); payload.appendIntegral(c.x); payload.appendIntegral(c.y);
+    }
+    if (!send(protocol::MessageType::INPUT_TOUCHPAD_FRAME, payload)) release(false);
+    else ++m_touchpadFrames;
+  });
+}
+
 void InputCapture::onPointerFrame() {
+  drainTouchpad();
   if (!m_core.captured())
     return;
   const auto &lease = *m_core.lease();
@@ -578,6 +671,8 @@ std::string InputCapture::captureStatusJson() const {
   out << "{\"connected\":" << m_bridge.connected() << ",\"phase\":" << int(m_core.phase())
       << ",\"pointers\":" << m_pointers.size() << ",\"held_buttons\":" << (g_pInputManager && g_pInputManager->hasHeldButtons())
       << ",\"held_keys\":" << (g_pInputManager ? g_pInputManager->getKeysFromAllKBs().size() : 0)
+      << ",\"raw_touchpad\":" << rawTouchpad() << ",\"touchpad_frames\":" << m_touchpadFrames
+      << ",\"suppressed_gesture_events\":" << m_suppressedGestureEvents
       << ",\"click_serial\":" << m_clickSerial << ",\"clicked_window\":" << m_clickedWindow
       << ",\"remote\":";
   if (const auto& r = m_core.remote()) out << "[" << r->monitorId << "," << r->x << "," << r->y << "," << r->width << "," << r->height << "]";

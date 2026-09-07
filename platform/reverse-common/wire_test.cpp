@@ -1,4 +1,5 @@
 #include "wire.hpp"
+#include "touchpad.hpp"
 #include <cassert>
 #include <functional>
 namespace vf=viewflow::reverse;
@@ -20,5 +21,13 @@ int main() {
         rejected([&]{vf::decode_alpha(malformed,4096);});
     auto input=vf::pack_input({42,7,vf::InputKind::geometry,-6100,-700,1000,700});assert(input.size()==40);
     auto event=vf::unpack_input(input);assert(event.sequence==7 && event.a==-6100 && event.c==1000);
+    vf::TouchpadAssembler touchpad;
+    for(int i=0;i<5;++i){auto contact=vf::unpack_input(vf::pack_input({42,static_cast<unsigned>(10+i),vf::InputKind::touchpad_contact,i,1000,2000,0}));assert(!touchpad.input(contact));}
+    auto fingers=touchpad.input({42,15,vf::InputKind::touchpad_frame,16000,11000,5,0});assert(fingers && fingers->count==5 && fingers->contacts[4].id==4);
+    assert(touchpad.input({42,16,vf::InputKind::touchpad_frame,16000,11000,0,0})->count==0);
+    touchpad.input({42,17,vf::InputKind::touchpad_contact,1,1000,2000,0});
+    rejected([&]{touchpad.input({43,18,vf::InputKind::touchpad_frame,16000,11000,1,0});});
+    touchpad.input({42,19,vf::InputKind::touchpad_contact,1,17000,2000,0});
+    rejected([&]{touchpad.input({42,20,vf::InputKind::touchpad_frame,16000,11000,1,0});});
     input[20]=255;rejected([&]{vf::unpack_input(input);});
 }

@@ -29,6 +29,7 @@ pub(crate) fn input_event_diagnostic(event: &InputEvent) -> String {
         InputEventKind::PointerWheel(_) => ("wheel", None),
         InputEventKind::KeyboardHidUsage(_) => ("keyboard", None),
         InputEventKind::ReleaseAll => ("release-all", None),
+        InputEventKind::Touchpad(_) => ("touchpad", None),
     };
     let mut result = format!(
         "kind={kind} generation={} sequence={}",
@@ -892,6 +893,10 @@ fn event_to_wire(event: InputEventKind) -> wire::input_event::Event {
                 repeat: key.repeat,
             })
         }
+        InputEventKind::Touchpad(frame) => wire::input_event::Event::Touchpad(wire::TouchpadFrame {
+            width: frame.width, height: frame.height,
+            contacts: frame.contacts[..usize::from(frame.count)].iter().map(|c| wire::TouchpadContact { id: c.id, x: c.x, y: c.y }).collect(),
+        }),
         InputEventKind::ReleaseAll => {
             wire::input_event::Event::ReleaseAll(wire::ReleaseAllInput {})
         }
@@ -1411,5 +1416,27 @@ mod tests {
             validate_event_freshness(&motion_event(2, 0), None, 0),
             Err(InputApplyError::InvalidInput)
         );
+    }
+}
+
+#[cfg(test)]
+mod touchpad_tests {
+    use super::*;
+    #[test]
+    fn touchpad_round_trip_and_ordered_lease_release() {
+        let mut receiver = InputReceiver::new(InputBackendMode::Disabled, Some(Id128(2))).unwrap();
+        for (generation, state) in [(1, InputLeaseState::Offered), (2, InputLeaseState::Active)] {
+            receiver.apply_lease(InputLease { generation, state, owner: Id128(1), route_to: Id128(2) }).unwrap();
+        }
+        let mut frame = viewflow_protocol::TouchpadFrame { width: 16000, height: 11000, count: 5, ..Default::default() };
+        for (i, c) in frame.contacts.iter_mut().enumerate() { *c = viewflow_protocol::TouchpadContact { id: i as u32, x: 1000, y: 2000 }; }
+        let event = InputEvent { lease_generation: 2, target_device: Id128(2), sequence: 1, sender_not_after_ns: 1, event: InputEventKind::Touchpad(frame) };
+        let wire::control_envelope::Payload::InputEvent(encoded) = input_event_payload(event) else { panic!() };
+        assert_eq!(InputEvent::try_from(encoded).unwrap(), event);
+        receiver.apply_ordered_event(&event).unwrap();
+        assert_eq!(receiver.apply_ordered_event(&event), Err(InputApplyError::EventSequence));
+        receiver.apply_ordered_event(&InputEvent { sequence: 2, event: InputEventKind::Touchpad(viewflow_protocol::TouchpadFrame { count: 0, ..frame }), ..event }).unwrap();
+        receiver.apply_lease(InputLease { generation: 3, state: InputLeaseState::Revoked, owner: Id128(1), route_to: Id128(2) }).unwrap();
+        assert!(receiver.apply_ordered_event(&InputEvent { sequence: 3, ..event }).is_err());
     }
 }
