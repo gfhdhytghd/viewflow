@@ -2393,14 +2393,21 @@ impl AtlasPreviewInput {
                             );
                             let now = clock.now_ns();
                             let (qpc, frequency) = (self.qpc)()?;
-                            let deadline_ns = event.sender_not_after_ns(qpc, frequency, now)?;
-                            let movement = desktop.prepare(
+                            let deadline_ns = match event.sender_not_after_ns(qpc, frequency, now) {
+                                Ok(deadline) => deadline,
+                                Err(_) if event.phase == viewflow_protocol::DesktopWindowMovePhase::Begin => {
+                                    desktop.reject_begin(event);
+                                    continue;
+                                }
+                                Err(error) => return Err(error),
+                            };
+                            let Some(movement) = desktop.prepare_when_committed(
                                 event,
                                 self.source,
                                 self.owner,
                                 deadline_ns,
                                 &committed,
-                            )?;
+                            )? else { continue; };
                             if movement.phase == viewflow_protocol::DesktopWindowMovePhase::Begin {
                                 if let Some(p) = &mut preview {
                                     p.pause_for_desktop_move()?;

@@ -1,0 +1,105 @@
+{
+  "first_frame": 30,
+  "units": "microseconds",
+  "physical_present_receipt": false,
+  "atlas-source-timing.encode_us": {
+    "n": 40,
+    "min": 5652,
+    "median": 6277.0,
+    "p95": 7364,
+    "max": 9332
+  },
+  "atlas-source-timing.previous_feedback_wait_us": {
+    "n": 40,
+    "min": 9,
+    "median": 10047.5,
+    "p95": 14376,
+    "max": 24056
+  },
+  "atlas-source-timing.capture_to_encode_start_us": {
+    "n": 40,
+    "min": 467,
+    "median": 3110.0,
+    "p95": 7740,
+    "max": 15567
+  },
+  "atlas-source-timing.capture_to_batch_return_us": {
+    "n": 40,
+    "min": 9502,
+    "median": 20403.0,
+    "p95": 28834,
+    "max": 32214
+  },
+  "atlas-wire-timing.feedback_us": {
+    "n": 40,
+    "min": 11662,
+    "median": 18785.0,
+    "p95": 29546,
+    "max": 103079
+  },
+  "atlas-wire-timing.total_us": {
+    "n": 40,
+    "min": 11755,
+    "median": 18881.0,
+    "p95": 29659,
+    "max": 103171
+  },
+  "atlas-receiver-timing.record_us": {
+    "n": 40,
+    "min": 97,
+    "median": 268.0,
+    "p95": 485,
+    "max": 670
+  },
+  "atlas-receiver-timing.write_us": {
+    "n": 40,
+    "min": 81,
+    "median": 197.5,
+    "p95": 332,
+    "max": 1619
+  },
+  "atlas-receiver-timing.receipt_us": {
+    "n": 40,
+    "min": 9353,
+    "median": 13300.5,
+    "p95": 17175,
+    "max": 20879
+  },
+  "pipe-admission->decoded": {
+    "n": 20,
+    "min": 1819,
+    "median": 2544.5,
+    "p95": 3593,
+    "max": 4168
+  },
+  "decoded->proxy-ready": {
+    "n": 20,
+    "min": 301,
+    "median": 409.0,
+    "p95": 1445,
+    "max": 3094
+  },
+  "proxy-ready->copy-ready": {
+    "n": 20,
+    "min": 7,
+    "median": 12.0,
+    "p95": 14,
+    "max": 16
+  },
+  "copy-ready->committed": {
+    "n": 20,
+    "min": 29,
+    "median": 55.0,
+    "p95": 70,
+    "max": 74
+  },
+  "pipe-admission->committed": {
+    "n": 20,
+    "min": 2280,
+    "median": 3305.5,
+    "p95": 4678,
+    "max": 5354
+  },
+  "native_samples": 20,
+  "native_samples_missed": 7
+}

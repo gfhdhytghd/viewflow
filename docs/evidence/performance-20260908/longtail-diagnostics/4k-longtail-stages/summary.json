@@ -1,0 +1,194 @@
+{
+  "label": "4k-longtail-stages",
+  "wire_rejected_missing_numeric_fields": 0,
+  "wire_valid": 1305,
+  "feedback_ms": {
+    "n": 1305,
+    "min": 3.435,
+    "median": 6.457,
+    "p95": 15.244,
+    "max": 297.046
+  },
+  "feedback_over_33ms": 24,
+  "feedback_over_100ms": 3,
+  "final_lost_packets": 0,
+  "observed_marker_hz": 38.50752566482378,
+  "capture_to_seen_desktop_ms": {
+    "n": 761,
+    "min": 35.078012,
+    "median": 59.171317,
+    "p95": 72.141963,
+    "max": 335.69084
+  },
+  "capture_to_native_mutation_ms": {
+    "n": 761,
+    "min": 13.563984,
+    "median": 17.844439,
+    "p95": 27.42049,
+    "max": 307.77677
+  },
+  "native_commit_hz": 54.41397585961665,
+  "slow_gpu": [
+    {
+      "frame": 422,
+      "disposition": 2,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "import",
+          243646
+        ],
+        [
+          "return",
+          244710
+        ]
+      ],
+      "total_us": 244710
+    },
+    {
+      "frame": 967,
+      "disposition": 2,
+      "marks": [
+        [
+          "fence",
+          1
+        ],
+        [
+          "import",
+          170309
+        ],
+        [
+          "return",
+          171828
+        ]
+      ],
+      "total_us": 171828
+    },
+    {
+      "frame": 966,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "import",
+          756
+        ],
+        [
+          "copy_prepare",
+          3580
+        ],
+        [
+          "nv12_alpha_readback",
+          4686
+        ],
+        [
+          "nvenc",
+          8900
+        ],
+        [
+          "output",
+          8911
+        ],
+        [
+          "cleanup",
+          8912
+        ],
+        [
+          "return",
+          75287
+        ]
+      ],
+      "total_us": 75287
+    },
+    {
+      "frame": 4,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "import",
+          5803
+        ],
+        [
+          "copy_prepare",
+          11291
+        ],
+        [
+          "nv12_alpha_readback",
+          13281
+        ],
+        [
+          "nvenc",
+          18318
+        ],
+        [
+          "output",
+          18330
+        ],
+        [
+          "cleanup",
+          18331
+        ],
+        [
+          "return",
+          18490
+        ]
+      ],
+      "total_us": 18490
+    },
+    {
+      "frame": 1093,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "import",
+          2176
+        ],
+        [
+          "copy_prepare",
+          7294
+        ],
+        [
+          "nv12_alpha_readback",
+          9147
+        ],
+        [
+          "nvenc",
+          13229
+        ],
+        [
+          "output",
+          13244
+        ],
+        [
+          "cleanup",
+          13244
+        ],
+        [
+          "return",
+          13422
+        ]
+      ],
+      "total_us": 13422
+    }
+  ],
+  "source_sample_gap_ms": {
+    "n": 0
+  },
+  "receiver_sample_gap_ms": {
+    "n": 0
+  }
+}

@@ -1,0 +1,18 @@
+#ifndef VFTRACKPAD_IIG
+#define VFTRACKPAD_IIG
+#include <HIDDriverKit/IOUserHIDDevice.iig>
+class VFTrackpad : public IOUserHIDDevice {
+public:
+    virtual bool init() override;
+    virtual void free() override;
+    virtual bool handleStart(IOService *provider) override;
+    virtual OSDictionary *newDeviceDescription() override;
+    virtual OSData *newReportDescriptor() override;
+    virtual kern_return_t submitBytes(const uint8_t *bytes, uint32_t length) LOCALONLY;
+    virtual kern_return_t getReport(IOMemoryDescriptor *report, IOHIDReportType reportType,
+        IOOptionBits options, uint32_t completionTimeout, OSAction *action) override;
+    virtual kern_return_t setReport(IOMemoryDescriptor *report, IOHIDReportType reportType,
+        IOOptionBits options, uint32_t completionTimeout, OSAction *action) override;
+    virtual void featureStatus(uint64_t *values) LOCALONLY;
+};
+#endif

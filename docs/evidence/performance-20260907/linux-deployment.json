@@ -1,0 +1,64 @@
+{
+  "observed_at": "2026-09-07T22:40:17.824890+00:00",
+  "pid": 3009781,
+  "executable": "/home/wilf/.local/lib/viewflow/desktop/vf-media-peer-main",
+  "sha256": "20570d2cc804acf72acf194f5f0c15a852a1e8a9234418c496755cba5bab67b6",
+  "monitors": [
+    {
+      "name": "DP-4",
+      "width": 6144,
+      "height": 3456,
+      "x": 0,
+      "y": 0,
+      "scale": 2,
+      "focused": true
+    },
+    {
+      "name": "HEADLESS-6",
+      "width": 3840,
+      "height": 2400,
+      "x": 3072,
+      "y": 390,
+      "scale": 2,
+      "focused": false
+    },
+    {
+      "name": "HEADLESS-1",
+      "width": 2752,
+      "height": 2064,
+      "x": 3072,
+      "y": 1590,
+      "scale": 2,
+      "focused": false
+    }
+  ],
+  "service": [
+    "ActiveState=active",
+    "SubState=running",
+    "MainPID=3009760",
+    "NRestarts=0"
+  ],
+  "sampled_logs": [
+    "atlas-source-active windows=0 input_enabled=true",
+    "atlas-source-budget frame=4 phase=encoded source_age_us=1187 remaining_us=32137",
+    "atlas-source-timing frame=4 source_identities_window_sequence_capture_ns_received_ns=[] encode_start_ns=158378471524080 encoded_ns=158378472663758 released_ns=158378472665460 batch_return_ns=158378472671888 previous_batch_return_ns=None captured_before_previous_return_us=0 socket_age_max_us=0 collector_to_encode_us=0 capture_to_encode_start_us=48 encode_us=1139 release_us=1 previous_feedback_wait_us=6 capture_to_batch_return_us=1195 encoded_ahead_submitted=true published=false native_commit_time_not_measured=true",
+    "reverse-window-bridge ready native_role=presenter paired_connection=true",
+    "atlas-media-idle connection_retained=true waiting=1450 expired_clean=0",
+    "atlas-media-idle connection_retained=true waiting=2897 expired_clean=0",
+    "atlas-media-idle connection_retained=true waiting=4341 expired_clean=0",
+    "atlas-media-idle connection_retained=true waiting=5782 expired_clean=0",
+    "atlas-media-idle connection_retained=true waiting=7227 expired_clean=0",
+    "atlas-media-idle connection_retained=true waiting=8670 expired_clean=0"
+  ],
+  "live_input_injected": false,
+  "activity_limitation": "No remote windows enrolled; idle/startup observations only.",
+  "rollback": {
+    "observed_at": "2026-09-07T22:41:38.686460+00:00",
+    "reason": "User reported worse lag and freeze during live window test. Receiver logged desktop begin lacks exact committed frame and closed the connection.",
+    "pid": 3017673,
+    "running_sha256": "de5b22c8c574fb18d781ca1ab7d893594dc4099c428bb9b205eeada29882aa6b",
+    "timing_dropin_removed": true,
+    "remote_display": "3840x2400 scale 2 at 3072,390 retained",
+    "observed_recovery": "Paired clock probes and sparse frame 240 after rollback; not a subjective smoothness acceptance."
+  }
+}

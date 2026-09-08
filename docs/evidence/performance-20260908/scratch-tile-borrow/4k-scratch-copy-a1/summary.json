@@ -1,0 +1,339 @@
+{
+  "label": "4k-scratch-copy-a1",
+  "native_commit_hz": 54.83002698006825,
+  "encode_ms": {
+    "n": 1348,
+    "min": 4.028834,
+    "median": 9.774969500000001,
+    "p95": 11.169355,
+    "max": 86.411214
+  },
+  "capture_to_mutation_ms": {
+    "n": 745,
+    "min": 13.42171,
+    "median": 18.491647,
+    "p95": 34.405286,
+    "max": 300.532535
+  },
+  "capture_to_seen_desktop_ms": {
+    "n": 745,
+    "min": 34.550466,
+    "median": 58.979293,
+    "p95": 77.521819,
+    "max": 328.294735
+  },
+  "gpu_wall_ms": {
+    "total": {
+      "n": 1322,
+      "min": 4.012,
+      "median": 8.691,
+      "p95": 9.927,
+      "max": 86.382
+    },
+    "import": {
+      "n": 1322,
+      "min": 0.586,
+      "median": 0.932,
+      "p95": 1.395,
+      "max": 85.385
+    },
+    "prepare_after_import": {
+      "n": 1319,
+      "min": 1.707,
+      "median": 1.986,
+      "p95": 2.348,
+      "max": 4.415
+    },
+    "after_cleanup": {
+      "n": 1313,
+      "min": 0.078,
+      "median": 0.163,
+      "p95": 0.253,
+      "max": 1.29
+    }
+  },
+  "gpu_detail_rejected": 0,
+  "borrow_count": 0,
+  "free_count": 1345,
+  "mode": [
+    "GPU prepared-tile storage=per-frame-copy"
+  ],
+  "slow_gpu": [
+    {
+      "frame": 715,
+      "disposition": 2,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          63080
+        ],
+        [
+          "egl_bind",
+          63157
+        ],
+        [
+          "gl_finish",
+          63160
+        ],
+        [
+          "cuda_register",
+          85357
+        ],
+        [
+          "import",
+          85385
+        ],
+        [
+          "return",
+          86382
+        ]
+      ]
+    },
+    {
+      "frame": 1284,
+      "disposition": 2,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          83590
+        ],
+        [
+          "egl_bind",
+          83683
+        ],
+        [
+          "gl_finish",
+          83688
+        ],
+        [
+          "cuda_register",
+          84486
+        ],
+        [
+          "import",
+          84525
+        ],
+        [
+          "return",
+          85654
+        ]
+      ]
+    },
+    {
+      "frame": 166,
+      "disposition": 2,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          77508
+        ],
+        [
+          "egl_bind",
+          77604
+        ],
+        [
+          "gl_finish",
+          77609
+        ],
+        [
+          "cuda_register",
+          78349
+        ],
+        [
+          "import",
+          78382
+        ],
+        [
+          "return",
+          79548
+        ]
+      ]
+    },
+    {
+      "frame": 4,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          186
+        ],
+        [
+          "egl_bind",
+          216
+        ],
+        [
+          "gl_finish",
+          320
+        ],
+        [
+          "cuda_register",
+          837
+        ],
+        [
+          "import",
+          856
+        ],
+        [
+          "copy_prepare",
+          5185
+        ],
+        [
+          "nv12_alpha_readback",
+          7231
+        ],
+        [
+          "nvenc",
+          12400
+        ],
+        [
+          "output",
+          12412
+        ],
+        [
+          "cleanup",
+          12412
+        ],
+        [
+          "tile_free",
+          12534
+        ],
+        [
+          "return",
+          12534
+        ]
+      ]
+    },
+    {
+      "frame": 1282,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          224
+        ],
+        [
+          "egl_bind",
+          311
+        ],
+        [
+          "gl_finish",
+          315
+        ],
+        [
+          "cuda_register",
+          831
+        ],
+        [
+          "import",
+          860
+        ],
+        [
+          "copy_prepare",
+          5199
+        ],
+        [
+          "nv12_alpha_readback",
+          7433
+        ],
+        [
+          "nvenc",
+          12012
+        ],
+        [
+          "output",
+          12032
+        ],
+        [
+          "cleanup",
+          12032
+        ],
+        [
+          "tile_free",
+          12263
+        ],
+        [
+          "return",
+          12264
+        ]
+      ]
+    },
+    {
+      "frame": 514,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          304
+        ],
+        [
+          "egl_bind",
+          428
+        ],
+        [
+          "gl_finish",
+          434
+        ],
+        [
+          "cuda_register",
+          1137
+        ],
+        [
+          "import",
+          1165
+        ],
+        [
+          "copy_prepare",
+          5580
+        ],
+        [
+          "nv12_alpha_readback",
+          7528
+        ],
+        [
+          "nvenc",
+          11821
+        ],
+        [
+          "output",
+          11832
+        ],
+        [
+          "cleanup",
+          11832
+        ],
+        [
+          "tile_free",
+          11965
+        ],
+        [
+          "return",
+          11966
+        ]
+      ]
+    }
+  ]
+}

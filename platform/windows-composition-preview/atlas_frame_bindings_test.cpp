@@ -75,5 +75,34 @@ int main() {
   auto stale_topology=frame(3);stale_topology.atlas->desktop=moved.atlas->desktop;
   stale_topology.atlas->desktop->topology_generation=0;
   if(moving.Stage(stale_topology))return 27;
+  AtlasFrameBindings opacity;
+  auto opaque=frame(1),transparent=frame(2);
+  opaque.atlas->patches=std::vector<viewflow::vfgp::AtlasPatch>{{0,0,0,2,2,4,4}};
+  transparent.atlas->patches=opaque.atlas->patches;
+  opaque.alpha.assign(64,255);transparent.alpha=opaque.alpha;
+  transparent.alpha[3*8+3]=0;
+  if(!opacity.Stage(opaque) || !opacity.Stage(transparent))return 28;
+  const auto* opaque_binding=opacity.Find(1,8,8);
+  const auto* transparent_binding=opacity.Find(2,8,8);
+  if(!opaque_binding || !transparent_binding ||
+      opaque_binding->opaque_patches!=std::vector<uint8_t>{1} ||
+      transparent_binding->opaque_patches!=std::vector<uint8_t>{0})return 29;
+  AtlasFrameBindings shared_opacity;
+  auto shared1=frame(1),shared2=frame(2),edge=frame(3),changed=frame(4),reshaped=frame(5);
+  const auto immutable=std::make_shared<const std::vector<uint8_t>>(64,255);
+  shared1.shared_alpha=immutable;shared2.shared_alpha=immutable;edge.shared_alpha=immutable;
+  shared1.atlas->patches=opaque.atlas->patches;shared2.atlas->patches=shared1.atlas->patches;
+  edge.atlas->patches=shared1.atlas->patches;edge.atlas->patches->at(0).x=0;edge.atlas->revision=2;
+  changed.atlas->patches=shared1.atlas->patches;changed.atlas->revision=3;
+  auto changed_samples=std::vector<uint8_t>(64,255);changed_samples[3*8+3]=0;
+  changed.shared_alpha=std::make_shared<const std::vector<uint8_t>>(std::move(changed_samples));
+  reshaped.atlas->patches=changed.atlas->patches;reshaped.atlas->revision=4;
+  reshaped.width=16;reshaped.height=4;reshaped.shared_alpha=immutable;
+  if(!shared_opacity.Stage(shared1)||!shared_opacity.Stage(shared2)||!shared_opacity.Stage(edge)||
+     !shared_opacity.Stage(changed)||!shared_opacity.Stage(reshaped))return 30;
+  for(auto id:{1,2,3,4,5}) {
+    const auto* b=shared_opacity.Find(id,id==5?16:8,id==5?4:8);
+    if(!b || b->opaque_patches!=std::vector<uint8_t>{uint8_t(id<=2)})return 31;
+  }
   return 0;
 }

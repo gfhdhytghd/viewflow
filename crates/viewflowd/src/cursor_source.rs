@@ -95,6 +95,7 @@ pub async fn run(path: &Path) -> Result<()> {
                 height * desktop.remote_display.scale / f64::from(desktop.remote_display.height),
             ),
             ready_file: ready.clone(),
+            raw_touchpad: false,
             local: crate::atlas_cursor_handoff::local_displays(&desktop.hyprland_socket, pointer.cursor_monitor_id.context("cursor monitor missing")?)?,
             remote: desktop.remote_display.rect()?,
             monitor_id: pointer

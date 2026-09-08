@@ -1,0 +1,168 @@
+{
+  "desktop_present_not_photon": true,
+  "end_to_end_latency_verified": false,
+  "observed_changes": 706,
+  "positive_present_timestamps": 706,
+  "elapsed_seconds": 19.73358324,
+  "observed_changes_per_second": 35.72589891180858,
+  "nonincreasing_present_timestamps": 0,
+  "nonincreasing_frame_ids": 0,
+  "desktop_change_gap_ms": {
+    "n": 705,
+    "min": 5.63456,
+    "median": 20.76458,
+    "p95": 55.25247,
+    "max": 360.98038
+  },
+  "producer_frame_step": {
+    "n": 705,
+    "min": 1,
+    "median": 1,
+    "p95": 4,
+    "max": 22
+  },
+  "present_to_observation_ms": {
+    "n": 706,
+    "min": 6.02137,
+    "median": 10.780175,
+    "p95": 26.1544,
+    "max": 33.88048
+  },
+  "accumulated_desktop_frames": {
+    "n": 706,
+    "min": 1,
+    "median": 1.0,
+    "p95": 2,
+    "max": 3
+  },
+  "acquire_us": {
+    "n": 706,
+    "min": 125,
+    "median": 10477.5,
+    "p95": 25209,
+    "max": 36815
+  },
+  "copy_map_us": {
+    "n": 706,
+    "min": 2785,
+    "median": 9691.0,
+    "p95": 17679,
+    "max": 27855
+  },
+  "render_to_desktop": {
+    "start": "fixture pre-draw CLOCK_MONOTONIC timestamp",
+    "end": "DXGI desktop LastPresentTime QPC timestamp",
+    "clock_model": "existing paired QUIC minimum-RTT four-timestamp estimate and uncertainty",
+    "input_to_photon_measured": false,
+    "receiver_anchor_interval_ns": 11160,
+    "missing_fixture_frame": 0,
+    "missing_preceding_clock": 0,
+    "expired_clock_mapping": 0,
+    "latency_lower_ms": {
+      "n": 706,
+      "min": 50.324018,
+      "median": 68.0396825,
+      "p95": 87.491312,
+      "max": 382.907842
+    },
+    "latency_upper_ms": {
+      "n": 706,
+      "min": 50.63998,
+      "median": 68.2993605,
+      "p95": 87.799483,
+      "max": 383.07615
+    },
+    "clock_uncertainty_ms": {
+      "n": 706,
+      "min": 0.071476,
+      "median": 0.106669,
+      "p95": 0.196771,
+      "max": 0.243639
+    },
+    "definitely_over_two_60hz_frames": 706,
+    "definitely_within_two_60hz_frames": 0,
+    "negative_upper_bound": 0,
+    "unique_capture_stage_samples": {
+      "missing_capture_marker": 0,
+      "ambiguous_repeated_marker": 1,
+      "missing_native_mutation": 0,
+      "render_to_capture_ms": {
+        "n": 705,
+        "min": 3.270479,
+        "median": 4.228428,
+        "p95": 4.864737,
+        "max": 6.122196
+      },
+      "capture_to_desktop_lower_ms": {
+        "n": 705,
+        "min": 46.020597,
+        "median": 63.835299,
+        "p95": 83.138637,
+        "max": 379.550243
+      },
+      "capture_to_desktop_upper_ms": {
+        "n": 705,
+        "min": 46.336559,
+        "median": 64.12545,
+        "p95": 83.377867,
+        "max": 379.718551
+      },
+      "capture_to_mutation_lower_ms": {
+        "n": 705,
+        "min": 19.475166,
+        "median": 26.485472,
+        "p95": 43.431613,
+        "max": 338.524723
+      },
+      "capture_to_mutation_upper_ms": {
+        "n": 705,
+        "min": 19.688858,
+        "median": 26.71412,
+        "p95": 43.653649,
+        "max": 338.693031
+      },
+      "mutation_to_desktop_ms": {
+        "n": 705,
+        "min": 13.5421,
+        "median": 36.72444,
+        "p95": 51.10352,
+        "max": 97.87466
+      },
+      "negative_mutation_to_desktop": 0,
+      "gpu_copy_completion_bounds": {
+        "scope": "event after composition surface copy on application's D3D queue; polling bounds, not DWM completion",
+        "missing": 0,
+        "invalid_or_multiple": 0,
+        "submitted_to_complete_lower_ms": {
+          "n": 705,
+          "min": 0.0,
+          "median": 10.49267,
+          "p95": 18.89273,
+          "max": 31.65833
+        },
+        "submitted_to_complete_upper_ms": {
+          "n": 705,
+          "min": 6.02003,
+          "median": 19.94661,
+          "p95": 49.02167,
+          "max": 348.77509
+        },
+        "complete_to_desktop_lower_ms": {
+          "n": 705,
+          "min": -315.58297,
+          "median": 17.44517,
+          "p95": 31.82996,
+          "max": 44.96972
+        },
+        "complete_to_desktop_upper_ms": {
+          "n": 705,
+          "min": 10.85544,
+          "median": 29.0678,
+          "p95": 45.11598,
+          "max": 101.44506
+        },
+        "ready_observed_before_desktop": 636
+      }
+    }
+  }
+}

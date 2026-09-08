@@ -1,0 +1,286 @@
+{
+  "label": "4k-longtail-pktmon",
+  "wire_rejected_missing_numeric_fields": 0,
+  "wire_valid": 1198,
+  "feedback_ms": {
+    "n": 1198,
+    "min": 3.694,
+    "median": 8.61,
+    "p95": 27.816,
+    "max": 297.389
+  },
+  "feedback_over_33ms": 49,
+  "feedback_over_100ms": 6,
+  "final_lost_packets": 0,
+  "observed_marker_hz": 33.3162279447295,
+  "capture_to_seen_desktop_ms": {
+    "n": 651,
+    "min": 36.189097,
+    "median": 61.036343,
+    "p95": 98.990472,
+    "max": 358.055962
+  },
+  "capture_to_native_mutation_ms": {
+    "n": 651,
+    "min": 13.988042,
+    "median": 20.383937,
+    "p95": 50.260154,
+    "max": 316.703152
+  },
+  "native_commit_hz": 49.25913205933791,
+  "slow_gpu": [
+    {
+      "frame": 659,
+      "disposition": 2,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          83018
+        ],
+        [
+          "egl_bind",
+          83117
+        ],
+        [
+          "gl_finish",
+          83120
+        ],
+        [
+          "cuda_register",
+          83731
+        ],
+        [
+          "import",
+          83758
+        ],
+        [
+          "return",
+          84824
+        ]
+      ],
+      "total_us": 84824
+    },
+    {
+      "frame": 1214,
+      "disposition": 2,
+      "marks": [
+        [
+          "fence",
+          1
+        ],
+        [
+          "egl_image",
+          81787
+        ],
+        [
+          "egl_bind",
+          81872
+        ],
+        [
+          "gl_finish",
+          81877
+        ],
+        [
+          "cuda_register",
+          82461
+        ],
+        [
+          "import",
+          82486
+        ],
+        [
+          "return",
+          83750
+        ]
+      ],
+      "total_us": 83750
+    },
+    {
+      "frame": 174,
+      "disposition": 3,
+      "marks": [
+        [
+          "fence",
+          1
+        ],
+        [
+          "egl_image",
+          25047
+        ],
+        [
+          "egl_bind",
+          25140
+        ],
+        [
+          "gl_finish",
+          25144
+        ],
+        [
+          "cuda_register",
+          25983
+        ],
+        [
+          "import",
+          26016
+        ],
+        [
+          "copy_prepare",
+          28079
+        ],
+        [
+          "nv12_alpha_readback",
+          29235
+        ],
+        [
+          "nvenc",
+          34266
+        ],
+        [
+          "tile_free",
+          34407
+        ],
+        [
+          "return",
+          34407
+        ]
+      ],
+      "total_us": 34407
+    },
+    {
+      "frame": 4,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          2
+        ],
+        [
+          "egl_image",
+          207
+        ],
+        [
+          "egl_bind",
+          237
+        ],
+        [
+          "gl_finish",
+          340
+        ],
+        [
+          "cuda_register",
+          914
+        ],
+        [
+          "import",
+          938
+        ],
+        [
+          "copy_prepare",
+          5458
+        ],
+        [
+          "nv12_alpha_readback",
+          7231
+        ],
+        [
+          "nvenc",
+          12439
+        ],
+        [
+          "output",
+          12452
+        ],
+        [
+          "cleanup",
+          12452
+        ],
+        [
+          "tile_free",
+          12617
+        ],
+        [
+          "return",
+          12617
+        ]
+      ],
+      "total_us": 12617
+    },
+    {
+      "frame": 697,
+      "disposition": 1,
+      "marks": [
+        [
+          "fence",
+          3
+        ],
+        [
+          "egl_image",
+          344
+        ],
+        [
+          "egl_bind",
+          1456
+        ],
+        [
+          "gl_finish",
+          1460
+        ],
+        [
+          "cuda_register",
+          1935
+        ],
+        [
+          "import",
+          1964
+        ],
+        [
+          "copy_prepare",
+          6557
+        ],
+        [
+          "nv12_alpha_readback",
+          7667
+        ],
+        [
+          "nvenc",
+          11992
+        ],
+        [
+          "output",
+          12008
+        ],
+        [
+          "cleanup",
+          12008
+        ],
+        [
+          "tile_free",
+          12185
+        ],
+        [
+          "return",
+          12186
+        ]
+      ],
+      "total_us": 12186
+    }
+  ],
+  "source_sample_gap_ms": {
+    "n": 4870,
+    "min": 0.0,
+    "median": 5.073777,
+    "p95": 5.655988,
+    "max": 6.885025
+  },
+  "receiver_sample_gap_ms": {
+    "n": 4499,
+    "min": 0.0,
+    "median": 4.9953,
+    "p95": 9.22519,
+    "max": 21.63138
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "first_frame": 30,
+  "units": "microseconds",
+  "physical_present_receipt": false,
+  "atlas-source-timing.encode_us": {
+    "n": 1149,
+    "min": 2272,
+    "median": 11471,
+    "p95": 12497,
+    "max": 245869
+  },
+  "atlas-source-timing.previous_feedback_wait_us": {
+    "n": 1149,
+    "min": 0,
+    "median": 1395,
+    "p95": 14098,
+    "max": 163423
+  },
+  "atlas-source-timing.capture_to_encode_start_us": {
+    "n": 1149,
+    "min": 116,
+    "median": 1522,
+    "p95": 7786,
+    "max": 31496
+  },
+  "atlas-source-timing.capture_to_batch_return_us": {
+    "n": 1149,
+    "min": 10763,
+    "median": 14801,
+    "p95": 33772,
+    "max": 246767
+  },
+  "atlas-wire-timing.feedback_us": {
+    "n": 1085,
+    "min": 11432,
+    "median": 16401,
+    "p95": 28392,
+    "max": 174049
+  },
+  "atlas-wire-timing.total_us": {
+    "n": 1085,
+    "min": 11555,
+    "median": 16536,
+    "p95": 28529,
+    "max": 174175
+  },
+  "atlas-receiver-timing.record_us": {
+    "n": 1085,
+    "min": 192,
+    "median": 328,
+    "p95": 612,
+    "max": 1716
+  },
+  "atlas-receiver-timing.write_us": {
+    "n": 1085,
+    "min": 92,
+    "median": 139,
+    "p95": 304,
+    "max": 1945
+  },
+  "atlas-receiver-timing.receipt_us": {
+    "n": 1085,
+    "min": 7848,
+    "median": 11211,
+    "p95": 18471,
+    "max": 154406
+  },
+  "pipe-admission->decoded": {
+    "n": 18,
+    "min": 4415,
+    "median": 6409.5,
+    "p95": 149463,
+    "max": 149463
+  },
+  "decoded->proxy-ready": {
+    "n": 18,
+    "min": 311,
+    "median": 546.5,
+    "p95": 8241,
+    "max": 8241
+  },
+  "proxy-ready->copy-ready": {
+    "n": 18,
+    "min": 10,
+    "median": 14.0,
+    "p95": 43,
+    "max": 43
+  },
+  "copy-ready->committed": {
+    "n": 18,
+    "min": 31,
+    "median": 38.0,
+    "p95": 146,
+    "max": 146
+  },
+  "pipe-admission->committed": {
+    "n": 18,
+    "min": 5068,
+    "median": 7627.5,
+    "p95": 149815,
+    "max": 149815
+  },
+  "native_samples": 18,
+  "native_samples_missed": 7
+}

@@ -89,15 +89,19 @@ class MtaVideoCompositor {
   struct Submission {
     HRESULT status{};
     std::vector<windows::CompositedFrame> frames;
+    windows::SubmitHostDurations host_durations{};
   };
   void BeginSubmit(uint64_t id, uint32_t width, uint32_t height,
-                   std::vector<uint8_t> bytes, std::vector<uint8_t> alpha) {
+                   std::vector<uint8_t> bytes, std::vector<uint8_t> alpha,
+                   std::shared_ptr<const std::vector<uint8_t>> alpha_owner = {}) {
     std::lock_guard lock(mutex_);
     if (!initialized_ || stopping_ || job_ || pending_)
       throw std::logic_error("invalid asynchronous MTA handoff");
-    pending_.emplace([id, width, height, bytes = std::move(bytes), alpha = std::move(alpha)](auto& d) {
+    pending_.emplace([id, width, height, bytes = std::move(bytes), alpha = std::move(alpha), alpha_owner = std::move(alpha_owner)](auto& d) {
       Submission result;
-      result.status = d.Submit(id, bytes, {id, width, height, alpha}, &result.frames);
+      const auto samples = alpha_owner ? std::span<const uint8_t>(*alpha_owner) : std::span<const uint8_t>(alpha);
+      result.status = d.Submit(id, bytes, {id, width, height, samples, alpha_owner}, &result.frames);
+      result.host_durations = d.last_submit_host_durations();
       return result;
     });
     job_ = pending_->runner();

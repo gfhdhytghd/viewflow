@@ -12,6 +12,25 @@ use viewflow_transport::{
     receive_control_sequenced, send_control,
 };
 
+// Opt-in diagnostics only; counters describe the whole connection, not just
+// this frame. Enqueue completion is not proof that UDP packets reached the NIC.
+fn trace_connection(connection: &Connection, frame: u64, role: &str, stage: &str, elapsed_us: u128) {
+    if !crate::atlas_feedback::trace_frame(frame) { return; }
+    let stats = connection.stats();
+    crate::atlas_feedback::trace_line(format_args!(
+        "atlas-quic-state role={role} frame={frame} stage={stage} elapsed_us={elapsed_us} rtt_us={} cwnd={} lost_packets={} lost_bytes={} congestion_events={} sent_packets={} udp_tx={} udp_tx_bytes={} udp_rx={} udp_rx_bytes={} send_buffer_space={}",
+        stats.path.rtt.as_micros(), stats.path.cwnd, stats.path.lost_packets,
+        stats.path.lost_bytes, stats.path.congestion_events, stats.path.sent_packets,
+        stats.udp_tx.datagrams, stats.udp_tx.bytes, stats.udp_rx.datagrams,
+        stats.udp_rx.bytes, connection.datagram_send_buffer_space()));
+}
+
+#[derive(Default)]
+struct ReceiveTrace {
+    first_ns: Option<u64>, last_ns: Option<u64>, staged_ns: Option<u64>,
+    datagrams: u64, bytes: u64,
+}
+
 const MAX_HANDSHAKE_BYTES: usize = 4096;
 const MAGIC: &[u8; 4] = b"VFAS";
 
@@ -103,6 +122,7 @@ impl AtlasSessionPlan {
             )
             .map_err(|_| anyhow::anyhow!("atlas TLS connection binding unavailable"))?;
         Ok(wire::AtlasSession {
+            alpha_reference: false,
             selection_rejection_version: 1,
             sparse_patch_version: 1,
             version: 1,
@@ -127,10 +147,21 @@ impl AtlasSessionPlan {
     }
 }
 
+fn alpha_identity(frame: &AtlasFrame) -> [u8; 40] {
+    let mut key = [0; 40];
+    key[..16].copy_from_slice(&frame.stream_id.0.to_be_bytes());
+    key[16..24].copy_from_slice(&frame.frame_id.to_be_bytes());
+    key[24..32].copy_from_slice(&frame.geometry_epoch.to_be_bytes());
+    key[32..40].copy_from_slice(&frame.config_generation.to_be_bytes());
+    key
+}
+
 pub struct AtlasSenderSession {
     connection: Connection,
     plan: AtlasSessionPlan,
     frame_send_poisoned: bool,
+    alpha_reference: bool,
+    alpha_cache: Option<crate::alpha_reference::AlphaReferenceCache>,
     feedback: Option<quinn::RecvStream>,
     last_disposition: Option<crate::atlas_feedback::AtlasFrameDisposition>,
     shared_control: Option<crate::shared_control::SharedControlSender>,
@@ -138,6 +169,7 @@ pub struct AtlasSenderSession {
 }
 
 pub struct AtlasReceiverSession {
+    receive_traces: std::collections::BTreeMap<u64, ReceiveTrace>,
     connection: Connection,
     pub admission: AtlasReceiver,
     pub codec: CodecSession,
@@ -158,6 +190,8 @@ pub struct AtlasReceiverSession {
     pump_started: bool,
     feedback: Option<quinn::SendStream>,
     feedback_pending: Option<AtlasFrame>,
+    alpha_reference: bool,
+    alpha_cache: Option<crate::alpha_reference::AlphaReferenceCache>,
     shared_controls: Option<tokio::sync::mpsc::Sender<DomainControl>>,
 }
 
@@ -218,6 +252,8 @@ pub async fn offer_atlas(
             connection: connection.clone(),
             plan,
             frame_send_poisoned: false,
+            alpha_reference: false,
+            alpha_cache: None,
             feedback: None,
             last_disposition: None,
             shared_control: None,
@@ -264,6 +300,7 @@ fn receiver_session(
     codec: CodecSession,
 ) -> AtlasReceiverSession {
     AtlasReceiverSession {
+        receive_traces: std::collections::BTreeMap::new(),
         connection: connection.clone(),
         admission,
         codec,
@@ -282,6 +319,8 @@ fn receiver_session(
         pump_started: false,
         feedback: None,
         feedback_pending: None,
+        alpha_reference: false,
+        alpha_cache: None,
         shared_controls: None,
     }
 }
@@ -384,6 +423,7 @@ async fn offer_warmed_atlas_mode(
     let result = timeout_at(deadline, async {
         let mut offer = plan.message(connection, false)?;
         offer.version = if dispositions { 3 } else { 2 };
+        offer.alpha_reference = dispositions && plan.alpha.codec == viewflow_transport::VideoCodec::LosslessAlpha;
         let payload = offer.encode_to_vec();
         ensure!(
             payload.len() <= MAX_HANDSHAKE_BYTES,
@@ -405,10 +445,11 @@ async fn offer_warmed_atlas_mode(
         tx.finish()?;
         let mut expected = plan.message(connection, true)?;
         expected.version = if dispositions { 3 } else { 2 };
-        ensure!(
-            read_message(&mut rx).await? == expected,
-            "atlas warmup acceptance mismatch"
-        );
+        let mut accepted = read_message(&mut rx).await?;
+        let alpha_reference = accepted.alpha_reference;
+        ensure!(!alpha_reference || offer.alpha_reference, "unsolicited atlas alpha reference capability");
+        accepted.alpha_reference = false;
+        ensure!(accepted == expected, "atlas warmup acceptance mismatch");
         let feedback = if dispositions {
             let mut stream = connection.accept_uni().await?;
             let mut magic = [0; 4];
@@ -423,6 +464,8 @@ async fn offer_warmed_atlas_mode(
             connection: connection.clone(),
             plan,
             frame_send_poisoned: false,
+            alpha_reference,
+            alpha_cache: None,
             feedback,
             last_disposition: None,
             shared_control: None,
@@ -510,6 +553,7 @@ where
         let codec = plan.validate()?;
         let mut expected = plan.message(connection, false)?;
         expected.version = if dispositions { 3 } else { 2 };
+        expected.alpha_reference = offer.alpha_reference;
         if offer != expected {
             // Keep pairing material out of diagnostics; show the mismatched
             // public plan so deployment/configuration failures are actionable.
@@ -525,9 +569,13 @@ where
         check_deadline(deadline)?;
         let mut accepted = plan.message(connection, true)?;
         accepted.version = if dispositions { 3 } else { 2 };
+        accepted.alpha_reference = offer.alpha_reference && dispositions
+            && plan.alpha.codec == viewflow_transport::VideoCodec::LosslessAlpha;
+        let alpha_reference = accepted.alpha_reference;
         write_message(&mut tx, accepted).await?;
         check_deadline(deadline)?;
         let mut receiver = receiver_session(connection, plan, admission, codec);
+        receiver.alpha_reference = alpha_reference;
         if dispositions {
             let mut stream = connection.open_uni().await?;
             stream.write_all(b"VFA3").await?;
@@ -680,6 +728,10 @@ impl AtlasSenderSession {
         if Instant::now() >= deadline {
             return Err(AtlasFrameExpiredBeforeSend.into());
         }
+        let trace = crate::atlas_feedback::trace_frame(manifest.frame_id);
+        let started = trace.then(Instant::now);
+        trace_connection(&self.connection, manifest.frame_id, "source", "begin", 0);
+        let encoded_bytes = color.len().saturating_add(alpha.len());
         // Freshness decides whether to start this frame. It must not cancel a
         // partially sent manifest/pair or terminate the stream at 33 ms.
         let deadline = Instant::now() + std::time::Duration::from_secs(5);
@@ -690,6 +742,25 @@ impl AtlasSenderSession {
                 .is_some_and(|bytes| bytes <= self.plan.policy.max_encoded_bytes),
             "atlas encoded byte limit exceeded"
         );
+        let full_alpha = alpha.clone();
+        let alpha = if self.alpha_reference && !manifest.color_keyframe && alpha.len() > 84 {
+            self.alpha_cache
+                .as_ref()
+                .and_then(|cache| cache.reference_for(
+                    alpha_identity(&manifest), manifest.width, manifest.height, &alpha,
+                ))
+                .map(|key| {
+                    let mut bytes = Vec::with_capacity(84);
+                    bytes.extend_from_slice(b"VFAF");
+                    bytes.extend_from_slice(&key);
+                    bytes::Bytes::from(bytes)
+                })
+                .unwrap_or(alpha)
+        } else {
+            alpha
+        };
+        let alpha_referenced = alpha.starts_with(b"VFAF");
+        let wire_bytes = color.len().saturating_add(alpha.len());
         let budget = self
             .connection
             .max_datagram_size()
@@ -707,16 +778,20 @@ impl AtlasSenderSession {
         };
         let color = plane(color, viewflow_transport::MediaPlane::Color)?;
         let alpha = plane(alpha, viewflow_transport::MediaPlane::Alpha)?;
+        let packet_count = color.len().saturating_add(alpha.len());
         ensure!(
             color.len() <= usize::from(u16::MAX) && alpha.len() <= usize::from(u16::MAX),
             "atlas chunk limit exceeded"
         );
         self.frame_send_poisoned = true;
         let pending = manifest.clone();
+        let fragmented = trace.then(Instant::now);
         // The internal call must bypass only the poison guard while retaining
         // all manifest validation. The flag stays set throughout every await.
         self.send_manifest_inner(manifest, sequence, deadline)
             .await?;
+        let manifest_sent = trace.then(Instant::now);
+        trace_connection(&self.connection, pending.frame_id, "source", "manifest_enqueued", started.map_or(0, |t| t.elapsed().as_micros()));
         for packet in color.chain(alpha) {
             check_deadline(deadline).context("before atlas datagram enqueue")?;
             timeout_at(
@@ -727,6 +802,8 @@ impl AtlasSenderSession {
             .context("atlas media send deadline expired")??;
         }
         check_deadline(deadline).context("after atlas datagram enqueue")?;
+        let enqueued = trace.then(Instant::now);
+        trace_connection(&self.connection, pending.frame_id, "source", "media_enqueued", started.map_or(0, |t| t.elapsed().as_micros()));
         if let Some(feedback) = &mut self.feedback {
             let feedback_deadline = deadline + std::time::Duration::from_millis(150);
             let mut record = [0; crate::atlas_feedback::RECORD_BYTES];
@@ -735,6 +812,29 @@ impl AtlasSenderSession {
                 .context("atlas disposition feedback expired")??;
             check_deadline(feedback_deadline)?;
             self.last_disposition = Some(crate::atlas_feedback::decode(&record, &pending)?);
+            trace_connection(&self.connection, pending.frame_id, "source", "feedback_received", started.map_or(0, |t| t.elapsed().as_micros()));
+        }
+        if self.alpha_reference && !alpha_referenced
+            && self.last_disposition == Some(crate::atlas_feedback::AtlasFrameDisposition::Committed)
+        {
+            self.alpha_cache = Some(crate::alpha_reference::AlphaReferenceCache::new(
+                alpha_identity(&pending), pending.width, pending.height, full_alpha,
+                warmup_limit(self.plan)?,
+            )?);
+        }
+        if let (Some(started), Some(fragmented), Some(manifest_sent), Some(enqueued)) =
+            (started, fragmented, manifest_sent, enqueued)
+        {
+            crate::atlas_feedback::trace_line(format_args!(
+                "atlas-wire-timing frame={} encoded_bytes={encoded_bytes} wire_bytes={wire_bytes} alpha_referenced={alpha_referenced} packets={packet_count} fragment_us={} manifest_us={} enqueue_us={} feedback_us={} total_us={} disposition={:?}",
+                pending.frame_id,
+                fragmented.duration_since(started).as_micros(),
+                manifest_sent.duration_since(fragmented).as_micros(),
+                enqueued.duration_since(manifest_sent).as_micros(),
+                enqueued.elapsed().as_micros(),
+                started.elapsed().as_micros(),
+                self.last_disposition,
+            ));
         }
         self.frame_send_poisoned = false;
         Ok(())
@@ -1141,6 +1241,11 @@ impl AtlasReceiverSession {
         manifest: AtlasFrame,
         now: u64,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
+        if crate::atlas_feedback::trace_frame(manifest.frame_id) {
+            self.receive_traces.entry(manifest.frame_id).or_default().staged_ns = Some(now);
+            self.trim_receive_traces();
+            trace_connection(&self.connection, manifest.frame_id, "receiver", "manifest_staged", 0);
+        }
         let expired = self
             .admission
             .stage_with_expiry(manifest.clone(), now, self.feedback.is_some())
@@ -1203,6 +1308,16 @@ impl AtlasReceiverSession {
         now: u64,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
         ensure!(!self.retired, "atlas receiver session is retired");
+        if packet.window_id == self.policy.stream_id && crate::atlas_feedback::trace_frame(packet.frame_id) {
+            let record = self.receive_traces.entry(packet.frame_id).or_default();
+            let first = record.first_ns.is_none();
+            record.first_ns.get_or_insert(now);
+            record.last_ns = Some(now);
+            record.datagrams += 1;
+            record.bytes += packet.payload.len() as u64;
+            if first { trace_connection(&self.connection, packet.frame_id, "receiver", "first_datagram_dispatched", 0); }
+            self.trim_receive_traces();
+        }
         let result = self.push_media_inner(packet, now, now);
         if result
             .as_ref()
@@ -1286,11 +1401,17 @@ impl AtlasReceiverSession {
             .alpha
             .take()
             .ok_or_else(|| anyhow::anyhow!("missing atlas alpha"))?;
+        let referenced = alpha.payload.starts_with(b"VFAF");
+        let alpha_payload = if referenced {
+            ensure!(self.alpha_reference && !layout.color_keyframe, "unnegotiated or keyframe atlas alpha reference");
+            self.alpha_cache.as_ref().context("atlas alpha reference has no baseline")?
+                .resolve(&alpha.payload[4..], alpha_identity(layout), layout.width, layout.height)?
+        } else { alpha.payload };
         ensure!(
             color
                 .payload
                 .len()
-                .checked_add(alpha.payload.len())
+                .checked_add(alpha_payload.len())
                 .is_some_and(|size| size <= self.policy.max_encoded_bytes),
             "atlas encoded pair exceeds negotiated bound"
         );
@@ -1303,7 +1424,7 @@ impl AtlasReceiverSession {
             payload,
         };
         let color = frame(MediaPlane::Color, color.payload);
-        let alpha = frame(MediaPlane::Alpha, alpha.payload);
+        let alpha = frame(MediaPlane::Alpha, alpha_payload);
         ensure!(
             !self.reference_gap || (layout.color_keyframe && layout.alpha_keyframe),
             "atlas reference gap requires a paired keyframe"
@@ -1337,13 +1458,34 @@ impl AtlasReceiverSession {
             .admission
             .admit(media, codec, now)
             .map_err(|error| anyhow::anyhow!("atlas paired admission failed: {error:?}"))?;
+        if self.alpha_reference && !referenced {
+            self.alpha_cache = Some(crate::alpha_reference::AlphaReferenceCache::new(
+                alpha_identity(&admitted.layout), admitted.layout.width, admitted.layout.height,
+                admitted.media.alpha.clone().context("admitted atlas alpha missing")?,
+                self.policy.max_encoded_bytes.max(usize::try_from(u64::from(self.policy.width) * u64::from(self.policy.height))?),
+            )?);
+        }
+        if let Some(trace) = self.receive_traces.remove(&admitted.layout.frame_id) {
+            crate::atlas_feedback::trace_line(format_args!(
+                "atlas-receive-stages frame={} first_dispatch_ns={} last_dispatch_ns={} manifest_dispatch_ns={} complete_dispatch_ns={} datagrams={} payload_bytes={} missing_first={} missing_manifest={}",
+                admitted.layout.frame_id, trace.first_ns.unwrap_or(0), trace.last_ns.unwrap_or(0),
+                trace.staged_ns.unwrap_or(0), now, trace.datagrams, trace.bytes,
+                trace.first_ns.is_none(), trace.staged_ns.is_none()));
+            trace_connection(&self.connection, admitted.layout.frame_id, "receiver", "pair_admitted", 0);
+        }
         self.last_coded_frame = Some(admitted.layout.frame_id);
         self.reference_gap = false;
         self.staged = None;
         Ok(Some(admitted))
     }
 
+    fn trim_receive_traces(&mut self) {
+        // Diagnostics must stay bounded even for stale or rejected frame IDs.
+        while self.receive_traces.len() > 4 { self.receive_traces.pop_first(); }
+    }
+
     fn retire_media(&mut self) {
+        self.receive_traces.clear();
         self.shared_controls = None;
         self.retired = true;
         self.color = None;
@@ -1392,6 +1534,12 @@ impl AtlasReceiverSession {
                     "atlas feedback handoff overlap"
                 );
                 self.feedback_pending = Some(frame.layout.clone());
+            }
+        }
+        if let Some(frame) = &frame {
+            if crate::atlas_feedback::trace_frame(frame.layout.frame_id) {
+                crate::atlas_feedback::trace_line(format_args!(
+                    "atlas-receive-handoff frame={} post_process_ns={now}", frame.layout.frame_id));
             }
         }
         Ok(frame)
@@ -1952,6 +2100,54 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn v3_alpha_reference_reuses_confirmed_bytes_and_recovers_changed_expiry() {
+        use crate::atlas_feedback::AtlasFrameDisposition::{Committed, ExpiredUnbound};
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let frames = warmup_frames();
+        let (sender, receiver) = tokio::join!(
+            offer_warmed_atlas_dispositions(&outbound, plan(), &frames, deadline),
+            accept_warmed_atlas_dispositions(&inbound, plan(), deadline, |_| async { Ok(()) })
+        );
+        let mut sender = sender.unwrap();
+        let mut receiver = receiver.unwrap();
+        assert!(sender.alpha_reference && receiver.alpha_reference);
+        for id in 1..=6 {
+            let manifest = AtlasFrame {
+                patches: None, stream_id: Id128(99), frame_id: id,
+                geometry_epoch: 1, config_generation: 1, layout_revision: 0,
+                width: 64, height: 64, source_submitted_ns: 100 + id,
+                tiles: vec![], color_keyframe: id == 1 || id == 5,
+                alpha_keyframe: true, desktop: None,
+            };
+            // Frames 2/3 reference baseline 1; 4 changes alpha but expires;
+            // 5 must independently restore both chains; 6 references baseline 5.
+            let alpha = viewflow_transport::encode_alpha_rle(64,64,&vec![if id<4 {7} else {93};4096]).unwrap();
+            let expected_reference = matches!(id,2|3|6);
+            assert_eq!(sender.alpha_cache.as_ref().and_then(|c| c.reference_for(
+                alpha_identity(&manifest),64,64,&alpha)).is_some(),expected_reference);
+            let outcome=if id==4 {ExpiredUnbound} else {Committed};
+            let send = sender.send_frame(manifest.clone(), frames[0].color.clone(), alpha.clone(), id, deadline);
+            let receive = async {
+                let admitted=receiver.next_frame(||110,deadline).await.unwrap();
+                assert_eq!(admitted.layout,manifest);
+                assert_eq!(admitted.media.alpha.as_ref(),Some(&alpha));
+                assert_eq!(admitted.media.manifest.source_submitted_ns,100+id);
+                receiver.report_disposition(&manifest,outcome,deadline).await.unwrap();
+            };
+            let (sent,())=tokio::join!(send,receive);
+            sent.unwrap();
+            let mut future = manifest.clone();
+            future.frame_id += 1;
+            let key = receiver.alpha_cache.as_ref().unwrap().reference_for(
+                alpha_identity(&future), 64, 64, &alpha,
+            ).unwrap();
+            let baseline = u64::from_be_bytes(key[16..24].try_into().unwrap());
+            assert_eq!(baseline, match id { 2 | 3 => 1, 6 => 5, _ => id });
+        }
+    }
+
+    #[tokio::test]
     async fn v3_feedback_blocks_sender_and_requires_idr_after_expiry() {
         use crate::atlas_feedback::AtlasFrameDisposition;
         let (_client, _server, outbound, inbound) = pair().await;
@@ -2222,9 +2418,11 @@ pub(crate) mod tests {
                 viewflow_transport::MediaPlane::Color,
                 viewflow_transport::MediaPlane::Alpha,
             ] {
-                outbound
-                    .send_datagram(early_packet(1, plane).encode())
-                    .unwrap();
+                let mut packet = early_packet(1, plane);
+                if plane == viewflow_transport::MediaPlane::Alpha {
+                    packet.payload = frames[0].alpha.clone();
+                }
+                outbound.send_datagram(packet.encode()).unwrap();
             }
             let request_after_grant = async {
                 let event = tokio::time::timeout(Duration::from_secs(1), events.recv())

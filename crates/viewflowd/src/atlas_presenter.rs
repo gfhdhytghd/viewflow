@@ -243,7 +243,7 @@ enum NativeInputMode {
 }
 
 pub struct AtlasPresenterPipe<W, R> {
-    io: Option<(W, R)>,
+    io: Option<(W, tokio::io::BufReader<R>)>,
     ready: bool,
     poisoned: bool,
     last_frame: u64,
@@ -259,7 +259,10 @@ pub struct AtlasPresenterPipe<W, R> {
 impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
     pub fn new(writer: W, reader: R) -> Self {
         Self {
-            io: Some((writer, reader)),
+            // ChildStdout on Windows can schedule a blocking pipe read for
+            // each request. Keep read-ahead across readiness and receipts so
+            // the bounded line parser does not issue one OS read per byte.
+            io: Some((writer, tokio::io::BufReader::with_capacity(4096, reader))),
             ready: false,
             poisoned: false,
             last_frame: 0,
@@ -664,7 +667,7 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
             receipt,
             native_deadline,
         )?;
-        if frame.layout.frame_id % 60 == 0 {
+        if crate::atlas_feedback::trace_frame(frame.layout.frame_id) {
             use std::io::Write;
             let line = format!(
                 "atlas-receiver-timing frame={} record_bytes={} color_bytes={} alpha_bytes={} record_us={} write_us={} receipt_us={}\n",
@@ -720,6 +723,40 @@ pub(crate) async fn read_line_bounded(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn native_lines_share_read_ahead_without_one_pipe_read_per_byte() {
+        struct CountedReader {
+            bytes: std::io::Cursor<Vec<u8>>,
+            reads: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        }
+        impl AsyncRead for CountedReader {
+            fn poll_read(
+                mut self: std::pin::Pin<&mut Self>,
+                cx: &mut std::task::Context<'_>,
+                buf: &mut tokio::io::ReadBuf<'_>,
+            ) -> std::task::Poll<std::io::Result<()>> {
+                self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                std::pin::Pin::new(&mut self.bytes).poll_read(cx, buf)
+            }
+        }
+        let reads = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let reader = CountedReader {
+            bytes: std::io::Cursor::new(
+                b"atlas-native-ready input_enabled=false\r\nnext-receipt\n".to_vec(),
+            ),
+            reads: reads.clone(),
+        };
+        let mut pipe = AtlasPresenterPipe::new(tokio::io::sink(), reader);
+        pipe.wait_ready(Instant::now() + std::time::Duration::from_secs(1))
+            .await
+            .unwrap();
+        assert_eq!(
+            read_line(&mut pipe.io.as_mut().unwrap().1).await.unwrap(),
+            "next-receipt"
+        );
+        assert_eq!(reads.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
     const RECOVERY_READY: &[u8] = b"atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1\n";
     const DESKTOP_READY: &[u8] = b"atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1 desktop=v1 move_mode=win\n";
     const RECOVERY_RECEIPT: &[u8] = b"atlas-input-recovered-v1 sequence=1 stream_hi=0 stream_lo=2 window_hi=0 window_lo=3 atlas_epoch=4 config_generation=5 previous_epoch=6 geometry_epoch=7 grant_generation=8 atlas_frame=9 source_frame=10 placement_generation=11 deadline_qpc=120 frequency=1000 recovered_qpc=110\n";

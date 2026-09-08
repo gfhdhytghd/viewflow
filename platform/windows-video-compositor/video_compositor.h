@@ -8,10 +8,12 @@
 #include <wrl/client.h>
 
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <vector>
 #include <optional>
 #include "texture_region.h"
+#include "gpu_timestamp_probe.h"
 
 // This class is deliberately bound to one D3D11 immediate context.  Call every
 // method from that context's owning thread (or serialize externally).
@@ -22,6 +24,9 @@ struct RawGray8Alpha {
   uint32_t width{};
   uint32_t height{};
   std::span<const uint8_t> bytes; // exactly width * height bytes, tightly packed
+  // Optional immutable owner of exactly bytes. Retention permits identity-based
+  // texture reuse; callers must never modify the allocation through an alias.
+  std::shared_ptr<const std::vector<uint8_t>> owner{};
 };
 
 struct CompositedFrame {
@@ -34,6 +39,7 @@ struct CompositedFrame {
   // A tile shares the decoded atlas texture. width/height above are its visible
   // dimensions; only this region may be copied into the proxy surface.
   std::optional<TextureRegion> source_region;
+  std::shared_ptr<GpuTimestampProbe> shader_gpu_timing;
 };
 
 // No decode, allocation, CPU readback or pixel copy: retain the same atlas COM
@@ -52,7 +58,7 @@ inline HRESULT MakeCompositedRegion(const CompositedFrame& atlas,
       desc.MipLevels != 1 || desc.ArraySize != 1)
     return E_INVALIDARG;
   *output = {atlas.frame_identity, region.width, region.height,
-             atlas.premultiplied_bgra, region};
+             atlas.premultiplied_bgra, region, atlas.shader_gpu_timing};
   return S_OK;
 }
 
@@ -205,6 +211,7 @@ class GpuVideoCompositor final {
   // cache, so it cannot overwrite an in-flight frame or a usable old pair.
   uint32_t cached_alpha_width_{}, cached_alpha_height_{};
   std::vector<uint8_t> cached_alpha_bytes_;
+  std::shared_ptr<const std::vector<uint8_t>> cached_alpha_owner_;
   Microsoft::WRL::ComPtr<ID3D11Texture2D> cached_alpha_texture_;
   Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> cached_alpha_srv_;
   std::vector<Pending> pending_;

@@ -240,11 +240,28 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
                 {p + header_bytes_, p + header_bytes_ + c},
                 std::move(alpha_scratch_)};
     frame.atlas = std::move(atlas);
-    if (version_ == 1) {
+    const std::span<const uint8_t> encoded_alpha{
+        p + header_bytes_ + c, wanted_ - header_bytes_ - c};
+    if (reuse_alpha_ && decoded_alpha_ && alpha_width_ == w &&
+        alpha_height_ == h && alpha_version_ == version_ &&
+        std::ranges::equal(encoded_alpha_, encoded_alpha)) {
+      frame.shared_alpha = decoded_alpha_;
+      frame.alpha_reused = true;
+    } else if (version_ == 1) {
       frame.alpha.assign(p + header_bytes_ + c, p + wanted_);
-    } else if (!DecodeVfar({p + header_bytes_ + c, wanted_ - header_bytes_ - c},
-                           w, h, max_, &frame.alpha, &error_)) {
+    } else if (!DecodeVfar(encoded_alpha, w, h, max_, &frame.alpha, &error_)) {
       return false;
+    }
+    if (reuse_alpha_ && !frame.shared_alpha) {
+      // Publish a complete validated snapshot. Later misses never mutate an
+      // older frame's allocation, even when the decoder has not consumed it.
+      auto decoded = std::make_shared<const std::vector<uint8_t>>(std::move(frame.alpha));
+      encoded_alpha_.assign(encoded_alpha.begin(), encoded_alpha.end());
+      decoded_alpha_ = std::move(decoded);
+      alpha_width_ = w;
+      alpha_height_ = h;
+      alpha_version_ = version_;
+      frame.shared_alpha = decoded_alpha_;
     }
     if (version_ == 4 || version_ == 5 || version_ == 7 || version_ == 8)
       frame.deadline_qpc = DeadlineQpc{be64(p + 40), be64(p + 48)};

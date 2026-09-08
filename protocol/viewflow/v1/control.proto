@@ -654,6 +654,8 @@ message AtlasSession {
   uint32 selection_rejection_version = 16;
   // v1 supports AtlasFrame v2 sparse patches and native VFGP v8.
   uint32 sparse_patch_version = 17;
+  // Optional V3 alpha references; enabled only when offered and accepted.
+  bool alpha_reference = 18;
 }
 
 message ControlEnvelope {

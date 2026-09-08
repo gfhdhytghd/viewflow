@@ -239,6 +239,7 @@ HRESULT GpuVideoCompositor::Submit(uint64_t identity, std::span<const uint8_t> a
                                     const RawGray8Alpha& a, std::vector<CompositedFrame>* completed) {
   if (!completed || !streaming_ || poisoned_ || !identity || identity <= last_frame_identity_ || identity != a.frame_identity || au.empty() || !a.width || !a.height ||
       a.bytes.size() != uint64_t(a.width) * a.height || a.bytes.size() > std::numeric_limits<UINT>::max()) return E_INVALIDARG;
+  if (a.owner && (a.owner->data() != a.bytes.data() || a.owner->size() != a.bytes.size())) return E_INVALIDARG;
   if (std::ranges::any_of(pending_, [identity](const Pending& p) { return p.identity == identity; })) return MF_E_INVALIDREQUEST;
 #ifdef VIEWFLOW_HAVE_FFMPEG
   if (ffmpeg_decoder_ && decoder_geometry_.negotiated_width &&
@@ -275,10 +276,19 @@ HRESULT GpuVideoCompositor::Submit(uint64_t identity, std::span<const uint8_t> a
     ScopedHostDuration timer(&last_submit_host_durations_.alpha_texture_create_us);
     if (cached_alpha_texture_ && cached_alpha_srv_ && cached_alpha_width_ == a.width &&
         cached_alpha_height_ == a.height &&
-        std::ranges::equal(cached_alpha_bytes_, a.bytes)) {
+        ((a.owner && a.owner == cached_alpha_owner_) ||
+         std::ranges::equal(cached_alpha_owner_ ? std::span<const uint8_t>(*cached_alpha_owner_)
+                                              : std::span<const uint8_t>(cached_alpha_bytes_), a.bytes))) {
       p.alpha = cached_alpha_texture_;
       p.alpha_srv = cached_alpha_srv_;
       last_submit_host_durations_.alpha_texture_reused = true;
+      // Equality may have matched a fresh immutable snapshot (for example after
+      // an equivalent raw/RLE representation change). Adopt it so later frames
+      // sharing that snapshot also bypass the full-plane comparison.
+      if (a.owner && a.owner != cached_alpha_owner_) {
+        cached_alpha_owner_ = a.owner;
+        cached_alpha_bytes_.clear();
+      }
     } else {
       // Keep a previous complete cache pair live if either allocation fails.
       // Pending receives its own COM references only after the new texture and
@@ -293,7 +303,13 @@ HRESULT GpuVideoCompositor::Submit(uint64_t identity, std::span<const uint8_t> a
       if (SUCCEEDED(hr)) {
         p.alpha = next_alpha;
         p.alpha_srv = next_alpha_srv;
-        cached_alpha_bytes_.assign(a.bytes.begin(), a.bytes.end());
+        if (a.owner) {
+          cached_alpha_owner_ = a.owner;
+          cached_alpha_bytes_.clear();
+        } else {
+          cached_alpha_bytes_.assign(a.bytes.begin(), a.bytes.end());
+          cached_alpha_owner_.reset();
+        }
         cached_alpha_width_ = a.width;
         cached_alpha_height_ = a.height;
         cached_alpha_texture_ = std::move(next_alpha);
@@ -495,10 +511,11 @@ HRESULT GpuVideoCompositor::Composite(IMFSample* sample, std::vector<CompositedF
   a = found->alpha_srv;
   D3D11_TEXTURE2D_DESC od{}; od.Width=found->width; od.Height=found->height; od.MipLevels=1; od.ArraySize=1; od.Format=DXGI_FORMAT_B8G8R8A8_UNORM; od.SampleDesc.Count=1; od.Usage=D3D11_USAGE_DEFAULT; od.BindFlags=D3D11_BIND_RENDER_TARGET|D3D11_BIND_SHADER_RESOURCE;
   ComPtr<ID3D11Texture2D> target; ComPtr<ID3D11RenderTargetView> rtv; { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr); hr=device_->CreateTexture2D(&od,nullptr,&target); if(SUCCEEDED(hr)) hr=device_->CreateRenderTargetView(target.Get(),nullptr,&rtv); } if(FAILED(hr)) return hr;
+  GpuTimestampScope gpu_time(device_.Get(),context_.Get(),found->identity,video_processed?"bgra_alpha_shader":"nv12_alpha_shader",0);
   ID3D11ShaderResourceView* srvs[]={video_processed?bgra.Get():y.Get(),video_processed?a.Get():uv.Get(),video_processed?nullptr:a.Get()}; ID3D11SamplerState* samplers[]={sampler_.Get()};
   { ScopedHostDuration shader_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_shader_us : nullptr); D3D11_VIEWPORT vp{0,0,float(od.Width),float(od.Height),0,1}; context_->OMSetRenderTargets(1,rtv.GetAddressOf(),nullptr); context_->RSSetViewports(1,&vp); context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); context_->VSSetShader(vs_.Get(),nullptr,0); context_->PSSetShader(video_processed?bgra_alpha_ps_.Get():ps_.Get(),nullptr,0); context_->PSSetShaderResources(0,video_processed?2:3,srvs); context_->PSSetSamplers(0,1,samplers); context_->Draw(3,0); }
   ID3D11ShaderResourceView* clear[]={nullptr,nullptr,nullptr}; context_->PSSetShaderResources(0,3,clear); context_->OMSetRenderTargets(0,nullptr,nullptr);
-  completed->push_back({found->identity,od.Width,od.Height,target,std::nullopt}); pending_.erase(found); return S_OK;
+  completed->push_back({found->identity,od.Width,od.Height,target,std::nullopt,gpu_time.Finish()}); pending_.erase(found); return S_OK;
 }
 HRESULT GpuVideoCompositor::Finish(std::vector<CompositedFrame>* completed) {
 #ifdef VIEWFLOW_HAVE_FFMPEG

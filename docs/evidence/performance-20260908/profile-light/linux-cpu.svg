@@ -1,0 +1,3574 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="694" onload="init(evt)" viewBox="0 0 1200 694" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+		if (currentSearchTerm === null) return;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="694.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >Viewflow Linux source CPU: lightweight trial</text>
+<text id="details" x="10.00" y="677" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="ignorecase" x="1174.00" y="24" >ic</text>
+<text id="matched" x="1090.00" y="677" > </text>
+<g id="frames">
+<g >
+<title>[libcudart.so.13.3.29] (25,125,625 nanoseconds, 0.29%)</title><rect x="947.3" y="581" width="3.5" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="950.32" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="517" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="799.43" y="527.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="549" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="795.96" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="867.4" y="533" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="870.36" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="533" width="1.4" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.97" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="309" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="319.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="909.1" y="453" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="912.08" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="920.2" y="389" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="923.21" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1181.7" y="501" width="2.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1184.66" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="918.1" y="485" width="4.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="921.12" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="932.7" y="373" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="935.72" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="947.3" y="517" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="950.32" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="943.2" y="453" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="946.15" y="463.5" ></text>
+</g>
+<g >
+<title>av_hwframe_get_buffer (5,025,125 nanoseconds, 0.06%)</title><rect x="815.2" y="613" width="0.7" height="15.0" fill="rgb(251,215,51)" rx="2" ry="2" />
+<text  x="818.21" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="794.3" y="453" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="797.35" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="832.6" y="405" width="6.3" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="835.59" y="415.5" ></text>
+</g>
+<g >
+<title>cudaGraphicsMapResources (40,201,000 nanoseconds, 0.47%)</title><rect x="864.6" y="613" width="5.5" height="15.0" fill="rgb(251,212,50)" rx="2" ry="2" />
+<text  x="867.58" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="405" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="415.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="421" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="373" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="832.81" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="905.6" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="908.60" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="880.6" y="277" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="883.57" y="287.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="174.8" y="613" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="177.80" y="623.5" ></text>
+</g>
+<g >
+<title>__posix_memalign (5,025,125 nanoseconds, 0.06%)</title><rect x="840.9" y="485" width="0.7" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="843.94" y="495.5" ></text>
+</g>
+<g >
+<title>__vdso_clock_gettime (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="309" width="0.7" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="1186.74" y="319.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="784.6" y="549" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="787.61" y="559.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="485" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="495.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="149" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="159.5" ></text>
+</g>
+<g >
+<title>__vdso_clock_gettime (170,854,250 nanoseconds, 2.00%)</title><rect x="1126.7" y="469" width="23.7" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="1129.72" y="479.5" >_..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (65,326,625 nanoseconds, 0.77%)</title><rect x="855.5" y="485" width="9.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="858.54" y="495.5" ></text>
+</g>
+<g >
+<title>[libEGL.so.1.1.0] (10,050,250 nanoseconds, 0.12%)</title><rect x="1176.8" y="597" width="1.4" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="1179.79" y="607.5" ></text>
+</g>
+<g >
+<title>__libc_realloc (15,075,375 nanoseconds, 0.18%)</title><rect x="811.0" y="613" width="2.1" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="814.04" y="623.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (30,150,750 nanoseconds, 0.35%)</title><rect x="922.3" y="581" width="4.2" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="925.29" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1185.8" y="453" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.83" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="941.8" y="501" width="4.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="944.76" y="511.5" ></text>
+</g>
+<g >
+<title>dlopen_implementation (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="485" width="0.7" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="1181.87" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="501" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1192.30" y="511.5" ></text>
+</g>
+<g >
+<title>cuModuleLoadData (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="437" width="0.7" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="833.51" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="357" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="367.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="820.1" y="517" width="2.8" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="823.08" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="501" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1183.96" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.27" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="898.7" y="533" width="0.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="901.65" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="463.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="175.5" y="597" width="2.8" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="178.49" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="866.7" y="421" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="869.66" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1187.9" y="373" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.91" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="923.0" y="501" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="925.99" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (1,437,185,750 nanoseconds, 16.85%)</title><rect x="952.2" y="533" width="198.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="955.19" y="543.5" >[libcuda.so.610.57.04]</text>
+</g>
+<g >
+<title>cuStreamSynchronize (1,442,210,875 nanoseconds, 16.91%)</title><rect x="951.5" y="581" width="199.6" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="954.50" y="591.5" >cuStreamSynchronize</text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="174.8" y="533" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="177.80" y="543.5" ></text>
+</g>
+<g >
+<title>cudaFree (55,276,375 nanoseconds, 0.65%)</title><rect x="842.3" y="613" width="7.7" height="15.0" fill="rgb(252,216,51)" rx="2" ry="2" />
+<text  x="845.33" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="431.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="597" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="873.84" y="607.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (20,100,500 nanoseconds, 0.24%)</title><rect x="793.7" y="549" width="2.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="796.65" y="559.5" ></text>
+</g>
+<g >
+<title>_Rb_tree_decrement (5,025,125 nanoseconds, 0.06%)</title><rect x="802.7" y="613" width="0.7" height="15.0" fill="rgb(225,95,22)" rx="2" ry="2" />
+<text  x="805.69" y="623.5" ></text>
+</g>
+<g >
+<title>[libavcodec.so.63.1.101] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="597" width="0.7" height="15.0" fill="rgb(245,188,45)" rx="2" ry="2" />
+<text  x="181.27" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="880.6" y="293" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="883.57" y="303.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="827.7" y="469" width="3.5" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="830.73" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="325" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="832.81" y="335.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="421" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="399.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="565" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1180.48" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="405" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="795.96" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1182.4" y="485" width="1.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1185.35" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="453" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="501" width="15.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="929.46" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="945.9" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="895.2" y="517" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="898.17" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="832.81" y="399.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="517" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="873.84" y="527.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="597" width="1.4" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="948.93" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="869.4" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="872.45" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="357" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="367.5" ></text>
+</g>
+<g >
+<title>local_Rb_tree_increment (5,025,125 nanoseconds, 0.06%)</title><rect x="803.4" y="597" width="0.7" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="806.39" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="325" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="335.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (40,201,000 nanoseconds, 0.47%)</title><rect x="916.7" y="565" width="5.6" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="919.73" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="909.1" y="469" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="912.08" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="341" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="832.81" y="351.5" ></text>
+</g>
+<g >
+<title>__libc_calloc (5,025,125 nanoseconds, 0.06%)</title><rect x="862.5" y="357" width="0.7" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="865.49" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="900.7" y="453" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="903.74" y="463.5" ></text>
+</g>
+<g >
+<title>std::_Rb_tree&lt;std::tuple&lt;unsigned int, long, long&gt;, std::pair&lt;std::tuple&lt;unsigned int, long, long&gt; const, std::vector&lt;viewflow::gpu::SparseCell, std::allocator&lt;viewflow::gpu::SparseCell&gt; &gt; &gt;, std::_Select1st&lt;std::pair&lt;std::tuple&lt;unsigned int, long, long&gt; const, std::vector&lt;viewflow::gpu::SparseCell, std::allocator&lt;viewflow::gpu::SparseCell&gt; &gt; &gt; &gt;, std::less&lt;std::tuple&lt;unsigned int, long, long&gt; &gt;, std::allocator&lt;std::pair&lt;std::tuple&lt;unsigned int, long, long&gt; const, std::vector&lt;viewflow::gpu::SparseCell, std::allocator&lt;viewflow::gpu::SparseCell&gt; &gt; &gt; &gt; &gt;::_M_erase (5,025,125 nanoseconds, 0.06%)</title><rect x="1169.8" y="613" width="0.7" height="15.0" fill="rgb(206,4,1)" rx="2" ry="2" />
+<text  x="1172.84" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (60,301,500 nanoseconds, 0.71%)</title><rect x="831.2" y="453" width="8.3" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="834.20" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="437" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="447.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="485" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="857.84" y="495.5" ></text>
+</g>
+<g >
+<title>cudaSetDevice (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="597" width="0.7" height="15.0" fill="rgb(233,130,31)" rx="2" ry="2" />
+<text  x="1182.57" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="925.1" y="373" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="928.07" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="399.5" ></text>
+</g>
+<g >
+<title>___pthread_once (5,025,125 nanoseconds, 0.06%)</title><rect x="852.1" y="565" width="0.7" height="15.0" fill="rgb(233,128,30)" rx="2" ry="2" />
+<text  x="855.06" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="549" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="873.84" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="949.4" y="469" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="952.41" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="911.2" y="437" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="914.17" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="437" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="447.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (20,100,500 nanoseconds, 0.24%)</title><rect x="913.9" y="597" width="2.8" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="916.95" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="915.3" y="437" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="918.34" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="793.7" y="469" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="796.65" y="479.5" ></text>
+</g>
+<g >
+<title>cuMemcpyDtoHAsync_v2 (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="565" width="15.3" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="929.46" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="904.9" y="501" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="907.91" y="511.5" ></text>
+</g>
+<g >
+<title>[libGLX.so.0.0.0] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="293" width="0.7" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="1181.87" y="303.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (1,356,783,750 nanoseconds, 15.91%)</title><rect x="963.3" y="501" width="187.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="966.32" y="511.5" >[libcuda.so.610.57.04]</text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="174.8" y="597" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="177.80" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="824.2" y="517" width="2.8" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="827.25" y="527.5" ></text>
+</g>
+<g >
+<title>cuStreamQuery (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="421" width="0.7" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="832.81" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="793.7" y="501" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="796.65" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="277" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="287.5" ></text>
+</g>
+<g >
+<title>__vdso_clock_gettime (50,251,250 nanoseconds, 0.59%)</title><rect x="885.4" y="325" width="7.0" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="888.44" y="335.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (30,150,750 nanoseconds, 0.35%)</title><rect x="788.8" y="565" width="4.2" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="791.79" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="847.9" y="453" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="850.89" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (150,753,750 nanoseconds, 1.77%)</title><rect x="871.5" y="453" width="20.9" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="874.53" y="463.5" ></text>
+</g>
+<g >
+<title>_glGetError (5,025,125 nanoseconds, 0.06%)</title><rect x="813.8" y="613" width="0.7" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="816.82" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="879.2" y="341" width="6.2" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="882.18" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="925.1" y="405" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="928.07" y="415.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="786.7" y="501" width="1.4" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="789.70" y="511.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="175.5" y="565" width="2.1" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="178.49" y="575.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (20,100,500 nanoseconds, 0.24%)</title><rect x="913.9" y="581" width="2.8" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="916.95" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="924.4" y="469" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="927.38" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (40,201,000 nanoseconds, 0.47%)</title><rect x="864.6" y="549" width="5.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="867.58" y="559.5" ></text>
+</g>
+<g >
+<title>cuMemsetD2D8Async (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="565" width="1.4" height="15.0" fill="rgb(211,30,7)" rx="2" ry="2" />
+<text  x="948.93" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="820.1" y="485" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="823.08" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="533" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1192.30" y="543.5" ></text>
+</g>
+<g >
+<title>cudaMemcpy (30,150,750 nanoseconds, 0.35%)</title><rect x="922.3" y="613" width="4.2" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="925.29" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="850.7" y="533" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="853.67" y="543.5" ></text>
+</g>
+<g >
+<title>[libavcodec.so.63.1.101] (15,075,375 nanoseconds, 0.18%)</title><rect x="178.3" y="613" width="2.1" height="15.0" fill="rgb(245,188,45)" rx="2" ry="2" />
+<text  x="181.27" y="623.5" ></text>
+</g>
+<g >
+<title>cudaStreamSynchronize (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="581" width="2.8" height="15.0" fill="rgb(217,58,14)" rx="2" ry="2" />
+<text  x="799.43" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="780.4" y="613" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="783.44" y="623.5" ></text>
+</g>
+<g >
+<title>__clock_gettime (20,100,500 nanoseconds, 0.24%)</title><rect x="939.0" y="405" width="2.8" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="941.98" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="907.0" y="533" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="909.99" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="431.5" ></text>
+</g>
+<g >
+<title>calloc@plt (5,025,125 nanoseconds, 0.06%)</title><rect x="863.2" y="421" width="0.7" height="15.0" fill="rgb(211,30,7)" rx="2" ry="2" />
+<text  x="866.19" y="431.5" ></text>
+</g>
+<g >
+<title>cuMemcpyDtoH_v2 (30,150,750 nanoseconds, 0.35%)</title><rect x="922.3" y="565" width="4.2" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="925.29" y="575.5" ></text>
+</g>
+<g >
+<title>local_Rb_tree_decrement (5,025,125 nanoseconds, 0.06%)</title><rect x="802.7" y="597" width="0.7" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="805.69" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-egl-wayland2.so.1.0.1] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="533" width="0.7" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="1180.48" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="787.4" y="469" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="790.40" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="905.6" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="908.60" y="415.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1169.1" y="597" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1172.14" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="865.3" y="469" width="2.1" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="868.27" y="479.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (10,050,250 nanoseconds, 0.12%)</title><rect x="850.0" y="597" width="1.4" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="852.98" y="607.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="813.1" y="565" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="816.12" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1181.18" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.27" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="309" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="319.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1181.18" y="431.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (10,050,250 nanoseconds, 0.12%)</title><rect x="1178.2" y="581" width="1.4" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1181.18" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="795.96" y="463.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="421" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1180.48" y="431.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="851.4" y="597" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="854.37" y="607.5" ></text>
+</g>
+<g >
+<title>cuGraphicsGLRegisterImage (85,427,125 nanoseconds, 1.00%)</title><rect x="852.8" y="581" width="11.8" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="855.76" y="591.5" ></text>
+</g>
+<g >
+<title>cudaMemcpy2DAsync (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="565" width="0.7" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="795.96" y="575.5" ></text>
+</g>
+<g >
+<title>avcodec_send_frame (190,954,750 nanoseconds, 2.24%)</title><rect x="815.9" y="613" width="26.4" height="15.0" fill="rgb(222,79,19)" rx="2" ry="2" />
+<text  x="818.90" y="623.5" >a..</text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="824.2" y="501" width="2.8" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="827.25" y="511.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="174.8" y="565" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="177.80" y="575.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="851.4" y="581" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="854.37" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="859.0" y="373" width="4.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="862.02" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="357" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="832.81" y="367.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="942.5" y="469" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="945.46" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="501" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="373" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="383.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1180.3" y="581" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1183.27" y="591.5" ></text>
+</g>
+<g >
+<title>[libEGL.so.1.1.0] (5,025,125 nanoseconds, 0.06%)</title><rect x="1151.8" y="597" width="0.7" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="1154.76" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="453" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="945.9" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="431.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="389" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="838.2" y="357" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="841.16" y="367.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="469" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.27" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="421" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="431.5" ></text>
+</g>
+<g >
+<title>cudaMalloc (35,175,875 nanoseconds, 0.41%)</title><rect x="898.7" y="613" width="4.8" height="15.0" fill="rgb(219,67,16)" rx="2" ry="2" />
+<text  x="901.65" y="623.5" ></text>
+</g>
+<g >
+<title>__glDispatchCheckMultithreaded (5,025,125 nanoseconds, 0.06%)</title><rect x="177.6" y="581" width="0.7" height="15.0" fill="rgb(254,227,54)" rx="2" ry="2" />
+<text  x="180.58" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.0" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.05" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="907.0" y="517" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="909.99" y="527.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="174.8" y="549" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="177.80" y="559.5" ></text>
+</g>
+<g >
+<title>__libc_malloc (10,050,250 nanoseconds, 0.12%)</title><rect x="809.6" y="613" width="1.4" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="812.65" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (60,301,500 nanoseconds, 0.71%)</title><rect x="831.2" y="437" width="8.3" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="834.20" y="447.5" ></text>
+</g>
+<g >
+<title>getenv (5,025,125 nanoseconds, 0.06%)</title><rect x="1152.5" y="613" width="0.6" height="15.0" fill="rgb(221,73,17)" rx="2" ry="2" />
+<text  x="1155.45" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="925.1" y="437" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="928.07" y="447.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="229" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="239.5" ></text>
+</g>
+<g >
+<title>_dl_catch_exception (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="357" width="0.7" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="1181.87" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1192.30" y="447.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (55,276,375 nanoseconds, 0.65%)</title><rect x="842.3" y="597" width="7.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="845.33" y="607.5" ></text>
+</g>
+<g >
+<title>_Rb_tree_increment (5,025,125 nanoseconds, 0.06%)</title><rect x="803.4" y="613" width="0.7" height="15.0" fill="rgb(235,139,33)" rx="2" ry="2" />
+<text  x="806.39" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="373" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="229" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="239.5" ></text>
+</g>
+<g >
+<title>viewflow::gpu::composeSparseAtlas (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="613" width="0.7" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="1192.30" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="533" width="0.7" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.27" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="485" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="915.3" y="421" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="918.34" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="501" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="917.64" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvidia-egl-wayland2.so.1.0.1] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="549" width="0.7" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="1180.48" y="559.5" ></text>
+</g>
+<g >
+<title>cudaLaunchKernel (35,175,875 nanoseconds, 0.41%)</title><rect x="893.8" y="613" width="4.9" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="896.78" y="623.5" ></text>
+</g>
+<g >
+<title>___pthread_rwlock_rdlock (5,025,125 nanoseconds, 0.06%)</title><rect x="906.3" y="533" width="0.7" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="909.30" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="865.3" y="501" width="2.1" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="868.27" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (160,804,000 nanoseconds, 1.89%)</title><rect x="871.5" y="533" width="22.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="874.53" y="543.5" >[..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="469" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (623,115,500 nanoseconds, 7.31%)</title><rect x="1038.4" y="437" width="86.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1041.41" y="447.5" >[libcuda.s..</text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="501" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1181.18" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="341" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.27" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1185.8" y="421" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.83" y="431.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="373" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="383.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (115,577,875 nanoseconds, 1.36%)</title><rect x="876.4" y="373" width="16.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="879.40" y="383.5" ></text>
+</g>
+<g >
+<title>cuGraphicsGLRegisterImage (15,075,375 nanoseconds, 0.18%)</title><rect x="1181.7" y="565" width="2.0" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="1184.66" y="575.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="581" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1182.57" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="485" width="15.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="929.46" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="797.1" y="469" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="800.13" y="479.5" ></text>
+</g>
+<g >
+<title>___pthread_mutex_lock (5,025,125 nanoseconds, 0.06%)</title><rect x="946.6" y="421" width="0.7" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="949.63" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="485" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1183.96" y="495.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="174.8" y="581" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="177.80" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="357" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="367.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="826.3" y="485" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="829.33" y="495.5" ></text>
+</g>
+<g >
+<title>__clock_gettime (5,025,125 nanoseconds, 0.06%)</title><rect x="805.5" y="613" width="0.7" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="808.47" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (150,753,750 nanoseconds, 1.77%)</title><rect x="871.5" y="501" width="20.9" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="874.53" y="511.5" ></text>
+</g>
+<g >
+<title>arena_for_chunk (5,025,125 nanoseconds, 0.06%)</title><rect x="809.0" y="597" width="0.6" height="15.0" fill="rgb(252,216,51)" rx="2" ry="2" />
+<text  x="811.95" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (135,678,375 nanoseconds, 1.59%)</title><rect x="873.6" y="389" width="18.8" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="876.62" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1180.3" y="597" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1183.27" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="469" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="479.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="581" width="2.1" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1190.22" y="591.5" ></text>
+</g>
+<g >
+<title>tokio-rt-worker (552,763,750 nanoseconds, 6.48%)</title><rect x="10.0" y="629" width="76.5" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="13.00" y="639.5" >tokio-rt..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="947.3" y="549" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="950.32" y="559.5" ></text>
+</g>
+<g >
+<title>_dl_catch_exception (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="213" width="0.7" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="1181.87" y="223.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="415.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.7" y="453" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1184.66" y="463.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="533" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1187.44" y="543.5" ></text>
+</g>
+<g >
+<title>cuMemFreeAsync (10,050,250 nanoseconds, 0.12%)</title><rect x="850.0" y="581" width="1.4" height="15.0" fill="rgb(226,97,23)" rx="2" ry="2" />
+<text  x="852.98" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="820.1" y="533" width="2.8" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="823.08" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="373" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="383.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (40,201,000 nanoseconds, 0.47%)</title><rect x="864.6" y="597" width="5.5" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="867.58" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (85,427,125 nanoseconds, 1.00%)</title><rect x="827.7" y="485" width="11.8" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="830.73" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="911.9" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="914.86" y="415.5" ></text>
+</g>
+<g >
+<title>viewflow::gpu::GpuDmabufEncoder::encodeAtlas (50,251,250 nanoseconds, 0.59%)</title><rect x="1180.3" y="613" width="6.9" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="1183.27" y="623.5" ></text>
+</g>
+<g >
+<title>_dl_catch_exception (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="133" width="0.7" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="1181.87" y="143.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="117" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="127.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (15,075,375 nanoseconds, 0.18%)</title><rect x="1181.7" y="581" width="2.0" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1184.66" y="591.5" ></text>
+</g>
+<g >
+<title>cudaMemcpyAsync (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="597" width="2.1" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="1190.22" y="607.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="849.3" y="389" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="852.28" y="399.5" ></text>
+</g>
+<g >
+<title>cuMemcpyDtoHAsync_v2 (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="549" width="2.1" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="1190.22" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="517" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1181.87" y="527.5" ></text>
+</g>
+<g >
+<title>___dlopen (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="501" width="0.7" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="1181.87" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1187.9" y="405" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.91" y="415.5" ></text>
+</g>
+<g >
+<title>cuLaunchKernel (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="453" width="1.4" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="181.97" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="849.3" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="852.28" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="794.3" y="437" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="797.35" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="905.6" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="908.60" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="517" width="0.7" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.27" y="527.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (140,703,500 nanoseconds, 1.65%)</title><rect x="872.9" y="405" width="19.5" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="875.92" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="533" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1183.96" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="922.3" y="533" width="4.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="925.29" y="543.5" ></text>
+</g>
+<g >
+<title>[libGLX_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="101" width="0.7" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="1181.87" y="111.5" ></text>
+</g>
+<g >
+<title>cuDevicePrimaryCtxRetain (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="501" width="0.7" height="15.0" fill="rgb(209,19,4)" rx="2" ry="2" />
+<text  x="1182.57" y="511.5" ></text>
+</g>
+<g >
+<title>cuMemAlloc_v2 (30,150,750 nanoseconds, 0.35%)</title><rect x="899.3" y="565" width="4.2" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="902.35" y="575.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (40,201,000 nanoseconds, 0.47%)</title><rect x="916.7" y="597" width="5.6" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="919.73" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="517" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="917.64" y="527.5" ></text>
+</g>
+<g >
+<title>cuGraphicsUnregisterResource (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="565" width="0.7" height="15.0" fill="rgb(240,164,39)" rx="2" ry="2" />
+<text  x="1186.74" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="923.7" y="485" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="926.68" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (90,452,250 nanoseconds, 1.06%)</title><rect x="827.0" y="501" width="12.5" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="830.03" y="511.5" ></text>
+</g>
+<g >
+<title>viewflow::gpu::classifySparseCells (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="613" width="2.1" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="1190.22" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="907.0" y="549" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="909.99" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="485" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1192.30" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="373" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.27" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="293" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="303.5" ></text>
+</g>
+<g >
+<title>av_malloc (5,025,125 nanoseconds, 0.06%)</title><rect x="840.9" y="517" width="0.7" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="843.94" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="903.5" y="565" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="906.52" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="533" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="917.64" y="543.5" ></text>
+</g>
+<g >
+<title>___pthread_once (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="437" width="0.7" height="15.0" fill="rgb(233,128,30)" rx="2" ry="2" />
+<text  x="1180.48" y="447.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.7" y="485" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1184.66" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="868.1" y="517" width="2.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="871.06" y="527.5" ></text>
+</g>
+<g >
+<title>__getpid (5,025,125 nanoseconds, 0.06%)</title><rect x="1151.8" y="581" width="0.7" height="15.0" fill="rgb(221,74,17)" rx="2" ry="2" />
+<text  x="1154.76" y="591.5" ></text>
+</g>
+<g >
+<title>cuGraphicsUnregisterResource (160,804,000 nanoseconds, 1.89%)</title><rect x="871.5" y="581" width="22.3" height="15.0" fill="rgb(240,164,39)" rx="2" ry="2" />
+<text  x="874.53" y="591.5" >c..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="920.9" y="373" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="923.90" y="383.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (160,804,000 nanoseconds, 1.89%)</title><rect x="871.5" y="597" width="22.3" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="874.53" y="607.5" >[..</text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="176.9" y="501" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="179.88" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (95,477,375 nanoseconds, 1.12%)</title><rect x="879.2" y="357" width="13.2" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="882.18" y="367.5" ></text>
+</g>
+<g >
+<title>cuMemFree_v2 (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="565" width="0.7" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="1183.96" y="575.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="245" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1181.87" y="255.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1187.9" y="357" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.91" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (85,427,125 nanoseconds, 1.00%)</title><rect x="852.8" y="517" width="11.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="855.76" y="527.5" ></text>
+</g>
+<g >
+<title>viewflow::gpu::GpuDmabufEncoder::encodeAtlas (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="597" width="2.8" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="799.43" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="501" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="795.96" y="511.5" ></text>
+</g>
+<g >
+<title>cuLaunchKernel (35,175,875 nanoseconds, 0.41%)</title><rect x="893.8" y="581" width="4.9" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="896.78" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="437" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="447.5" ></text>
+</g>
+<g >
+<title>syscall_cancel (5,025,125 nanoseconds, 0.06%)</title><rect x="813.1" y="597" width="0.7" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="816.12" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="517" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1183.96" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="948.0" y="485" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="951.02" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="787.4" y="453" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="790.40" y="463.5" ></text>
+</g>
+<g >
+<title>cudaMemcpyAsync (140,703,500 nanoseconds, 1.65%)</title><rect x="926.5" y="613" width="19.4" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="929.46" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="453" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.27" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="945.2" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.24" y="431.5" ></text>
+</g>
+<g >
+<title>cudaMemcpy2DAsync (25,125,625 nanoseconds, 0.29%)</title><rect x="913.3" y="613" width="3.4" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="916.25" y="623.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="581" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1186.74" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="785.3" y="549" width="2.8" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="788.31" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (50,251,250 nanoseconds, 0.59%)</title><rect x="932.0" y="405" width="7.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="935.03" y="415.5" ></text>
+</g>
+<g >
+<title>av_log (5,025,125 nanoseconds, 0.06%)</title><rect x="818.7" y="533" width="0.7" height="15.0" fill="rgb(230,119,28)" rx="2" ry="2" />
+<text  x="821.69" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="845.1" y="469" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="848.11" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="325" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="335.5" ></text>
+</g>
+<g >
+<title>cuMemcpyHtoDAsync_v2 (30,150,750 nanoseconds, 0.35%)</title><rect x="941.8" y="565" width="4.1" height="15.0" fill="rgb(205,1,0)" rx="2" ry="2" />
+<text  x="944.76" y="575.5" ></text>
+</g>
+<g >
+<title>[libavcodec.so.63.1.101] (180,904,500 nanoseconds, 2.12%)</title><rect x="817.3" y="581" width="25.0" height="15.0" fill="rgb(245,188,45)" rx="2" ry="2" />
+<text  x="820.30" y="591.5" >[..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="904.9" y="533" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="907.91" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="950.1" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="953.11" y="415.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="485" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.27" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="949.4" y="453" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="952.41" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="176.2" y="517" width="1.4" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="179.19" y="527.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="916.7" y="533" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="919.73" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="850.7" y="565" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="853.67" y="575.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="405" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1180.48" y="415.5" ></text>
+</g>
+<g >
+<title>___pthread_rwlock_unlock (5,025,125 nanoseconds, 0.06%)</title><rect x="822.2" y="469" width="0.7" height="15.0" fill="rgb(226,98,23)" rx="2" ry="2" />
+<text  x="825.16" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="501" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="799.43" y="511.5" ></text>
+</g>
+<g >
+<title>viewflow::gpu::GpuDmabufEncoder::encodeAtlas (60,301,500 nanoseconds, 0.71%)</title><rect x="788.1" y="581" width="8.3" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="791.09" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="373" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (50,251,250 nanoseconds, 0.59%)</title><rect x="843.0" y="565" width="7.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="846.02" y="575.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="501" width="1.4" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.97" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="925.1" y="389" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="928.07" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="549" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1183.96" y="559.5" ></text>
+</g>
+<g >
+<title>[libEGL.so.1.1.0] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="581" width="0.7" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="1179.79" y="591.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (10,050,250 nanoseconds, 0.12%)</title><rect x="780.4" y="597" width="1.4" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="783.44" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1181.18" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="866.0" y="437" width="1.4" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="868.97" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (85,427,125 nanoseconds, 1.00%)</title><rect x="852.8" y="533" width="11.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="855.76" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="922.3" y="549" width="4.2" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="925.29" y="559.5" ></text>
+</g>
+<g >
+<title>av_vlog (5,025,125 nanoseconds, 0.06%)</title><rect x="818.7" y="517" width="0.7" height="15.0" fill="rgb(218,62,14)" rx="2" ry="2" />
+<text  x="821.69" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="860.4" y="357" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="863.41" y="367.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="175.5" y="613" width="2.8" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="178.49" y="623.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="533" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="795.96" y="543.5" ></text>
+</g>
+<g >
+<title>cudaGraphicsSubResourceGetMappedArray (5,025,125 nanoseconds, 0.06%)</title><rect x="870.1" y="613" width="0.7" height="15.0" fill="rgb(235,140,33)" rx="2" ry="2" />
+<text  x="873.14" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="897.3" y="469" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="900.26" y="479.5" ></text>
+</g>
+<g >
+<title>[libavcodec.so.63.1.101] (185,929,625 nanoseconds, 2.18%)</title><rect x="816.6" y="597" width="25.7" height="15.0" fill="rgb(245,188,45)" rx="2" ry="2" />
+<text  x="819.60" y="607.5" >[..</text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="421" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="431.5" ></text>
+</g>
+<g >
+<title>__munmap (5,025,125 nanoseconds, 0.06%)</title><rect x="881.3" y="309" width="0.7" height="15.0" fill="rgb(211,29,7)" rx="2" ry="2" />
+<text  x="884.27" y="319.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="581" width="0.7" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.27" y="591.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (1,447,236,000 nanoseconds, 16.97%)</title><rect x="950.8" y="597" width="200.3" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="953.80" y="607.5" >[libcudart.so.13.3.29]</text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="501" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1186.74" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="902.1" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="905.13" y="431.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="325" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="335.5" ></text>
+</g>
+<g >
+<title>vf-media-peer (7,974,873,375 nanoseconds, 93.52%)</title><rect x="86.5" y="629" width="1103.5" height="15.0" fill="rgb(238,154,37)" rx="2" ry="2" />
+<text  x="89.49" y="639.5" >vf-media-peer</text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="277" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="287.5" ></text>
+</g>
+<g >
+<title>viewflowd::gpu_compatible_encoder::GpuCompatibleEncoder::finish_submission (25,125,625 nanoseconds, 0.29%)</title><rect x="799.2" y="597" width="3.5" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="802.22" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="373" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (85,427,125 nanoseconds, 1.00%)</title><rect x="852.8" y="565" width="11.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="855.76" y="575.5" ></text>
+</g>
+<g >
+<title>__qsort_r (5,025,125 nanoseconds, 0.06%)</title><rect x="863.9" y="437" width="0.7" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="866.88" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="421" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="325" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="335.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (140,703,500 nanoseconds, 1.65%)</title><rect x="926.5" y="597" width="19.4" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="929.46" y="607.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="835.4" y="389" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="838.37" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="861.1" y="325" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="864.10" y="335.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="869.4" y="485" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="872.45" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="565" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="873.84" y="575.5" ></text>
+</g>
+<g >
+<title>dlopen_implementation (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="261" width="0.7" height="15.0" fill="rgb(248,198,47)" rx="2" ry="2" />
+<text  x="1181.87" y="271.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="925.1" y="421" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="928.07" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="485" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="495.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="373" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="902.1" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="905.13" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="903.5" y="549" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="906.52" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="453" width="15.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="929.46" y="463.5" ></text>
+</g>
+<g >
+<title>av_mallocz (5,025,125 nanoseconds, 0.06%)</title><rect x="840.9" y="533" width="0.7" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="843.94" y="543.5" ></text>
+</g>
+<g >
+<title>cuGraphicsSubResourceGetMappedArray (5,025,125 nanoseconds, 0.06%)</title><rect x="870.1" y="581" width="0.7" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="873.14" y="591.5" ></text>
+</g>
+<g >
+<title>__clock_gettime (25,125,625 nanoseconds, 0.29%)</title><rect x="882.0" y="325" width="3.4" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="884.96" y="335.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (1,442,210,875 nanoseconds, 16.91%)</title><rect x="951.5" y="565" width="199.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="954.50" y="575.5" >[libcuda.so.610.57.04]</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="437" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="918.8" y="469" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="921.82" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1183.96" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="895.2" y="501" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="898.17" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="948.0" y="501" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="951.02" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (1,437,185,750 nanoseconds, 16.85%)</title><rect x="952.2" y="517" width="198.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="955.19" y="527.5" >[libcuda.so.610.57.04]</text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="437" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="943.2" y="469" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="946.15" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="453" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="917.64" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="176.2" y="549" width="1.4" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="179.19" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (160,804,000 nanoseconds, 1.89%)</title><rect x="871.5" y="549" width="22.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="874.53" y="559.5" >[..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="941.8" y="533" width="4.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="944.76" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="950.1" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="953.11" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="501" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="309" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="319.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="309" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="319.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="893.8" y="549" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.78" y="559.5" ></text>
+</g>
+<g >
+<title>___pthread_mutex_init (5,025,125 nanoseconds, 0.06%)</title><rect x="902.8" y="437" width="0.7" height="15.0" fill="rgb(235,140,33)" rx="2" ry="2" />
+<text  x="905.82" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="785.3" y="533" width="2.8" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="788.31" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="341" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="351.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="485" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="495.5" ></text>
+</g>
+<g >
+<title>cudaMemset2DAsync (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="613" width="1.4" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="948.93" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="437" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="832.81" y="415.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (150,753,750 nanoseconds, 1.77%)</title><rect x="871.5" y="485" width="20.9" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="874.53" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (105,527,625 nanoseconds, 1.24%)</title><rect x="927.2" y="421" width="14.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="930.16" y="431.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="341" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="485" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="799.43" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="517" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="527.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="373" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="549" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.74" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="479.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="565" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1179.79" y="575.5" ></text>
+</g>
+<g >
+<title>_dl_catch_exception (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="389" width="0.7" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="1181.87" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="517" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="950.1" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="953.11" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="357" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="485" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.13" y="495.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1151.1" y="597" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1154.06" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="798.5" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="801.52" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (50,251,250 nanoseconds, 0.59%)</title><rect x="856.9" y="437" width="7.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="859.93" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="795.96" y="447.5" ></text>
+</g>
+<g >
+<title>cudaStreamSynchronize (1,447,236,000 nanoseconds, 16.97%)</title><rect x="950.8" y="613" width="200.3" height="15.0" fill="rgb(217,58,14)" rx="2" ry="2" />
+<text  x="953.80" y="623.5" >cudaStreamSynchronize</text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="880.6" y="325" width="1.4" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="883.57" y="335.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="517" width="15.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="929.46" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1187.9" y="389" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.91" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="919.5" y="437" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="922.51" y="447.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="485" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1180.48" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="463.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="517" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1182.57" y="527.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="357" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="1121.9" y="405" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1124.86" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="898.7" y="549" width="0.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="901.65" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="905.6" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="908.60" y="447.5" ></text>
+</g>
+<g >
+<title>cuMemsetD8Async (25,125,625 nanoseconds, 0.29%)</title><rect x="947.3" y="565" width="3.5" height="15.0" fill="rgb(223,87,20)" rx="2" ry="2" />
+<text  x="950.32" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="941.8" y="549" width="4.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="944.76" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="911.2" y="421" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="914.17" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="517" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="357" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="367.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="783.9" y="597" width="4.2" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="786.92" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="469" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="479.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="549" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1182.57" y="559.5" ></text>
+</g>
+<g >
+<title>___pthread_cond_broadcast (5,025,125 nanoseconds, 0.06%)</title><rect x="838.9" y="421" width="0.6" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="841.85" y="431.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="828.4" y="421" width="1.4" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="831.42" y="431.5" ></text>
+</g>
+<g >
+<title>cuStreamSynchronize (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="565" width="2.1" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="1188.13" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="900.0" y="501" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="903.04" y="511.5" ></text>
+</g>
+<g >
+<title>cuCtxPopCurrent_v2 (5,025,125 nanoseconds, 0.06%)</title><rect x="841.6" y="549" width="0.7" height="15.0" fill="rgb(230,118,28)" rx="2" ry="2" />
+<text  x="844.63" y="559.5" ></text>
+</g>
+<g >
+<title>cudaFreeAsync (10,050,250 nanoseconds, 0.12%)</title><rect x="850.0" y="613" width="1.4" height="15.0" fill="rgb(207,11,2)" rx="2" ry="2" />
+<text  x="852.98" y="623.5" ></text>
+</g>
+<g >
+<title>___pthread_mutex_lock (5,025,125 nanoseconds, 0.06%)</title><rect x="839.5" y="501" width="0.7" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="842.55" y="511.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="865.3" y="533" width="2.1" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="868.27" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (160,804,000 nanoseconds, 1.89%)</title><rect x="871.5" y="565" width="22.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="874.53" y="575.5" >[..</text>
+</g>
+<g >
+<title>cudaMallocAsync (25,125,625 nanoseconds, 0.29%)</title><rect x="903.5" y="613" width="3.5" height="15.0" fill="rgb(225,92,22)" rx="2" ry="2" />
+<text  x="906.52" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="485" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="917.64" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="533" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="799.43" y="543.5" ></text>
+</g>
+<g >
+<title>__clock_gettime (185,929,625 nanoseconds, 2.18%)</title><rect x="1124.6" y="485" width="25.8" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="1127.64" y="495.5" >_..</text>
+</g>
+<g >
+<title>cuInit (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="485" width="0.7" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="1181.18" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="836.1" y="389" width="2.8" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="839.07" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="53" width="0.7" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1181.87" y="63.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="533" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1181.87" y="543.5" ></text>
+</g>
+<g >
+<title>cuLaunchKernel (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="437" width="0.7" height="15.0" fill="rgb(238,155,37)" rx="2" ry="2" />
+<text  x="181.27" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="485" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="495.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="549" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1179.79" y="559.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (140,703,500 nanoseconds, 1.65%)</title><rect x="926.5" y="581" width="19.4" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="929.46" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="565" width="1.4" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.97" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="923.0" y="517" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="925.99" y="527.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="866.0" y="453" width="1.4" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="868.97" y="463.5" ></text>
+</g>
+<g >
+<title>internal_syscall_cancel (5,025,125 nanoseconds, 0.06%)</title><rect x="813.1" y="581" width="0.7" height="15.0" fill="rgb(228,110,26)" rx="2" ry="2" />
+<text  x="816.12" y="591.5" ></text>
+</g>
+<g >
+<title>[unknown] (105,527,625 nanoseconds, 1.24%)</title><rect x="788.1" y="613" width="14.6" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="791.09" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="389" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="843.7" y="501" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="846.72" y="511.5" ></text>
+</g>
+<g >
+<title>all (8,527,637,125 nanoseconds, 100%)</title><rect x="10.0" y="645" width="1180.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="655.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="784.6" y="581" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="787.61" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="485" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="495.5" ></text>
+</g>
+<g >
+<title>av_malloc (5,025,125 nanoseconds, 0.06%)</title><rect x="814.5" y="597" width="0.7" height="15.0" fill="rgb(228,107,25)" rx="2" ry="2" />
+<text  x="817.51" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="893.8" y="565" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.78" y="575.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="405" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="415.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="341" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="293" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="303.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.0" y="389" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.05" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="405" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="415.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="453" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (40,201,000 nanoseconds, 0.47%)</title><rect x="907.0" y="501" width="5.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="909.99" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="533" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="543.5" ></text>
+</g>
+<g >
+<title>eglGetProcAddress (5,025,125 nanoseconds, 0.06%)</title><rect x="1151.1" y="613" width="0.7" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="1154.06" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (60,301,500 nanoseconds, 0.71%)</title><rect x="831.2" y="469" width="8.3" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="834.20" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="176.2" y="533" width="1.4" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="179.19" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="533" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.13" y="543.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (15,075,375 nanoseconds, 0.18%)</title><rect x="811.0" y="581" width="2.1" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="814.04" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1181.7" y="533" width="2.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1184.66" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (70,351,750 nanoseconds, 0.82%)</title><rect x="854.8" y="501" width="9.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="857.84" y="511.5" ></text>
+</g>
+<g >
+<title>tcache_get (10,050,250 nanoseconds, 0.12%)</title><rect x="809.6" y="597" width="1.4" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="812.65" y="607.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="181" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="191.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="785.3" y="565" width="2.8" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="788.31" y="575.5" ></text>
+</g>
+<g >
+<title>[libGLX.so.0.0.0] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="309" width="0.7" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="1181.87" y="319.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="785.3" y="517" width="2.8" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="788.31" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1181.7" y="549" width="2.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1184.66" y="559.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (90,452,250 nanoseconds, 1.06%)</title><rect x="852.1" y="597" width="12.5" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="855.06" y="607.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.1" y="597" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="873.14" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="827.7" y="437" width="2.8" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="830.73" y="447.5" ></text>
+</g>
+<g >
+<title>cuMemAllocPitch_v2 (45,226,125 nanoseconds, 0.53%)</title><rect x="907.0" y="565" width="6.3" height="15.0" fill="rgb(237,150,35)" rx="2" ry="2" />
+<text  x="909.99" y="575.5" ></text>
+</g>
+<g >
+<title>[libnvidia-egl-wayland2.so.1.0.1] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="517" width="0.7" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="1180.48" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="902.1" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="905.13" y="415.5" ></text>
+</g>
+<g >
+<title>av_frame_alloc (5,025,125 nanoseconds, 0.06%)</title><rect x="814.5" y="613" width="0.7" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="817.51" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="549" width="1.4" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.97" y="559.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (25,125,625 nanoseconds, 0.29%)</title><rect x="799.2" y="581" width="3.5" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="802.22" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="469" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="549" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.13" y="559.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="373" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="932.7" y="357" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="935.72" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="932.7" y="389" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="935.72" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="917.4" y="501" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="920.42" y="511.5" ></text>
+</g>
+<g >
+<title>__libc_write (5,025,125 nanoseconds, 0.06%)</title><rect x="813.1" y="613" width="0.7" height="15.0" fill="rgb(238,154,37)" rx="2" ry="2" />
+<text  x="816.12" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="501" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="469" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="917.64" y="479.5" ></text>
+</g>
+<g >
+<title>cudaFree (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="597" width="0.7" height="15.0" fill="rgb(252,216,51)" rx="2" ry="2" />
+<text  x="1183.96" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="485" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="437" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="447.5" ></text>
+</g>
+<g >
+<title>__posix_memalign (5,025,125 nanoseconds, 0.06%)</title><rect x="840.9" y="501" width="0.7" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="843.94" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="865.3" y="517" width="2.1" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="868.27" y="527.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="581" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1180.48" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="794.3" y="421" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="797.35" y="431.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (150,753,750 nanoseconds, 1.77%)</title><rect x="871.5" y="517" width="20.9" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="874.53" y="527.5" ></text>
+</g>
+<g >
+<title>av_packet_new_side_data (5,025,125 nanoseconds, 0.06%)</title><rect x="840.9" y="549" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="843.94" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="533" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="873.84" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (150,753,750 nanoseconds, 1.77%)</title><rect x="871.5" y="421" width="20.9" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="874.53" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1182.4" y="469" width="1.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1185.35" y="479.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="565" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1181.18" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="453" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="357" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="900.0" y="485" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="903.04" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="533" width="15.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="929.46" y="543.5" ></text>
+</g>
+<g >
+<title>cudaGraphicsGLRegisterImage (90,452,250 nanoseconds, 1.06%)</title><rect x="852.1" y="613" width="12.5" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="855.06" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="501" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.13" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="865.3" y="485" width="2.1" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="868.27" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="421" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (879,396,875 nanoseconds, 10.31%)</title><rect x="1003.0" y="485" width="121.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1005.95" y="495.5" >[libcuda.so.610..</text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="565" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1192.30" y="575.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="581" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1183.96" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="501" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="786.7" y="485" width="1.4" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="789.70" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (40,201,000 nanoseconds, 0.47%)</title><rect x="844.4" y="485" width="5.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="847.41" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="389" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.0" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.05" y="431.5" ></text>
+</g>
+<g >
+<title>viewflow::gpu::GpuDmabufEncoder::GpuDmabufEncoder (25,125,625 nanoseconds, 0.29%)</title><rect x="1176.8" y="613" width="3.5" height="15.0" fill="rgb(209,21,5)" rx="2" ry="2" />
+<text  x="1179.79" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="856.9" y="405" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="859.93" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="485" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="795.96" y="495.5" ></text>
+</g>
+<g >
+<title>cudaGLGetDevices (10,050,250 nanoseconds, 0.12%)</title><rect x="1178.2" y="597" width="1.4" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="1181.18" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (65,326,625 nanoseconds, 0.77%)</title><rect x="855.5" y="469" width="9.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="858.54" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="841.6" y="517" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="844.63" y="527.5" ></text>
+</g>
+<g >
+<title>vf_gpu_dmabuf_output_copy_raw_alpha (40,201,000 nanoseconds, 0.47%)</title><rect x="1170.5" y="613" width="5.6" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="1173.53" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="941.8" y="517" width="4.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="944.76" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="793.7" y="485" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="796.65" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="925.8" y="357" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="928.77" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="905.6" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="908.60" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (30,150,750 nanoseconds, 0.35%)</title><rect x="941.8" y="485" width="4.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="944.76" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="405" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="517" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.13" y="527.5" ></text>
+</g>
+<g >
+<title>[libavutil.so.61.1.101] (5,025,125 nanoseconds, 0.06%)</title><rect x="815.2" y="597" width="0.7" height="15.0" fill="rgb(222,79,19)" rx="2" ry="2" />
+<text  x="818.21" y="607.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (110,552,750 nanoseconds, 1.30%)</title><rect x="1153.1" y="597" width="15.3" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1156.15" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="945.2" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.24" y="447.5" ></text>
+</g>
+<g >
+<title>__clock_gettime (50,251,250 nanoseconds, 0.59%)</title><rect x="885.4" y="341" width="7.0" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="888.44" y="351.5" ></text>
+</g>
+<g >
+<title>operator new (115,577,875 nanoseconds, 1.36%)</title><rect x="1153.1" y="613" width="16.0" height="15.0" fill="rgb(216,51,12)" rx="2" ry="2" />
+<text  x="1156.15" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.0" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1183.96" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (85,427,125 nanoseconds, 1.00%)</title><rect x="852.8" y="549" width="11.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="855.76" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="463.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="565" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1182.57" y="575.5" ></text>
+</g>
+<g >
+<title>cudaGraphicsUnmapResources (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="613" width="0.7" height="15.0" fill="rgb(234,136,32)" rx="2" ry="2" />
+<text  x="873.84" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="325" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="335.5" ></text>
+</g>
+<g >
+<title>cudaStreamSynchronize (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="597" width="2.1" height="15.0" fill="rgb(217,58,14)" rx="2" ry="2" />
+<text  x="1188.13" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (150,753,750 nanoseconds, 1.77%)</title><rect x="871.5" y="469" width="20.9" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="874.53" y="479.5" ></text>
+</g>
+<g >
+<title>clock_gettime@plt (5,025,125 nanoseconds, 0.06%)</title><rect x="1150.4" y="485" width="0.7" height="15.0" fill="rgb(229,112,27)" rx="2" ry="2" />
+<text  x="1153.37" y="495.5" ></text>
+</g>
+<g >
+<title>__vdso_clock_gettime (20,100,500 nanoseconds, 0.24%)</title><rect x="939.0" y="389" width="2.8" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="941.98" y="399.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="469" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1180.48" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="898.7" y="517" width="0.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="901.65" y="527.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="880.6" y="309" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="883.57" y="319.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="549" width="0.7" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.27" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="389" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="399.5" ></text>
+</g>
+<g >
+<title>viewflow::gpu::(anonymous namespace)::idr (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.1" y="613" width="0.7" height="15.0" fill="rgb(230,119,28)" rx="2" ry="2" />
+<text  x="1179.09" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="900.0" y="549" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="903.04" y="559.5" ></text>
+</g>
+<g >
+<title>cuGraphicsMapResources (40,201,000 nanoseconds, 0.47%)</title><rect x="864.6" y="581" width="5.5" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="867.58" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="920.2" y="405" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="923.21" y="415.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="565" width="2.1" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1190.22" y="575.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="852.1" y="581" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="855.06" y="591.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (45,226,125 nanoseconds, 0.53%)</title><rect x="907.0" y="581" width="6.3" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="909.99" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (155,778,875 nanoseconds, 1.83%)</title><rect x="819.4" y="549" width="21.5" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="822.38" y="559.5" >[..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="549" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1181.87" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (1,442,210,875 nanoseconds, 16.91%)</title><rect x="951.5" y="549" width="199.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="954.50" y="559.5" >[libcuda.so.610.57.04]</text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="341" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1185.8" y="437" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.83" y="447.5" ></text>
+</g>
+<g >
+<title>cuMemFree_v2 (50,251,250 nanoseconds, 0.59%)</title><rect x="843.0" y="581" width="7.0" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="846.02" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (105,527,625 nanoseconds, 1.24%)</title><rect x="927.2" y="437" width="14.6" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="930.16" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="431.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="827.7" y="453" width="3.5" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="830.73" y="463.5" ></text>
+</g>
+<g >
+<title>[libavcodec.so.63.1.101] (180,904,500 nanoseconds, 2.12%)</title><rect x="817.3" y="565" width="25.0" height="15.0" fill="rgb(245,188,45)" rx="2" ry="2" />
+<text  x="820.30" y="575.5" >[..</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="533" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.74" y="543.5" ></text>
+</g>
+<g >
+<title>cudaGraphicsUnregisterResource (160,804,000 nanoseconds, 1.89%)</title><rect x="871.5" y="613" width="22.3" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="874.53" y="623.5" >c..</text>
+</g>
+<g >
+<title>__pthread_rwlock_rdlock_full64 (5,025,125 nanoseconds, 0.06%)</title><rect x="906.3" y="517" width="0.7" height="15.0" fill="rgb(215,49,11)" rx="2" ry="2" />
+<text  x="909.30" y="527.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="501" width="2.0" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="855.76" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="829.8" y="309" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="832.81" y="319.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="950.1" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="953.11" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="485" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="495.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="565" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1187.44" y="575.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="785.3" y="581" width="2.8" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="788.31" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="469" width="1.4" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.97" y="479.5" ></text>
+</g>
+<g >
+<title>cudaGraphicsGLRegisterImage (15,075,375 nanoseconds, 0.18%)</title><rect x="1181.7" y="597" width="2.0" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="1184.66" y="607.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="175.5" y="581" width="2.1" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="178.49" y="591.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="565" width="2.8" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="799.43" y="575.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="849.3" y="373" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="852.28" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="947.3" y="533" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="950.32" y="543.5" ></text>
+</g>
+<g >
+<title>__vdso_clock_gettime (25,125,625 nanoseconds, 0.29%)</title><rect x="882.0" y="309" width="3.4" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="884.96" y="319.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (20,100,500 nanoseconds, 0.24%)</title><rect x="1165.7" y="565" width="2.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1168.66" y="575.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (25,125,625 nanoseconds, 0.29%)</title><rect x="777.0" y="597" width="3.4" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="779.97" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="798.5" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="801.52" y="463.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="277" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1182.57" y="287.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="904.9" y="517" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="907.91" y="527.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="533" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1181.18" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="421" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="431.5" ></text>
+</g>
+<g >
+<title>_dl_catch_exception (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="165" width="0.7" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="1181.87" y="175.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="892.4" y="501" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="895.39" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="565" width="0.7" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.27" y="575.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="373" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="383.5" ></text>
+</g>
+<g >
+<title>av_buffer_pool_get (5,025,125 nanoseconds, 0.06%)</title><rect x="815.2" y="581" width="0.7" height="15.0" fill="rgb(215,48,11)" rx="2" ry="2" />
+<text  x="818.21" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1181.7" y="469" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1184.66" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="341" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="351.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="469" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1181.87" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="325" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="335.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1123.2" y="389" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1126.25" y="399.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (70,351,750 nanoseconds, 0.82%)</title><rect x="1158.7" y="581" width="9.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1161.71" y="591.5" ></text>
+</g>
+<g >
+<title>local_Rb_tree_increment (5,025,125 nanoseconds, 0.06%)</title><rect x="803.4" y="581" width="0.7" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="806.39" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1181.18" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.1" y="549" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="873.14" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="869.4" y="501" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="872.45" y="511.5" ></text>
+</g>
+<g >
+<title>[libGLX_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="69" width="0.7" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="1181.87" y="79.5" ></text>
+</g>
+<g >
+<title>tcache_get_n (10,050,250 nanoseconds, 0.12%)</title><rect x="809.6" y="581" width="1.4" height="15.0" fill="rgb(229,110,26)" rx="2" ry="2" />
+<text  x="812.65" y="591.5" ></text>
+</g>
+<g >
+<title>encode_impl (60,301,500 nanoseconds, 0.71%)</title><rect x="788.1" y="597" width="8.3" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="791.09" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1188.6" y="341" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1191.61" y="351.5" ></text>
+</g>
+<g >
+<title>[libnvidia-egl-wayland2.so.1.0.1] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="501" width="0.7" height="15.0" fill="rgb(244,181,43)" rx="2" ry="2" />
+<text  x="1180.48" y="511.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="357" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="367.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="893.1" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.09" y="447.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (4,336,682,875 nanoseconds, 50.85%)</title><rect x="180.4" y="613" width="600.0" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="183.36" y="623.5" >[libc.so.6]</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="549" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="917.64" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="892.4" y="517" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="895.39" y="527.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (30,150,750 nanoseconds, 0.35%)</title><rect x="922.3" y="597" width="4.2" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="925.29" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="896.6" y="485" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="899.56" y="495.5" ></text>
+</g>
+<g >
+<title>cudaMemsetAsync (25,125,625 nanoseconds, 0.29%)</title><rect x="947.3" y="613" width="3.5" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="950.32" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="415.5" ></text>
+</g>
+<g >
+<title>__libc_free (5,025,125 nanoseconds, 0.06%)</title><rect x="1123.9" y="373" width="0.7" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="1126.94" y="383.5" ></text>
+</g>
+<g >
+<title>std::_Rb_tree&lt;std::pair&lt;unsigned int, unsigned int&gt;, std::pair&lt;unsigned int, unsigned int&gt;, std::_Identity&lt;std::pair&lt;unsigned int, unsigned int&gt; &gt;, std::less&lt;std::pair&lt;unsigned int, unsigned int&gt; &gt;, std::allocator&lt;std::pair&lt;unsigned int, unsigned int&gt; &gt; &gt;::_M_erase (5,025,125 nanoseconds, 0.06%)</title><rect x="1169.1" y="613" width="0.7" height="15.0" fill="rgb(231,121,29)" rx="2" ry="2" />
+<text  x="1172.14" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="517" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.74" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="820.1" y="469" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="823.08" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="389" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="917.4" y="517" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="920.42" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="794.3" y="405" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="797.35" y="415.5" ></text>
+</g>
+<g >
+<title>__clock_gettime (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="325" width="0.7" height="15.0" fill="rgb(236,143,34)" rx="2" ry="2" />
+<text  x="1186.74" y="335.5" ></text>
+</g>
+<g >
+<title>cudaStreamSynchronize (20,100,500 nanoseconds, 0.24%)</title><rect x="793.7" y="565" width="2.7" height="15.0" fill="rgb(217,58,14)" rx="2" ry="2" />
+<text  x="796.65" y="575.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1169.8" y="597" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1172.84" y="607.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (35,175,875 nanoseconds, 0.41%)</title><rect x="898.7" y="581" width="4.8" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="901.65" y="591.5" ></text>
+</g>
+<g >
+<title>__libc_malloc (5,025,125 nanoseconds, 0.06%)</title><rect x="1168.4" y="597" width="0.7" height="15.0" fill="rgb(241,166,39)" rx="2" ry="2" />
+<text  x="1171.44" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="37" width="0.7" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="1181.87" y="47.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (25,125,625 nanoseconds, 0.29%)</title><rect x="947.3" y="597" width="3.5" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="950.32" y="607.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (45,226,125 nanoseconds, 0.53%)</title><rect x="907.0" y="597" width="6.3" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="909.99" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="549" width="15.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="929.46" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (55,276,375 nanoseconds, 0.65%)</title><rect x="856.9" y="453" width="7.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="859.93" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1192.30" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (50,251,250 nanoseconds, 0.59%)</title><rect x="843.0" y="517" width="7.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="846.02" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="793.7" y="517" width="2.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="796.65" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.1" y="565" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="873.14" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="849.3" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="852.28" y="415.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (40,201,000 nanoseconds, 0.47%)</title><rect x="916.7" y="581" width="5.6" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="919.73" y="591.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="581" width="1.4" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="948.93" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="904.9" y="485" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="907.91" y="495.5" ></text>
+</g>
+<g >
+<title>___pthread_once (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="549" width="0.7" height="15.0" fill="rgb(233,128,30)" rx="2" ry="2" />
+<text  x="1181.18" y="559.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="909.1" y="437" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="912.08" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="853.5" y="341" width="1.3" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="856.45" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="848.6" y="437" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="851.59" y="447.5" ></text>
+</g>
+<g >
+<title>_Rb_tree_insert_and_rebalance (10,050,250 nanoseconds, 0.12%)</title><rect x="804.1" y="613" width="1.4" height="15.0" fill="rgb(213,37,8)" rx="2" ry="2" />
+<text  x="807.08" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="261" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="271.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="469" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (50,251,250 nanoseconds, 0.59%)</title><rect x="843.0" y="533" width="7.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="846.02" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="517" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1192.30" y="527.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="453" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1180.48" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="861.1" y="341" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="864.10" y="351.5" ></text>
+</g>
+<g >
+<title>cudaMalloc (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="597" width="0.7" height="15.0" fill="rgb(219,67,16)" rx="2" ry="2" />
+<text  x="1192.30" y="607.5" ></text>
+</g>
+<g >
+<title>cuMemcpy3DAsync_v2 (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="517" width="0.7" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="1187.44" y="527.5" ></text>
+</g>
+<g >
+<title>cudaMallocPitch (45,226,125 nanoseconds, 0.53%)</title><rect x="907.0" y="613" width="6.3" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="909.99" y="623.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (15,075,375 nanoseconds, 0.18%)</title><rect x="778.4" y="581" width="2.0" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="781.36" y="591.5" ></text>
+</g>
+<g >
+<title>cuMemAlloc_v2 (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="549" width="0.7" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="1192.30" y="559.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (55,276,375 nanoseconds, 0.65%)</title><rect x="831.2" y="421" width="7.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="834.20" y="431.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="549" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1187.44" y="559.5" ></text>
+</g>
+<g >
+<title>_dl_catch_exception (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="437" width="0.7" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="1181.87" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="1121.2" y="421" width="3.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1124.16" y="431.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="453" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1179.79" y="463.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="784.6" y="565" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="787.61" y="575.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (95,477,375 nanoseconds, 1.12%)</title><rect x="827.0" y="517" width="13.2" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="830.03" y="527.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (40,201,000 nanoseconds, 0.47%)</title><rect x="916.7" y="549" width="5.6" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="919.73" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="533" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="909.8" y="453" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="912.78" y="463.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="197" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1181.87" y="207.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="907.7" y="485" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="910.69" y="495.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="794.3" y="389" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="797.35" y="399.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="900.0" y="469" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="903.04" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="858.3" y="389" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="861.32" y="399.5" ></text>
+</g>
+<g >
+<title>cuStreamSynchronize (20,100,500 nanoseconds, 0.24%)</title><rect x="793.7" y="533" width="2.7" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="796.65" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.0" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.05" y="447.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="549" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="920.2" y="421" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="923.21" y="431.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (25,125,625 nanoseconds, 0.29%)</title><rect x="903.5" y="597" width="3.5" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="906.52" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="437" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1187.44" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (40,201,000 nanoseconds, 0.47%)</title><rect x="782.5" y="613" width="5.6" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="785.53" y="623.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (40,201,000 nanoseconds, 0.47%)</title><rect x="1170.5" y="597" width="5.6" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1173.53" y="607.5" ></text>
+</g>
+<g >
+<title>local_Rb_tree_rotate_left (5,025,125 nanoseconds, 0.06%)</title><rect x="804.8" y="597" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="807.78" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="389" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="405" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.0" y="373" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.05" y="383.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="437" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="447.5" ></text>
+</g>
+<g >
+<title>__tls_get_addr (5,025,125 nanoseconds, 0.06%)</title><rect x="813.8" y="597" width="0.7" height="15.0" fill="rgb(246,191,45)" rx="2" ry="2" />
+<text  x="816.82" y="607.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.2" y="517" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1181.18" y="527.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="453" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="463.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="838.2" y="373" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="841.16" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="421" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="431.5" ></text>
+</g>
+<g >
+<title>cuGLGetDevices (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="565" width="0.7" height="15.0" fill="rgb(241,165,39)" rx="2" ry="2" />
+<text  x="1181.87" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.0" y="453" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1186.05" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="245" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="255.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (40,201,000 nanoseconds, 0.47%)</title><rect x="864.6" y="565" width="5.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="867.58" y="575.5" ></text>
+</g>
+<g >
+<title>cudaMemcpy2DFromArrayAsync (40,201,000 nanoseconds, 0.47%)</title><rect x="916.7" y="613" width="5.6" height="15.0" fill="rgb(229,111,26)" rx="2" ry="2" />
+<text  x="919.73" y="623.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="853.5" y="357" width="1.3" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="856.45" y="367.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="898.7" y="565" width="0.6" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="901.65" y="575.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="517" width="1.4" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.97" y="527.5" ></text>
+</g>
+<g >
+<title>cuMemAllocAsync (25,125,625 nanoseconds, 0.29%)</title><rect x="903.5" y="581" width="3.5" height="15.0" fill="rgb(247,197,47)" rx="2" ry="2" />
+<text  x="906.52" y="591.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (35,175,875 nanoseconds, 0.41%)</title><rect x="898.7" y="597" width="4.8" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="901.65" y="607.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (35,175,875 nanoseconds, 0.41%)</title><rect x="893.8" y="533" width="4.9" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="896.78" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.1" y="325" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.15" y="335.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="924.4" y="453" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="927.38" y="463.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="421" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="1181.87" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (723,618,000 nanoseconds, 8.49%)</title><rect x="1024.5" y="453" width="100.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1027.51" y="463.5" >[libcuda.so...</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="830.5" y="309" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="833.51" y="319.5" ></text>
+</g>
+<g >
+<title>___dlopen (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="277" width="0.7" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="1181.87" y="287.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="453" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="463.5" ></text>
+</g>
+<g >
+<title>[libEGL_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1176.8" y="533" width="0.7" height="15.0" fill="rgb(237,148,35)" rx="2" ry="2" />
+<text  x="1179.79" y="543.5" ></text>
+</g>
+<g >
+<title>[libavcodec.so.63.1.101] (10,050,250 nanoseconds, 0.12%)</title><rect x="818.0" y="549" width="1.4" height="15.0" fill="rgb(245,188,45)" rx="2" ry="2" />
+<text  x="820.99" y="559.5" ></text>
+</g>
+<g >
+<title>cudaGraphicsUnregisterResource (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="597" width="0.7" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="1186.74" y="607.5" ></text>
+</g>
+<g >
+<title>cuMemcpy3DAsync_v2 (35,175,875 nanoseconds, 0.41%)</title><rect x="917.4" y="533" width="4.9" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="920.42" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (125,628,125 nanoseconds, 1.47%)</title><rect x="822.9" y="533" width="17.3" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="825.86" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="309" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="319.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="469" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1187.2" y="485" width="2.1" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1190.22" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1180.3" y="565" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1183.27" y="575.5" ></text>
+</g>
+<g >
+<title>cuMemcpy2DAsync_v2 (15,075,375 nanoseconds, 0.18%)</title><rect x="914.6" y="565" width="2.1" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="917.64" y="575.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (110,552,750 nanoseconds, 1.30%)</title><rect x="926.5" y="469" width="15.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="929.46" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (733,668,250 nanoseconds, 8.60%)</title><rect x="1023.1" y="469" width="101.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1026.12" y="479.5" >[libcuda.so...</text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (50,251,250 nanoseconds, 0.59%)</title><rect x="843.0" y="549" width="7.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="846.02" y="559.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="840.9" y="469" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="843.94" y="479.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="469" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1192.30" y="479.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="261" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1180.48" y="271.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1183.7" y="389" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="1186.74" y="399.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="373" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="383.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="341" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1182.57" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="781.8" y="597" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="784.83" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="176.9" y="485" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="179.88" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="469" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="479.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="854.8" y="405" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="857.84" y="415.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="1181.7" y="517" width="2.0" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1184.66" y="527.5" ></text>
+</g>
+<g >
+<title>cudaGetLastError (5,025,125 nanoseconds, 0.06%)</title><rect x="851.4" y="613" width="0.7" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="854.37" y="623.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="841.6" y="533" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="844.63" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="341" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="900.0" y="517" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="903.04" y="527.5" ></text>
+</g>
+<g >
+<title>[libGLX_nvidia.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="85" width="0.7" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="1181.87" y="95.5" ></text>
+</g>
+<g >
+<title>eglMakeCurrent (5,025,125 nanoseconds, 0.06%)</title><rect x="1151.8" y="613" width="0.7" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="1154.76" y="623.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (35,175,875 nanoseconds, 0.41%)</title><rect x="893.8" y="597" width="4.9" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="896.78" y="607.5" ></text>
+</g>
+<g >
+<title>__pthread_self (5,025,125 nanoseconds, 0.06%)</title><rect x="912.6" y="501" width="0.7" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="915.56" y="511.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="581" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1187.44" y="591.5" ></text>
+</g>
+<g >
+<title>cuStreamSynchronize (20,100,500 nanoseconds, 0.24%)</title><rect x="796.4" y="549" width="2.8" height="15.0" fill="rgb(240,162,38)" rx="2" ry="2" />
+<text  x="799.43" y="559.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="945.9" y="501" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="948.93" y="511.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (15,075,375 nanoseconds, 0.18%)</title><rect x="1185.1" y="581" width="2.1" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1188.13" y="591.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="178.3" y="501" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.27" y="511.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1179.6" y="533" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1182.57" y="543.5" ></text>
+</g>
+<g >
+<title>cudaMemcpy2DFromArrayAsync (5,025,125 nanoseconds, 0.06%)</title><rect x="1184.4" y="597" width="0.7" height="15.0" fill="rgb(229,111,26)" rx="2" ry="2" />
+<text  x="1187.44" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="581" width="1.4" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.97" y="591.5" ></text>
+</g>
+<g >
+<title>[libcudart.so.13.3.29] (5,025,125 nanoseconds, 0.06%)</title><rect x="1189.3" y="581" width="0.7" height="15.0" fill="rgb(246,193,46)" rx="2" ry="2" />
+<text  x="1192.30" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="341" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="181.97" y="351.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="916.0" y="405" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="919.03" y="415.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="849.3" y="357" width="0.7" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="852.28" y="367.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (5,025,125 nanoseconds, 0.06%)</title><rect x="823.6" y="517" width="0.6" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="826.55" y="527.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (45,226,125 nanoseconds, 0.53%)</title><rect x="856.9" y="421" width="6.3" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="859.93" y="431.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="850.7" y="549" width="0.7" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="853.67" y="559.5" ></text>
+</g>
+<g >
+<title>cuMemcpy2DAsync_v2 (5,025,125 nanoseconds, 0.06%)</title><rect x="793.0" y="517" width="0.7" height="15.0" fill="rgb(213,40,9)" rx="2" ry="2" />
+<text  x="795.96" y="527.5" ></text>
+</g>
+<g >
+<title>cuGraphicsUnmapResources (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="581" width="0.7" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="873.84" y="591.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="919.5" y="453" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="922.51" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="1185.8" y="469" width="1.4" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="1188.83" y="479.5" ></text>
+</g>
+<g >
+<title>__libc_free (5,025,125 nanoseconds, 0.06%)</title><rect x="840.2" y="533" width="0.7" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="843.24" y="543.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (20,100,500 nanoseconds, 0.24%)</title><rect x="820.1" y="501" width="2.8" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="823.08" y="511.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="485" width="1.4" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="181.97" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="1177.5" y="293" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="1180.48" y="303.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (150,753,750 nanoseconds, 1.77%)</title><rect x="871.5" y="437" width="20.9" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="874.53" y="447.5" ></text>
+</g>
+<g >
+<title>[libnvidia-encode.so.610.57.04] (10,050,250 nanoseconds, 0.12%)</title><rect x="179.0" y="597" width="1.4" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="181.97" y="607.5" ></text>
+</g>
+<g >
+<title>__libc_free (25,125,625 nanoseconds, 0.29%)</title><rect x="806.2" y="613" width="3.4" height="15.0" fill="rgb(223,85,20)" rx="2" ry="2" />
+<text  x="809.17" y="623.5" ></text>
+</g>
+<g >
+<title>[ld-linux-x86-64.so.2] (5,025,125 nanoseconds, 0.06%)</title><rect x="1178.9" y="325" width="0.7" height="15.0" fill="rgb(243,178,42)" rx="2" ry="2" />
+<text  x="1181.87" y="335.5" ></text>
+</g>
+<g >
+<title>[libnvidia-glsi.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="176.9" y="469" width="0.7" height="15.0" fill="rgb(221,75,17)" rx="2" ry="2" />
+<text  x="179.88" y="479.5" ></text>
+</g>
+<g >
+<title>[libc.so.6] (15,075,375 nanoseconds, 0.18%)</title><rect x="811.0" y="597" width="2.1" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="814.04" y="607.5" ></text>
+</g>
+<g >
+<title>[libnvcuvid.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="827.0" y="485" width="0.7" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="830.03" y="495.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (15,075,375 nanoseconds, 0.18%)</title><rect x="852.8" y="453" width="2.0" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="855.76" y="463.5" ></text>
+</g>
+<g >
+<title>[libcuda.so.610.57.04] (25,125,625 nanoseconds, 0.29%)</title><rect x="900.0" y="533" width="3.5" height="15.0" fill="rgb(230,116,27)" rx="2" ry="2" />
+<text  x="903.04" y="543.5" ></text>
+</g>
+<g >
+<title>[libnvidia-eglcore.so.610.57.04] (5,025,125 nanoseconds, 0.06%)</title><rect x="870.8" y="293" width="0.7" height="15.0" fill="rgb(244,182,43)" rx="2" ry="2" />
+<text  x="873.84" y="303.5" ></text>
+</g>
+</g>
+</svg>

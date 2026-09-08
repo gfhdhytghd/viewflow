@@ -18,14 +18,11 @@ use crate::{
 /// Disabled by default. Sample startup and every 30th atlas so diagnostics do
 /// not add a per-frame stderr write to the live scheduling path.
 fn trace_enabled() -> bool {
-    static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ENABLED.get_or_init(|| {
-        std::env::var_os("VIEWFLOW_ATLAS_TIMINGS").is_some_and(|value| value == "1")
-    })
+    crate::atlas_feedback::trace_frame(0)
 }
 
 fn trace_frame(frame: u64) -> bool {
-    trace_enabled() && (frame <= 8 || frame % 30 == 0)
+    crate::atlas_feedback::trace_frame(frame)
 }
 
 fn trace_clock(enabled: bool) -> Option<i64> {
@@ -405,7 +402,7 @@ impl GpuAtlasSender {
                     )
                 })
                 .collect();
-            eprintln!(
+            crate::atlas_feedback::trace_line(format_args!(
                 "atlas-source-timing frame={} source_identities_window_sequence_capture_ns_received_ns={identities:?} encode_start_ns={start} encoded_ns={encoded} released_ns={released} batch_return_ns={done} previous_batch_return_ns={previous_batch_return_ns:?} captured_before_previous_return_us={queued_before_previous_return_us} socket_age_max_us={} collector_to_encode_us={} capture_to_encode_start_us={} encode_us={} release_us={} previous_feedback_wait_us={} capture_to_batch_return_us={} encoded_ahead_submitted={submitted} published={} native_commit_time_not_measured=true",
                 batch.identity.frame_id,
                 max_socket_age / 1000,
@@ -416,7 +413,7 @@ impl GpuAtlasSender {
                 done.saturating_sub(released) / 1000,
                 done.saturating_sub(captured) / 1000,
                 sent.is_some(),
-            );
+            ));
         }
         self.last_batch_return_ns = batch_return_ns;
         self.encoder = Some(encoder);

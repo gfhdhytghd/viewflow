@@ -192,6 +192,7 @@ impl AtlasSourceInput {
                 position_offset: (0.0, 0.0),
                 position_scale: (1.0, 1.0),
                 ready_file: None,
+                raw_touchpad: true,
                 local: crate::atlas_cursor_handoff::local_displays(&desktop.hyprland_socket, monitor_id)?,
                 remote: desktop.remote_display.rect()?,
                 monitor_id,

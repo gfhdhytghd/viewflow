@@ -266,7 +266,55 @@ unsafe extern "C" {
         capacity: usize,
         required: *mut usize,
     ) -> u32;
+    fn vf_gpu_dmabuf_output_view_raw_alpha(
+        output: *const OutputOpaque,
+        data: *mut *const u8,
+        length: *mut usize,
+    ) -> u32;
     fn vf_gpu_dmabuf_output_destroy(output: *mut OutputOpaque) -> u32;
+}
+
+/// Immutable alpha storage, retained with its native output on the encoding thread.
+/// Native allocations are independent of the encoder and are never converted into
+/// a Rust Vec: the allocator and destructor must remain paired across the ABI.
+/// The Rc marker also keeps the owned-copy variant on the same thread.
+pub struct RawAlpha {
+    storage: AlphaStorage,
+    _owner_thread: PhantomData<Rc<()>>,
+}
+
+enum AlphaStorage {
+    Owned(Vec<u8>),
+    Native {
+        _output: Output,
+        data: NonNull<u8>,
+        length: usize,
+    },
+}
+
+impl From<Vec<u8>> for RawAlpha {
+    fn from(bytes: Vec<u8>) -> Self {
+        Self { storage: AlphaStorage::Owned(bytes), _owner_thread: PhantomData }
+    }
+}
+
+impl AsRef<[u8]> for RawAlpha {
+    fn as_ref(&self) -> &[u8] {
+        match &self.storage {
+            AlphaStorage::Owned(bytes) => bytes,
+            AlphaStorage::Native { data, length, .. } => {
+                // SAFETY: successful ABI validation established initialized length;
+                // _output retains this immutable allocation for the whole borrow.
+                // RawAlpha is !Send/!Sync and the pointer never escapes as mutable.
+                unsafe { std::slice::from_raw_parts(data.as_ptr(), *length) }
+            }
+        }
+    }
+}
+
+impl std::ops::Deref for RawAlpha {
+    type Target = [u8];
+    fn deref(&self) -> &Self::Target { self.as_ref() }
 }
 
 /// Encoded color and independent, lossless straight-alpha bytes.
@@ -277,7 +325,7 @@ pub struct EncodedGpuFrame {
     pub geometry_epoch: u64,
     pub idr: bool,
     pub color_annex_b: Vec<u8>,
-    pub raw_alpha: Vec<u8>,
+    pub raw_alpha: RawAlpha,
 }
 
 /// A coded frame or verified expiry with completed GPU cleanup.
@@ -714,10 +762,24 @@ impl GpuEncoder {
             "GPU alpha shape mismatch"
         );
         let color_annex_b = owned.copy_plane(color_len, vf_gpu_dmabuf_output_copy_color)?;
-        let raw_alpha = owned.copy_plane(self.alpha_bytes, vf_gpu_dmabuf_output_copy_raw_alpha)?;
+
+        let sparse = owned.sparse_result()?;
+        // An opt-in copy mode provides the original path for matched A/B trials.
+        // The default retains immutable native storage instead of copying 4K alpha.
+        static COPY_ALPHA: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let copy_alpha = *COPY_ALPHA.get_or_init(|| {
+            let copy = std::env::var_os("VIEWFLOW_ALPHA_OUTPUT_COPY").is_some_and(|v| v == "1");
+            crate::atlas_feedback::trace_line(format_args!(
+                "alpha-output-storage mode={}", if copy { "rust-copy" } else { "native-owned-view" }));
+            copy
+        });
+        let raw_alpha = if copy_alpha {
+            owned.copy_plane(self.alpha_bytes, vf_gpu_dmabuf_output_copy_raw_alpha)?.into()
+        } else {
+            owned.into_raw_alpha(self.alpha_bytes)?
+        };
         let completed_ns = monotonic_ns()?;
         validate_output_transfer_deadline(allow_clean_expiry, completed_ns, deadline)?;
-        let sparse = owned.sparse_result()?;
         Ok(GpuEncodeOutcome::Encoded(EncodedGpuFrame {
             sparse,
             frame_id: info.frame_id,
@@ -739,6 +801,21 @@ impl Drop for GpuEncoder {
 
 struct Output(NonNull<OutputOpaque>);
 impl Output {
+    fn into_raw_alpha(self, expected: usize) -> Result<RawAlpha> {
+        let mut data = std::ptr::null();
+        let mut length = 0;
+        // SAFETY: unique owner-thread output and exact writable ABI arguments.
+        let status = unsafe { vf_gpu_dmabuf_output_view_raw_alpha(
+            self.0.as_ptr(), &raw mut data, &raw mut length) };
+        ensure!(status == 0 && length == expected && length <= isize::MAX as usize,
+            "GPU alpha view shape mismatch");
+        let data = NonNull::new(data.cast_mut()).context("GPU alpha view is null")?;
+        Ok(RawAlpha {
+            storage: AlphaStorage::Native { _output: self, data, length },
+            _owner_thread: PhantomData,
+        })
+    }
+
     fn sparse_result(&self) -> Result<Option<GpuSparseResult>> {
         let mut info = GpuSparseInfo::default();
         // SAFETY: owned native output and writable C layout on the same thread.
@@ -776,14 +853,16 @@ impl Output {
     ) -> Result<Vec<u8>> {
         let mut bytes = Vec::new();
         bytes.try_reserve_exact(length)?;
-        bytes.resize(length, 0);
         let mut required = 0;
-        // SAFETY: owned output and writable allocation of the specified length.
+        // SAFETY: owned output and allocation writable for `length` bytes.
+        // Both native copy callbacks memcpy the complete plane before returning
+        // success. Keep the Vec empty until that initialization is confirmed;
+        // failures can then drop it without exposing uninitialized bytes.
         let status = unsafe {
             copy(
                 self.0.as_ptr(),
                 bytes.as_mut_ptr(),
-                bytes.len(),
+                length,
                 &raw mut required,
             )
         };
@@ -791,6 +870,9 @@ impl Output {
             status == 0 && required == length,
             "GPU output plane copy failed"
         );
+        // SAFETY: success and the exact required length above prove the native
+        // copy initialized every byte, within the reserved allocation.
+        unsafe { bytes.set_len(length) };
         Ok(bytes)
     }
 }
@@ -884,7 +966,7 @@ mod tests {
         assert_eq!(frame.capture_monotonic_ns, identity.capture_monotonic_ns);
         assert_eq!(frame.geometry_epoch, identity.geometry_epoch);
         assert!(frame.idr && !frame.color_annex_b.is_empty());
-        assert_eq!(frame.raw_alpha, vec![0; 256 * 256]);
+        assert_eq!(frame.raw_alpha.as_ref(), &[0; 256 * 256]);
         let invalid = GpuAtlasIdentity {
             frame_id: 0,
             ..identity

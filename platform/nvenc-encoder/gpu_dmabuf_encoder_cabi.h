@@ -180,6 +180,11 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_output_copy_color(
 vf_gpu_dmabuf_status vf_gpu_dmabuf_output_copy_raw_alpha(
     const vf_gpu_dmabuf_output* output, uint8_t* destination, size_t capacity,
     size_t* required);
+// Immutable, output-owned storage. The view remains valid until output_destroy,
+// including across later encodes and encoder destruction. Access and destruction
+// remain on the output's owner thread. The caller must not mutate this storage.
+vf_gpu_dmabuf_status vf_gpu_dmabuf_output_view_raw_alpha(
+    const vf_gpu_dmabuf_output* output, const uint8_t** data, size_t* length);
 vf_gpu_dmabuf_status vf_gpu_dmabuf_output_destroy(vf_gpu_dmabuf_output* output);
 
 // Copies the bounded, NUL-terminated diagnostic from the last failed encoder

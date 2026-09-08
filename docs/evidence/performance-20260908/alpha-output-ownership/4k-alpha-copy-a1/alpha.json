@@ -1,0 +1,78 @@
+{
+  "expected_stages": [
+    "pinned_to_vector",
+    "cabi_to_rust",
+    "cache_compare"
+  ],
+  "stages": {
+    "pinned_to_vector": {
+      "wall_ms": {
+        "n": 1231,
+        "median": 1.464906,
+        "p95": 2.754221,
+        "sum": 1993.559534
+      },
+      "thread_cpu_ms": {
+        "n": 1231,
+        "median": 1.439098,
+        "p95": 2.699074,
+        "sum": 1962.699456
+      },
+      "bytes": [
+        9650176
+      ]
+    },
+    "cabi_to_rust": {
+      "wall_ms": {
+        "n": 1229,
+        "median": 1.36272,
+        "p95": 2.479584,
+        "sum": 1784.946126
+      },
+      "thread_cpu_ms": {
+        "n": 1229,
+        "median": 1.333913,
+        "p95": 2.446751,
+        "sum": 1763.354498
+      },
+      "bytes": [
+        9650176
+      ]
+    },
+    "cache_compare": {
+      "wall_ms": {
+        "n": 1229,
+        "median": 0.766433,
+        "p95": 1.510209,
+        "sum": 1067.041936
+      },
+      "thread_cpu_ms": {
+        "n": 1229,
+        "median": 0.75921,
+        "p95": 1.46563,
+        "sum": 1054.964117
+      },
+      "bytes": [
+        9650176
+      ]
+    }
+  },
+  "rejected": {
+    "duplicate_pinned_to_vector": 0,
+    "duplicate_cabi_to_rust": 0,
+    "duplicate_cache_compare": 0
+  },
+  "same_frame_total_wall_ms": {
+    "n": 1228,
+    "median": 3.8775905,
+    "p95": 5.738059,
+    "sum": 4838.156595
+  },
+  "same_frame_total_thread_cpu_ms": {
+    "n": 1228,
+    "median": 3.7968960000000003,
+    "p95": 5.667487,
+    "sum": 4773.665669
+  },
+  "scope": "Only the selected nonoverlapping operations; not GPU readback, NVENC, total process CPU, or memory allocation elsewhere."
+}

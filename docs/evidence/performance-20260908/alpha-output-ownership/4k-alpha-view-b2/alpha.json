@@ -1,0 +1,59 @@
+{
+  "expected_stages": [
+    "pinned_to_vector",
+    "cache_compare"
+  ],
+  "stages": {
+    "pinned_to_vector": {
+      "wall_ms": {
+        "n": 1284,
+        "median": 1.2400280000000001,
+        "p95": 2.460186,
+        "sum": 1743.517707
+      },
+      "thread_cpu_ms": {
+        "n": 1284,
+        "median": 1.2272129999999999,
+        "p95": 2.409882,
+        "sum": 1724.252297
+      },
+      "bytes": [
+        9650176
+      ]
+    },
+    "cache_compare": {
+      "wall_ms": {
+        "n": 1281,
+        "median": 0.83099,
+        "p95": 1.475996,
+        "sum": 1163.008615
+      },
+      "thread_cpu_ms": {
+        "n": 1281,
+        "median": 0.822467,
+        "p95": 1.456273,
+        "sum": 1152.17009
+      },
+      "bytes": [
+        9650176
+      ]
+    }
+  },
+  "rejected": {
+    "duplicate_pinned_to_vector": 0,
+    "duplicate_cache_compare": 0
+  },
+  "same_frame_total_wall_ms": {
+    "n": 1280,
+    "median": 2.1514604999999998,
+    "p95": 3.405002,
+    "sum": 2902.003759
+  },
+  "same_frame_total_thread_cpu_ms": {
+    "n": 1280,
+    "median": 2.128529,
+    "p95": 3.3377,
+    "sum": 2871.92048
+  },
+  "scope": "Only the selected nonoverlapping operations; not GPU readback, NVENC, total process CPU, or memory allocation elsewhere."
+}

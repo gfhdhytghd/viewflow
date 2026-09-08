@@ -54,7 +54,11 @@ impl DesktopReceiverState {
         self.confirmed_end_ordinal == 0 || ordinal > self.confirmed_end_ordinal
     }
     pub(crate) fn active(&self) -> bool {
-        self.active.is_some() || self.rejected_drag.is_some()
+        self.active.is_some()
+            || self.rejected_drag.is_some()
+            || self
+                .deferred
+                .is_some_and(|event| event.phase == Phase::Begin)
     }
     pub(crate) fn discard_rejected_drag(&mut self, event: AtlasDesktopMove) -> bool {
         if self.rejected_drag != Some((event.selection.window_id, Id128(u128::from(event.drag_id))))
@@ -77,6 +81,80 @@ impl DesktopReceiverState {
         );
         Ok(())
     }
+
+    pub(crate) fn reject_begin(&mut self, event: AtlasDesktopMove) {
+        debug_assert_eq!(event.phase, Phase::Begin);
+        self.rejected_drag = Some((event.selection.window_id, Id128(u128::from(event.drag_id))));
+    }
+
+    /// Native events and committed-layout notices arrive on separate channels.
+    /// Wait for a not-yet-published picture without consuming the gesture tail;
+    /// an evicted picture may use the current layout of the same window.
+    pub(crate) fn prepare_when_committed(
+        &mut self,
+        mut event: AtlasDesktopMove,
+        source: Id128,
+        owner: Id128,
+        deadline: u64,
+        frames: &std::collections::VecDeque<AtlasFrame>,
+    ) -> Result<Option<DesktopWindowMove>> {
+        if event.phase == Phase::Begin {
+            ensure!(
+                self.active.is_none() && self.pending.is_none() && event.selection.sequence == 1,
+                "desktop begin conflicts with active gesture"
+            );
+            ensure!(
+                self.deferred.is_none(),
+                "desktop deferred event already occupied"
+            );
+            let selection = event.selection;
+            if !frames.iter().any(|frame| selection.matches(frame)) {
+                let Some(latest) = frames.back() else {
+                    self.deferred = Some(event);
+                    return Ok(None);
+                };
+                if latest.stream_id != selection.stream_id
+                    || latest.config_generation != selection.config_generation
+                {
+                    self.reject_begin(event);
+                    return Ok(None);
+                }
+                if latest.frame_id < selection.atlas_frame_id {
+                    self.deferred = Some(event);
+                    return Ok(None);
+                }
+                // Never redirect a stale event to another window or an old
+                // membership snapshot. The source still validates this base.
+                let compatible = latest.desktop.as_ref().is_some_and(|layout| {
+                    layout.topology_generation == event.topology_generation
+                        && layout
+                            .windows
+                            .iter()
+                            .any(|window| window.window_id == selection.window_id && window.movable)
+                }) && latest.tiles.iter().any(|tile| {
+                    tile.window_id == selection.window_id
+                        && tile.geometry_epoch == selection.source_geometry_epoch
+                        && tile.placement_generation == selection.placement_generation
+                });
+                if !compatible {
+                    self.reject_begin(event);
+                    return Ok(None);
+                }
+                event.selection = viewflow_protocol::AtlasWindowSelection::from_frame(
+                    latest,
+                    selection.window_id,
+                    selection.sequence,
+                    selection.sender_not_after_ns,
+                )
+                .map_err(|error| {
+                    anyhow::anyhow!("invalid committed desktop selection: {error:?}")
+                })?;
+            }
+        }
+        self.prepare(event, source, owner, deadline, frames)
+            .map(Some)
+    }
+
     pub(crate) fn prepare(
         &mut self,
         event: AtlasDesktopMove,
@@ -186,13 +264,22 @@ impl DesktopReceiverState {
                 && ack.sequence == p.sequence,
             "desktop acknowledgement lineage mismatch"
         );
-        if p.phase == Phase::Begin && ack.result == Outcome::Rejected {
-            self.rejected_drag = Some((p.window_id, p.drag_id));
+        let ending = matches!(p.phase, Phase::End | Phase::Cancel);
+        if ack.result == Outcome::Rejected
+            || (p.phase == Phase::Update && ack.result == Outcome::Ended)
+        {
+            // The source has declined, locally cancelled, or handed off this gesture.
+            // Drain only its remaining native events; other windows and the
+            // shared media connection are unaffected by this recoverable result.
+            if ending {
+                self.confirmed_end_ordinal = self.pending_ordinal;
+            } else {
+                self.rejected_drag = Some((p.window_id, p.drag_id));
+            }
             self.active = None;
             self.pending = None;
             return Ok(());
         }
-        let ending = matches!(p.phase, Phase::End | Phase::Cancel);
         ensure!(
             ack.result
                 == if ending {
@@ -381,6 +468,193 @@ mod tests {
         state
             .prepare(next, Id128(1), Id128(2), 700, &frames)
             .unwrap();
+    }
+
+    #[test]
+    fn source_rejection_of_update_or_end_does_not_retire_receiver() {
+        for phase in [Phase::Update, Phase::End, Phase::Cancel] {
+            let frames = VecDeque::from([frame(true)]);
+            let mut state = DesktopReceiverState::default();
+            let begin = state
+                .prepare(event(Phase::Begin, 1), Id128(1), Id128(2), 500, &frames)
+                .unwrap();
+            state
+                .acknowledge(ack(begin, Outcome::Applied), 499)
+                .unwrap();
+            let request = state
+                .prepare(event(phase, 2), Id128(1), Id128(2), 700, &frames)
+                .unwrap();
+            state
+                .acknowledge(ack(request, Outcome::Rejected), 699)
+                .unwrap();
+            assert!(!state.pending());
+            if phase == Phase::Update {
+                assert!(state.discard_rejected_drag(event(Phase::Update, 3)));
+                assert!(state.discard_rejected_drag(event(Phase::End, 4)));
+            }
+            assert!(!state.active());
+            assert!(!state.allows_native_ordinal(2));
+            let mut next = event(Phase::Begin, 1).with_ingress_ordinal(5).unwrap();
+            next.drag_id += 1;
+            assert!(
+                state
+                    .prepare(next, Id128(1), Id128(2), 900, &frames)
+                    .is_ok()
+            );
+        }
+    }
+
+    #[test]
+    fn source_handoff_on_update_drains_tail_and_allows_next_drag() {
+        let frames = VecDeque::from([frame(true)]);
+        let mut state = DesktopReceiverState::default();
+        let begin = state
+            .prepare(event(Phase::Begin, 1), Id128(1), Id128(2), 500, &frames)
+            .unwrap();
+        state
+            .acknowledge(ack(begin, Outcome::Applied), 499)
+            .unwrap();
+        let update = state
+            .prepare(event(Phase::Update, 2), Id128(1), Id128(2), 700, &frames)
+            .unwrap();
+        // The source releases enrollment after transferring the window back
+        // to its local desktop, even if the peer has not sent End yet.
+        state.acknowledge(ack(update, Outcome::Ended), 699).unwrap();
+        assert!(!state.pending());
+        assert!(state.active());
+        assert!(state.discard_rejected_drag(event(Phase::Update, 3)));
+        assert!(state.discard_rejected_drag(event(Phase::End, 4)));
+        assert!(!state.active());
+        assert!(!state.allows_native_ordinal(4));
+        assert!(state.allows_native_ordinal(5));
+        let mut next = event(Phase::Begin, 1).with_ingress_ordinal(5).unwrap();
+        next.drag_id += 1;
+        state
+            .prepare(next, Id128(1), Id128(2), 900, &frames)
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn begin_waits_for_committed_notice_without_consuming_updates() {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(8);
+        tx.send(event(Phase::Begin, 1)).await.unwrap();
+        tx.send(event(Phase::Update, 2)).await.unwrap();
+        let mut state = DesktopReceiverState::default();
+        let begin = state.next_event(&mut rx).unwrap();
+        assert!(
+            state
+                .prepare_when_committed(begin, Id128(1), Id128(2), 500, &VecDeque::new())
+                .unwrap()
+                .is_none()
+        );
+        assert!(!state.pending());
+        assert!(state.active());
+        let mut older = frame(true);
+        older.frame_id = 99;
+        let begin = state.next_event(&mut rx).unwrap();
+        assert_eq!(begin.phase, Phase::Begin);
+        assert!(
+            state
+                .prepare_when_committed(begin, Id128(1), Id128(2), 500, &VecDeque::from([older]))
+                .unwrap()
+                .is_none()
+        );
+        let begin = state.next_event(&mut rx).unwrap();
+        let request = state
+            .prepare_when_committed(
+                begin,
+                Id128(1),
+                Id128(2),
+                500,
+                &VecDeque::from([frame(true)]),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(request.base_atlas_frame, 100);
+        state
+            .acknowledge(ack(request, Outcome::Applied), 499)
+            .unwrap();
+        assert_eq!(state.next_event(&mut rx).unwrap().phase, Phase::Update);
+    }
+
+    #[test]
+    fn evicted_begin_rebases_same_window_and_keeps_drag_anchor() {
+        let mut newest = frame(true);
+        newest.frame_id = 132;
+        newest.tiles[0].source_frame_id = 51;
+        let frames = VecDeque::from([newest]);
+        let mut state = DesktopReceiverState::default();
+        let begin = state
+            .prepare_when_committed(event(Phase::Begin, 1), Id128(1), Id128(2), 500, &frames)
+            .unwrap()
+            .unwrap();
+        assert_eq!(begin.base_atlas_frame, 132);
+        assert_eq!(begin.window_id, WINDOW);
+        state
+            .acknowledge(ack(begin, Outcome::Applied), 499)
+            .unwrap();
+        let end = state
+            .prepare_when_committed(
+                event(Phase::End, 2),
+                Id128(1),
+                Id128(2),
+                700,
+                &VecDeque::new(),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(end.base_atlas_frame, 132);
+        state.acknowledge(ack(end, Outcome::Ended), 699).unwrap();
+        assert!(!state.active());
+    }
+
+    #[test]
+    fn unavailable_begin_is_local_and_next_drag_still_works() {
+        for changed in 0..5 {
+            let mut newest = frame(true);
+            newest.frame_id = 132;
+            match changed {
+                0 => {
+                    newest.tiles.clear();
+                    newest.desktop.as_mut().unwrap().windows.clear();
+                }
+                1 => newest.config_generation += 1,
+                2 => newest.desktop.as_mut().unwrap().topology_generation += 1,
+                3 => newest.tiles[0].geometry_epoch += 1,
+                _ => newest.desktop.as_mut().unwrap().windows[0].movable = false,
+            }
+            let mut state = DesktopReceiverState::default();
+            assert!(
+                state
+                    .prepare_when_committed(
+                        event(Phase::Begin, 1),
+                        Id128(1),
+                        Id128(2),
+                        500,
+                        &VecDeque::from([newest])
+                    )
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(!state.pending());
+            assert!(state.discard_rejected_drag(event(Phase::Update, 2)));
+            assert!(state.discard_rejected_drag(event(Phase::End, 3)));
+            assert!(!state.active());
+            let mut next = event(Phase::Begin, 1).with_ingress_ordinal(4).unwrap();
+            next.drag_id += 1;
+            assert!(
+                state
+                    .prepare_when_committed(
+                        next,
+                        Id128(1),
+                        Id128(2),
+                        700,
+                        &VecDeque::from([frame(true)])
+                    )
+                    .unwrap()
+                    .is_some()
+            );
+        }
     }
 
     #[test]

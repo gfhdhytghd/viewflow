@@ -23,6 +23,7 @@ pub(crate) struct CursorConfig {
     pub remote_scale: f64,
     pub position_offset: (f64, f64),
     pub position_scale: (f64, f64),
+    pub raw_touchpad: bool,
     pub ready_file: Option<std::path::PathBuf>,
     pub local: Vec<DesktopRect>,
     pub remote: DesktopRect,
@@ -352,6 +353,7 @@ async fn run(
         CaptureCommand::Configure {
             generation: config.topology_generation,
             monitor_id: config.monitor_id,
+            raw_touchpad: config.raw_touchpad,
             x: config.remote.x_millidip as f64 / 1000.,
             y: config.remote.y_millidip as f64 / 1000.,
             width: config.remote.width_millidip as f64 / 1000.,
@@ -1017,7 +1019,7 @@ mod tests {
         let native = tokio::spawn(async move { while let Some(request) = requests.recv().await { let _ = request.reply.send(Ok(())); } });
         let queue = Arc::new(NativeCaptureQueue::default());
         let worker = tokio::spawn(run(CursorConfig {
-            drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (-100.0, 0.0), position_scale: (1.0, 0.9), ready_file: None,
+            drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (-100.0, 0.0), position_scale: (1.0, 0.9), ready_file: None, raw_touchpad: true,
             local: vec![rect(0, 0)], remote: rect(100_000, 0), monitor_id: 1,
             topology_generation: 1, owner: Id128(1), target: Id128(2), fps: 60,
         }, writer, origin, queue.clone(), commands, clock));
@@ -1230,7 +1232,7 @@ mod tests {
             ));
             let (commands, mut native_requests) = mpsc::channel(4);
             let config = CursorConfig {
-                drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (0.0, 0.0), position_scale: (1.0, 1.0), ready_file: None,
+                drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (0.0, 0.0), position_scale: (1.0, 1.0), ready_file: None, raw_touchpad: true,
                 local: vec![rect(0, 0)],
                 remote: rect(100_000, 0),
                 monitor_id: 1,

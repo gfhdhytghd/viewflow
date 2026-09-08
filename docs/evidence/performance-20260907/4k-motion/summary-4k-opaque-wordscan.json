@@ -1,0 +1,105 @@
+{
+  "first_frame": 30,
+  "units": "microseconds",
+  "physical_present_receipt": false,
+  "atlas-source-timing.encode_us": {
+    "n": 1208,
+    "min": 2132,
+    "median": 11474.0,
+    "p95": 12785,
+    "max": 186520
+  },
+  "atlas-source-timing.previous_feedback_wait_us": {
+    "n": 1208,
+    "min": 0,
+    "median": 17.0,
+    "p95": 11557,
+    "max": 176367
+  },
+  "atlas-source-timing.capture_to_encode_start_us": {
+    "n": 1208,
+    "min": 158,
+    "median": 1492.0,
+    "p95": 5300,
+    "max": 32869
+  },
+  "atlas-source-timing.capture_to_batch_return_us": {
+    "n": 1208,
+    "min": 11309,
+    "median": 13694.5,
+    "p95": 31858,
+    "max": 189012
+  },
+  "atlas-wire-timing.feedback_us": {
+    "n": 1151,
+    "min": 10676,
+    "median": 15087,
+    "p95": 25962,
+    "max": 190023
+  },
+  "atlas-wire-timing.total_us": {
+    "n": 1151,
+    "min": 10807,
+    "median": 15233,
+    "p95": 26114,
+    "max": 190174
+  },
+  "atlas-receiver-timing.record_us": {
+    "n": 1151,
+    "min": 194,
+    "median": 329,
+    "p95": 633,
+    "max": 1054
+  },
+  "atlas-receiver-timing.write_us": {
+    "n": 1151,
+    "min": 92,
+    "median": 148,
+    "p95": 302,
+    "max": 3502
+  },
+  "atlas-receiver-timing.receipt_us": {
+    "n": 1151,
+    "min": 6408,
+    "median": 9676,
+    "p95": 17468,
+    "max": 185366
+  },
+  "pipe-admission->decoded": {
+    "n": 17,
+    "min": 3042,
+    "median": 3943,
+    "p95": 6633,
+    "max": 6633
+  },
+  "decoded->proxy-ready": {
+    "n": 17,
+    "min": 352,
+    "median": 614,
+    "p95": 7883,
+    "max": 7883
+  },
+  "proxy-ready->copy-ready": {
+    "n": 17,
+    "min": 11,
+    "median": 15,
+    "p95": 29,
+    "max": 29
+  },
+  "copy-ready->committed": {
+    "n": 17,
+    "min": 31,
+    "median": 57,
+    "p95": 77,
+    "max": 77
+  },
+  "pipe-admission->committed": {
+    "n": 17,
+    "min": 3959,
+    "median": 5200,
+    "p95": 11728,
+    "max": 11728
+  },
+  "native_samples": 17,
+  "native_samples_missed": 4
+}

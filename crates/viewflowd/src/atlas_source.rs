@@ -206,6 +206,7 @@ pub async fn run_until(
                 };
             }
         };
+        let _connection_sampler = crate::atlas_feedback::sample_connection(&peer.connection, "source", native_now);
         let (_shared_writer, input) = match setup_input(&config, &mut peer, desktop_setup.clone()) {
             Ok(setup) => setup,
             Err(error) => {

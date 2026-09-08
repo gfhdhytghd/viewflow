@@ -19,6 +19,7 @@ pub enum CaptureCommand {
         y: f64,
         width: f64,
         height: f64,
+        raw_touchpad: bool,
     },
     Activate {
         generation: u64,
@@ -74,6 +75,7 @@ impl CaptureCommand {
                 y,
                 width,
                 height,
+                raw_touchpad,
                 ..
             } => {
                 if monitor_id < 0
@@ -89,6 +91,9 @@ impl CaptureCommand {
                 for number in [x, y, width, height] {
                     payload.extend(number.to_le_bytes());
                 }
+                // Legacy 48-byte topology keeps raw touchpad forwarding.
+                // Only append the opt-out for peers needing derived scroll.
+                if !raw_touchpad { payload.push(0); }
             }
             Self::Activate {
                 target, loopback, ..
@@ -158,6 +163,17 @@ impl CaptureCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn derived_scroll_opt_out_keeps_legacy_topology_prefix() {
+        let raw = CaptureCommand::Configure { generation: 1, monitor_id: 2,
+            x: 3072.0, y: 390.0, width: 1920.0, height: 1200.0, raw_touchpad: true }.packet(1).unwrap();
+        let derived = CaptureCommand::Configure { generation: 1, monitor_id: 2,
+            x: 3072.0, y: 390.0, width: 1920.0, height: 1200.0, raw_touchpad: false }.packet(1).unwrap();
+        assert_eq!(raw.len(), 68);
+        assert_eq!(derived.len(), 69);
+        assert_eq!(&raw[20..], &derived[20..68]);
+        assert_eq!(derived[68], 0);
+    }
     #[test]
     fn drag_return_requires_a_position_and_complete_native_identity() {
         let target = DragTarget { pid: 12, address: 0x1234, surface: 0x5678, reverse_id: 0 };

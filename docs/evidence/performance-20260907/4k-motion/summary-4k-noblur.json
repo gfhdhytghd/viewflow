@@ -1,0 +1,105 @@
+{
+  "first_frame": 30,
+  "units": "microseconds",
+  "physical_present_receipt": false,
+  "atlas-source-timing.encode_us": {
+    "n": 1347,
+    "min": 9728,
+    "median": 11761,
+    "p95": 13179,
+    "max": 249374
+  },
+  "atlas-source-timing.previous_feedback_wait_us": {
+    "n": 1347,
+    "min": 1,
+    "median": 15,
+    "p95": 5223,
+    "max": 124054
+  },
+  "atlas-source-timing.capture_to_encode_start_us": {
+    "n": 1347,
+    "min": 156,
+    "median": 1397,
+    "p95": 2753,
+    "max": 26612
+  },
+  "atlas-source-timing.capture_to_batch_return_us": {
+    "n": 1347,
+    "min": 10574,
+    "median": 13834,
+    "p95": 19082,
+    "max": 251570
+  },
+  "atlas-wire-timing.feedback_us": {
+    "n": 1336,
+    "min": 9068,
+    "median": 13928.0,
+    "p95": 21287,
+    "max": 135020
+  },
+  "atlas-wire-timing.total_us": {
+    "n": 1336,
+    "min": 9226,
+    "median": 14064.0,
+    "p95": 21422,
+    "max": 135151
+  },
+  "atlas-receiver-timing.record_us": {
+    "n": 1336,
+    "min": 193,
+    "median": 305.0,
+    "p95": 526,
+    "max": 1754
+  },
+  "atlas-receiver-timing.write_us": {
+    "n": 1336,
+    "min": 91,
+    "median": 145.0,
+    "p95": 286,
+    "max": 4033
+  },
+  "atlas-receiver-timing.receipt_us": {
+    "n": 1336,
+    "min": 5799,
+    "median": 8606.5,
+    "p95": 15576,
+    "max": 122999
+  },
+  "pipe-admission->decoded": {
+    "n": 21,
+    "min": 2186,
+    "median": 3348,
+    "p95": 5181,
+    "max": 5526
+  },
+  "decoded->proxy-ready": {
+    "n": 21,
+    "min": 287,
+    "median": 577,
+    "p95": 7789,
+    "max": 8308
+  },
+  "proxy-ready->copy-ready": {
+    "n": 21,
+    "min": 9,
+    "median": 16,
+    "p95": 19,
+    "max": 20
+  },
+  "copy-ready->committed": {
+    "n": 21,
+    "min": 31,
+    "median": 57,
+    "p95": 70,
+    "max": 99
+  },
+  "pipe-admission->committed": {
+    "n": 21,
+    "min": 2574,
+    "median": 4344,
+    "p95": 10656,
+    "max": 12281
+  },
+  "native_samples": 21,
+  "native_samples_missed": 1
+}

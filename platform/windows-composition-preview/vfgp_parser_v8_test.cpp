@@ -28,6 +28,18 @@ static std::vector<uint8_t> fixture(bool desktop=false,bool hidden=false) {
   return b;
 }
 int main() {
+  // Include gaps, an empty atlas, and the largest tile id without incrementing
+  // it to find the upper bound. Borrowed ranges must retain patch identity.
+  std::vector<AtlasPatch> indexed{{1,0,0,0,0,128,128}, {1,128,0,128,0,128,128},
+      {3,0,0,256,0,128,128}, {UINT32_MAX,0,0,384,0,128,128}};
+  assert(PatchesForTile({}, 0).empty());
+  for(uint32_t tile : {0u,1u,2u,3u,4u,UINT32_MAX}) {
+    std::vector<AtlasPatch> expected;
+    for(const auto& patch : indexed) if(patch.tile_index==tile) expected.push_back(patch);
+    const auto selected=PatchesForTile(indexed,tile);
+    assert(std::equal(selected.begin(),selected.end(),expected.begin(),expected.end()));
+    if(!selected.empty()) assert(selected.data()>=indexed.data() && selected.data()<indexed.data()+indexed.size());
+  }
   for(bool desktop:{false,true})for(bool hidden:{false,true}) {
     auto b=fixture(desktop,hidden);std::vector<Frame> frames;
     Parser parser(4096,true,true,true,true);

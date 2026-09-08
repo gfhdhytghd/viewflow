@@ -1,0 +1,146 @@
+{
+  "native": {
+    "samples": 6340,
+    "leaf_top": [
+      [
+        "HalpHpetQueryCounter",
+        1399,
+        22.066246056782333
+      ],
+      [
+        "memcmp",
+        705,
+        11.1198738170347
+      ],
+      [
+        "memset",
+        658,
+        10.378548895899053
+      ],
+      [
+        "viewflow::windows_preview::AtlasFrameBindings::Stage",
+        536,
+        8.454258675078865
+      ],
+      [
+        "[missing stack]",
+        186,
+        2.9337539432176656
+      ],
+      [
+        "std::vector<unsigned char,std::allocator<unsigned char> >::insert",
+        128,
+        2.0189274447949526
+      ],
+      [
+        "KiCaptureTotalCyclesCurrentThread",
+        128,
+        2.0189274447949526
+      ],
+      [
+        "MiDecommitAddToList",
+        87,
+        1.3722397476340693
+      ],
+      [
+        "HalpVpptAcknowledgeInterrupt",
+        67,
+        1.0567823343848581
+      ],
+      [
+        "MiInitializePfn",
+        62,
+        0.9779179810725552
+      ],
+      [
+        "MiConvertLargeActivePageToChain",
+        58,
+        0.9148264984227129
+      ],
+      [
+        "KiIpiWaitForRequestBarrier",
+        50,
+        0.7886435331230284
+      ]
+    ],
+    "inclusive": {
+      "Parser::Push": 34.148264984227126,
+      "DecodeVfar": 32.57097791798107,
+      "AtlasFrameBindings::Stage": 9.006309148264984,
+      "EtwTracePageFault": 12.665615141955836,
+      "HalpHpetQueryCounter": 22.728706624605678
+    }
+  },
+  "receiver": {
+    "samples": 1870,
+    "leaf_top": [
+      [
+        "HalpHpetQueryCounter",
+        607,
+        32.45989304812834
+      ],
+      [
+        "_RNvNtCscfU9ur0pOWZ_18viewflow_transport9alpha_rle18validate_alpha_rle",
+        104,
+        5.561497326203209
+      ],
+      [
+        "KiCaptureTotalCyclesCurrentThread",
+        55,
+        2.9411764705882355
+      ],
+      [
+        "_RNvMNtCs8FPAE3VFDxN_17viewflow_protocol5atlasNtB2_10AtlasFrame8validate",
+        54,
+        2.8877005347593583
+      ],
+      [
+        "NICSendElementWithCoalescing",
+        49,
+        2.620320855614973
+      ],
+      [
+        "[missing stack]",
+        43,
+        2.299465240641711
+      ],
+      [
+        "NtWaitForAlertByThreadId",
+        39,
+        2.085561497326203
+      ],
+      [
+        "memcpy_repmovs_Intel",
+        27,
+        1.4438502673796791
+      ],
+      [
+        "NICSendElementWithScatterGather",
+        27,
+        1.4438502673796791
+      ],
+      [
+        "RtlpLowFragHeapAllocFromContext",
+        24,
+        1.2834224598930482
+      ],
+      [
+        "memcpy",
+        23,
+        1.2299465240641712
+      ],
+      [
+        "_RNvMs4_NtNtNtNtCsckSb6QcKe7J_5alloc11collections5btree3map5entryINtB5_11VacantEntryTmmENtNtB9_7set_val9SetValZSTE12insert_entryCs8FPAE3VFDxN_17viewflow_protocol",
+        21,
+        1.1229946524064172
+      ]
+    ],
+    "inclusive": {
+      "Parser::Push": 0.0,
+      "DecodeVfar": 0.0,
+      "AtlasFrameBindings::Stage": 0.0,
+      "EtwTracePageFault": 3.9037433155080214,
+      "HalpHpetQueryCounter": 33.2620320855615
+    }
+  }
+}

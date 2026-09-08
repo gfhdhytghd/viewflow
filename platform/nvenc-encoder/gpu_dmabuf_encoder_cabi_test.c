@@ -38,5 +38,10 @@ int main(void) {
   output = (vf_gpu_dmabuf_output*)(uintptr_t)1;
   assert(vf_gpu_dmabuf_encoder_encode_atlas_recoverable(0, 0, 0, 0, &output) == VF_GPU_DMABUF_INVALID_ARGUMENT);
   assert(output == 0);
+  const uint8_t* view = (const uint8_t*)(uintptr_t)1;
+  size_t view_length = 123;
+  assert(vf_gpu_dmabuf_output_view_raw_alpha(0, &view, &view_length) == VF_GPU_DMABUF_INVALID_ARGUMENT);
+  assert(view == 0 && view_length == 0);
+  assert(vf_gpu_dmabuf_output_view_raw_alpha(0, 0, &view_length) == VF_GPU_DMABUF_INVALID_ARGUMENT);
   return 0;
 }

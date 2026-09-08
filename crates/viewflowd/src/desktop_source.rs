@@ -743,8 +743,9 @@ fn discover_local_candidates(
         })
         .filter_map(|client| client["address"].as_str())
         .collect();
-    let windows =
-        viewflow_hyprland::parse_windows(&response).context("parse local Hyprland clients")?;
+    // Stacking and membership come from the same IPC snapshot. Reuse its
+    // typed records instead of parsing and allocating every window twice.
+    let windows = parsed_stacking;
     let live = windows
         .iter()
         .filter(|client| client.mapped)

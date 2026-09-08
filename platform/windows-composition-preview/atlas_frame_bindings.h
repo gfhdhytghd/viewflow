@@ -1,5 +1,6 @@
 #pragma once
 #include "vfgp_parser.h"
+#include "sparse_opaque.h"
 #include <map>
 
 namespace viewflow::windows_preview {
@@ -8,6 +9,7 @@ struct AtlasFrameBinding {
   uint32_t width{}, height{};
   vfgp::DeadlineQpc deadline;
   vfgp::AtlasLayout layout;
+  std::vector<uint8_t> opaque_patches;
 };
 
 // Decoder output may be delayed. Retain each complete immutable layout by its
@@ -66,8 +68,17 @@ public:
       }
     }
     AtlasFrameBinding binding{frame.identity, frame.width, frame.height,
-                              *frame.deadline_qpc, layout};
+                              *frame.deadline_qpc, layout, {}};
+    if (layout.patches) {
+      if (frame.shared_alpha && frame.shared_alpha == opaque_alpha_ && latest_ &&
+          frame.width == latest_->width && frame.height == latest_->height &&
+          layout.patches == latest_->layout.patches)
+        binding.opaque_patches = latest_->opaque_patches;
+      else
+        binding.opaque_patches = OpaqueSparsePatches(frame.Alpha(), frame.width, frame.height, *layout.patches);
+    }
     pending_.emplace(frame.identity, binding);
+    opaque_alpha_ = frame.shared_alpha;
     latest_ = std::move(binding);
     needs_keyframe_ = false;
     return true;
@@ -104,6 +115,7 @@ public:
   bool Empty() const { return pending_.empty(); }
 
 private:
+  std::shared_ptr<const std::vector<uint8_t>> opaque_alpha_;
   static bool SamePlacement(const std::vector<vfgp::AtlasTile> &a,
                             const std::vector<vfgp::AtlasTile> &b) {
     if (a.size() != b.size())

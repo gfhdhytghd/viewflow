@@ -1,0 +1,99 @@
+{
+  "raw_exchange_count": 760,
+  "invalid_exchanges": [],
+  "mapping_count": 95,
+  "uncertainty_ms": {
+    "n": 95,
+    "min": 0.068577,
+    "median": 0.113806,
+    "p95": 0.190641,
+    "max": 0.246402
+  },
+  "network_rtt_ms": {
+    "n": 760,
+    "min": 0.137153,
+    "median": 0.3845275,
+    "p95": 0.98645,
+    "max": 275.907308
+  },
+  "offset_span_ms": 0.132517,
+  "apparent_offset_slope_ppm": -0.2958960043591179,
+  "slope_is_not_independent_oscillator_drift": true,
+  "anchor_width_ns": 10710,
+  "skipped": {
+    "nonunique_marker": 4
+  },
+  "wall_stage_ms": {
+    "capture to encode": {
+      "n": 1344,
+      "min": 0.193106,
+      "median": 1.372691,
+      "p95": 2.44623,
+      "max": 32.093
+    },
+    "encode (host incl waits)": {
+      "n": 1344,
+      "min": 2.040001,
+      "median": 9.7735435,
+      "p95": 11.072703,
+      "max": 83.589664
+    },
+    "release": {
+      "n": 1344,
+      "min": 0.002975,
+      "median": 0.007129,
+      "p95": 0.011251,
+      "max": 0.02561
+    },
+    "batch return / previous feedback": {
+      "n": 1344,
+      "min": 0.000265,
+      "median": 0.011049,
+      "p95": 1.464326,
+      "max": 330.05527
+    },
+    "encoded to pipe admission (transport + receiver + pipe parse)": {
+      "n": 1315,
+      "min": 1.651675,
+      "median": 2.777864,
+      "p95": 13.378517,
+      "max": 343.374287
+    },
+    "pipe admission to decoded": {
+      "n": 1315,
+      "min": 0.76257,
+      "median": 1.5493,
+      "p95": 3.39744,
+      "max": 37.7183
+    },
+    "decoded to proxy ready": {
+      "n": 1315,
+      "min": 0.24452,
+      "median": 0.58297,
+      "p95": 8.56289,
+      "max": 34.97681
+    },
+    "surface copy host": {
+      "n": 1315,
+      "min": 0.00893,
+      "median": 0.01612,
+      "p95": 0.0458,
+      "max": 0.50569
+    },
+    "visual bind / commit host": {
+      "n": 1315,
+      "min": 0.02815,
+      "median": 0.05737,
+      "p95": 0.11066,
+      "max": 4.69338
+    },
+    "commit to desktop (queue + GPU + DWM; NOT DWM CPU)": {
+      "n": 726,
+      "min": 12.79661,
+      "median": 38.020215,
+      "p95": 51.3513,
+      "max": 64.44332
+    }
+  },
+  "caveat": "Overlapping pipelines; do not sum independent medians. CPU flame graph and wall spans are distinct. Desktop timestamp is not photon time."
+}

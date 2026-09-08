@@ -1,0 +1,143 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0000000000000000000000C8 /* VFTrackpadRoot.iig in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000064 /* VFTrackpadRoot.iig */; };
+		0000000000000000000000C9 /* VFTrackpadRoot.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000065 /* VFTrackpadRoot.cpp */; };
+		0000000000000000000000CA /* VFTrackpad.iig in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000066 /* VFTrackpad.iig */; };
+		0000000000000000000000CB /* VFTrackpad.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000067 /* VFTrackpad.cpp */; };
+0000000000000000000000CC = {isa = PBXBuildFile; fileRef = 000000000000000000000068; };
+0000000000000000000000CD = {isa = PBXBuildFile; fileRef = 000000000000000000000069; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		000000000000000000000003 /* org.viewflow.trackpad-probe.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; path = "org.viewflow.trackpad-probe.dext"; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000064 /* VFTrackpadRoot.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = VFTrackpadRoot.iig; sourceTree = "<group>"; };
+		000000000000000000000065 /* VFTrackpadRoot.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VFTrackpadRoot.cpp; sourceTree = "<group>"; };
+		000000000000000000000066 /* VFTrackpad.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = VFTrackpad.iig; sourceTree = "<group>"; };
+		000000000000000000000067 /* VFTrackpad.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VFTrackpad.cpp; sourceTree = "<group>"; };
+000000000000000000000068 = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = VFTrackpadClient.iig; sourceTree = "<group>"; };
+000000000000000000000069 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = VFTrackpadClient.cpp; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		000000000000000000000004 = {
+			isa = PBXGroup;
+			children = (
+000000000000000000000069,
+000000000000000000000068,
+				000000000000000000000064 /* VFTrackpadRoot.iig */,
+				000000000000000000000065 /* VFTrackpadRoot.cpp */,
+				000000000000000000000066 /* VFTrackpad.iig */,
+				000000000000000000000067 /* VFTrackpad.cpp */,
+				000000000000000000000003 /* org.viewflow.trackpad-probe.dext */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000002 /* VFTrackpadProbe */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000007 /* Build configuration list for PBXNativeTarget "VFTrackpadProbe" */;
+			buildPhases = (
+				000000000000000000000005 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = VFTrackpadProbe;
+			productName = "org.viewflow.trackpad-probe";
+			productReference = 000000000000000000000003 /* org.viewflow.trackpad-probe.dext */;
+			productType = "com.apple.product-type.driver-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+			};
+			buildConfigurationList = 000000000000000000000007 /* Build configuration list for PBXNativeTarget "VFTrackpadProbe" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 000000000000000000000004;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000002 /* VFTrackpadProbe */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+0000000000000000000000CD,
+0000000000000000000000CC,
+				0000000000000000000000C8 /* VFTrackpadRoot.iig in Sources */,
+				0000000000000000000000C9 /* VFTrackpadRoot.cpp in Sources */,
+				0000000000000000000000CA /* VFTrackpad.iig in Sources */,
+				0000000000000000000000CB /* VFTrackpad.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		000000000000000000000006 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CODE_SIGN_ENTITLEMENTS = entitlements.plist;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9887KU7FN7;
+				DRIVERKIT_DEPLOYMENT_TARGET = 27.0;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/System/DriverKit/System/Library/Frameworks",
+				);
+				GCC_TREAT_WARNINGS_AS_ERRORS = YES;
+				HEADER_SEARCH_PATHS = "$(SRCROOT)";
+				INFOPLIST_FILE = Info.plist;
+				OTHER_LDFLAGS = (
+					"-framework",
+					HIDDriverKit,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "org.viewflow.trackpad-probe";
+				PRODUCT_NAME = "org.viewflow.trackpad-probe";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = driverkit;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000000007 /* Build configuration list for PBXNativeTarget "VFTrackpadProbe" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000006 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 000000000000000000000001 /* Project object */;
+}

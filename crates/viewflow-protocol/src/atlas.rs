@@ -131,9 +131,9 @@ impl AtlasFrame {
         let invalid = || WireError::InvalidField("atlas_frame.patches");
         let mut previous = None;
         let mut occupied = std::collections::BTreeSet::new();
-        let mut destinations: std::collections::BTreeMap<u32, Vec<&AtlasPatch>> =
-            Default::default();
-        for p in patches {
+        let mut active_x = std::collections::BTreeMap::<u32, u32>::new();
+        let mut expiry_y = std::collections::BTreeSet::<(u32, u32)>::new();
+        for (index, p) in patches.iter().enumerate() {
             let key = (p.tile_index, p.source_y, p.source_x);
             let Some(tile) = self.tiles.get(p.tile_index as usize) else {
                 return Err(invalid());
@@ -157,16 +157,49 @@ impl AtlasFrame {
             {
                 return Err(invalid());
             }
-            let others = destinations.entry(p.tile_index).or_default();
-            if others.iter().any(|q| {
-                p.source_x < q.source_x + q.width
-                    && q.source_x < p.source_x + p.width
-                    && p.source_y < q.source_y + q.height
-                    && q.source_y < p.source_y + p.height
-            }) {
-                return Err(invalid());
+            if patches.len() <= 128 {
+                if patches[..index]
+                    .iter()
+                    .rev()
+                    .take_while(|q| q.tile_index == p.tile_index)
+                    .any(|q| {
+                        p.source_x < q.source_x + q.width
+                            && q.source_x < p.source_x + p.width
+                            && p.source_y < q.source_y + q.height
+                            && q.source_y < p.source_y + p.height
+                    })
+                {
+                    return Err(invalid());
+                }
+            } else {
+                // Accepted rectangles crossing this source-y scanline have
+                // disjoint x intervals. Only the two neighbours can overlap.
+                if previous.is_some_and(|old: (u32, u32, u32)| old.0 != p.tile_index) {
+                    active_x.clear();
+                    expiry_y.clear();
+                }
+                while let Some(&(bottom, x)) = expiry_y.first() {
+                    if bottom > p.source_y {
+                        break;
+                    }
+                    expiry_y.pop_first();
+                    active_x.remove(&x);
+                }
+                let right = p.source_x + p.width; // checked above
+                if active_x
+                    .range(p.source_x..)
+                    .next()
+                    .is_some_and(|(&x, _)| x < right)
+                    || active_x
+                        .range(..p.source_x)
+                        .next_back()
+                        .is_some_and(|(_, &end)| end > p.source_x)
+                {
+                    return Err(invalid());
+                }
+                active_x.insert(p.source_x, right);
+                expiry_y.insert((p.source_y + p.height, p.source_x));
             }
-            others.push(p);
             previous = Some(key);
         }
         Ok(())
@@ -287,6 +320,53 @@ impl From<AtlasFrame> for wire::AtlasFrame {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn validate_patches_reference(
+        frame: &AtlasFrame,
+        patches: &[AtlasPatch],
+    ) -> Result<(), WireError> {
+        let invalid = || WireError::InvalidField("atlas_frame.patches");
+        let mut previous = None;
+        let mut occupied = std::collections::BTreeSet::new();
+        let mut destinations: std::collections::BTreeMap<u32, Vec<&AtlasPatch>> =
+            Default::default();
+        for p in patches {
+            let key = (p.tile_index, p.source_y, p.source_x);
+            let Some(tile) = frame.tiles.get(p.tile_index as usize) else {
+                return Err(invalid());
+            };
+            if previous.is_some_and(|old| old >= key)
+                || p.width == 0
+                || p.height == 0
+                || p.width > 128
+                || p.height > 128
+                || p.x % 128 != 0
+                || p.y % 128 != 0
+                || p.x.checked_add(p.width).is_none_or(|x| x > frame.width)
+                || p.y.checked_add(p.height).is_none_or(|y| y > frame.height)
+                || p.source_x
+                    .checked_add(p.width)
+                    .is_none_or(|x| x > tile.width)
+                || p.source_y
+                    .checked_add(p.height)
+                    .is_none_or(|y| y > tile.height)
+                || !occupied.insert((p.x, p.y))
+            {
+                return Err(invalid());
+            }
+            let others = destinations.entry(p.tile_index).or_default();
+            if others.iter().any(|q| {
+                p.source_x < q.source_x + q.width
+                    && q.source_x < p.source_x + p.width
+                    && p.source_y < q.source_y + q.height
+                    && q.source_y < p.source_y + p.height
+            }) {
+                return Err(invalid());
+            }
+            others.push(p);
+            previous = Some(key);
+        }
+        Ok(())
+    }
     #[test]
     fn sparse_windows_keep_full_geometry_and_only_resident_patches_use_capacity() {
         let mut f = frame();
@@ -335,6 +415,96 @@ mod tests {
         assert!(f.validate().is_ok()); // both HWNDs survive complete occlusion
         f.patches = None;
         assert!(f.validate().is_err()); // legacy full geometry cannot masquerade as sparse
+    }
+
+    #[test]
+    fn sparse_sweep_matches_pairwise_reference() {
+        let mut f = frame();
+        f.width = 16384;
+        f.height = 32768;
+        for tile in &mut f.tiles {
+            tile.width = u32::MAX;
+            tile.height = u32::MAX;
+        }
+        let mut seed = 71231_u64;
+        let mut random = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed as u32
+        };
+        for trial in 0..10000 {
+            let count = (random() % 300) as usize;
+            let mut patches = Vec::new();
+            for i in 0..count {
+                let grid = trial % 2 == 0;
+                patches.push(AtlasPatch {
+                    tile_index: random() % 2,
+                    source_x: if grid {
+                        (i as u32 % 10) * 128
+                    } else {
+                        random() % 512
+                    },
+                    source_y: if grid {
+                        (i as u32 / 10) * 128
+                    } else {
+                        random() % 512
+                    },
+                    x: (i as u32 % 128) * 128,
+                    y: (i as u32 / 128) * 128,
+                    width: 1 + random() % 128,
+                    height: 1 + random() % 128,
+                });
+            }
+            patches.sort_by_key(|p| (p.tile_index, p.source_y, p.source_x));
+            assert_eq!(
+                f.validate_patches(&patches).is_ok(),
+                validate_patches_reference(&f, &patches).is_ok(),
+                "trial {trial}"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "offline performance comparison"]
+    fn sparse_validation_profile() {
+        let mut f = frame();
+        f.width = 16384;
+        f.height = 32768;
+        for tile in &mut f.tiles {
+            tile.width = 16384;
+            tile.height = 32768;
+        }
+        for count in [128, 1024, 4096, 16384, 32768] {
+            let patches: Vec<_> = (0..count)
+                .map(|i| AtlasPatch {
+                    tile_index: 0,
+                    source_x: (i % 128) * 128,
+                    source_y: (i / 128) * 128,
+                    x: (i % 128) * 128,
+                    y: (i / 128) * 128,
+                    width: 128,
+                    height: 128,
+                })
+                .collect();
+            for optimized in [false, true] {
+                let start = std::time::Instant::now();
+                for _ in 0..5 {
+                    let frame = std::hint::black_box(&f);
+                    let patches = std::hint::black_box(&patches);
+                    if optimized {
+                        frame.validate_patches(patches)
+                    } else {
+                        validate_patches_reference(frame, patches)
+                    }
+                    .unwrap();
+                }
+                eprintln!(
+                    "sparse-rust patches={count} optimized={optimized} mean_us={}",
+                    start.elapsed().as_micros() / 5
+                );
+            }
+        }
     }
 
     fn frame() -> AtlasFrame {

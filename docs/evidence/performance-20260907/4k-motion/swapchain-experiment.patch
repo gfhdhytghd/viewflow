@@ -1,0 +1,734 @@
+--- a/platform/windows-composition-preview/main.cpp
++++ b/platform/windows-composition-preview/main.cpp
+@@ -15,7 +15,9 @@
+ #include <cstdio>
+ #include <d2d1_3.h>
+ #include <d3d11.h>
++#include <dxgi1_3.h>
+ #include <dwmapi.h>
++#include <deque>
+ #include <fstream>
+ #include <iostream>
+ #include <limits>
+@@ -648,6 +650,42 @@
+   }
+   return DefWindowProcW(h, m, w, l);
+ }
++// Both surface kinds carry their dimensions explicitly. Composition surface
++// brushes accept either; only drawing surfaces expose BeginDraw/EndDraw.
++struct GpuSwapChainSurface {
++  com_ptr<IDXGISwapChain2> chain;
++  HANDLE ready{};
++  bool slot_acquired{};
++  ~GpuSwapChainSurface() { if (ready) CloseHandle(ready); }
++};
++struct GpuCompositionSurface {
++  ICompositionSurface composition{nullptr};
++  CompositionDrawingSurface drawing{nullptr};
++  std::shared_ptr<GpuSwapChainSurface> swap;
++  winrt::Windows::Foundation::Size size{};
++  GpuCompositionSurface() = default;
++  GpuCompositionSurface(std::nullptr_t) {}
++  GpuCompositionSurface(CompositionDrawingSurface const& value)
++      : composition(value), drawing(value), size(value ? value.Size() : winrt::Windows::Foundation::Size{}) {}
++  explicit operator bool() const { return bool(composition); }
++  operator ICompositionSurface const&() const { return composition; }
++  auto Size() const { return size; }
++  template<class T> auto as() const { return composition.as<T>(); }
++};
++bool swapchain_surface_enabled() {
++  static const bool enabled=[] {
++    wchar_t value[2]{};
++    return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN",value,2)==1 && value[0]==L'1';
++  }();
++  return enabled;
++}
++bool stable_swapchain_enabled() {
++  static const bool enabled=[] {
++    wchar_t value[2]{};
++    return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN_STABLE",value,2)==1 && value[0]==L'1';
++  }();
++  return swapchain_surface_enabled() && enabled;
++}
+ #include "sparse_shared_visuals.h"
+ 
+ struct SparseVisual {
+@@ -657,14 +695,24 @@
+   SpriteVisual backdrop{nullptr};
+   CompositionMaskBrush mask{nullptr};
+ };
++struct GpuSurfaceCandidate {
++  GpuCompositionSurface surface{nullptr};
++  CompositionSurfaceBrush brush{nullptr};
++  uint32_t width{}, height{};
++};
++
+ struct Foreground {
+   com_ptr<ID3D11Device> d3d;
+   com_ptr<ID2D1Device> d2d;
+   CompositionGraphicsDevice graphics{nullptr};
+-  CompositionDrawingSurface surface{nullptr};
++  GpuCompositionSurface surface{nullptr};
+   CompositionSurfaceBrush gpu_brush{nullptr};
+-  CompositionDrawingSurface spare_surface{nullptr};
++  GpuCompositionSurface spare_surface{nullptr};
+   CompositionSurfaceBrush spare_brush{nullptr};
++  // Keep temporarily busy, unbound chains for later frames. At most two
++  // chains for this geometry; never write the currently bound chain.
++  std::vector<GpuSurfaceCandidate> swapchain_pool;
++  bool swapchain_unavailable{};
+   SpriteVisual visual{nullptr};
+   ContainerVisual sparse_root{nullptr};
+   std::vector<SparseVisual> sparse_visuals; // Retained for the independent reference probe.
+@@ -731,13 +779,8 @@
+   }
+ }
+ 
+-struct GpuSurfaceCandidate {
+-  CompositionDrawingSurface surface{nullptr};
+-  CompositionSurfaceBrush brush{nullptr};
+-  uint32_t width{}, height{};
+-};
+-
+-GpuSurfaceCandidate make_gpu_surface(Foreground const &result,
++
++GpuSurfaceCandidate make_drawing_gpu_surface(Foreground const &result,
+                                      Compositor const &compositor,
+                                      uint32_t width, uint32_t height) {
+   GpuSurfaceCandidate candidate;
+@@ -752,6 +795,45 @@
+   return candidate;
+ }
+ 
++GpuSurfaceCandidate make_gpu_surface(Foreground const& result,
++    Compositor const& compositor, uint32_t width, uint32_t height) {
++  static bool swapchain_available=true;
++  if (swapchain_surface_enabled() && swapchain_available) try {
++    GpuSurfaceCandidate candidate;
++    candidate.surface.swap=std::make_shared<GpuSwapChainSurface>();
++    auto dxgi=result.d3d.as<IDXGIDevice>();
++    com_ptr<IDXGIAdapter> adapter;
++    check_hresult(dxgi->GetAdapter(adapter.put()));
++    com_ptr<IDXGIFactory2> factory;
++    check_hresult(adapter->GetParent(__uuidof(IDXGIFactory2),factory.put_void()));
++    DXGI_SWAP_CHAIN_DESC1 desc{};
++    desc.Width=width;desc.Height=height;desc.Format=DXGI_FORMAT_B8G8R8A8_UNORM;
++    desc.SampleDesc.Count=1;desc.BufferUsage=DXGI_USAGE_RENDER_TARGET_OUTPUT;
++    desc.BufferCount=2;desc.Scaling=DXGI_SCALING_STRETCH;
++    desc.SwapEffect=DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
++    desc.AlphaMode=DXGI_ALPHA_MODE_PREMULTIPLIED;
++    desc.Flags=DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
++    com_ptr<IDXGISwapChain1> chain;
++    check_hresult(factory->CreateSwapChainForComposition(result.d3d.get(),&desc,nullptr,chain.put()));
++    candidate.surface.swap->chain=chain.as<IDXGISwapChain2>();
++    check_hresult(candidate.surface.swap->chain->SetMaximumFrameLatency(1));
++    candidate.surface.swap->ready=candidate.surface.swap->chain->GetFrameLatencyWaitableObject();
++    if(!candidate.surface.swap->ready) throw hresult_error(E_FAIL);
++    auto interop=compositor.as<ABI::Windows::UI::Composition::ICompositorInterop>();
++    check_hresult(interop->CreateCompositionSurfaceForSwapChain(chain.get(),
++        reinterpret_cast<ABI::Windows::UI::Composition::ICompositionSurface**>(put_abi(candidate.surface.composition))));
++    candidate.surface.size={float(width),float(height)};
++    candidate.brush=compositor.CreateSurfaceBrush(candidate.surface.composition);
++    candidate.brush.Stretch(CompositionStretch::Fill);
++    candidate.width=width;candidate.height=height;
++    return candidate;
++  } catch(hresult_error const& error) {
++    swapchain_available=false;
++    std::cerr << "atlas-swapchain-unavailable status=" << int32_t(error.code()) << std::endl;
++  }
++  return make_drawing_gpu_surface(result,compositor,width,height);
++}
++
+ // Opt-in completion bounds: polling never waits for GPU work and never changes
+ // stream admission. QPC bounds describe our device queue, not DWM or photons.
+ struct GpuCopyProbe {
+@@ -760,6 +842,7 @@
+   uint64_t frame{}, submitted{}, last_pending{};
+ };
+ thread_local std::vector<GpuCopyProbe> gpu_copy_probes;
++thread_local std::string gpu_surface_timings;
+ bool gpu_copy_probe_enabled() {
+   static const bool enabled=[] {
+     wchar_t value[4]{};
+@@ -768,6 +851,8 @@
+   return enabled;
+ }
+ void poll_gpu_copy_probes(std::string& output) {
++  output+=gpu_surface_timings;
++  gpu_surface_timings.clear();
+   for(auto it=gpu_copy_probes.begin();it!=gpu_copy_probes.end();) {
+     LARGE_INTEGER before{}, after{};
+     QueryPerformanceCounter(&before);
+@@ -788,7 +873,53 @@
+   }
+ }
+ 
+-void copy_gpu_frame(Foreground &result, CompositionDrawingSurface const &surface,
++void finish_gpu_copy(Foreground& result, uint64_t identity) {
++  com_ptr<ID3D11DeviceContext> context;
++  result.d3d->GetImmediateContext(context.put());
++  if(gpu_copy_probe_enabled() && gpu_copy_probes.size()<64) {
++    D3D11_QUERY_DESC desc{D3D11_QUERY_EVENT,0};
++    GpuCopyProbe probe;
++    if(SUCCEEDED(result.d3d->CreateQuery(&desc,probe.query.put()))) {
++      probe.context=context;
++      probe.frame=identity;
++      LARGE_INTEGER now{};
++      QueryPerformanceCounter(&now);
++      probe.submitted=probe.last_pending=uint64_t(now.QuadPart);
++      context->End(probe.query.get());
++      gpu_copy_probes.push_back(std::move(probe));
++    }
++  }
++  context->Flush();
++  check_hresult(result.d3d->GetDeviceRemovedReason());
++}
++
++// S_FALSE means transient DXGI back pressure. The caller retains the session
++// and copies this admitted frame through the drawing-surface path instead.
++HRESULT try_copy_swapchain(Foreground& result, GpuCompositionSurface const& surface,
++                          viewflow::windows::CompositedFrame const& frame) {
++  if(!surface.swap->slot_acquired) {
++    const auto ready=WaitForSingleObject(surface.swap->ready,0);
++    if(ready==WAIT_TIMEOUT)return S_FALSE;
++    if(ready==WAIT_FAILED)return HRESULT_FROM_WIN32(GetLastError());
++    if(ready!=WAIT_OBJECT_0)return E_UNEXPECTED;
++    surface.swap->slot_acquired=true;
++  }
++  com_ptr<ID3D11Texture2D> destination;
++  auto hr=surface.swap->chain->GetBuffer(0,__uuidof(ID3D11Texture2D),destination.put_void());
++  if(FAILED(hr))return hr;
++  com_ptr<ID3D11DeviceContext> context;result.d3d->GetImmediateContext(context.put());
++  hr=viewflow::windows::CopyCompositedRegion(context.get(),frame,destination.get(),0,0);
++  if(FAILED(hr))return hr;
++  destination=nullptr;
++  hr=surface.swap->chain->Present(0,DXGI_PRESENT_DO_NOT_WAIT);
++  if(hr==DXGI_ERROR_WAS_STILL_DRAWING)return S_FALSE;
++  if(FAILED(hr))return hr;
++  surface.swap->slot_acquired=false;
++  finish_gpu_copy(result,frame.frame_identity);
++  return S_OK;
++}
++
++void copy_gpu_frame(Foreground &result, GpuCompositionSurface const &surface,
+                     viewflow::windows::CompositedFrame const &frame) {
+   stage = "foreground-gpu-copy";
+   if (!frame.premultiplied_bgra)
+@@ -811,40 +942,55 @@
+     throw;
+   }
+   check_hresult(drawing->EndDraw());
+-  com_ptr<ID3D11DeviceContext> context;
+-  result.d3d->GetImmediateContext(context.put());
+-  if(gpu_copy_probe_enabled() && gpu_copy_probes.size()<64) {
+-    D3D11_QUERY_DESC desc{D3D11_QUERY_EVENT,0};
+-    GpuCopyProbe probe;
+-    if(SUCCEEDED(result.d3d->CreateQuery(&desc,probe.query.put()))) {
+-      probe.context=context;
+-      probe.frame=frame.frame_identity;
+-      LARGE_INTEGER now{};
+-      QueryPerformanceCounter(&now);
+-      probe.submitted=probe.last_pending=uint64_t(now.QuadPart);
+-      context->End(probe.query.get());
+-      gpu_copy_probes.push_back(std::move(probe));
+-    }
+-  }
+-  context->Flush();
+-  check_hresult(result.d3d->GetDeviceRemovedReason());
++  finish_gpu_copy(result,frame.frame_identity);
+ }
+ 
+ GpuSurfaceCandidate stage_gpu_surface(Foreground &result,
+                                       Compositor const &compositor,
+-                                      viewflow::windows::CompositedFrame const &frame) {
+-  // Keep the previous drawing surface as the next unbound back buffer.
+-  // Composition retains resources while pending GPU work references them.
++                                      viewflow::windows::CompositedFrame const &frame,
++                                      bool allow_swapchain = true) {
++  bool fallback=false;
++  const auto trace=[&](bool swap) {
++    if(gpu_copy_probe_enabled())
++      gpu_surface_timings += "atlas-surface-path frame="+std::to_string(frame.frame_identity)+
++          " swapchain="+std::to_string(swap)+" fallback="+std::to_string(fallback)+"\n";
++  };
++  if(allow_swapchain && swapchain_surface_enabled() && !result.swapchain_unavailable) {
++    if(!result.swapchain_pool.empty() &&
++       (result.swapchain_pool.front().width!=frame.width || result.swapchain_pool.front().height!=frame.height))
++      result.swapchain_pool.clear();
++    for(auto const& slot:result.swapchain_pool) {
++      if(slot.surface.composition==result.surface.composition)continue;
++      const auto hr=try_copy_swapchain(result,slot.surface,frame);
++      check_hresult(hr);
++      if(hr==S_OK) { trace(true); return slot; }
++      fallback=true;
++    }
++    if(result.swapchain_pool.size()<2) {
++      auto slot=make_gpu_surface(result,compositor,frame.width,frame.height);
++      if(slot.surface.swap) {
++        result.swapchain_pool.push_back(slot);
++        const auto hr=try_copy_swapchain(result,slot.surface,frame);
++        check_hresult(hr);
++        if(hr==S_OK) { trace(true); return slot; }
++        fallback=true;
++      } else result.swapchain_unavailable=true;
++    }
++  }
++  // The drawing path remains available during DXGI back pressure. Retain the
++  // busy chains in the bounded pool and retry them on later admitted frames.
+   GpuSurfaceCandidate candidate;
+-  if (result.spare_surface && result.spare_surface.Size().Width == float(frame.width) &&
++  if (result.spare_surface && result.spare_surface.drawing &&
++      result.spare_surface.Size().Width == float(frame.width) &&
+       result.spare_surface.Size().Height == float(frame.height)) {
+     candidate = {std::move(result.spare_surface), std::move(result.spare_brush), frame.width, frame.height};
+   } else {
+     result.spare_surface = nullptr;
+     result.spare_brush = nullptr;
+-    candidate = make_gpu_surface(result, compositor, frame.width, frame.height);
++    candidate = make_drawing_gpu_surface(result, compositor, frame.width, frame.height);
+   }
+   copy_gpu_frame(result, candidate.surface, frame);
++  trace(false);
+   return candidate;
+ }
+ 
+@@ -867,7 +1013,7 @@
+ // One shared double-buffered atlas surface backs every sparse proxy. A window
+ // owns only small visual/brush descriptors; hidden regions own no pixel surface.
+ struct SparseGpuCandidate {
+-  CompositionDrawingSurface surface{nullptr};
++  GpuCompositionSurface surface{nullptr};
+   std::optional<SharedSparseScene> replacement;
+   std::optional<SharedSparsePlan> plan;
+   std::vector<viewflow::vfgp::AtlasPatch> patches;
+@@ -887,7 +1033,7 @@
+   return viewflow::windows_preview::CoalesceSparsePatches(patches,opaque);
+ }
+ SparseGpuCandidate stage_sparse_visuals(Foreground const& foreground,
+-    Compositor const& compositor, CompositionDrawingSurface const& surface,
++    Compositor const& compositor, GpuCompositionSurface const& surface,
+     std::span<const viewflow::vfgp::AtlasPatch> patches, uint32_t tile_index,
+     uint32_t width,uint32_t height,CompositionBrush const& raw_backdrop,
+     float blur_sigma=0, std::span<const uint8_t> opaque = {}) {
+@@ -930,16 +1076,19 @@
+   } else if(next.plan) {
+     commit_shared_sparse_visuals(*foreground.shared_sparse,std::move(*next.plan));
+   } else {
+-    foreground.shared_sparse->brush.Surface(next.surface);
++    if(foreground.shared_sparse->brush.Surface()!=next.surface.composition)
++      foreground.shared_sparse->brush.Surface(next.surface);
+   }
+   if(!next.reuse) {
+     foreground.shared_patches=std::move(next.patches);
+     foreground.shared_opaque=std::move(next.opaque);
+   }
+   foreground.shared_blur_sigma=next.blur_sigma;
+-  foreground.sparse_root.Size({float(next.width),float(next.height)});
+-  foreground.sparse_root.Scale({target_width/float(next.width),target_height/float(next.height),1.0f});
+-  foreground.visual.Brush(nullptr);
++  const winrt::Windows::Foundation::Numerics::float2 desired_size{float(next.width),float(next.height)};
++  const winrt::Windows::Foundation::Numerics::float3 desired_scale{target_width/float(next.width),target_height/float(next.height),1.0f};
++  if(foreground.sparse_root.Size()!=desired_size)foreground.sparse_root.Size(desired_size);
++  if(foreground.sparse_root.Scale()!=desired_scale)foreground.sparse_root.Scale(desired_scale);
++  if(foreground.visual.Brush())foreground.visual.Brush(nullptr);
+   foreground.gpu_brush=nullptr; foreground.spare_brush=nullptr;
+   foreground.surface=nullptr; foreground.spare_surface=nullptr;
+   foreground.width=next.width; foreground.height=next.height;
+@@ -2210,6 +2359,37 @@
+ 
+ // The opt-in atlas path owns independent HWND/visuals but one decoder. This
+ // Input events are opt-in; neither mode claims physical present receipts.
++// Eligibility for updating a still-bound swap chain. Source timestamps and
++// frame identities may advance; every pixel-to-window mapping must stay equal.
++bool same_swapchain_mapping(viewflow::windows_preview::AtlasFrameBinding const& a,
++                            viewflow::windows_preview::AtlasFrameBinding const& b) {
++  if(a.width!=b.width || a.height!=b.height || a.opaque_patches!=b.opaque_patches ||
++     a.layout.stream!=b.layout.stream || a.layout.geometry_epoch!=b.layout.geometry_epoch ||
++     a.layout.config_generation!=b.layout.config_generation || a.layout.revision!=b.layout.revision ||
++     a.layout.patches!=b.layout.patches || a.layout.tiles.size()!=b.layout.tiles.size() ||
++     bool(a.layout.desktop)!=bool(b.layout.desktop))return false;
++  for(size_t i=0;i<a.layout.tiles.size();++i) {
++    const auto& x=a.layout.tiles[i];const auto& y=b.layout.tiles[i];
++    if(std::tie(x.window,x.placement_generation,x.geometry_epoch,x.x,x.y,x.width,x.height)!=
++       std::tie(y.window,y.placement_generation,y.geometry_epoch,y.x,y.y,y.width,y.height))return false;
++  }
++  const auto same_rect=[](auto const& x,auto const& y) {
++    return std::tie(x.x_millidip,x.y_millidip,x.width_millidip,x.height_millidip)==
++           std::tie(y.x_millidip,y.y_millidip,y.width_millidip,y.height_millidip);
++  };
++  if(a.layout.desktop) {
++    const auto& x=*a.layout.desktop;const auto& y=*b.layout.desktop;
++    if(x.topology_generation!=y.topology_generation || !same_rect(x.viewport,y.viewport) ||
++       x.windows.size()!=y.windows.size())return false;
++    for(size_t i=0;i<x.windows.size();++i) {
++      const auto& p=x.windows[i];const auto& q=y.windows[i];
++      if(p.window!=q.window || p.movable!=q.movable || p.z_order!=q.z_order ||
++         p.raise_serial!=q.raise_serial || !same_rect(p.bounds,q.bounds))return false;
++    }
++  }
++  return true;
++}
++
+ class AtlasNativePresenter {
+   struct BudgetTrace { uint64_t identity{}; const char* phase{}; int64_t remaining_us{}; };
+   struct Proxy {
+@@ -2280,13 +2460,27 @@
+     throw;
+   }
+   bool WorkPending() const {
+-    return decoder_.submit_ready_event() || next_parsed_ < parsed_frames_.size();
+-  }
+-  HANDLE DecodeReadyEvent() const { return decoder_.submit_ready_event(); }
++    return !pending_present_.empty() || decoder_.submit_ready_event() || next_parsed_ < parsed_frames_.size();
++  }
++  HANDLE DecodeReadyEvent() const {
++    if(!pending_present_.empty())return waiting_swap_ ? waiting_swap_->ready : swap_retry_timer_.get();
++    return decoder_.submit_ready_event();
++  }
++  DWORD CompletionWaitTimeout() const { return waiting_swap_ ? 16 : INFINITE; }
++  void ObserveCompletionEvent() {
++    // MsgWait consumes the auto-reset DXGI event just like the zero-time poll.
++    if(waiting_swap_)waiting_swap_->slot_acquired=true;
++  }
+   // Do one bounded handoff/completion, then return to the outer message loop.
+   // Keep only this pipe chunk's parsed records; never read ahead during decode.
+   bool Advance() try {
+     poll_gpu_copy_probes(sampled_timings_);
++    if(!pending_present_.empty()) {
++      if(!Present(pending_present_.front()))return false;
++      pending_present_.pop_front();
++      waiting_swap_.reset();swap_wait_started_=0;
++      return true;
++    }
+     if (decoder_.submit_ready_event()) {
+       if (!decoder_.submit_ready()) return false;
+       stage = "atlas-decode-completion";
+@@ -2354,7 +2548,7 @@
+     if (!parser_.Finish()) bad("incomplete atlas pipe record");
+     std::vector<viewflow::windows::CompositedFrame> completed;
+     check_hresult(decoder_.Finish(&completed));
+-    for (const auto& decoded : completed) Complete(decoded);
++    for (const auto& decoded : completed) Complete(decoded, false);
+     if (!bindings_.Empty() || !decode_identities_.Empty() || (warmup_started_ && !warmup_.finish()))
+       bad("atlas decoder did not return all submitted identities");
+   }
+@@ -2395,12 +2589,12 @@
+     if (c.rejection_kind) std::cout << " cause=rejected cancel_sequence=" << c.cancel_sequence;
+     std::cout << std::endl;
+   }
+-  void Complete(const viewflow::windows::CompositedFrame& decoded) {
++  void Complete(const viewflow::windows::CompositedFrame& decoded, bool allow_defer = true) {
+     const auto identity = decode_identities_.Take(decoded.frame_identity, decoded.width, decoded.height);
+     if (!identity) bad("atlas decoder output identity mapping");
+     if (identity->warmup) {
+       if (!warmup_foreground_) warmup_foreground_ = foreground(compositor_, float(decoded.width), float(decoded.height), decoder_.device());
+-      auto candidate = stage_gpu_surface(*warmup_foreground_, compositor_, decoded);
++      auto candidate = stage_gpu_surface(*warmup_foreground_, compositor_, decoded, false);
+       PrepareProxies(decoded.width, decoded.height);
+       if (warmup_foreground_->visual.Brush() || !warmup_.complete(identity->source_identity)) bad("atlas warmup bound pixels or identity mismatch");
+       std::cout << "atlas-warmup-completed identity=" << identity->source_identity
+@@ -2409,7 +2603,8 @@
+     }
+     auto frame = decoded;
+     frame.frame_identity = identity->source_identity;
+-    Present(frame);
++    if(stable_swapchain_enabled() && allow_defer)pending_present_.push_back(std::move(frame));
++    else Present(frame, false);
+   }
+   uint64_t Clock(viewflow::vfgp::DeadlineQpc deadline) const {
+     LARGE_INTEGER now{};
+@@ -2565,7 +2760,7 @@
+     std::cerr << "atlas-proxies-prepared hidden_count=" << reserved_proxies_.size()
+               << " bound_pixels=false" << std::endl;
+   }
+-  void Present(const viewflow::windows::CompositedFrame& frame) {
++  bool Present(const viewflow::windows::CompositedFrame& frame, bool allow_defer = true) {
+     const auto* binding = bindings_.Find(frame.frame_identity, frame.width, frame.height);
+     if (!binding) bad("atlas decoded frame has no matching immutable layout");
+     TraceBudget(frame.frame_identity, "decoded", binding->deadline);
+@@ -2596,7 +2791,44 @@
+     std::optional<GpuSurfaceCandidate> shared_candidate;
+     if(binding->layout.patches) {
+       if(!sparse_atlas_) sparse_atlas_=foreground_on_device(*warmup_foreground_,compositor_,float(frame.width),float(frame.height));
+-      shared_candidate=stage_gpu_surface(*sparse_atlas_,compositor_,frame);
++      bool force_drawing=false;
++      if(allow_defer && stable_swapchain_enabled() && sparse_atlas_->surface.swap &&
++         last_swap_binding_ && same_swapchain_mapping(*last_swap_binding_,*binding)) {
++        const auto hr=try_copy_swapchain(*sparse_atlas_,sparse_atlas_->surface,frame);
++        check_hresult(hr);
++        if(hr==S_FALSE) {
++          if(!swap_wait_started_)swap_wait_started_=GetTickCount64();
++          // Local operation recovery, never a frame-age admission cutoff.
++          // An occluded/non-progressing swap chain must not hold the stream.
++          if(GetTickCount64()-swap_wait_started_>=250) {
++            force_drawing=true;waiting_swap_.reset();swap_wait_started_=0;
++            sampled_timings_ += "atlas-swapchain-recovered frame="+std::to_string(frame.frame_identity)+"\n";
++          } else {
++            waiting_swap_=sparse_atlas_->surface.swap;
++            if(waiting_swap_->slot_acquired) {
++              // Present(DO_NOT_WAIT) was busy after slot reservation. Preserve
++              // the reservation and retry outside the message dispatch stack.
++              waiting_swap_.reset();
++              if(!swap_retry_timer_) {
++                swap_retry_timer_.attach(CreateWaitableTimerW(nullptr,FALSE,nullptr));
++                if(!swap_retry_timer_)throw_last_error();
++              }
++              LARGE_INTEGER due{};due.QuadPart=-10000;
++              if(!SetWaitableTimer(swap_retry_timer_.get(),&due,0,nullptr,nullptr,FALSE))throw_last_error();
++            }
++            return false;
++          }
++        } else {
++          shared_candidate=GpuSurfaceCandidate{sparse_atlas_->surface,sparse_atlas_->gpu_brush,frame.width,frame.height};
++          if(gpu_copy_probe_enabled())
++            gpu_surface_timings += "atlas-surface-path frame="+std::to_string(frame.frame_identity)+" swapchain=1 fallback=0 stable=1\n";
++          if(swap_wait_started_ && gpu_copy_probe_enabled())
++            sampled_timings_ += "atlas-swapchain-wait frame="+std::to_string(frame.frame_identity)+
++                " wait_ms="+std::to_string(GetTickCount64()-swap_wait_started_)+"\n";
++          waiting_swap_.reset();swap_wait_started_=0;
++        }
++      }
++      if(!shared_candidate)shared_candidate=stage_gpu_surface(*sparse_atlas_,compositor_,frame,!force_drawing);
+     }
+     std::vector<Candidate> candidates;
+     std::set<viewflow::vfgp::AtlasId> retained;
+@@ -2893,14 +3125,17 @@
+           retire_pointer_input(&input.input.pointer, "keyboard-binding-changed-while-held");
+       }
+     }
++    if(stable_swapchain_enabled() && (!last_swap_binding_ || !same_swapchain_mapping(*last_swap_binding_,*binding)))
++      last_swap_binding_=*binding;
+     if (!bindings_.Commit(frame.frame_identity)) bad("atlas commit identity");
+     if (dispositions_) {
+       atlas_progress(AtlasProgress::Receipt);
+       EmitDisposition(frame.frame_identity, count, deadline, "committed", commit_ticks);
+-      return;
++      return true;
+     }
+     std::cout << "atlas-submitted frame_identity=" << frame.frame_identity
+               << " tile_count=" << count << " physical_present_receipt=false" << std::endl;
++    return true;
+   }
+   Compositor compositor_;
+   viewflow::windows_preview::MtaVideoCompositor& decoder_;
+@@ -2912,6 +3147,11 @@
+   viewflow::windows_preview::WarmupAdmission warmup_{3};
+   std::optional<Foreground> warmup_foreground_;
+   std::optional<Foreground> sparse_atlas_;
++  std::optional<viewflow::windows_preview::AtlasFrameBinding> last_swap_binding_;
++  std::deque<viewflow::windows::CompositedFrame> pending_present_;
++  std::shared_ptr<GpuSwapChainSurface> waiting_swap_;
++  winrt::handle swap_retry_timer_;
++  ULONGLONG swap_wait_started_{};
+   bool warmup_started_{}, live_started_{};
+   std::map<viewflow::vfgp::AtlasId, std::unique_ptr<Proxy>> proxies_;
+   std::vector<std::unique_ptr<Proxy>> reserved_proxies_;
+@@ -3085,8 +3325,9 @@
+       if (!decoded) bad("atlas pending work has no completion event");
+       // The MTA owns input bytes until completion. Keep servicing native input
+       // without nested dispatch inside a decode/copy/visual mutation operation.
+-      if (MsgWaitForMultipleObjectsEx(1, &decoded, INFINITE, QS_ALLINPUT,
+-                                      MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
++      const auto waited=MsgWaitForMultipleObjectsEx(1, &decoded,presenter.CompletionWaitTimeout(),QS_ALLINPUT,MWMO_INPUTAVAILABLE);
++      if(waited==WAIT_FAILED)throw_last_error();
++      if(waited==WAIT_OBJECT_0)presenter.ObserveCompletionEvent();
+       continue;
+     }
+     std::array<uint8_t, CompressedPipeReader::chunk_bytes> chunk{};
+--- a/platform/windows-composition-preview/sparse_shared_visuals.h
++++ b/platform/windows-composition-preview/sparse_shared_visuals.h
+@@ -163,7 +163,7 @@
+   std::vector<Key> order;
+ };
+ struct SharedSparsePlan {
+-  CompositionDrawingSurface surface{nullptr};
++  GpuCompositionSurface surface{nullptr};
+   winrt::Windows::Foundation::Size size{};
+   std::map<SharedSparseScene::Key,SharedSparseScene::Node> nodes;
+   std::vector<SharedSparseScene::Key> order;
+@@ -173,7 +173,7 @@
+ // Plans belong to this scene and are committed serially by the presenter.
+ // Destruction of an uncommitted plan leaves the visible tree untouched.
+ inline SharedSparsePlan stage_shared_sparse_visuals(SharedSparseScene const& scene,
+-    CompositionDrawingSurface const& surface,
++    GpuCompositionSurface const& surface,
+     std::span<const viewflow::vfgp::AtlasPatch> patches,
+     std::span<const uint8_t> opaque = {}) {
+   if (!opaque.empty() && opaque.size()!=patches.size()) throw std::runtime_error("sparse opacity count");
+@@ -268,7 +268,7 @@
+   scene.nodes=std::move(next);scene.order=std::move(order);
+ }
+ inline size_t update_shared_sparse_visuals(SharedSparseScene& scene,
+-    CompositionDrawingSurface const& surface,
++    GpuCompositionSurface const& surface,
+     std::span<const viewflow::vfgp::AtlasPatch> patches,
+     std::span<const uint8_t> opaque = {}) {
+   auto plan=stage_shared_sparse_visuals(scene,surface,patches,opaque);
+@@ -277,7 +277,7 @@
+   return created;
+ }
+ inline SharedSparseScene make_shared_sparse_scene(
+-    Compositor const& compositor, CompositionDrawingSurface const& surface,
++    Compositor const& compositor, GpuCompositionSurface const& surface,
+     std::span<const viewflow::vfgp::AtlasPatch> patches,
+     CompositionBrush const& backdrop = nullptr, float blur_sigma = 0,
+     std::span<const uint8_t> opaque = {}) {
+--- a/platform/windows-composition-preview/sparse_visual_reference.h
++++ b/platform/windows-composition-preview/sparse_visual_reference.h
+@@ -2,14 +2,14 @@
+ // Frozen pre-integration per-patch binding algorithm for isolated comparisons.
+ // Keep independent of changes to the production stage/commit implementations.
+ struct ReferenceSparseGpuCandidate {
+-  CompositionDrawingSurface surface{nullptr};
++  GpuCompositionSurface surface{nullptr};
+   ContainerVisual root{nullptr};
+   std::vector<SparseVisual> visuals;
+   uint32_t width{},height{};
+   bool reuse{};
+ };
+ ReferenceSparseGpuCandidate reference_stage_sparse_visuals(Foreground const& foreground,
+-    Compositor const& compositor, CompositionDrawingSurface const& surface,
++    Compositor const& compositor, GpuCompositionSurface const& surface,
+     std::span<const viewflow::vfgp::AtlasPatch> patches, uint32_t tile_index,
+     uint32_t width,uint32_t height,CompositionBrush const& backdrop) {
+   const auto selected = viewflow::vfgp::PatchesForTile(patches, tile_index);
+--- a/platform/windows-composition-preview/sparse_coalesce_capture_test.cpp
++++ b/platform/windows-composition-preview/sparse_coalesce_capture_test.cpp
+@@ -40,6 +40,8 @@
+   auto session=pool.CreateCaptureSession(GraphicsCaptureItem::CreateFromVisual(root));session.StartCapture();
+   com_ptr<ID3D11DeviceContext> context;owner.d3d->GetImmediateContext(context.put());
+   unsigned phase=0;
++  std::optional<viewflow::windows_preview::AtlasFrameBinding> last_mapping;
++  unsigned stable_copies=0;
+   for(float scale:{1.0f,0.75f,0.5f})for(float offset:{0.0f,0.25f})for(unsigned state:{0u,1u,0u,2u,3u,4u,5u}) {
+     ++phase;
+     auto patches=original_patches;
+@@ -65,9 +67,27 @@
+     D3D11_SUBRESOURCE_DATA data{bytes.data(),256*4,0};
+     viewflow::windows::CompositedFrame frame;frame.frame_identity=phase;frame.width=256;frame.height=256;
+     check_hresult(owner.d3d->CreateTexture2D(&desc,&data,frame.premultiplied_bgra.GetAddressOf()));
+-    auto surface=stage_gpu_surface(owner,compositor,frame);
+     const auto flags=viewflow::windows_preview::OpaqueSparsePatches(alpha,256,256,patches);
+-    reference_commit_sparse_visuals(reference,reference_stage_sparse_visuals(reference,compositor,surface.surface,patches,0,256,256,blurred),256*scale,256*scale);
++    viewflow::windows_preview::AtlasFrameBinding mapping;
++    mapping.identity=phase;mapping.width=frame.width;mapping.height=frame.height;
++    mapping.layout.stream={1,2};mapping.layout.geometry_epoch=1;mapping.layout.config_generation=1;
++    mapping.layout.revision=last_mapping ? last_mapping->layout.revision : 1;
++    if(last_mapping && last_mapping->layout.patches!=std::optional{patches})++mapping.layout.revision;
++    mapping.layout.tiles.push_back({{2,3},mapping.layout.revision,1,phase,phase,0,0,256,256});
++    mapping.layout.patches=patches;mapping.opaque_patches=flags;
++    GpuSurfaceCandidate surface;
++    const bool stable=stable_swapchain_enabled() && owner.surface.swap && last_mapping &&
++        same_swapchain_mapping(*last_mapping,mapping);
++    if(stable) {
++      if(try_copy_swapchain(owner,owner.surface,frame)!=S_OK)
++        throw std::runtime_error("stable pixel swapchain was busy");
++      surface={owner.surface,owner.gpu_brush,frame.width,frame.height};++stable_copies;
++    } else surface=stage_gpu_surface(owner,compositor,frame);
++    auto reference_surface=make_drawing_gpu_surface(owner,compositor,frame.width,frame.height);
++    copy_gpu_frame(owner,reference_surface.surface,frame);
++    if(swapchain_surface_enabled() && !surface.surface.swap)
++      throw std::runtime_error("swapchain pixel probe unexpectedly fell back");
++    reference_commit_sparse_visuals(reference,reference_stage_sparse_visuals(reference,compositor,reference_surface.surface,patches,0,256,256,blurred),256*scale,256*scale);
+     commit_sparse_visuals(candidate,stage_sparse_visuals(candidate,compositor,surface.surface,patches,0,256,256,raw,8,flags),256*scale,256*scale);
+     reference.visual.Offset({32+offset,32+offset,0});candidate.visual.Offset({352+offset,32+offset,0});
+     size_t backgrounds=0;for(auto const& [key,node]:candidate.shared_sparse->nodes)if(node.background)++backgrounds;
+@@ -98,14 +118,25 @@
+       context->Unmap(readback.get(),0);captured.Close();
+       if(fresh && mismatch==0){verified=true;break;}
+     }
+-    std::printf("coalesce-pixels phase=%u scale=%.2f offset=%.2f state=%u backgrounds=%zu mismatches=%zu verified=%u\n",phase,scale,offset,state,backgrounds,mismatch,unsigned(verified));
++    std::printf("coalesce-pixels phase=%u scale=%.2f offset=%.2f state=%u backgrounds=%zu mismatches=%zu verified=%u swapchain=%u stable=%u\n",phase,scale,offset,state,backgrounds,mismatch,unsigned(verified),unsigned(bool(surface.surface.swap)),unsigned(stable));
+     if(!verified)throw std::runtime_error("coalesce backdrop pixel mismatch or stale capture");
++    owner.spare_surface=std::move(owner.surface);owner.spare_brush=std::move(owner.gpu_brush);
++    owner.surface=std::move(surface.surface);owner.gpu_brush=std::move(surface.brush);
++    owner.width=frame.width;owner.height=frame.height;
++    last_mapping=std::move(mapping);
+   }
++  if(stable_swapchain_enabled() && !stable_copies)throw std::runtime_error("stable swapchain was not exercised");
+   session.Close();pool.Close();return 0;
+ } catch(hresult_error const& error) {std::fprintf(stderr,"coalesce HRESULT=%08x\n",unsigned(error.code().value));return 2;}
+ catch(std::exception const& error) {std::fprintf(stderr,"%s\n",error.what());return 2;}
+ 
+-int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int) {
++int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR arguments,int) {
++  if(arguments && wcscmp(arguments,L"--swapchain")==0)
++    SetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN",L"1");
++  if(arguments && wcscmp(arguments,L"--stable-swapchain")==0) {
++    SetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN",L"1");
++    SetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN_STABLE",L"1");
++  }
+   FILE* log=nullptr;if(_wfreopen_s(&log,L"coalesce-pixels-result.log",L"w",stdout)!=0)return 2;
+   _dup2(_fileno(stdout),_fileno(stderr));setvbuf(stdout,nullptr,_IONBF,0);
+   return coalesce_pixels();
+--- a/platform/windows-composition-preview/sparse_host_backdrop_test.cpp
++++ b/platform/windows-composition-preview/sparse_host_backdrop_test.cpp
+@@ -104,6 +104,8 @@
+   std::vector<uint8_t> bytes(512*256*4);
+   D3D11_TEXTURE2D_DESC desc{};desc.Width=512;desc.Height=256;desc.MipLevels=1;desc.ArraySize=1;desc.Format=DXGI_FORMAT_B8G8R8A8_UNORM;desc.SampleDesc.Count=1;desc.Usage=D3D11_USAGE_DEFAULT;desc.BindFlags=D3D11_BIND_SHADER_RESOURCE|D3D11_BIND_RENDER_TARGET;
+   std::array<std::array<int,3>,2> reference_samples{},control_samples{};
++  std::optional<viewflow::windows_preview::AtlasFrameBinding> last_mapping;
++  unsigned stable_copies=0;
+   size_t blurred_difference=0;
+   for(unsigned phase=0;phase<4;++phase) {
+     for(size_t i=0;i<stripes.size();++i) {
+@@ -118,11 +120,26 @@
+     D3D11_SUBRESOURCE_DATA data{bytes.data(),512*4,0};
+     viewflow::windows::CompositedFrame frame;frame.frame_identity=phase+1;frame.width=512;frame.height=256;
+     check_hresult(owner.d3d->CreateTexture2D(&desc,&data,frame.premultiplied_bgra.GetAddressOf()));
+-    auto surface=stage_gpu_surface(owner,compositor,frame);
+-    reference_commit_sparse_visuals(reference,reference_stage_sparse_visuals(reference,compositor,surface.surface,patches,0,256,256,blurred),256,256);
++    viewflow::windows_preview::AtlasFrameBinding mapping;
++    mapping.identity=phase+1;mapping.width=frame.width;mapping.height=frame.height;
++    mapping.layout.stream={1,2};mapping.layout.geometry_epoch=1;mapping.layout.config_generation=1;
++    mapping.layout.revision=phase==3?2:1;
++    mapping.layout.tiles.push_back({{2,3},mapping.layout.revision,1,phase+1,phase+1,0,0,256,256});
++    mapping.layout.patches=patches;
++    GpuSurfaceCandidate surface;
++    const bool stable=stable_swapchain_enabled() && owner.surface.swap && last_mapping &&
++        same_swapchain_mapping(*last_mapping,mapping);
++    if(stable) {
++      host_require(try_copy_swapchain(owner,owner.surface,frame)==S_OK,"stable host swapchain was busy");
++      surface={owner.surface,owner.gpu_brush,frame.width,frame.height};++stable_copies;
++    } else surface=stage_gpu_surface(owner,compositor,frame);
++    auto reference_surface=make_drawing_gpu_surface(owner,compositor,frame.width,frame.height);
++    copy_gpu_frame(owner,reference_surface.surface,frame);
++    host_require(!swapchain_surface_enabled() || bool(surface.surface.swap),"swapchain host probe unexpectedly fell back");
++    reference_commit_sparse_visuals(reference,reference_stage_sparse_visuals(reference,compositor,reference_surface.surface,patches,0,256,256,blurred),256,256);
+     if(calibrate)reference_commit_sparse_visuals(candidate,reference_stage_sparse_visuals(candidate,compositor,surface.surface,patches,0,256,256,candidate_blurred),256,256);
+     else commit_sparse_visuals(candidate,stage_sparse_visuals(candidate,compositor,surface.surface,patches,0,256,256,candidate_raw,12),256,256);
+-    reference_commit_sparse_visuals(control,reference_stage_sparse_visuals(control,compositor,surface.surface,patches,0,256,256,nullptr),256,256);
++    reference_commit_sparse_visuals(control,reference_stage_sparse_visuals(control,compositor,reference_surface.surface,patches,0,256,256,nullptr),256,256);
+     if(phase==0){ShowWindow(background.value,SW_SHOWNOACTIVATE);ShowWindow(overlay.value,SW_SHOWNOACTIVATE);ShowWindow(candidate_window.value,SW_SHOWNOACTIVATE);ShowWindow(control_window.value,SW_SHOWNOACTIVATE);}
+     bool valid=false;size_t mismatches=0;
+     std::array<int,3> last_reference{},last_candidate{},last_control{};
+@@ -150,7 +167,13 @@
+     std::printf("host-test calibration=%u sample_ref=%d,%d,%d sample_candidate=%d,%d,%d sample_control=%d,%d,%d\n",unsigned(calibrate),last_reference[0],last_reference[1],last_reference[2],last_candidate[0],last_candidate[1],last_candidate[2],last_control[0],last_control[1],last_control[2]);std::fflush(stdout);
+     host_require(GetForegroundWindow()!=background.value && GetForegroundWindow()!=overlay.value && GetForegroundWindow()!=candidate_window.value && GetForegroundWindow()!=control_window.value,"owned test window acquired focus");
+     host_require(valid,"physical HostBackdrop panels differ or are not visible");
+-  }
++    std::printf("host-surface swapchain=%u stable=%u\n",unsigned(bool(surface.surface.swap)),unsigned(stable));
++    owner.spare_surface=std::move(owner.surface);owner.spare_brush=std::move(owner.gpu_brush);
++    owner.surface=std::move(surface.surface);owner.gpu_brush=std::move(surface.brush);
++    owner.width=frame.width;owner.height=frame.height;
++    last_mapping=std::move(mapping);
++  }
++  host_require(!stable_swapchain_enabled() || stable_copies==2,"stable host swapchain was not exercised");
+   int response=0;
+   for(unsigned c=0;c<3;++c) {
+     const int dr=reference_samples[1][c]-reference_samples[0][c],dc=control_samples[1][c]-control_samples[0][c];
+@@ -171,5 +194,14 @@
+   _dup2(_fileno(stdout),_fileno(stderr));setvbuf(stdout,nullptr,_IONBF,0);
+   int argc=0;auto argv=CommandLineToArgvW(GetCommandLineW(),&argc);
+   if(!argv)return 2;
++  if(argc==2 && wcscmp(argv[1],L"--swapchain")==0) {
++    SetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN",L"1");
++    argc=1;
++  }
++  if(argc==2 && wcscmp(argv[1],L"--stable-swapchain")==0) {
++    SetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN",L"1");
++    SetEnvironmentVariableW(L"VIEWFLOW_ATLAS_SWAPCHAIN_STABLE",L"1");
++    argc=1;
++  }
+   const int result=wmain(argc,argv);LocalFree(argv);return result;
+ }

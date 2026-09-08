@@ -1,0 +1,97 @@
+{
+  "raw_exchange_count": 744,
+  "invalid_exchanges": [],
+  "mapping_count": 93,
+  "uncertainty_ms": {
+    "n": 93,
+    "min": 0.068435,
+    "median": 0.108959,
+    "p95": 0.197898,
+    "max": 0.231166
+  },
+  "network_rtt_ms": {
+    "n": 744,
+    "min": 0.136869,
+    "median": 0.39298049999999995,
+    "p95": 1.980678,
+    "max": 181.150676
+  },
+  "offset_span_ms": 0.172212,
+  "apparent_offset_slope_ppm": -0.2518505899851192,
+  "slope_is_not_independent_oscillator_drift": true,
+  "anchor_width_ns": 10490,
+  "skipped": {},
+  "wall_stage_ms": {
+    "capture to encode": {
+      "n": 1245,
+      "min": 0.183301,
+      "median": 1.464624,
+      "p95": 2.976192,
+      "max": 33.164
+    },
+    "encode (host incl waits)": {
+      "n": 1245,
+      "min": 1.630625,
+      "median": 12.394641,
+      "p95": 14.605947,
+      "max": 246.973343
+    },
+    "release": {
+      "n": 1245,
+      "min": 0.004281,
+      "median": 0.007448,
+      "p95": 0.011161,
+      "max": 0.033117
+    },
+    "batch return / previous feedback": {
+      "n": 1245,
+      "min": 0.000341,
+      "median": 0.015168,
+      "p95": 6.833114,
+      "max": 184.893744
+    },
+    "encoded to pipe admission (transport + receiver + pipe parse)": {
+      "n": 1210,
+      "min": 4.576402,
+      "median": 6.701633,
+      "p95": 16.844079,
+      "max": 194.843866
+    },
+    "pipe admission to decoded": {
+      "n": 1210,
+      "min": 2.82593,
+      "median": 4.501265,
+      "p95": 6.73819,
+      "max": 136.78569
+    },
+    "decoded to proxy ready": {
+      "n": 1210,
+      "min": 0.27652,
+      "median": 0.75258,
+      "p95": 7.95318,
+      "max": 34.9146
+    },
+    "surface copy host": {
+      "n": 1210,
+      "min": 0.00883,
+      "median": 0.016825,
+      "p95": 0.03289,
+      "max": 0.50047
+    },
+    "visual bind / commit host": {
+      "n": 1210,
+      "min": 0.03038,
+      "median": 0.05777,
+      "p95": 0.08941,
+      "max": 6.21532
+    },
+    "commit to desktop (queue + GPU + DWM; NOT DWM CPU)": {
+      "n": 694,
+      "min": 14.26708,
+      "median": 35.49283,
+      "p95": 48.18036,
+      "max": 105.08253
+    }
+  },
+  "caveat": "Overlapping pipelines; do not sum independent medians. CPU flame graph and wall spans are distinct. Desktop timestamp is not photon time."
+}

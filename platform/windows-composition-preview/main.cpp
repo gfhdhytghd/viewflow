@@ -48,6 +48,7 @@
 #include "pointer_motion.h"
 #include "atlas_pointer.h"
 #include "atlas_frame_bindings.h"
+#include "sparse_coalesce.h"
 #include "atlas_decode_identities.h"
 #include "remote_input_ime.h"
 #include "keyboard_clock_bounds.h"
@@ -647,6 +648,8 @@ LRESULT CALLBACK proc(HWND h, UINT m, WPARAM w, LPARAM l) {
   }
   return DefWindowProcW(h, m, w, l);
 }
+#include "sparse_shared_visuals.h"
+
 struct SparseVisual {
   viewflow::vfgp::AtlasPatch patch;
   SpriteVisual visual{nullptr};
@@ -664,7 +667,11 @@ struct Foreground {
   CompositionSurfaceBrush spare_brush{nullptr};
   SpriteVisual visual{nullptr};
   ContainerVisual sparse_root{nullptr};
-  std::vector<SparseVisual> sparse_visuals;
+  std::vector<SparseVisual> sparse_visuals; // Retained for the independent reference probe.
+  std::optional<SharedSparseScene> shared_sparse;
+  std::vector<viewflow::vfgp::AtlasPatch> shared_patches;
+  std::vector<uint8_t> shared_opaque;
+  float shared_blur_sigma{};
   uint32_t width{}, height{};
 };
 
@@ -745,6 +752,46 @@ GpuSurfaceCandidate make_gpu_surface(Foreground const &result,
   return candidate;
 }
 
+// Opt-in completion bounds: polling never waits for GPU work and never changes
+// stream admission. QPC bounds describe our device queue, not DWM or photons.
+struct GpuCopyProbe {
+  com_ptr<ID3D11Query> query;
+  com_ptr<ID3D11DeviceContext> context;
+  uint64_t frame{}, submitted{}, last_pending{};
+};
+thread_local std::vector<GpuCopyProbe> gpu_copy_probes;
+thread_local std::vector<std::shared_ptr<viewflow::windows::GpuTimestampProbe>> gpu_timestamp_probes;
+bool gpu_copy_probe_enabled() {
+  static const bool enabled=[] {
+    wchar_t value[4]{};
+    return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_TIMINGS",value,4)==3 && wcscmp(value,L"all")==0;
+  }();
+  return enabled;
+}
+void poll_gpu_copy_probes(std::string& output) {
+  for(auto it=gpu_timestamp_probes.begin();it!=gpu_timestamp_probes.end();) {
+    if((*it)->Poll(output)) it=gpu_timestamp_probes.erase(it); else ++it;
+  }
+  for(auto it=gpu_copy_probes.begin();it!=gpu_copy_probes.end();) {
+    LARGE_INTEGER before{}, after{};
+    QueryPerformanceCounter(&before);
+    BOOL done=FALSE;
+    const auto hr=it->context->GetData(it->query.get(),&done,sizeof(done),D3D11_ASYNC_GETDATA_DONOTFLUSH);
+    QueryPerformanceCounter(&after);
+    if(hr==S_FALSE || (hr==S_OK && !done)) {
+      it->last_pending=uint64_t(before.QuadPart);
+      ++it;
+      continue;
+    }
+    output += "atlas-gpu-copy-completion frame="+std::to_string(it->frame)+
+        " submitted_qpc="+std::to_string(it->submitted)+
+        " lower_qpc="+std::to_string(it->last_pending)+
+        " upper_qpc="+std::to_string(after.QuadPart)+
+        " status="+std::to_string(hr)+"\n";
+    it=gpu_copy_probes.erase(it);
+  }
+}
+
 void copy_gpu_frame(Foreground &result, CompositionDrawingSurface const &surface,
                     viewflow::windows::CompositedFrame const &frame) {
   stage = "foreground-gpu-copy";
@@ -761,8 +808,11 @@ void copy_gpu_frame(Foreground &result, CompositionDrawingSurface const &surface
       bad("composition drawing offset");
     com_ptr<ID3D11DeviceContext> context;
     result.d3d->GetImmediateContext(context.put());
+    viewflow::windows::GpuTimestampScope gpu_time(result.d3d.get(),context.get(),frame.frame_identity,"surface_copy",frame.shader_gpu_timing?20:10);
     check_hresult(viewflow::windows::CopyCompositedRegion(
         context.get(), frame, destination.get(), UINT(offset.x), UINT(offset.y)));
+    if(auto probe=gpu_time.Finish(); probe && gpu_timestamp_probes.size()<128)
+      gpu_timestamp_probes.push_back(std::move(probe));
   } catch (...) {
     drawing->EndDraw();
     throw;
@@ -770,6 +820,19 @@ void copy_gpu_frame(Foreground &result, CompositionDrawingSurface const &surface
   check_hresult(drawing->EndDraw());
   com_ptr<ID3D11DeviceContext> context;
   result.d3d->GetImmediateContext(context.put());
+  if(gpu_copy_probe_enabled() && gpu_copy_probes.size()<64) {
+    D3D11_QUERY_DESC desc{D3D11_QUERY_EVENT,0};
+    GpuCopyProbe probe;
+    if(SUCCEEDED(result.d3d->CreateQuery(&desc,probe.query.put()))) {
+      probe.context=context;
+      probe.frame=frame.frame_identity;
+      LARGE_INTEGER now{};
+      QueryPerformanceCounter(&now);
+      probe.submitted=probe.last_pending=uint64_t(now.QuadPart);
+      context->End(probe.query.get());
+      gpu_copy_probes.push_back(std::move(probe));
+    }
+  }
   context->Flush();
   check_hresult(result.d3d->GetDeviceRemovedReason());
 }
@@ -798,6 +861,7 @@ void commit_gpu_surface(Foreground &result, GpuSurfaceCandidate candidate) {
   // surface and `result.gpu_brush` still keeps the old visible resource alive.
   result.visual.Children().RemoveAll();
   result.sparse_root=nullptr; result.sparse_visuals.clear();
+  result.shared_sparse.reset(); result.shared_patches.clear(); result.shared_opaque.clear();
   result.visual.Brush(candidate.brush);
   result.spare_surface = std::move(result.surface);
   result.spare_brush = std::move(result.gpu_brush);
@@ -811,62 +875,76 @@ void commit_gpu_surface(Foreground &result, GpuSurfaceCandidate candidate) {
 // owns only small visual/brush descriptors; hidden regions own no pixel surface.
 struct SparseGpuCandidate {
   CompositionDrawingSurface surface{nullptr};
-  ContainerVisual root{nullptr};
-  std::vector<SparseVisual> visuals;
+  std::optional<SharedSparseScene> replacement;
+  std::optional<SharedSparsePlan> plan;
+  std::vector<viewflow::vfgp::AtlasPatch> patches;
+  std::vector<uint8_t> opaque;
   uint32_t width{},height{};
+  float blur_sigma{};
   bool reuse{};
 };
+viewflow::windows_preview::CoalescedSparsePatches coalesce_sparse_visual_patches(
+    std::span<const viewflow::vfgp::AtlasPatch> patches, std::span<const uint8_t> opaque) {
+  // Same-binary diagnostic baseline; default presentation uses the qualified union.
+  static const bool disabled=[] {
+    wchar_t value[2]{};
+    return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_DIAGNOSTIC_NO_COALESCE",value,2)==1 && value[0]==L'1';
+  }();
+  if(disabled)return {{patches.begin(),patches.end()},{opaque.begin(),opaque.end()}};
+  return viewflow::windows_preview::CoalesceSparsePatches(patches,opaque);
+}
 SparseGpuCandidate stage_sparse_visuals(Foreground const& foreground,
     Compositor const& compositor, CompositionDrawingSurface const& surface,
     std::span<const viewflow::vfgp::AtlasPatch> patches, uint32_t tile_index,
-    uint32_t width,uint32_t height,CompositionBrush const& backdrop) {
-  std::vector<viewflow::vfgp::AtlasPatch> selected;
-  for(const auto& p:patches) if(p.tile_index==tile_index) selected.push_back(p);
+    uint32_t width,uint32_t height,CompositionBrush const& raw_backdrop,
+    float blur_sigma=0, std::span<const uint8_t> opaque = {}) {
+  if (!opaque.empty() && opaque.size()!=patches.size()) bad("sparse opacity count");
+  const auto selected=viewflow::vfgp::PatchesForTile(patches,tile_index);
+  const auto selected_opaque = opaque.empty() || selected.empty() ? std::span<const uint8_t>{} :
+      opaque.subspan(size_t(selected.data()-patches.data()),selected.size());
   SparseGpuCandidate next;
-  next.surface=surface; next.width=width; next.height=height;
-  next.reuse=foreground.sparse_root && foreground.sparse_visuals.size()==selected.size();
-  for(size_t i=0;next.reuse && i<selected.size();++i)
-    next.reuse=foreground.sparse_visuals[i].patch==selected[i];
-  if(next.reuse) return next;
-  next.root=compositor.CreateContainerVisual();
-  next.root.Size({float(width),float(height)});
-  for(const auto& p:selected) {
-    SparseVisual item;
-    item.patch=p;
-    item.brush=compositor.CreateSurfaceBrush(surface);
-    item.brush.Stretch(CompositionStretch::None);
-    item.brush.HorizontalAlignmentRatio(0.0f);
-    item.brush.VerticalAlignmentRatio(0.0f);
-    item.brush.Offset({-float(p.x),-float(p.y)});
-    item.visual=compositor.CreateSpriteVisual();
-    item.visual.Size({float(p.width),float(p.height)});
-    item.visual.Offset({float(p.source_x),float(p.source_y),0.0f});
-    item.visual.Brush(item.brush);
-    if(backdrop) {
-      item.mask=compositor.CreateMaskBrush();
-      item.mask.Source(backdrop);
-      item.mask.Mask(item.brush);
-      item.backdrop=compositor.CreateSpriteVisual();
-      item.backdrop.Size(item.visual.Size());
-      item.backdrop.Offset(item.visual.Offset());
-      item.backdrop.Brush(item.mask);
-      next.root.Children().InsertAtTop(item.backdrop);
-    }
-    next.root.Children().InsertAtTop(item.visual);
-    next.visuals.push_back(std::move(item));
+  next.surface=surface;next.width=width;next.height=height;next.blur_sigma=blur_sigma;
+  const bool same_config=foreground.shared_sparse &&
+      foreground.shared_sparse->backdrop==raw_backdrop && foreground.shared_blur_sigma==blur_sigma;
+  if(same_config) {
+    const auto size=surface.Size();
+    const auto old_size=foreground.shared_sparse->atlas_size;
+    next.reuse=size.Width==old_size.Width && size.Height==old_size.Height &&
+        foreground.shared_patches.size()==selected.size() &&
+        std::equal(selected.begin(),selected.end(),foreground.shared_patches.begin()) &&
+        foreground.shared_opaque.size()==selected_opaque.size() &&
+        std::equal(selected_opaque.begin(),selected_opaque.end(),foreground.shared_opaque.begin());
+    if(next.reuse)return next;
+    const auto coalesced=coalesce_sparse_visual_patches(selected,selected_opaque);
+    next.plan=stage_shared_sparse_visuals(*foreground.shared_sparse,surface,coalesced.patches,coalesced.opaque);
+  } else {
+    const auto coalesced=coalesce_sparse_visual_patches(selected,selected_opaque);
+    next.replacement=make_shared_sparse_scene(compositor,surface,coalesced.patches,raw_backdrop,blur_sigma,coalesced.opaque);
+    next.replacement->root.Size({float(width),float(height)});
   }
+  next.patches.assign(selected.begin(),selected.end());
+  next.opaque.assign(selected_opaque.begin(),selected_opaque.end());
   return next;
 }
 void commit_sparse_visuals(Foreground& foreground,SparseGpuCandidate next,
                           float target_width,float target_height) {
-  if(next.reuse) {
-    for(auto& item:foreground.sparse_visuals) item.brush.Surface(next.surface);
-  } else {
+  if(next.replacement) {
     foreground.visual.Children().RemoveAll();
-    foreground.visual.Children().InsertAtTop(next.root);
-    foreground.sparse_root=std::move(next.root);
-    foreground.sparse_visuals=std::move(next.visuals);
+    foreground.visual.Children().InsertAtTop(next.replacement->root);
+    foreground.shared_sparse=std::move(next.replacement);
+    foreground.sparse_root=foreground.shared_sparse->root;
+    foreground.sparse_visuals.clear();
+  } else if(next.plan) {
+    commit_shared_sparse_visuals(*foreground.shared_sparse,std::move(*next.plan));
+  } else {
+    foreground.shared_sparse->brush.Surface(next.surface);
   }
+  if(!next.reuse) {
+    foreground.shared_patches=std::move(next.patches);
+    foreground.shared_opaque=std::move(next.opaque);
+  }
+  foreground.shared_blur_sigma=next.blur_sigma;
+  foreground.sparse_root.Size({float(next.width),float(next.height)});
   foreground.sparse_root.Scale({target_width/float(next.width),target_height/float(next.height),1.0f});
   foreground.visual.Brush(nullptr);
   foreground.gpu_brush=nullptr; foreground.spare_brush=nullptr;
@@ -2139,6 +2217,12 @@ LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
 
 // The opt-in atlas path owns independent HWND/visuals but one decoder. This
 // Input events are opt-in; neither mode claims physical present receipts.
+bool native_alpha_reuse_enabled() {
+  wchar_t value[8]{};
+  const auto length = GetEnvironmentVariableW(L"VIEWFLOW_NATIVE_ALPHA_REUSE", value, 8);
+  return !(length == 1 && value[0] == L'0');
+}
+
 class AtlasNativePresenter {
   struct BudgetTrace { uint64_t identity{}; const char* phase{}; int64_t remaining_us{}; };
   struct Proxy {
@@ -2150,6 +2234,7 @@ class AtlasNativePresenter {
     Foreground foreground;
     SpriteVisual backdrop{nullptr};
     CompositionMaskBrush backdrop_mask{nullptr};
+    CompositionBrush raw_backdrop{nullptr};
     bool layout_absent{};
   };
  public:
@@ -2174,9 +2259,10 @@ class AtlasNativePresenter {
       viewflow::windows_preview::MtaVideoCompositor& decoder, size_t max_frame_bytes, uint32_t proxy_capacity,
       bool dispositions = false, bool pointer_events = false, bool wheel_events = false, bool keyboard_events = false,
       bool input_recovery = false, std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {})
-      : compositor_(compositor), decoder_(decoder), parser_(max_frame_bytes, true, true, input_recovery, desktop_display.has_value()), proxy_capacity_(proxy_capacity),
+      : compositor_(compositor), decoder_(decoder), parser_(max_frame_bytes, true, true, input_recovery, desktop_display.has_value(), native_alpha_reuse_enabled()), proxy_capacity_(proxy_capacity),
         dispositions_(dispositions), pointer_events_(pointer_events), wheel_events_(wheel_events), keyboard_events_(keyboard_events),
         input_recovery_(input_recovery), desktop_display_(desktop_display) {
+    std::cerr << "atlas-alpha-storage mode=" << (native_alpha_reuse_enabled() ? "shared-reuse" : "expanded-copy") << "\n";
     // Local fallback until the atlas protocol carries source blur regions.
     // Read once, before live admission; zero explicitly retains alpha-only.
     wchar_t sigma_text[32]{};
@@ -2214,12 +2300,32 @@ class AtlasNativePresenter {
   // Do one bounded handoff/completion, then return to the outer message loop.
   // Keep only this pipe chunk's parsed records; never read ahead during decode.
   bool Advance() try {
+    poll_gpu_copy_probes(sampled_timings_);
     if (decoder_.submit_ready_event()) {
       if (!decoder_.submit_ready()) return false;
       stage = "atlas-decode-completion";
       auto result = decoder_.TakeSubmit();
+      if (gpu_copy_probe_enabled()) {
+        const auto& t = result.host_durations;
+        sampled_timings_ += "atlas-native-host-us frame=" + std::to_string(t.frame_identity) +
+            " status=" + std::to_string(result.status) +
+            " completed=" + std::to_string(result.frames.size()) +
+            " alpha=" + std::to_string(t.alpha_texture_create_us) +
+            " alpha_reused=" + std::to_string(t.alpha_texture_reused) +
+            " sample=" + std::to_string(t.mf_sample_copy_us) +
+            " input=" + std::to_string(t.mf_process_input_us) +
+            " output=" + std::to_string(t.mf_process_output_us) +
+            " resources=" + std::to_string(t.composite_gpu_resource_alloc_us) +
+            " video_processor=" + std::to_string(t.composite_video_processor_us) +
+            " shader=" + std::to_string(t.composite_shader_us) +
+            " total=" + std::to_string(t.total_submit_us) + "\n";
+      }
       check_hresult(result.status);
-      for (const auto& decoded : result.frames) Complete(decoded);
+      for (const auto& decoded : result.frames) {
+        if(decoded.shader_gpu_timing && gpu_timestamp_probes.size()<128)
+          gpu_timestamp_probes.push_back(decoded.shader_gpu_timing);
+        Complete(decoded);
+      }
       return true;
     }
     if (next_parsed_ < parsed_frames_.size()) {
@@ -2238,6 +2344,9 @@ class AtlasNativePresenter {
         if (warmup_started_ && !warmup_.admit(false, frame.identity)) bad("atlas warmup incomplete");
         live_started_ = true;
         TraceBudget(frame.identity, "pipe-admission", *frame.deadline_qpc);
+        if (gpu_copy_probe_enabled() || frame.identity % 60 == 0)
+          sampled_timings_ += "atlas-native-alpha frame=" + std::to_string(frame.identity) +
+              " reused=" + std::to_string(frame.alpha_reused) + " bytes=" + std::to_string(frame.Alpha().size()) + "\n";
         if (!dispositions_) CheckDeadline(*frame.deadline_qpc);
         if (!bindings_.Stage(frame)) bad("atlas decoder binding or lineage");
         ObservePresentationTarget(frame.identity, frame.width, frame.height);
@@ -2251,7 +2360,7 @@ class AtlasNativePresenter {
       atlas_progress(AtlasProgress::Decode);
       stage = "atlas-decode-submit";
       decoder_.BeginSubmit(*local, frame.width, frame.height,
-          std::move(frame.color_au), std::move(frame.alpha));
+          std::move(frame.color_au), std::move(frame.alpha), std::move(frame.shared_alpha));
       return true;
     }
     return false;
@@ -2321,6 +2430,7 @@ class AtlasNativePresenter {
     }
     auto frame = decoded;
     frame.frame_identity = identity->source_identity;
+    if(frame.shader_gpu_timing) frame.shader_gpu_timing->frame=identity->source_identity;
     Present(frame);
   }
   uint64_t Clock(viewflow::vfgp::DeadlineQpc deadline) const {
@@ -2361,13 +2471,13 @@ class AtlasNativePresenter {
   void TraceBudget(uint64_t identity, const char* phase, viewflow::vfgp::DeadlineQpc deadline) {
     stage = phase;
     native_failure_identity = identity;
-    const bool sampled = identity % 60 == 0;
+    const bool sampled = gpu_copy_probe_enabled() || identity % 60 == 0;
     if (!sampled && (identity > 6 || trace_count_ == traces_.size())) return;
     LARGE_INTEGER now{};
     if (!QueryPerformanceCounter(&now) || now.QuadPart < 0) return;
     const auto remaining = (static_cast<long double>(deadline.deadline) - now.QuadPart) * 1000000.0L / frequency_;
     if (sampled) {
-      sampled_timings_ += "atlas-native-timing frame=" + std::to_string(identity) + " phase=" + phase + " remaining_us=" + std::to_string(static_cast<int64_t>(remaining)) + "\n";
+      sampled_timings_ += "atlas-native-timing frame=" + std::to_string(identity) + " phase=" + phase + " qpc=" + std::to_string(now.QuadPart) + " frequency=" + std::to_string(frequency_) + " remaining_us=" + std::to_string(static_cast<int64_t>(remaining)) + "\n";
     } else {
       traces_[trace_count_++] = {identity, phase, static_cast<int64_t>(remaining)};
     }
@@ -2444,7 +2554,8 @@ class AtlasNativePresenter {
       effect.sigma = backdrop_sigma_;
       effect.Source(CompositionEffectSourceParameter(L"backdrop"));
       auto brush = compositor_.CreateEffectFactory(effect).CreateBrush();
-      brush.SetSourceParameter(L"backdrop", compositor_.CreateHostBackdropBrush());
+      proxy->raw_backdrop=compositor_.CreateHostBackdropBrush();
+      brush.SetSourceParameter(L"backdrop", proxy->raw_backdrop);
       proxy->backdrop_mask = compositor_.CreateMaskBrush();
       proxy->backdrop_mask.Source(brush);
       proxy->backdrop = compositor_.CreateSpriteVisual();
@@ -2480,6 +2591,20 @@ class AtlasNativePresenter {
     const auto* binding = bindings_.Find(frame.frame_identity, frame.width, frame.height);
     if (!binding) bad("atlas decoded frame has no matching immutable layout");
     TraceBudget(frame.frame_identity, "decoded", binding->deadline);
+    if (frame.frame_identity % 60 == 0 && binding->layout.patches) {
+      size_t hidden = 0;
+      uint64_t backdrop_pixels = 0, total_pixels = 0;
+      const auto& patches = *binding->layout.patches;
+      for (size_t index = 0; index < patches.size(); ++index) {
+        const auto area = uint64_t(patches[index].width) * patches[index].height;
+        total_pixels += area;
+        if (index < binding->opaque_patches.size() && binding->opaque_patches[index]) ++hidden;
+        else backdrop_pixels += area;
+      }
+      sampled_timings_ += "atlas-sparse-opacity frame=" + std::to_string(frame.frame_identity) +
+          " patches=" + std::to_string(patches.size()) + " hidden_backdrops=" + std::to_string(hidden) +
+          " backdrop_pixels=" + std::to_string(backdrop_pixels) + " total_pixels=" + std::to_string(total_pixels) + "\n";
+    }
     ObservePresentationTarget(frame.frame_identity, frame.width, frame.height);
     // Recovery mode sampled this same deadline immediately above. Rechecking
     // it as a terminal error creates an expiry race before any visual mutation.
@@ -2526,10 +2651,8 @@ class AtlasNativePresenter {
       auto& proxy = EnsureProxy(tile.window, tile.width, tile.height, frame.frame_identity, binding->deadline);
       TraceBudget(frame.frame_identity, "proxy-ready", binding->deadline);
       if(binding->layout.patches) {
-        CompositionBrush backdrop=nullptr;
-        if(proxy.backdrop_mask) backdrop=proxy.backdrop_mask.Source();
         auto sparse=stage_sparse_visuals(proxy.foreground,compositor_,shared_candidate->surface,
-            *binding->layout.patches,uint32_t(index),tile.width,tile.height,backdrop);
+            *binding->layout.patches,uint32_t(index),tile.width,tile.height,proxy.raw_backdrop,backdrop_sigma_,binding->opaque_patches);
         candidates.push_back({tile.window,{nullptr,nullptr,tile.width,tile.height},desktop_slice,std::move(sparse)});
       } else {
         viewflow::windows::CompositedFrame view;
@@ -2571,6 +2694,13 @@ class AtlasNativePresenter {
         const bool native_preview=proxy.input.wm_moving || GetTickCount64()<proxy.input.wm_pending_until;
         commit_sparse_visuals(proxy.foreground,std::move(*candidate.sparse),
             native_preview ? float(client.right):float(width),native_preview ? float(client.bottom):float(height));
+        if(frame.frame_identity % 60 == 0 && proxy.foreground.shared_sparse) {
+          size_t backgrounds=0;
+          for(const auto& [key,node]:proxy.foreground.shared_sparse->nodes)if(node.background)++backgrounds;
+          sampled_timings_ += "atlas-sparse-nodes frame=" + std::to_string(frame.frame_identity) +
+              " nodes=" + std::to_string(proxy.foreground.shared_sparse->nodes.size()) +
+              " backgrounds=" + std::to_string(backgrounds) + "\n";
+        }
         if(proxy.backdrop) { proxy.backdrop.Brush(nullptr); proxy.backdrop_mask.Mask(nullptr); }
       } else {
         commit_gpu_surface(proxy.foreground, std::move(candidate.surface));
@@ -2743,6 +2873,13 @@ class AtlasNativePresenter {
     const auto commit_ticks = Clock(binding->deadline);
     if (commit_ticks >= binding->deadline.deadline) ++late_commits_;
     TraceBudget(frame.frame_identity, "committed", binding->deadline);
+    static const bool trace_all_mutations=[] {
+      wchar_t value[4]{};
+      return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_TIMINGS",value,4)==3 && wcscmp(value,L"all")==0;
+    }();
+    if(trace_all_mutations)
+      sampled_timings_ += "atlas-native-mutation frame=" + std::to_string(frame.frame_identity) +
+          " qpc=" + std::to_string(commit_ticks) + " frequency=" + std::to_string(frequency_) + "\n";
     const auto count = binding->layout.tiles.size();
     const auto deadline = binding->deadline;
     if (pointer_events_) {

@@ -1,0 +1,105 @@
+{
+  "first_frame": 30,
+  "units": "microseconds",
+  "physical_present_receipt": false,
+  "atlas-source-timing.encode_us": {
+    "n": 41,
+    "min": 5351,
+    "median": 6079,
+    "p95": 7011,
+    "max": 9553
+  },
+  "atlas-source-timing.previous_feedback_wait_us": {
+    "n": 41,
+    "min": 5,
+    "median": 10,
+    "p95": 9845,
+    "max": 265144
+  },
+  "atlas-source-timing.capture_to_encode_start_us": {
+    "n": 41,
+    "min": 471,
+    "median": 1509,
+    "p95": 2737,
+    "max": 5355
+  },
+  "atlas-source-timing.capture_to_batch_return_us": {
+    "n": 41,
+    "min": 6195,
+    "median": 7763,
+    "p95": 16788,
+    "max": 272204
+  },
+  "atlas-wire-timing.feedback_us": {
+    "n": 40,
+    "min": 6904,
+    "median": 10109.0,
+    "p95": 27269,
+    "max": 46732
+  },
+  "atlas-wire-timing.total_us": {
+    "n": 40,
+    "min": 6981,
+    "median": 10218.0,
+    "p95": 27558,
+    "max": 46849
+  },
+  "atlas-receiver-timing.record_us": {
+    "n": 40,
+    "min": 102,
+    "median": 223.5,
+    "p95": 477,
+    "max": 549
+  },
+  "atlas-receiver-timing.write_us": {
+    "n": 40,
+    "min": 90,
+    "median": 145.0,
+    "p95": 589,
+    "max": 1435
+  },
+  "atlas-receiver-timing.receipt_us": {
+    "n": 40,
+    "min": 3504,
+    "median": 5127.5,
+    "p95": 10275,
+    "max": 37060
+  },
+  "pipe-admission->decoded": {
+    "n": 19,
+    "min": 1562,
+    "median": 2576,
+    "p95": 6158,
+    "max": 6158
+  },
+  "decoded->proxy-ready": {
+    "n": 19,
+    "min": 283,
+    "median": 389,
+    "p95": 5926,
+    "max": 5926
+  },
+  "proxy-ready->copy-ready": {
+    "n": 19,
+    "min": 7,
+    "median": 12,
+    "p95": 145,
+    "max": 145
+  },
+  "copy-ready->committed": {
+    "n": 19,
+    "min": 29,
+    "median": 44,
+    "p95": 236,
+    "max": 236
+  },
+  "pipe-admission->committed": {
+    "n": 19,
+    "min": 1996,
+    "median": 3083,
+    "p95": 7705,
+    "max": 7705
+  },
+  "native_samples": 19,
+  "native_samples_missed": 3
+}

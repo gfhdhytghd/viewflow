@@ -1,4 +1,5 @@
 #include "gpu_dmabuf_encoder_cabi.h"
+#include "alpha_copy_profile.hpp"
 
 #include "gpu_dmabuf_encoder.cuh"
 
@@ -372,7 +373,23 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_output_copy_raw_alpha(
     const vf_gpu_dmabuf_output* output, uint8_t* destination, size_t capacity, size_t* required) {
   return no_throw([&] {
     const auto status = require_owner(output);
-    return status == VF_GPU_DMABUF_OK ? copy_plane(output->value.rawAlpha, destination, capacity, required) : status;
+    if (status != VF_GPU_DMABUF_OK) return status;
+    viewflow::gpu::AlphaCopyProfile profile("cabi_to_rust", output->value.metadata.frameId, output->value.rawAlpha.size());
+    return copy_plane(output->value.rawAlpha, destination, capacity, required);
+  });
+}
+
+vf_gpu_dmabuf_status vf_gpu_dmabuf_output_view_raw_alpha(
+    const vf_gpu_dmabuf_output* output, const uint8_t** data, size_t* length) {
+  return no_throw([&] {
+    if (!data || !length) return VF_GPU_DMABUF_INVALID_ARGUMENT;
+    *data = nullptr;
+    *length = 0;
+    const auto status = require_owner(output);
+    if (status != VF_GPU_DMABUF_OK) return status;
+    *data = output->value.rawAlpha.data();
+    *length = output->value.rawAlpha.size();
+    return VF_GPU_DMABUF_OK;
   });
 }
 

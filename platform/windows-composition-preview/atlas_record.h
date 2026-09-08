@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 #include <optional>
 #include <set>
@@ -39,6 +40,19 @@ struct AtlasPatch {
   uint32_t tile_index{},source_x{},source_y{},x{},y{},width{},height{};
   constexpr bool operator==(const AtlasPatch&) const = default;
 };
+
+// DecodeSparsePatches validates tile/source ordering. Preserve that order and
+// borrow the tile's contiguous range instead of scanning/copying the atlas for
+// every proxy. Call only on the validated immutable frame's patch list.
+inline std::span<const AtlasPatch> PatchesForTile(
+    std::span<const AtlasPatch> patches, uint32_t tile_index) {
+  if (patches.empty()) return {};
+  const auto first = std::lower_bound(patches.begin(), patches.end(), tile_index,
+      [](const AtlasPatch& patch, uint32_t tile) { return patch.tile_index < tile; });
+  const auto last = std::upper_bound(first, patches.end(), tile_index,
+      [](uint32_t tile, const AtlasPatch& patch) { return tile < patch.tile_index; });
+  return patches.subspan(size_t(first - patches.begin()), size_t(last - first));
+}
 struct AtlasLayout {
   AtlasId stream;
   uint64_t geometry_epoch{}, config_generation{}, revision{}, source_ns{};
@@ -159,7 +173,11 @@ inline bool DecodeSparsePatches(std::span<const uint8_t> bytes, uint32_t width,
   if(count>32768 || u32(4) || bytes.size()!=8+size_t(count)*28) return false;
   std::vector<AtlasPatch> patches;
   std::set<std::pair<uint32_t,uint32_t>> slots;
-  std::map<uint32_t,std::vector<AtlasPatch>> destinations;
+  // At the current source-y scanline, accepted rectangles have disjoint
+  // x intervals. Keep only rectangles whose bottom is below that scanline;
+  // checking the two x neighbours then detects every possible overlap.
+  std::map<uint32_t,uint64_t> active_x;
+  std::multimap<uint64_t,uint32_t> expiry_y;
   std::optional<std::tuple<uint32_t,uint32_t,uint32_t>> previous;
   for(uint32_t i=0;i<count;++i) {
     const size_t at=8+size_t(i)*28;
@@ -170,11 +188,29 @@ inline bool DecodeSparsePatches(std::span<const uint8_t> bytes, uint32_t width,
         uint64_t(p.x)+p.width>width || uint64_t(p.y)+p.height>height ||
         uint64_t(p.source_x)+p.width>layout.tiles[p.tile_index].width ||
         uint64_t(p.source_y)+p.height>layout.tiles[p.tile_index].height || !slots.emplace(p.x,p.y).second) return false;
-    auto& others=destinations[p.tile_index];
-    for(const auto& q:others)
-      if(p.source_x<q.source_x+q.width && q.source_x<p.source_x+p.width &&
-          p.source_y<q.source_y+q.height && q.source_y<p.source_y+p.height) return false;
-    others.push_back(p); patches.push_back(p); previous=key;
+    // For a small complete record, a contiguous scan costs less than two
+    // tree insertions per patch. Large records use the bounded active set.
+    if (count <= 128) {
+      for (auto q=patches.rbegin(); q!=patches.rend() && q->tile_index==p.tile_index; ++q)
+        if (p.source_x<uint64_t(q->source_x)+q->width && q->source_x<uint64_t(p.source_x)+p.width &&
+            p.source_y<uint64_t(q->source_y)+q->height && q->source_y<uint64_t(p.source_y)+p.height) return false;
+    } else {
+      if (previous && std::get<0>(*previous) != p.tile_index) {
+        active_x.clear();
+        expiry_y.clear();
+      }
+      while (!expiry_y.empty() && expiry_y.begin()->first <= p.source_y) {
+        active_x.erase(expiry_y.begin()->second);
+        expiry_y.erase(expiry_y.begin());
+      }
+      const auto right = uint64_t(p.source_x) + p.width;
+      const auto next = active_x.lower_bound(p.source_x);
+      if ((next != active_x.end() && next->first < right) ||
+          (next != active_x.begin() && std::prev(next)->second > p.source_x)) return false;
+      active_x.emplace_hint(next, p.source_x, right);
+      expiry_y.emplace(uint64_t(p.source_y) + p.height, p.source_x);
+    }
+    patches.push_back(p); previous=key;
   }
   layout.patches=std::move(patches);
   return true;

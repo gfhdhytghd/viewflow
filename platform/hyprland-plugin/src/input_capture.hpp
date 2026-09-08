@@ -63,7 +63,7 @@ private:
   void onPointerFrame();
   void drainTouchpad();
   bool remoteGesture() const;
-  bool rawTouchpad() const { return m_touchpad && m_touchpad->available(); }
+  bool rawTouchpad() const { return m_rawTouchpadEnabled && m_touchpad && m_touchpad->available(); }
   void onKey(const IKeyboard::SKeyEvent &event);
   void suppressKeyboard(KeyboardListeners &listeners);
   void suppressLocalKeyboards();
@@ -77,6 +77,7 @@ private:
   [[nodiscard]] bool physical(IPointer &pointer) const;
   [[nodiscard]] bool physical(IKeyboard &keyboard) const;
 
+  bool m_rawTouchpadEnabled{true};
   std::unique_ptr<TouchpadCapture> m_touchpad;
   IPointer* m_touchpadPointer{};
   std::uint64_t m_touchpadFrames{}, m_suppressedGestureEvents{}, m_localGestureEvents{};

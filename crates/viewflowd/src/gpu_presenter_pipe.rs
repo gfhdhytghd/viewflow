@@ -30,18 +30,19 @@ pub fn encode_atlas_record(
         .alpha
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("VFGP atlas alpha missing"))?;
-    let mut record = encode_deadline_alpha_record(
-        layout.frame_id,
-        layout.width,
-        layout.height,
-        &media.color,
-        alpha,
-        deadline,
-        max_record_bytes,
-    )?;
+    if deadline.ticks == 0 || deadline.frequency == 0 {
+        bail!("VFGP native deadline and frequency must be nonzero");
+    }
     let desktop = layout.desktop.as_ref();
     let desktop_bytes = desktop.map_or(0, |desktop| 48 + desktop.windows.len() * 56);
-    let mut extension = Vec::with_capacity(56 + layout.tiles.len() * 64 + desktop_bytes);
+    let patch_bytes = layout
+        .patches
+        .as_ref()
+        .map_or(0, |patches| 8 + patches.len() * 28);
+    let mut extension =
+        Vec::with_capacity(72 + layout.tiles.len() * 64 + desktop_bytes + patch_bytes);
+    extension.extend_from_slice(&deadline.ticks.to_be_bytes());
+    extension.extend_from_slice(&deadline.frequency.to_be_bytes());
     extension.extend_from_slice(&layout.stream_id.0.to_be_bytes());
     for value in [
         layout.geometry_epoch,
@@ -117,23 +118,23 @@ pub fn encode_atlas_record(
             }
         }
     }
-    if record
-        .len()
-        .checked_add(extension.len())
-        .is_none_or(|size| size > max_record_bytes)
-    {
-        bail!("VFGP atlas header exceeds record limit");
-    }
-    record[4] = if layout.patches.is_some() {
+    let version = if layout.patches.is_some() {
         8
     } else if desktop.is_some() {
         7
     } else {
         5
     };
-    record[8..12].copy_from_slice(&u32::try_from(56 + extension.len())?.to_be_bytes());
-    record.splice(56..56, extension);
-    Ok(record)
+    encode_compressed_alpha_with_extension(
+        version,
+        layout.frame_id,
+        layout.width,
+        layout.height,
+        &media.color,
+        alpha,
+        &extension,
+        max_record_bytes,
+    )
 }
 
 /// Same-Windows-host absolute QPC deadline, never a cross-host timestamp.
@@ -190,32 +191,19 @@ pub fn encode_deadline_alpha_record(
     if deadline.ticks == 0 || deadline.frequency == 0 {
         bail!("VFGP native deadline and frequency must be nonzero");
     }
-    let mut record = encode_compressed_alpha_record(
+    let mut extension = [0; 16];
+    extension[..8].copy_from_slice(&deadline.ticks.to_be_bytes());
+    extension[8..].copy_from_slice(&deadline.frequency.to_be_bytes());
+    encode_compressed_alpha_with_extension(
+        4,
         identity,
         width,
         height,
         color_annex_b,
         alpha_vfar,
+        &extension,
         max_record_bytes,
-    )?;
-    if record
-        .len()
-        .checked_add(16)
-        .is_none_or(|size| size > max_record_bytes)
-    {
-        bail!("VFGP deadline header exceeds record limit");
-    }
-    record[4] = 4;
-    record[8..12].copy_from_slice(&56_u32.to_be_bytes());
-    record.splice(
-        HEADER_BYTES..HEADER_BYTES,
-        deadline
-            .ticks
-            .to_be_bytes()
-            .into_iter()
-            .chain(deadline.frequency.to_be_bytes()),
-    );
-    Ok(record)
+    )
 }
 
 /// Forward checked VFAR to a v2 presenter without expanding it on this side.
@@ -231,6 +219,28 @@ pub fn encode_compressed_alpha_record(
     alpha_vfar: &bytes::Bytes,
     max_record_bytes: usize,
 ) -> Result<Vec<u8>> {
+    encode_compressed_alpha_with_extension(
+        2,
+        identity,
+        width,
+        height,
+        color_annex_b,
+        alpha_vfar,
+        &[],
+        max_record_bytes,
+    )
+}
+
+fn encode_compressed_alpha_with_extension(
+    version: u8,
+    identity: u64,
+    width: u32,
+    height: u32,
+    color_annex_b: &[u8],
+    alpha_vfar: &bytes::Bytes,
+    extension: &[u8],
+    max_record_bytes: usize,
+) -> Result<Vec<u8>> {
     let dimensions = viewflow_transport::validate_alpha_rle(
         alpha_vfar.clone(),
         viewflow_transport::AlphaRleLimits {
@@ -244,13 +254,14 @@ pub fn encode_compressed_alpha_record(
     if dimensions != (width, height) {
         bail!("VFGP alpha geometry differs from admitted color");
     }
-    encode_planes(
-        2,
+    encode_planes_with_extension(
+        version,
         identity,
         width,
         height,
         color_annex_b,
         alpha_vfar,
+        extension,
         max_record_bytes,
     )
 }
@@ -376,6 +387,30 @@ fn encode_planes(
     alpha: &[u8],
     max_record_bytes: usize,
 ) -> Result<Vec<u8>> {
+    encode_planes_with_extension(
+        version,
+        identity,
+        width,
+        height,
+        color_annex_b,
+        alpha,
+        &[],
+        max_record_bytes,
+    )
+}
+
+// Build the complete header before copying either plane. Inserting extensions
+// afterward moves the full payload and may reallocate it on every frame.
+fn encode_planes_with_extension(
+    version: u8,
+    identity: u64,
+    width: u32,
+    height: u32,
+    color_annex_b: &[u8],
+    alpha: &[u8],
+    extension: &[u8],
+    max_record_bytes: usize,
+) -> Result<Vec<u8>> {
     if identity == 0 || width == 0 || height == 0 || color_annex_b.is_empty() {
         bail!("invalid VFGP identity, geometry, or color length");
     }
@@ -384,8 +419,12 @@ fn encode_planes(
     let payload_len = color_len
         .checked_add(alpha_len)
         .ok_or_else(|| anyhow::anyhow!("VFGP payload overflow"))?;
+    let header_len = HEADER_BYTES
+        .checked_add(extension.len())
+        .ok_or_else(|| anyhow::anyhow!("VFGP header overflow"))?;
+    let header_wire_len = u32::try_from(header_len)?;
     let total = usize::try_from(payload_len)?
-        .checked_add(HEADER_BYTES)
+        .checked_add(header_len)
         .ok_or_else(|| anyhow::anyhow!("VFGP record overflow"))?;
     if total > max_record_bytes {
         bail!("VFGP record exceeds resource limit");
@@ -401,12 +440,13 @@ fn encode_planes(
         0,
         0,
     ]);
-    record.extend_from_slice(&40_u32.to_be_bytes());
+    record.extend_from_slice(&header_wire_len.to_be_bytes());
     record.extend_from_slice(&payload_len.to_be_bytes());
     record.extend_from_slice(&identity.to_be_bytes());
     for field in [width, height, color_len, alpha_len] {
         record.extend_from_slice(&field.to_be_bytes());
     }
+    record.extend_from_slice(extension);
     record.extend_from_slice(color_annex_b);
     record.extend_from_slice(alpha);
     Ok(record)
@@ -476,6 +516,32 @@ mod tests {
         if let Some(path) = std::env::var_os("VIEWFLOW_ATLAS_TEST_FIXTURE") {
             std::fs::write(path, &record).unwrap();
         }
+        admitted.layout.tiles[1].x = 0;
+        admitted.layout.patches = Some(vec![viewflow_protocol::AtlasPatch {
+            tile_index: 0,
+            source_x: 0,
+            source_y: 0,
+            x: 0,
+            y: 0,
+            width: 2,
+            height: 2,
+        }]);
+        let sparse = encode_atlas_record(&admitted, deadline, 4096).unwrap();
+        // Independent wire expectation: v8 adds a count/reserved word and
+        // seven big-endian patch fields between the old header and payload.
+        let mut expected = record[..240].to_vec();
+        expected[4] = 8;
+        expected[8..12].copy_from_slice(&276_u32.to_be_bytes());
+        expected[224..228].copy_from_slice(&0_u32.to_be_bytes());
+        for field in [1_u32, 0, 0, 0, 0, 0, 0, 2, 2] {
+            expected.extend_from_slice(&field.to_be_bytes());
+        }
+        expected.extend_from_slice(&record[240..]);
+        assert_eq!(sparse, expected);
+        assert!(encode_atlas_record(&admitted, deadline, sparse.len()).is_ok());
+        assert!(encode_atlas_record(&admitted, deadline, sparse.len() - 1).is_err());
+        admitted.layout.patches = None;
+        admitted.layout.tiles[1].x = 2;
         admitted.media.manifest.frame_id += 1;
         assert!(encode_atlas_record(&admitted, deadline, 4096).is_err());
         admitted.media.manifest.frame_id -= 1;

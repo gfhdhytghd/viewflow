@@ -79,6 +79,7 @@ fn build_gpu_encoder() {
         "CMakeLists.txt",
         "gpu_dmabuf_encoder.cu",
         "gpu_dmabuf_encoder.cuh",
+        "alpha_copy_profile.hpp",
         "gpu_import_cleanup.hpp",
         "gpu_dmabuf_encoder_cabi.cpp",
         "gpu_dmabuf_encoder_cabi.h",

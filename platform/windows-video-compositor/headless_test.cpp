@@ -25,11 +25,15 @@ int wmain(int n,wchar_t** v) {
   int exit_code = [&]() -> int {
   GpuVideoCompositor compositor; hr=GpuVideoCompositor::Create(&compositor); std::cout<<"create_gpu_high_h264_compositor="<<Hex(hr)<<"\n"; if(FAILED(hr)){std::cout<<"CAPABILITY_MISSING hardware_mf_high_h264_or_planar_srv\n";return 3;}
   const uint64_t pixels=uint64_t(width)*height; std::filesystem::path dir=v[1]; std::vector<uint8_t> expected; if(!pixels||pixels>SIZE_MAX/3||!Read(dir/L"expected-alpha.gray",&expected)||expected.size()!=3*pixels){std::cerr<<"fixture invalid\n";return 65;} std::vector<CompositedFrame> frames;
+  std::shared_ptr<const std::vector<uint8_t>> alpha_owner;
   for(uint64_t i=1;i<=3;++i) {
     std::vector<uint8_t> au;
     if(!Read(dir/(L"color-"+std::to_wstring(i)+L".h264"),&au)) { std::cerr<<"missing color AU\n"; return 65; }
     auto begin=expected.begin()+ptrdiff_t((i-1)*pixels);
-    RawGray8Alpha a{i,width,height,std::span<const uint8_t>(begin,begin+pixels)};
+    const std::span<const uint8_t> samples(begin, begin + pixels);
+    if (!alpha_owner || !std::ranges::equal(*alpha_owner, samples))
+      alpha_owner = std::make_shared<const std::vector<uint8_t>>(samples.begin(), samples.end());
+    RawGray8Alpha a{i,width,height,*alpha_owner,alpha_owner};
     auto before=frames.size();
     hr=compositor.Submit(i,au,a,&frames);
     const auto timing=compositor.last_submit_host_durations();

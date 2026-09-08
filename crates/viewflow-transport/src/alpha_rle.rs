@@ -271,6 +271,9 @@ pub fn validate_alpha_rle(
             return Err(AlphaRleError::RawLengthMismatch);
         }
     } else {
+        // Validation only walks the payload. Borrowing avoids updating the
+        // owning Bytes handle for every control and run.
+        let mut encoded = encoded.as_ref();
         let mut produced = 0;
         while produced < decoded_bytes {
             if encoded.is_empty() {
@@ -372,7 +375,31 @@ fn dimensions_bytes(width: u32, height: u32) -> Result<usize, AlphaRleError> {
 }
 
 fn rle_payload(samples: &[u8]) -> Vec<u8> {
-    rle_payload_from(samples.len(), &|index| samples[index])
+    rle_payload_with(samples.len(), &|index| samples[index], &|start| {
+        repeated_len_slice(samples, start)
+    })
+}
+
+fn repeated_len_slice(samples: &[u8], start: usize) -> usize {
+    let end = samples.len().min(start + 128);
+    let value = samples[start];
+    if start + 1 == end || samples[start + 1] != value {
+        return 1;
+    }
+    if start + 2 == end || samples[start + 2] != value {
+        return 2;
+    }
+    let repeated = [value; 16];
+    let mut cursor = start + 3;
+    // Slice equality uses the platform's optimized comparison. Long uniform
+    // spans no longer require a branch and bounds check for every sample.
+    while end - cursor >= repeated.len() && samples[cursor..cursor + 16] == repeated {
+        cursor += 16;
+    }
+    while cursor < end && samples[cursor] == value {
+        cursor += 1;
+    }
+    cursor - start
 }
 
 fn has_repeat(length: usize, sample_at: &impl Fn(usize) -> u8) -> bool {
@@ -397,10 +424,20 @@ fn has_repeat(length: usize, sample_at: &impl Fn(usize) -> u8) -> bool {
 }
 
 fn rle_payload_from(length: usize, sample_at: &impl Fn(usize) -> u8) -> Vec<u8> {
+    rle_payload_with(length, sample_at, &|start| {
+        repeated_len_from(length, start, sample_at)
+    })
+}
+
+fn rle_payload_with(
+    length: usize,
+    sample_at: &impl Fn(usize) -> u8,
+    repeated_len: &impl Fn(usize) -> usize,
+) -> Vec<u8> {
     let mut payload = Vec::with_capacity(length);
     let mut cursor = 0;
     while cursor < length {
-        let repeat = repeated_len_from(length, cursor, sample_at);
+        let repeat = repeated_len(cursor);
         if repeat >= 3 {
             payload.push(0x80 | u8::try_from(repeat - 1).expect("run is at most 128"));
             payload.push(sample_at(cursor));
@@ -410,7 +447,7 @@ fn rle_payload_from(length: usize, sample_at: &impl Fn(usize) -> u8) -> Vec<u8> 
         let start = cursor;
         cursor += 1;
         while cursor < length && cursor - start < 128 {
-            if repeated_len_from(length, cursor, sample_at) >= 3 {
+            if repeated_len(cursor) >= 3 {
                 break;
             }
             cursor += 1;
@@ -433,7 +470,10 @@ fn repeated_len_from(length: usize, start: usize, sample_at: &impl Fn(usize) -> 
     end - start
 }
 
-fn decode_rle_payload(mut encoded: Bytes, decoded_bytes: usize) -> Result<Bytes, AlphaRleError> {
+fn decode_rle_payload(encoded: Bytes, decoded_bytes: usize) -> Result<Bytes, AlphaRleError> {
+    // Keep one owner for the whole decode; literal runs need a borrowed slice,
+    // not a new reference-counted Bytes handle per run.
+    let mut encoded = encoded.as_ref();
     let mut samples = BytesMut::with_capacity(decoded_bytes);
     while samples.len() < decoded_bytes {
         if encoded.is_empty() {
@@ -454,7 +494,8 @@ fn decode_rle_payload(mut encoded: Bytes, decoded_bytes: usize) -> Result<Bytes,
             if encoded.len() < run {
                 return Err(AlphaRleError::TruncatedRun);
             }
-            samples.put_slice(&encoded.split_to(run));
+            samples.put_slice(&encoded[..run]);
+            encoded.advance(run);
         }
     }
     if !encoded.is_empty() {
@@ -466,6 +507,60 @@ fn decode_rle_payload(mut encoded: Bytes, decoded_bytes: usize) -> Result<Bytes,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn block_repeat_scan_preserves_scalar_wire_at_every_run_boundary() {
+        for repeat in 0..=260 {
+            for tail in 0..=17 {
+                let mut samples: Vec<u8> = (0..19).collect();
+                samples.extend(std::iter::repeat_n(42, repeat));
+                samples.extend(0..tail);
+                assert_eq!(
+                    rle_payload(&samples),
+                    rle_payload_from(samples.len(), &|index| samples[index]),
+                    "repeat={repeat}, tail={tail}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "offline release-mode CPU profile"]
+    fn block_repeat_scan_profile() {
+        use std::{hint::black_box, time::Instant};
+        for pattern in ["opaque", "mixed"] {
+            let samples: Vec<u8> = (0..6144 * 3456)
+                .map(|i| {
+                    if pattern == "opaque" || i % 256 < 128 {
+                        255
+                    } else {
+                        (i % 128) as u8
+                    }
+                })
+                .collect();
+            for trial in 0..4 {
+                for block in if trial % 2 == 0 {
+                    [false, true]
+                } else {
+                    [true, false]
+                } {
+                    let started = Instant::now();
+                    for _ in 0..10 {
+                        let input = black_box(samples.as_slice());
+                        black_box(if block {
+                            rle_payload(input)
+                        } else {
+                            rle_payload_from(input.len(), &|index| input[index])
+                        });
+                    }
+                    println!(
+                        "{pattern} trial={trial} block={block} us={:.2}",
+                        started.elapsed().as_secs_f64() * 100_000.0
+                    );
+                }
+            }
+        }
+    }
 
     const LIMITS: AlphaRleLimits = AlphaRleLimits {
         max_coded_width: 8_192,
@@ -486,7 +581,11 @@ mod tests {
 
     #[test]
     fn allocation_free_validation_matches_decoder_for_mutated_records() {
-        for samples in [vec![42; 256], (0..=255).collect::<Vec<u8>>()] {
+        for samples in [
+            vec![42; 256],
+            (0..=255).collect::<Vec<u8>>(),
+            (0..=255).map(|i| if i < 128 { 42 } else { i }).collect(),
+        ] {
             let encoded = encode_alpha_rle(16, 16, &samples).unwrap();
             assert_eq!(
                 validate_alpha_rle(encoded.clone(), LIMITS).unwrap(),
@@ -512,6 +611,20 @@ mod tests {
             trailing.push(0);
             agrees(trailing.into());
         }
+    }
+
+    #[test]
+    fn mixed_literal_and_repeat_runs_decode_exactly() {
+        let mut encoded = encoded_prefix(16, 16, 256, AlphaRleMode::Rle, 131).unwrap();
+        encoded.extend_from_slice(&[0xff, 42, 0x7f]);
+        encoded.extend(0..128_u8);
+        let encoded = encoded.freeze();
+        let original = encoded.clone();
+        let decoded = decode_alpha_rle(encoded, LIMITS).unwrap();
+        assert_eq!(&decoded.samples[..128], &[42; 128]);
+        assert_eq!(&decoded.samples[128..], &(0..128_u8).collect::<Vec<_>>());
+        assert_eq!(&original[24..27], &[0xff, 42, 0x7f]);
+        assert_eq!(validate_alpha_rle(original, LIMITS), Ok((16, 16)));
     }
 
     #[test]

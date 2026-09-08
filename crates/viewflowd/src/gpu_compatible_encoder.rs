@@ -5,7 +5,7 @@
 use crate::{
     compatible_encoder::{CodecIdentity, Config, DescriptorPair, MediaFrame},
     gpu_nvenc_runtime::{
-        EncodedGpuFrame, GpuAtlasIdentity, GpuAtlasTile, GpuEncodeOutcome, GpuEncoder,
+        EncodedGpuFrame, GpuAtlasIdentity, GpuAtlasTile, GpuEncodeOutcome, GpuEncoder, RawAlpha,
     },
     hyprcapture_gpu_socket::GpuFrame,
 };
@@ -33,7 +33,7 @@ struct Generation {
 struct AlphaCache {
     generation: Generation,
     config: Config,
-    raw_alpha: Vec<u8>,
+    raw_alpha: RawAlpha,
     encoded: Bytes,
 }
 
@@ -984,7 +984,7 @@ fn adapt(
             && output.color_annex_b.len() <= config.max_color_access_unit_bytes,
         "GPU color exceeds transport bound"
     );
-    let alpha = cached_alpha(generation, output.raw_alpha, config, alpha_cache)?;
+    let alpha = cached_alpha(generation, output.raw_alpha, config, alpha_cache, output.frame_id)?;
     let plane = |kind, payload| MediaPlaneFrame {
         window_id: generation.identity.window_id,
         frame_id: output.frame_id,
@@ -1009,17 +1009,28 @@ fn adapt(
 
 fn cached_alpha(
     generation: Generation,
-    raw_alpha: Vec<u8>,
+    raw_alpha: impl Into<RawAlpha>,
     config: Config,
     cache: &mut Option<AlphaCache>,
+    frame_id: u64,
 ) -> Result<Bytes> {
-    if let Some(previous) = cache.as_ref()
-        && previous.generation == generation
-        && previous.config == config
-        && previous.raw_alpha == raw_alpha
-    {
-        return Ok(previous.encoded.clone());
+    let raw_alpha = raw_alpha.into();
+    static PROFILE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let profile = *PROFILE.get_or_init(|| std::env::var_os("VIEWFLOW_ALPHA_COPY_PROFILE").is_some_and(|v| v == "1"));
+    let started = profile.then(std::time::Instant::now);
+    #[cfg(target_os = "linux")]
+    let cpu_start = profile.then(|| nix::time::clock_gettime(nix::time::ClockId::CLOCK_THREAD_CPUTIME_ID).ok()).flatten();
+    let cache_hit = cache.as_ref().is_some_and(|previous| previous.generation == generation
+        && previous.config == config && previous.raw_alpha.as_ref() == raw_alpha.as_ref());
+    if let Some(started) = started {
+        let wall_ns = started.elapsed().as_nanos();
+        #[cfg(target_os = "linux")]
+        let cpu_ns = cpu_start.and_then(|start| nix::time::clock_gettime(nix::time::ClockId::CLOCK_THREAD_CPUTIME_ID).ok().map(|end| (end.tv_sec()-start.tv_sec())*1_000_000_000+end.tv_nsec()-start.tv_nsec()));
+        #[cfg(not(target_os = "linux"))]
+        let cpu_ns: Option<i64> = None;
+        crate::atlas_feedback::trace_line(format_args!("alpha-cache-profile frame={frame_id} bytes={} hit={cache_hit} wall_ns={wall_ns} cpu_ns={} cpu_valid={}", raw_alpha.len(), cpu_ns.unwrap_or(0), cpu_ns.is_some()));
     }
+    if cache_hit { return Ok(cache.as_ref().expect("matched alpha cache").encoded.clone()); }
     let encoded = encode_alpha_rle(generation.width, generation.height, &raw_alpha)?;
     ensure!(
         encoded.len() <= config.max_alpha_access_unit_bytes,
@@ -1381,7 +1392,7 @@ mod tests {
                     geometry_epoch: 9,
                     idr: true,
                     color_annex_b: vec![0, 0, 0, 1, 0x65],
-                    raw_alpha: vec![0; 4096],
+                    raw_alpha: vec![0; 4096].into(),
                 },
                 100,
                 Config {
@@ -1436,7 +1447,7 @@ mod tests {
             encoder.alpha_cache = Some(AlphaCache {
                 generation: generation(),
                 config,
-                raw_alpha: vec![7; 4],
+                raw_alpha: vec![7; 4].into(),
                 encoded: Bytes::from_static(b"cached"),
             });
             assert!(matches!(
@@ -1449,7 +1460,7 @@ mod tests {
             assert_eq!(encoder.force_idr, pending_idr);
             assert!(!encoder.failed);
             let cache = encoder.alpha_cache.as_ref().unwrap();
-            assert_eq!(cache.raw_alpha, vec![7; 4]);
+            assert_eq!(cache.raw_alpha.as_ref(), &[7; 4]);
             assert_eq!(cache.encoded.as_ref(), b"cached");
         }
     }
@@ -1466,7 +1477,7 @@ mod tests {
         encoder.alpha_cache = Some(AlphaCache {
             generation: generation(),
             config,
-            raw_alpha: vec![7; 4],
+            raw_alpha: vec![7; 4].into(),
             encoded: Bytes::from_static(b"cached"),
         });
         assert!(matches!(
@@ -1526,7 +1537,7 @@ mod tests {
                 geometry_epoch: 1,
                 idr: true,
                 color_annex_b: vec![0, 0, 0, 1, 0x65],
-                raw_alpha: vec![0, 1, 128, 255],
+                raw_alpha: vec![0, 1, 128, 255].into(),
             },
             200,
             config,
@@ -1568,7 +1579,7 @@ mod tests {
             geometry_epoch: generation.epoch,
             idr: frame_id == 1,
             color_annex_b: vec![0, 0, 0, 1, 0x65],
-            raw_alpha,
+            raw_alpha: raw_alpha.into(),
         }
     }
 
@@ -1646,22 +1657,22 @@ mod tests {
     fn lossless_alpha_cache_invalidates_generation_dimensions_and_config() {
         let old = generation();
         let mut cache = None;
-        let first = cached_alpha(old, vec![0, 1, 128, 255], config(), &mut cache).unwrap();
+        let first = cached_alpha(old, vec![0, 1, 128, 255], config(), &mut cache, 0).unwrap();
         let mut changed = old;
         changed.identity.config_generation = 2;
         changed.epoch = 2;
         let generation_changed =
-            cached_alpha(changed, vec![0, 1, 128, 255], config(), &mut cache).unwrap();
+            cached_alpha(changed, vec![0, 1, 128, 255], config(), &mut cache, 0).unwrap();
         assert_ne!(first.as_ptr(), generation_changed.as_ptr());
         changed.width = 1;
         changed.height = 4;
         let dimensions_changed =
-            cached_alpha(changed, vec![0, 1, 128, 255], config(), &mut cache).unwrap();
+            cached_alpha(changed, vec![0, 1, 128, 255], config(), &mut cache, 0).unwrap();
         assert_ne!(generation_changed.as_ptr(), dimensions_changed.as_ptr());
         let mut config_changed = config();
         config_changed.max_pending_frames = 2;
         let config_changed =
-            cached_alpha(changed, vec![0, 1, 128, 255], config_changed, &mut cache).unwrap();
+            cached_alpha(changed, vec![0, 1, 128, 255], config_changed, &mut cache, 0).unwrap();
         assert_ne!(dimensions_changed.as_ptr(), config_changed.as_ptr());
     }
 }

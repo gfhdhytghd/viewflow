@@ -315,7 +315,7 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
                               m_previousDispatchStarted, m_previousDispatchEnded))
       continue;
     if (packet->type == protocol::MessageType::INPUT_CAPTURE_TOPOLOGY) {
-      if (packet->payload.size() != 48)
+      if (packet->payload.size() != 48 && packet->payload.size() != 49)
         continue;
       const auto generation = readIntegral<std::uint64_t>(packet->payload, 0);
       const auto monitorId = readIntegral<std::int64_t>(packet->payload, 8);
@@ -323,7 +323,10 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
         return std::bit_cast<double>(*readIntegral<std::uint64_t>(packet->payload, offset));
       };
       InputRect remote{*monitorId, number(16), number(24), number(32), number(40)};
-      receipt(*generation, packet->type, *generation != 0 && m_core.configureRemote(remote));
+      const bool validMode = packet->payload.size() == 48 || std::to_integer<unsigned>(packet->payload[48]) <= 1;
+      const bool applied = validMode && *generation != 0 && m_core.configureRemote(remote);
+      if (applied) m_rawTouchpadEnabled = packet->payload.size() == 48 || std::to_integer<unsigned>(packet->payload[48]) != 0;
+      receipt(*generation, packet->type, applied);
     } else if (packet->type == protocol::MessageType::INPUT_LEASE_ACTIVATE) {
       if (packet->payload.size() != 24 && packet->payload.size() != 25)
         continue;
@@ -535,7 +538,7 @@ bool InputCapture::remoteGesture() const {
 void InputCapture::drainTouchpad() {
   if (!m_touchpad) return;
   m_touchpad->drain(m_core.captured(), [this](const TouchpadSnapshot& frame) {
-    if (!m_core.captured()) return;
+    if (!m_core.captured() || !rawTouchpad()) return;
     const auto& lease = *m_core.lease();
     protocol::PacketBuilder payload{protocol::MessageType::INPUT_TOUCHPAD_FRAME, 0};
     payload.appendIntegral(lease.generation);

@@ -5,6 +5,68 @@ use viewflow_protocol::AtlasFrame;
 
 pub const RECORD_BYTES: usize = 73;
 
+/// Keep one diagnostic record in one stderr write across Rust/C++ producers.
+pub(crate) fn trace_line(args: std::fmt::Arguments<'_>) {
+    use std::io::Write;
+    let mut line = std::fmt::format(args);
+    line.push('\n');
+    let _ = std::io::stderr().lock().write_all(line.as_bytes());
+}
+
+/// Opt-in stage timing: `1` samples frames; `all` diagnoses periodic stalls.
+pub(crate) fn trace_frame(frame: u64) -> bool {
+    static MODE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
+    let mode = *MODE.get_or_init(|| match std::env::var("VIEWFLOW_ATLAS_TIMINGS").as_deref() {
+        Ok("1") => 1,
+        Ok("all") => 2,
+        _ => 0,
+    });
+    mode == 2 || (mode == 1 && (frame <= 8 || frame % 30 == 0))
+}
+
+/// Optional wall-clock sampling of QUIC counters, independent of frame work.
+/// A delayed sample exposes runtime scheduling gaps. Counters describe QUIC
+/// protocol processing; udp_tx is updated by poll_transmit before socket I/O.
+/// They are neither socket completion nor NIC arrival/transmission timestamps.
+pub(crate) struct ConnectionSampler(Option<tokio::task::JoinHandle<()>>);
+impl Drop for ConnectionSampler {
+    fn drop(&mut self) {
+        if let Some(task) = &self.0 { task.abort(); }
+    }
+}
+pub(crate) fn sample_connection(
+    connection: &quinn::Connection,
+    role: &'static str,
+    now: impl Fn() -> Result<u64> + Send + 'static,
+) -> ConnectionSampler {
+    if std::env::var("VIEWFLOW_QUIC_POLL").as_deref() != Ok("1") {
+        return ConnectionSampler(None);
+    }
+    let connection = connection.clone();
+    ConnectionSampler(Some(tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(5));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        let mut previous = None;
+        loop {
+            tokio::select! {
+                _ = connection.closed() => break,
+                _ = interval.tick() => {}
+            }
+            let Ok(before_ns) = now() else { break; };
+            let stats = connection.stats();
+            let space = connection.datagram_send_buffer_space();
+            let Ok(after_ns) = now() else { break; };
+            let gap_ns = previous.map_or(0, |p| before_ns.saturating_sub(p));
+            previous = Some(before_ns);
+            trace_line(format_args!(
+                "atlas-quic-sample role={role} before_ns={before_ns} after_ns={after_ns} gap_ns={gap_ns} rtt_us={} cwnd={} lost_packets={} congestion_events={} udp_tx={} udp_tx_bytes={} udp_rx={} udp_rx_bytes={} send_buffer_space={space}",
+                stats.path.rtt.as_micros(), stats.path.cwnd, stats.path.lost_packets,
+                stats.path.congestion_events, stats.udp_tx.datagrams, stats.udp_tx.bytes,
+                stats.udp_rx.datagrams, stats.udp_rx.bytes));
+        }
+    })))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AtlasFrameDisposition {
     Committed,

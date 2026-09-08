@@ -1,0 +1,122 @@
+{
+  "scope": "Matched nonpreempted single-DMA packets. Hardware residence includes queued time, not pure execution. No app-frame mapping is inferred.",
+  "rejected": {
+    "no_dma_packet_sync_or_trace_edge": 28760,
+    "incomplete_or_multiple": 190
+  },
+  "changed_handles": [],
+  "process_engines": {
+    "dwm pid=1500 adapter=18446647383983403008 node=0": {
+      "cpu_queue_ms": {
+        "n": 1118,
+        "median": 0.1283899999998539,
+        "p95": 5.212590000000091,
+        "max": 11.412809999999808,
+        "sum": 1358.9893300000099
+      },
+      "hardware_residence_ms": {
+        "n": 1118,
+        "median": 5.982424999999921,
+        "p95": 7.4954799999995885,
+        "max": 11.679830000000038,
+        "sum": 6562.097599999979
+      }
+    },
+    "viewflow_windows_composition_preview pid=9460 adapter=18446647383983403008 node=1": {
+      "cpu_queue_ms": {
+        "n": 583,
+        "median": 0.08803999999963708,
+        "p95": 0.2007000000003245,
+        "max": 1.192700000000059,
+        "sum": 58.376469999992366
+      },
+      "hardware_residence_ms": {
+        "n": 583,
+        "median": 8.362949999999955,
+        "p95": 8.657250000000204,
+        "max": 9.686309999999821,
+        "sum": 4866.746210000008
+      }
+    },
+    "viewflow_windows_composition_preview pid=9460 adapter=18446647383983403008 node=0": {
+      "cpu_queue_ms": {
+        "n": 2157,
+        "median": 7.19887000000017,
+        "p95": 17.993709999999737,
+        "max": 32.11923999999999,
+        "sum": 18588.801500000012
+      },
+      "hardware_residence_ms": {
+        "n": 2157,
+        "median": 1.1993600000005245,
+        "p95": 3.911710000000312,
+        "max": 9.51837999999998,
+        "sum": 3767.2365299999947
+      }
+    },
+    "WindowsTerminal pid=8172 adapter=18446647383983403008 node=0": {
+      "cpu_queue_ms": {
+        "n": 16,
+        "median": 1.155264999999872,
+        "p95": 28.875899999999092,
+        "max": 28.875899999999092,
+        "sum": 87.12145999999882
+      },
+      "hardware_residence_ms": {
+        "n": 16,
+        "median": 1.768105000000105,
+        "p95": 2.88370000000009,
+        "max": 2.88370000000009,
+        "sum": 31.9877000000007
+      }
+    },
+    "viewflow_windows_frame_observer pid=328 adapter=18446647383983403008 node=0": {
+      "cpu_queue_ms": {
+        "n": 714,
+        "median": 3.990255000000161,
+        "p95": 11.470530000000053,
+        "max": 27.171069999999418,
+        "sum": 3082.188849999984
+      },
+      "hardware_residence_ms": {
+        "n": 714,
+        "median": 0.3070450000004712,
+        "p95": 5.130130000000463,
+        "max": 7.343119999999544,
+        "sum": 763.0273300000113
+      }
+    },
+    "viewflow_windows_frame_observer pid=328 adapter=18446647383983403008 node=5": {
+      "cpu_queue_ms": {
+        "n": 3,
+        "median": 0.45602000000008047,
+        "p95": 0.6079100000001745,
+        "max": 0.6079100000001745,
+        "sum": 1.1508000000003449
+      },
+      "hardware_residence_ms": {
+        "n": 3,
+        "median": 0.20328999999992448,
+        "p95": 0.20570999999972628,
+        "max": 0.20570999999972628,
+        "sum": 0.5675999999998567
+      }
+    },
+    "viewflow_windows_frame_observer pid=328 adapter=18446647383983403008 node=2": {
+      "cpu_queue_ms": {
+        "n": 2,
+        "median": 0.30605999999988853,
+        "p95": 0.5025799999998526,
+        "max": 0.5025799999998526,
+        "sum": 0.6121199999997771
+      },
+      "hardware_residence_ms": {
+        "n": 2,
+        "median": 0.1697500000002492,
+        "p95": 0.1904100000001563,
+        "max": 0.1904100000001563,
+        "sum": 0.3395000000004984
+      }
+    }
+  }
+}

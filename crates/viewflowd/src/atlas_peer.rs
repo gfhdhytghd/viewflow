@@ -692,6 +692,17 @@ mod receiver {
     ) -> Result<()> {
         let mut guard = crate::atlas_session::StartupGuard(Some(connection.clone()));
         let clock = Clock(Instant::now());
+        let _connection_sampler = crate::atlas_feedback::sample_connection(&connection, "receiver", move || Ok(clock.now()));
+        if crate::atlas_feedback::trace_frame(0) {
+            let before_ns = clock.now();
+            if let Ok(sample) = crate::atlas_receiver_presenter::QpcSample::current() {
+                let after_ns = clock.now();
+                eprintln!(
+                    "atlas-receiver-clock-anchor before_ns={before_ns} qpc={} frequency={} after_ns={after_ns}",
+                    sample.ticks, sample.frequency,
+                );
+            }
+        }
         let mut clock_server = AtlasClockServer::accept(&connection, deadline).await?;
         clock_server.respond(|| Ok(clock.now()), deadline).await?;
         let silence = Duration::from_millis(config.clock_silence_timeout_ms);

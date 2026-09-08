@@ -1,4 +1,5 @@
 #include "gpu_sparse_atlas.cuh"
+#include "alpha_copy_profile.hpp"
 #include "gpu_dmabuf_encoder.cuh"
 #include "gpu_import_cleanup.hpp"
 #include "gpu_rgba_prepare.cuh"
@@ -9,6 +10,7 @@
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 #include <atomic>
+#include <array>
 #include <cuda.h>
 #include <cuda_gl_interop.h>
 #include <cuda_runtime_api.h>
@@ -136,13 +138,21 @@ struct GpuDmabufEncoder::Impl {
   cudaStream_t stream = nullptr;
   unsigned char *src = nullptr, *rgba = nullptr, *alpha = nullptr;
   size_t srcPitch = 0, rgbaPitch = 0, alphaPitch = 0;
+  unsigned char *pinnedAlpha = nullptr;
   AVBufferRef *device = nullptr, *frames = nullptr;
   AVCodecContext *encoder = nullptr;
   bool good = false;
   bool poisoned = false;
   bool recoveryIdr = false;
   bool timingsEnabled = false;
+  bool timingsAll = false;
+  bool borrowPreparedTile = true;
   ~Impl() {
+    if (pinnedAlpha) {
+      // The persistent host destination must outlive any submitted DMA.
+      if (stream) cudaStreamSynchronize(stream);
+      cudaFreeHost(pinnedAlpha);
+    }
     if (encoder)
       avcodec_free_context(&encoder);
     if (frames)
@@ -185,7 +195,13 @@ struct GpuDmabufEncoder::Impl {
   bool init(std::string *error) {
     owner = std::this_thread::get_id();
     const char *timings = std::getenv("VIEWFLOW_GPU_TIMINGS");
-    timingsEnabled = timings && std::strcmp(timings, "1") == 0;
+    timingsAll = timings && std::strcmp(timings, "all") == 0;
+    timingsEnabled = timingsAll || (timings && std::strcmp(timings, "1") == 0);
+    const char* copyTile = std::getenv("VIEWFLOW_GPU_TILE_COPY");
+    borrowPreparedTile = !copyTile || std::strcmp(copyTile, "1") != 0;
+    if (timingsEnabled)
+      std::fprintf(stderr, "GPU prepared-tile storage=%s\n",
+                   borrowPreparedTile ? "scratch-swap" : "per-frame-copy");
     if (config.outputWidth < 2 || config.outputHeight < 2 ||
         (config.outputWidth & 1) || (config.outputHeight & 1)) {
       fail(error, "output dimensions must be positive even");
@@ -252,6 +268,27 @@ struct GpuDmabufEncoder::Impl {
                                 config.outputWidth, config.outputHeight),
                 error, "cudaMallocPitch alpha"))
       return false;
+    const char *pinned = std::getenv("VIEWFLOW_GPU_PINNED_ALPHA");
+    if (!pinned || std::strcmp(pinned, "1") == 0) {
+      // One fixed-size staging buffer per encoder, never a per-frame pin.
+      // Failure retains the existing pageable readback path.
+      cudaError_t allocation;
+#ifdef VIEWFLOW_TEST_GPU_EXPIRY
+      const char *forceFailure = std::getenv("VIEWFLOW_TEST_PINNED_ALPHA_ALLOC_FAIL");
+      if (forceFailure && std::strcmp(forceFailure, "1") == 0)
+        allocation = cudaErrorMemoryAllocation;
+      else
+#endif
+        allocation = cudaHostAlloc(reinterpret_cast<void **>(&pinnedAlpha),
+                                   size_t(config.outputWidth) * config.outputHeight,
+                                   cudaHostAllocDefault);
+      if (allocation != cudaSuccess) {
+        pinnedAlpha = nullptr;
+        cudaGetLastError();
+      }
+      if (timingsEnabled)
+        std::fprintf(stderr, "GPU alpha readback pinned=%d\n", pinnedAlpha != nullptr);
+    }
     CUcontext current = nullptr;
     if (cuCtxGetCurrent(&current) != CUDA_SUCCESS || !current) {
       fail(error, "CUDA primary context unavailable");
@@ -426,9 +463,38 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   const unsigned timingSample = impl_->timingsEnabled
                                     ? timingSamples.fetch_add(1)
                                     : 5;
-  const bool logTimings = impl_->timingsEnabled && (timingSample < 5 || timingSample % 60 == 0);
+  const bool logTimings = impl_->timingsEnabled && (impl_->timingsAll || timingSample < 5 || timingSample % 60 == 0);
   const auto totalStart = logTimings ? std::chrono::steady_clock::now()
                                      : std::chrono::steady_clock::time_point{};
+  // Declared before per-call resources: its final checkpoint includes their
+  // destructors, including clean-expiry paths that return before the old log.
+  struct TimingExit {
+    bool enabled; uint64_t frame; std::chrono::steady_clock::time_point start;
+    EncodeDisposition* disposition;
+    struct Mark { const char* phase; long long us; };
+    std::array<Mark,64> marks{}; size_t count=0; bool truncated=false;
+    void mark(const char* phase) {
+      if (!enabled) return;
+      const auto us=std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now()-start).count();
+      if (count<marks.size()) marks[count++]={phase,static_cast<long long>(us)};
+      else truncated=true;
+    }
+    ~TimingExit() {
+      if (!enabled) return;
+      mark("return");
+      char line[4096];
+      size_t used=size_t(std::snprintf(line,sizeof(line),
+          "GPU encode-detail frame=%llu disposition=%d truncated=%u marks=",
+          static_cast<unsigned long long>(frame),disposition?int(*disposition):-1,unsigned(truncated)));
+      for(size_t i=0;i<count && used<sizeof(line);++i) {
+        const int n=std::snprintf(line+used,sizeof(line)-used,"%s%s:%lld",i?",":"",marks[i].phase,marks[i].us);
+        if(n<0 || size_t(n)>=sizeof(line)-used) return;
+        used+=size_t(n);
+      }
+      std::fprintf(stderr,"%s\n",line);
+    }
+  } timingExit{logTimings,metadata.frameId,totalStart,disposition};
   auto fenceDone = totalStart;
   auto importDone = totalStart;
   auto copyPrepareDone = totalStart;
@@ -439,8 +505,16 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
       inputs[0].frame.cropWidth == impl_->config.outputWidth && inputs[0].frame.cropHeight == impl_->config.outputHeight;
   struct PreparedTiles {
     std::vector<AtlasTile> tiles;
-    ~PreparedTiles() { for (const auto& tile : tiles) cudaFree(const_cast<unsigned char*>(tile.rgba)); }
-  } prepared;
+    TimingExit* timing;
+    const unsigned char* borrowed = nullptr;
+    ~PreparedTiles() {
+      for (const auto& tile : tiles) {
+        if (tile.rgba == borrowed) continue;
+        cudaFree(const_cast<unsigned char*>(tile.rgba));
+        timing->mark("tile_free");
+      }
+    }
+  } prepared{{}, &timingExit};
   prepared.tiles.reserve(inputs.size());
   for (const auto& tile : inputs) {
   const auto& input = tile.frame;
@@ -479,6 +553,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   }
   if (logTimings)
     fenceDone = std::chrono::steady_clock::now();
+  timingExit.mark("fence");
   const int fd = fcntl(input.dmaBufFd, F_DUPFD_CLOEXEC, 3);
   if (fd < 0) {
     fail(error, "dup DMA-BUF");
@@ -532,6 +607,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   }
   // Isolate stale producer-side GL errors; only an error generated by this
   // import bind/target is authoritative for this frame identity.
+  timingExit.mark("egl_image");
   while (glGetError() != GL_NO_ERROR) {}
   glBindTexture(GL_TEXTURE_2D, impl_->texture);
   target(GL_TEXTURE_2D, image);
@@ -540,12 +616,18 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     cleanup();
     return false;
   }
+  timingExit.mark("egl_bind");
   glFinish();
+  timingExit.mark("gl_finish");
   if (!cudaOk(cudaGraphicsGLRegisterImage(&resource, impl_->texture,
                                           GL_TEXTURE_2D,
                                           cudaGraphicsRegisterFlagsReadOnly),
-              error, "cuda register imported image") ||
-      !cudaOk(cudaGraphicsMapResources(1, &resource, impl_->stream), error,
+              error, "cuda register imported image")) {
+    cleanup();
+    return false;
+  }
+  timingExit.mark("cuda_register");
+  if (!cudaOk(cudaGraphicsMapResources(1, &resource, impl_->stream), error,
               "cuda map imported image")) {
     cleanup();
     return false;
@@ -553,6 +635,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   mapped = true;
   if (logTimings)
     importDone = std::chrono::steady_clock::now();
+  timingExit.mark("import");
   cudaArray_t array = nullptr;
   if (!cudaOk(cudaGraphicsSubResourceGetMappedArray(&array, resource, 0, 0),
               error, "cuda mapped array") ||
@@ -607,6 +690,19 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     return false;
   }
   if (!direct) {
+    if (impl_->borrowPreparedTile && &tile == &inputs.back()) {
+      // Both scratch allocations have full-canvas RGBA capacity. Preparation
+      // has completed, and this is the last source: no subsequent import needs
+      // src during this call. Keep the prepared pixels in that allocation and
+      // compose into the other one, avoiding an allocation/copy/free per frame.
+      // Swapping pitches with pointers also preserves differently padded rows.
+      std::swap(impl_->src, impl_->rgba);
+      std::swap(impl_->srcPitch, impl_->rgbaPitch);
+      prepared.borrowed = impl_->src;
+      prepared.tiles.push_back({impl_->src, impl_->srcPitch, input.cropWidth,
+                                input.cropHeight, tile.x, tile.y});
+      timingExit.mark("tile_borrow");
+    } else {
     unsigned char* pixels = nullptr;
     size_t pitch = 0;
     if (!cudaOk(cudaMallocPitch(&pixels, &pitch, size_t(input.cropWidth) * 4,
@@ -622,11 +718,39 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
       cleanup();
       return false;
     }
+    }
   }
   if (!cleanup()) return false;
   }
   AVFrame* frame = nullptr;
   bool ok = false;
+  // Opt-in owned-fixture witness. Read the already-retained source tile, before
+  // atlas packing or encoding, to distinguish producer age from transport age.
+  const auto* fixtureWitness = std::getenv("VIEWFLOW_GPU_FIXTURE_MARKER");
+  if (fixtureWitness && std::strcmp(fixtureWitness, "1") == 0 && prepared.tiles.size() == 1 &&
+      prepared.tiles[0].width == 3848 && prepared.tiles[0].height == 2408) {
+    const auto started = std::chrono::steady_clock::now();
+    const auto& tile = prepared.tiles[0];
+    std::array<unsigned char, (63 * 32 + 1) * 4> marker;
+    if (cudaMemcpy(marker.data(), tile.rgba + 68 * tile.pitch + 52 * 4,
+                   marker.size(), cudaMemcpyDeviceToHost) == cudaSuccess) {
+      uint64_t bits = 0;
+      bool contrast = true;
+      for (unsigned cell = 0; cell < 64; ++cell) {
+        const auto* pixel = marker.data() + cell * 32 * 4;
+        const unsigned luminance = (unsigned(pixel[0]) + pixel[1] + pixel[2]) / 3;
+        contrast &= luminance < 64 || luminance > 191;
+        bits = (bits << 1) | (luminance > 127);
+      }
+      const uint32_t fixture = uint32_t(bits >> 32);
+      const uint16_t input = uint16_t(bits >> 16), check = uint16_t(bits);
+      const bool valid = contrast && check == uint16_t(fixture ^ (fixture >> 16) ^ input ^ 0xA65Cu);
+      std::fprintf(stderr, "GPU fixture-marker atlas_frame=%llu marker_frame=%u input=%u captured_ns=%llu copy_us=%lld valid=%u\n",
+          static_cast<unsigned long long>(metadata.frameId), fixture, unsigned(input),
+          static_cast<unsigned long long>(metadata.captureTimestampNs),
+          static_cast<long long>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now()-started).count()), unsigned(valid));
+    }
+  }
   // Every imported image has been retired before composition/submission.
   auto cleanup = [&] { av_frame_free(&frame); return true; };
   std::optional<SparseResult> sparseResult;
@@ -733,6 +857,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   }
   if (logTimings)
     copyPrepareDone = std::chrono::steady_clock::now();
+  timingExit.mark("copy_prepare");
   frame = av_frame_alloc();
   if (!frame ||
       !avOk(av_hwframe_get_buffer(impl_->encoder->hw_frames_ctx, frame, 0),
@@ -750,11 +875,13 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
       impl_->rgba, impl_->rgbaPitch, frame->data[0], frame->linesize[0],
       frame->data[1], frame->linesize[1], impl_->config.outputWidth,
       impl_->config.outputHeight);
-  std::vector<unsigned char> rawAlpha(size_t(impl_->config.outputWidth) *
-                                      impl_->config.outputHeight);
+  const size_t alphaBytes = size_t(impl_->config.outputWidth) * impl_->config.outputHeight;
+  std::vector<unsigned char> rawAlpha;
+  if (!impl_->pinnedAlpha) rawAlpha.resize(alphaBytes);
+  unsigned char *alphaDestination = impl_->pinnedAlpha ? impl_->pinnedAlpha : rawAlpha.data();
   if (!cudaOk(cudaGetLastError(), error, "RGBA NV12 launch") ||
       !cudaOk(cudaMemcpy2DAsync(
-                  rawAlpha.data(), size_t(impl_->config.outputWidth),
+                  alphaDestination, size_t(impl_->config.outputWidth),
                   impl_->alpha, impl_->alphaPitch,
                   size_t(impl_->config.outputWidth), impl_->config.outputHeight,
                   cudaMemcpyDeviceToHost, impl_->stream),
@@ -764,6 +891,10 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     cleanup();
     return false;
   }
+  if (impl_->pinnedAlpha) {
+    AlphaCopyProfile profile("pinned_to_vector", metadata.frameId, alphaBytes);
+    rawAlpha.assign(impl_->pinnedAlpha, impl_->pinnedAlpha + alphaBytes);
+  }
   if (!preparationBefore(deadline, 2)) {
     fail(error, "frame deadline expired after GPU encode preparation");
     if (cleanup() && disposition)
@@ -772,6 +903,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   }
   if (logTimings)
     nv12ReadbackDone = std::chrono::steady_clock::now();
+  timingExit.mark("nv12_alpha_readback");
   frame->pts = metadata.captureTimestampNs;
   frame->pict_type = forceIdr ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;
   if (!avOk(avcodec_send_frame(impl_->encoder, frame), error,
@@ -798,6 +930,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   }
   if (logTimings)
     nvencDone = std::chrono::steady_clock::now();
+  timingExit.mark("nvenc");
   if (p->size <= 0 || std::size_t(p->size) > impl_->config.maxAccessUnitBytes) {
     av_packet_free(&p);
     impl_->poisoned = true;
@@ -841,6 +974,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   if (ok && output.sparse) impl_->lastSparsePatches = output.sparse->patches;
   if (logTimings)
     outputDone = std::chrono::steady_clock::now();
+  timingExit.mark("output");
   if (!cleanup()) {
     // A coded output cannot authorize source-buffer reuse when import cleanup
     // failed. Keep the C ABI's terminal-failure retirement path in force.
@@ -849,16 +983,17 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   }
   if (logTimings) {
     const auto cleanupDone = std::chrono::steady_clock::now();
+    timingExit.mark("cleanup");
     const auto elapsedUs = [](auto start, auto end) {
       return std::chrono::duration_cast<std::chrono::microseconds>(end - start)
           .count();
     };
     std::fprintf(
         stderr,
-        "GPU encode timing sample=%u host_us fence=%lld import=%lld "
+        "GPU encode timing sample=%u frame=%llu host_us fence=%lld import=%lld "
         "copy_prepare=%lld nv12_alpha_readback=%lld nvenc=%lld output=%lld "
         "cleanup=%lld total=%lld (host elapsed; existing waits included; no GPU timestamps)\n",
-        timingSample, static_cast<long long>(elapsedUs(totalStart, fenceDone)),
+        timingSample, static_cast<unsigned long long>(metadata.frameId), static_cast<long long>(elapsedUs(totalStart, fenceDone)),
         static_cast<long long>(elapsedUs(fenceDone, importDone)),
         static_cast<long long>(elapsedUs(importDone, copyPrepareDone)),
         static_cast<long long>(elapsedUs(copyPrepareDone, nv12ReadbackDone)),

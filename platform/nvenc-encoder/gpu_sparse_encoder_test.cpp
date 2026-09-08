@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <ctime>
+#include <chrono>
 #include <unistd.h>
 namespace {
 struct Egl {
@@ -188,6 +189,27 @@ int main(int argc,char** argv) {
       std::fputs("]}\n",f);std::fclose(f);
     }
     require(vf_gpu_dmabuf_output_destroy(output)==0,"initial output cleanup");
+    if (std::getenv("VIEWFLOW_SPARSE_PROFILE")) {
+      constexpr unsigned iterations = 200;
+      const auto started = std::chrono::steady_clock::now();
+      for (unsigned i = 0; i < iterations; ++i) {
+        const auto now = nowNs();
+        atlas.frame_id += 1;
+        atlas.capture_timestamp_ns = now;
+        for (auto& tile : tiles) {
+          tile.frame.capture_timestamp_ns = now;
+          tile.deadline_monotonic_ns = now + 10000000000LL;
+        }
+        output = nullptr;
+        require(vf_gpu_dmabuf_encoder_encode_sparse_recoverable(
+                    encoder, &atlas, &scene, 1, now + 10000000000LL, &output) == 0 && output,
+                "profile sparse encode");
+        require(vf_gpu_dmabuf_output_destroy(output) == 0, "profile output cleanup");
+      }
+      const auto elapsed = std::chrono::duration<double, std::micro>(
+          std::chrono::steady_clock::now() - started).count();
+      std::printf("PROFILE sparse mode=%u iterations=%u us/frame=%.2f\n", mode, iterations, elapsed / iterations);
+    }
     // Scroll out, stop at a partial boundary, then scroll fully back. The
     // same encoder and source geometry survive all three residency changes.
     for(unsigned visibleWidth: {0u, 64u, 256u}) {

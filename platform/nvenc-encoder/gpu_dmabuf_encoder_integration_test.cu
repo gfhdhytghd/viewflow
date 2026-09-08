@@ -17,7 +17,7 @@ extern "C" void vf_test_expire_gpu_preparation(unsigned stage);
 #endif
 
 namespace {
-constexpr int W = 1936, H = 1732;
+int W = 1936, H = 1732;
 bool ck(bool v, const char *s) {
   if (!v)
     std::fprintf(stderr, "FAIL %s\n", s);
@@ -273,7 +273,13 @@ bool exportFrame(Egl &e, GLuint tex, Export &out) {
   return out.fd >= 0 && out.fence >= 0;
 }
 } // namespace
-int main() {
+int main(int argc, char** argv) {
+  if (argc == 2 && std::strcmp(argv[1], "--4k") == 0) {
+    W = 3840; H = 2400;
+  } else if (argc != 1) {
+    std::fprintf(stderr, "usage: integration-test [--4k]\n");
+    return 2;
+  }
   Egl e;
   if (!ck(e.init(), "EGL"))
     return 1;
@@ -380,6 +386,9 @@ int main() {
   // acceptance criteria.
   vf_gpu_dmabuf_encoder *cabi = nullptr;
   std::vector<std::vector<unsigned char>> cabiUnits;
+  std::vector<vf_gpu_dmabuf_output*> retainedOutputs;
+  std::vector<const uint8_t*> retainedViews;
+  std::vector<std::vector<unsigned char>> retainedAlphas;
   std::vector<std::array<int, 3>> cabiRgb;
   const vf_gpu_dmabuf_encoder_config cabiConfig{
       static_cast<uint32_t>(W), static_cast<uint32_t>(H), 4U * 1024U * 1024U};
@@ -478,9 +487,14 @@ int main() {
       return 1;
     cabiUnits.push_back(color);
     cabiRgb.push_back({red * 255 / 128, green * 255 / 128, blue * 255 / 128});
-    if (!ck(vf_gpu_dmabuf_output_destroy(output) == VF_GPU_DMABUF_OK,
-            "C ABI output destroy"))
-      return 1;
+    const uint8_t* view = nullptr;
+    size_t viewLength = 0;
+    if (!ck(vf_gpu_dmabuf_output_view_raw_alpha(output, &view, &viewLength) == VF_GPU_DMABUF_OK &&
+                view && viewLength == alpha.size() &&
+                std::equal(alpha.begin(), alpha.end(), view), "C ABI immutable alpha view")) return 1;
+    retainedOutputs.push_back(output);
+    retainedViews.push_back(view);
+    retainedAlphas.push_back(std::move(alpha));
   }
   if (!ck(decodedBt709LimitedGopMatches(cabiUnits, cabiRgb, {true, false, true}),
           "C ABI GOP decodes across clean expiry without missing references"))
@@ -488,6 +502,17 @@ int main() {
   if (!ck(vf_gpu_dmabuf_encoder_destroy(cabi) == VF_GPU_DMABUF_OK,
           "C ABI encoder destroy"))
     return 1;
+  // Earlier immutable outputs survive later encodes and encoder destruction.
+  for (size_t i = 0; i < retainedOutputs.size(); ++i) {
+    const uint8_t* view = nullptr;
+    size_t length = 0;
+    if (!ck(vf_gpu_dmabuf_output_view_raw_alpha(retainedOutputs[i], &view, &length) == VF_GPU_DMABUF_OK &&
+                view == retainedViews[i] && length == retainedAlphas[i].size() &&
+                std::equal(retainedAlphas[i].begin(), retainedAlphas[i].end(), view),
+            "retained alpha snapshot independent of encoder lifetime")) return 1;
+    if (!ck(vf_gpu_dmabuf_output_destroy(retainedOutputs[i]) == VF_GPU_DMABUF_OK,
+            "retained C ABI output destroy")) return 1;
+  }
   // Prove a destroyed peer releases only its own EGL objects: the existing
   // encoder and the producer context both remain functional.
   if (!ck(eglMakeCurrent(e.d, e.s, e.s, e.c) == EGL_TRUE,
@@ -594,23 +619,29 @@ int main() {
     rejected = tiles; rejected[1].absoluteMonotonicDeadlineNs = deadlineNs(-1);
     if (!ck(!enc.encodeAtlas(rejected, {24, 804, 101}, true, deadlineNs(5000), out, &error),
             "batch cannot renew expired tile lease")) return 1;
-    vf_gpu_dmabuf_encoder_config atlasConfig{W, H, 4U * 1024U * 1024U};
+    vf_gpu_dmabuf_encoder_config atlasConfig{static_cast<uint32_t>(W), static_cast<uint32_t>(H), 4U * 1024U * 1024U};
 #ifdef VIEWFLOW_TEST_GPU_EXPIRY
-    for (const unsigned stage : {3U, 4U}) {
+    for (const unsigned stage : {3U, 4U, 2U, 5U}) {
       vf_test_expire_gpu_preparation(stage);
       if (!ck(!enc.encodeAtlas(tiles, {24, 804, 101}, true, deadlineNs(5000), out,
                                &error, &disposition) &&
-              disposition == viewflow::gpu::EncodeDisposition::ExpiredBeforeSubmission &&
+              disposition == (stage == 5U ? viewflow::gpu::EncodeDisposition::ExpiredAfterSubmission :
+                                           viewflow::gpu::EncodeDisposition::ExpiredBeforeSubmission) &&
               out.colorAnnexB.empty() && out.rawAlpha.empty(),
-              "atlas fence-boundary expiry before first or second tile is clean")) return 1;
+              "atlas expiry before import or after scratch borrowing is clean")) return 1;
     }
 #endif
     vf_gpu_dmabuf_encoder* atlasEncoder = nullptr;
     if (!ck(vf_gpu_dmabuf_encoder_create(&atlasConfig, &atlasEncoder) == VF_GPU_DMABUF_OK,
             "create C ABI atlas encoder")) return 1;
-    for (int count : {2, 1, 0}) {
-      tiles.resize(count);
-      if (!enc.encodeAtlas(tiles, {std::uint64_t(26 - count), std::uint64_t(806 - count), 101},
+    const auto allTiles = tiles;
+    std::uint64_t atlasFrame = 24;
+    // Re-enter after empty and partial frames: the two scratch buffers exchange
+    // roles only when a final tile is borrowed, so parity must not affect pixels.
+    for (int count : {2, 1, 0, 1, 2, 0, 2}) {
+      tiles.assign(allTiles.begin(), allTiles.begin() + count);
+      const auto frameId = atlasFrame++;
+      if (!enc.encodeAtlas(tiles, {frameId, frameId + 780, 101},
                            true, deadlineNs(5000), out, &error, &disposition)) {
         std::fprintf(stderr, "atlas encoding failed: %s\n", error.c_str()); return 1;
       }
@@ -620,7 +651,7 @@ int main() {
             count == 2 && x >= 96 && x < 160 && y >= 64 && y < 112 ? 64 : 0;
         if (out.rawAlpha[size_t(y) * W + x] != want) { alphaOk = false; break; }
       }
-      if (!ck(alphaOk && out.metadata.frameId == std::uint64_t(26 - count) &&
+      if (!ck(alphaOk && out.metadata.frameId == frameId &&
               out.metadata.geometryEpoch == 101 && out.idr &&
               disposition == viewflow::gpu::EncodeDisposition::Encoded &&
               decodedAtlasMatches(out.colorAnnexB, count),
@@ -669,6 +700,25 @@ int main() {
               "C ABI atlas decoded color and exact paired alpha")) return 1;
       if (!ck(vf_gpu_dmabuf_output_destroy(coutput) == VF_GPU_DMABUF_OK, "destroy C ABI atlas output")) return 1;
     }
+    // Nearly full-canvas final tiles exercise the borrowed allocation at 4K
+    // capacity. Shrinking and expanding must clear every uncovered pixel.
+    for (int inset : {2, 66, 2}) {
+      auto large = in;
+      large.cropWidth = W - inset;
+      large.cropHeight = H - inset;
+      const auto frameId = atlasFrame++;
+      if (!ck(enc.encodeAtlas({{large, 0, 0, deadlineNs(5000)}},
+                             {frameId, frameId + 780, 101}, true,
+                             deadlineNs(5000), out, &error, &disposition),
+              "large final atlas tile encode")) return 1;
+      bool exact = out.rawAlpha.size() == size_t(W) * H;
+      for (int y = 0; exact && y < H; ++y) for (int x = 0; x < W; ++x) {
+        const int wanted = x < W - inset && y < H - inset ? (x < 64 ? 128 : 64) : 0;
+        if (out.rawAlpha[size_t(y) * W + x] != wanted) { exact = false; break; }
+      }
+      if (!ck(exact, "large final tile and cleared padding alpha exact")) return 1;
+    }
+    std::printf("PASS atlas scratch transitions and full alpha %dx%d\n", W, H);
     vf_gpu_dmabuf_atlas invalidAtlas{};
     invalidAtlas.struct_size = sizeof(invalidAtlas); invalidAtlas.version = VF_GPU_DMABUF_ATLAS_VERSION;
     invalidAtlas.reserved = 1;
@@ -720,8 +770,15 @@ int main() {
   if (!ck(!enc.encode(expired, true, deadlineNs(-1), discarded, nullptr, &disposition),
           "expired admission rejected"))
     return 1;
-  if (!ck(disposition == viewflow::gpu::EncodeDisposition::Failed && discarded.colorAnnexB.empty(),
-          "unverified early expiry clears output and does not report completed GPU reads"))
+  if (!ck(disposition == viewflow::gpu::EncodeDisposition::ExpiredBeforeSubmission &&
+          discarded.colorAnnexB.empty() && discarded.rawAlpha.empty(),
+          "early scheduling miss clears output before any source reads"))
+    return 1;
+  expired.metadata = {5, 704, 99};
+  if (!ck(enc.encode(expired, true, deadlineNs(5000), discarded, nullptr, &disposition) &&
+          disposition == viewflow::gpu::EncodeDisposition::Encoded && discarded.idr &&
+          !discarded.colorAnnexB.empty(),
+          "encoder remains usable after early scheduling miss"))
     return 1;
   glDeleteTextures(1, &tex);
   std::puts("PASS GPU DMA-BUF encoder GOP native-fence and atlas integration");

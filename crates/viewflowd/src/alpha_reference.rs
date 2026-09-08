@@ -1,5 +1,6 @@
 //! One immutable, connection-scoped VFAR baseline. This caches alpha bytes,
-//! never a color frame or capture timestamp. Install only after warmup ACK.
+//! never a color frame or capture timestamp. Senders install only after the
+//! matching warmup or frame acknowledgement; Atlas receivers stage on admission.
 //! Identity is window bytes (16), then big-endian u64 frame, epoch, config.
 //! The 80-byte reference is identity + big-endian u32 width/height + VFAR SHA256.
 
@@ -16,7 +17,7 @@ pub struct AlphaReferenceCache {
 }
 
 impl AlphaReferenceCache {
-    /// Install an acknowledged warmup baseline.
+    /// Construct a checked baseline for the caller's acknowledgement protocol.
     ///
     /// # Errors
     /// Rejects an invalid identity, malformed VFAR, mismatched geometry, or

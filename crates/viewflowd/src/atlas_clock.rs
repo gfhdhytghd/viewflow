@@ -158,6 +158,12 @@ impl AtlasClockClient {
                     u64::from_be_bytes(reply[8..].try_into()?),
                     t3,
                 )?;
+                if crate::atlas_feedback::trace_frame(0) {
+                    crate::atlas_feedback::trace_line(format_args!("atlas-clock-exchange t0={} t1={} t2={} t3={} remote_offset_ns={} uncertainty_ns={} network_round_trip_ns={}",
+                        t0, u64::from_be_bytes(reply[..8].try_into()?),
+                        u64::from_be_bytes(reply[8..].try_into()?), t3,
+                        estimate.remote_offset_ns, estimate.uncertainty_ns, estimate.network_round_trip_ns));
+                }
                 samples.push(AtlasClockMapping {
                     estimate,
                     valid_until,
@@ -184,6 +190,16 @@ impl AtlasClockClient {
         self.io = Some(io);
         self.last_clock_ns = last_clock;
         guard.0 = None;
+        if crate::atlas_feedback::trace_frame(0) {
+            crate::atlas_feedback::trace_line(format_args!(
+                "atlas-clock-mapping source_ns={} remote_offset_ns={} uncertainty_ns={} network_round_trip_ns={} valid_remaining_ns={}",
+                last_clock.unwrap_or(0),
+                mapping.estimate.remote_offset_ns,
+                mapping.estimate.uncertainty_ns,
+                mapping.estimate.network_round_trip_ns,
+                mapping.valid_until.saturating_duration_since(Instant::now()).as_nanos(),
+            ));
+        }
         Ok(mapping)
     }
 }

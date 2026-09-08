@@ -1,0 +1,122 @@
+{
+  "desktop_present_not_photon": true,
+  "end_to_end_latency_verified": false,
+  "observed_changes": 703,
+  "positive_present_timestamps": 703,
+  "elapsed_seconds": 19.71019311,
+  "observed_changes_per_second": 35.61608940522451,
+  "nonincreasing_present_timestamps": 0,
+  "nonincreasing_frame_ids": 0,
+  "desktop_change_gap_ms": {
+    "n": 702,
+    "min": 6.74135,
+    "median": 26.162185,
+    "p95": 50.41646,
+    "max": 267.24417
+  },
+  "producer_frame_step": {
+    "n": 702,
+    "min": 1,
+    "median": 1.0,
+    "p95": 3,
+    "max": 19
+  },
+  "present_to_observation_ms": {
+    "n": 703,
+    "min": 3.27217,
+    "median": 8.74502,
+    "p95": 18.37053,
+    "max": 31.72196
+  },
+  "accumulated_desktop_frames": {
+    "n": 703,
+    "min": 1,
+    "median": 1,
+    "p95": 2,
+    "max": 2
+  },
+  "acquire_us": {
+    "n": 703,
+    "min": 109,
+    "median": 10099,
+    "p95": 26618,
+    "max": 35739
+  },
+  "copy_map_us": {
+    "n": 703,
+    "min": 2354,
+    "median": 8069,
+    "p95": 15293,
+    "max": 25268
+  },
+  "render_to_desktop": {
+    "start": "fixture pre-draw CLOCK_MONOTONIC timestamp",
+    "end": "DXGI desktop LastPresentTime QPC timestamp",
+    "clock_model": "existing paired QUIC minimum-RTT four-timestamp estimate and uncertainty",
+    "input_to_photon_measured": false,
+    "receiver_anchor_interval_ns": 23370,
+    "missing_fixture_frame": 0,
+    "missing_preceding_clock": 0,
+    "expired_clock_mapping": 0,
+    "latency_lower_ms": {
+      "n": 703,
+      "min": 51.274937,
+      "median": 81.716381,
+      "p95": 103.503166,
+      "max": 140.274568
+    },
+    "latency_upper_ms": {
+      "n": 703,
+      "min": 51.500037,
+      "median": 81.954737,
+      "p95": 103.805194,
+      "max": 140.544688
+    },
+    "clock_uncertainty_ms": {
+      "n": 703,
+      "min": 0.076279,
+      "median": 0.117898,
+      "p95": 0.226674,
+      "max": 0.278181
+    },
+    "definitely_over_two_60hz_frames": 703,
+    "definitely_within_two_60hz_frames": 0,
+    "negative_upper_bound": 0,
+    "unique_capture_stage_samples": {
+      "missing_capture_marker": 0,
+      "ambiguous_repeated_marker": 133,
+      "missing_native_mutation": 570,
+      "render_to_capture_ms": {
+        "n": 570,
+        "min": 0.252383,
+        "median": 16.469433000000002,
+        "p95": 17.228867,
+        "max": 20.297357
+      },
+      "capture_to_desktop_lower_ms": {
+        "n": 570,
+        "min": 47.121184,
+        "median": 68.9698415,
+        "p95": 88.482452,
+        "max": 123.277756
+      },
+      "capture_to_desktop_upper_ms": {
+        "n": 570,
+        "min": 47.345096,
+        "median": 69.3133685,
+        "p95": 88.813239,
+        "max": 123.547876
+      },
+      "capture_to_mutation_lower_ms": {
+        "n": 0
+      },
+      "capture_to_mutation_upper_ms": {
+        "n": 0
+      },
+      "mutation_to_desktop_ms": {
+        "n": 0
+      },
+      "negative_mutation_to_desktop": 0
+    }
+  }
+}
