@@ -1,0 +1,104 @@
+{
+  "initial": {
+    "id": 8108,
+    "service_state": "Running",
+    "service_start": "Auto",
+    "path": "C:\\Program Files\\Intel\\SUR\\QUEENCREEK\\x64\\esrv_svc.exe",
+    "priority": "High",
+    "start_ticks": "639243910262482721"
+  },
+  "phases": [
+    {
+      "label": "4k-esrv-high-a1",
+      "before": {
+        "priority": "High",
+        "time": "2026-09-08T05:13:02.7649765-04:00",
+        "id": 8108,
+        "thread": [
+          {
+            "Id": 10144,
+            "BasePriority": 15,
+            "CurrentPriority": 15
+          }
+        ]
+      },
+      "after": {
+        "priority": "High",
+        "time": "2026-09-08T05:13:41.6473583-04:00",
+        "id": 8108
+      },
+      "exit": 0
+    },
+    {
+      "label": "4k-esrv-normal-b1",
+      "before": {
+        "priority": "Normal",
+        "time": "2026-09-08T05:13:42.4374227-04:00",
+        "id": 8108,
+        "thread": [
+          {
+            "Id": 10144,
+            "BasePriority": 15,
+            "CurrentPriority": 15
+          }
+        ]
+      },
+      "after": {
+        "priority": "Normal",
+        "time": "2026-09-08T05:14:21.6142461-04:00",
+        "id": 8108
+      },
+      "exit": 0
+    },
+    {
+      "label": "4k-esrv-normal-b2",
+      "before": {
+        "priority": "Normal",
+        "time": "2026-09-08T05:14:22.5377723-04:00",
+        "id": 8108,
+        "thread": [
+          {
+            "Id": 10144,
+            "BasePriority": 15,
+            "CurrentPriority": 15
+          }
+        ]
+      },
+      "after": {
+        "priority": "Normal",
+        "time": "2026-09-08T05:15:07.0145452-04:00",
+        "id": 8108
+      },
+      "exit": 0
+    },
+    {
+      "label": "4k-esrv-high-a2",
+      "before": {
+        "priority": "High",
+        "time": "2026-09-08T05:15:07.7883318-04:00",
+        "id": 8108,
+        "thread": [
+          {
+            "Id": 10144,
+            "BasePriority": 15,
+            "CurrentPriority": 15
+          }
+        ]
+      },
+      "after": {
+        "priority": "High",
+        "time": "2026-09-08T05:15:45.3646480-04:00",
+        "id": 8108
+      },
+      "exit": 0
+    }
+  ],
+  "restored": {
+    "priority": "High",
+    "time": "2026-09-08T05:16:31.8592820-04:00",
+    "start_ticks": "639243910262482721",
+    "id": 8108
+  },
+  "restore_task_removed": true,
+  "cleanup_note": "Direct script-file restore was blocked by existing PowerShell execution policy. Restored through a command without changing that policy; all four trials had completed, including High A2."
+}

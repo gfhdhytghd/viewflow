@@ -1021,7 +1021,11 @@ fn cached_alpha(
     #[cfg(target_os = "linux")]
     let cpu_start = profile.then(|| nix::time::clock_gettime(nix::time::ClockId::CLOCK_THREAD_CPUTIME_ID).ok()).flatten();
     let cache_hit = cache.as_ref().is_some_and(|previous| previous.generation == generation
-        && previous.config == config && previous.raw_alpha.as_ref() == raw_alpha.as_ref());
+        && previous.config == config
+        // Both views retain immutable owners. Equal pointer + length is exact
+        // identity; content comparison remains the fallback for other storage.
+        && (std::ptr::eq(previous.raw_alpha.as_ref(), raw_alpha.as_ref())
+            || previous.raw_alpha.as_ref() == raw_alpha.as_ref()));
     if let Some(started) = started {
         let wall_ns = started.elapsed().as_nanos();
         #[cfg(target_os = "linux")]

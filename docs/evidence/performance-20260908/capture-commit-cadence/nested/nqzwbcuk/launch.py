@@ -1,0 +1,5 @@
+#!/usr/bin/python3
+import os
+f=os.open('/tmp/viewflow-commit-nested.nqzwbcuk/compositor.log',os.O_CREAT|os.O_WRONLY|os.O_TRUNC,0o600)
+os.dup2(f,1);os.dup2(f,2)
+os.execvp("bwrap",['bwrap', '--die-with-parent', '--bind', '/', '/', '--dev', '/dev', '--bind', '/dev/shm/hyprcapture-1000', '/dev/shm/hyprcapture-1000', '--dev-bind', '/dev/dri/renderD128', '/dev/dri/renderD128', '--dev-bind', '/dev/nvidia0', '/dev/nvidia0', '--dev-bind', '/dev/nvidiactl', '/dev/nvidiactl', '--dev-bind', '/dev/nvidia-uvm', '/dev/nvidia-uvm', '--unsetenv', 'HYPRLAND_INSTANCE_SIGNATURE', '--unsetenv', 'DISPLAY', '--unsetenv', 'DBUS_SESSION_BUS_ADDRESS', '--setenv', 'XDG_RUNTIME_DIR', '/tmp/vfc.xpr7v_yt', '--setenv', 'WAYLAND_DISPLAY', '/run/user/1000/wayland-1', '--setenv', 'HYPRLAND_NO_SD_VARS', '1', '--setenv', 'HYPRLAND_NO_SD_NOTIFY', '1', '--setenv', 'LIBSEAT_BACKEND', 'seatd', '--setenv', 'SEATD_SOCK', '/tmp/viewflow-commit-nested.nqzwbcuk/no-seat', '--setenv', 'AQ_DRM_DEVICES', '/tmp/viewflow-commit-nested.nqzwbcuk/no-drm', '/usr/bin/python3', '/tmp/viewflow-commit-nested.nqzwbcuk/inner.py'])

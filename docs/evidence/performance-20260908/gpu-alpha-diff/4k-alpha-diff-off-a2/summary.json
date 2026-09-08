@@ -1,0 +1,62 @@
+{
+  "label": "4k-alpha-diff-off-a2",
+  "gpu_compared_preparations": 0,
+  "full_readback_preparations": 1291,
+  "alpha_readback_bytes": 12458377216,
+  "alpha_cpu_ms": {
+    "n": 1261,
+    "min": 0.642877,
+    "median": 0.825804,
+    "p95": 1.347224,
+    "max": 2.758117
+  },
+  "rust_cache_cpu_ms": {
+    "n": 1261,
+    "min": 0.000282,
+    "median": 0.00074,
+    "p95": 0.001327,
+    "max": 0.002648
+  },
+  "alpha_stages_cpu_ms": {
+    "native_alpha_compare": {
+      "n": 1261,
+      "min": 0.641821,
+      "median": 0.825054,
+      "p95": 1.346611,
+      "max": 2.757219
+    }
+  },
+  "invalid_alpha_profiles": [],
+  "alpha_snapshot_reused": 1289,
+  "alpha_prepare_records": 1291,
+  "pinned_copy_records": 2,
+  "native_commit_hz": 51.82735402758593,
+  "encode_ms": {
+    "n": 1293,
+    "min": 2.04436,
+    "median": 8.399616,
+    "p95": 9.337715,
+    "max": 87.335719
+  },
+  "capture_to_mutation_ms": {
+    "n": 700,
+    "min": 11.617963,
+    "median": 16.15625,
+    "p95": 29.335248,
+    "max": 366.404664
+  },
+  "capture_to_seen_desktop_ms": {
+    "n": 700,
+    "min": 33.893609,
+    "median": 55.071759,
+    "p95": 72.69913,
+    "max": 397.218326
+  },
+  "nv12_alpha_host_ms": {
+    "n": 1262,
+    "min": 0.954,
+    "median": 1.2025000000000001,
+    "p95": 1.814,
+    "max": 3.255
+  }
+}

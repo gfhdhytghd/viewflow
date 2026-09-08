@@ -153,6 +153,13 @@ documented default metadata socket
 `$XDG_RUNTIME_DIR/viewflow/hyprland.sock` is unused. It creates one fresh
 headless output at the configured global coordinates using `hyprctl output create
 headless` plus `hyprctl eval 'hl.monitor(...)'`; it does not use `keyword`.
+The output displays the dedicated `special:viewflow` workspace over an empty,
+named `viewflow-underlay`, so it does not claim a numbered workspace from the
+user's ordinary workspace strip. (Hyprland requires every monitor to retain a
+base workspace even while a special workspace is displayed.) The
+launcher binds the special workspace through the target monitor object without
+moving keyboard focus, and verifies the binding again after plugin-triggered
+configuration reloads.
 
 The capture plugin must be loaded for the one-shot probe, so it is the only
 plugin loaded before selection. `vf-media-peer probe --compositor-pid …

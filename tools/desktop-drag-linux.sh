@@ -19,6 +19,7 @@ Options for start:
   --input-plugin PATH     input plugin (default: build/desktop/input/viewflow-hyprland.so)
   --input-plugin-name N   Hyprland plugin name (default: viewflow-hyprland)
   --state-dir DIR         private, per-session state directory
+  --special-workspace N   dedicated special workspace (default: viewflow)
   --empty-desktop        start immediately with automatic window enrollment
   --crossing-timeout SEC  wait for one window in the Viewflow output (default: 0 = wait)
 
@@ -37,6 +38,8 @@ CAPTURE_PLUGIN=${CAPTURE_PLUGIN:-build/desktop/capture/viewflow-capture.so}
 INPUT_PLUGIN=${INPUT_PLUGIN:-build/desktop/input/viewflow-hyprland.so}
 CAPTURE_PLUGIN_NAME=${CAPTURE_PLUGIN_NAME:-viewflow-capture}
 INPUT_PLUGIN_NAME=${INPUT_PLUGIN_NAME:-viewflow-hyprland}
+SPECIAL_WORKSPACE=${SPECIAL_WORKSPACE:-viewflow}
+UNDERLAY_WORKSPACE=${UNDERLAY_WORKSPACE:-viewflow-underlay}
 
 runtime=${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is required}
 state_dir="$runtime/viewflow/desktop-drag"
@@ -64,6 +67,23 @@ process_start_token() {
 
 safe_name() {
     [[ $1 =~ ^[A-Za-z0-9._-]+$ ]] || die "unexpected virtual output name: $1"
+}
+
+activate_special_workspace() {
+    local output=$1 workspace=$2 underlay=$3 expression ready=0
+    expression="local monitor = hl.get_monitor($(lua_string "$output")); if not monitor then error($(lua_string "Viewflow output is unavailable: $output")) end; monitor:set_workspace($(lua_string "name:$underlay")); monitor:set_special_workspace($(lua_string "$workspace"))"
+    "$HYPRCTL" eval "$expression"
+    for _ in {1..20}; do
+        if "$HYPRCTL" -j monitors | "$JQ" -e --arg output "$output" \
+            --arg underlay "$underlay" --arg workspace "special:$workspace" '
+            any(.[]; .name == $output and .activeWorkspace.name == $underlay and
+                .specialWorkspace.name == $workspace)' >/dev/null; then
+            ready=1
+            break
+        fi
+        sleep 0.1
+    done
+    [[ $ready == 1 ]] || die "owned output did not activate special workspace special:$workspace"
 }
 
 lua_string() {
@@ -213,6 +233,7 @@ wait_for_crossing() {
 
 start() {
     local config= monitor= window= crossing_timeout=0 empty_desktop=0
+    local special_workspace=$SPECIAL_WORKSPACE underlay_workspace=$UNDERLAY_WORKSPACE
     while (($#)); do
         case $1 in
             --config) config=${2:?missing value for --config}; shift 2 ;;
@@ -225,12 +246,15 @@ start() {
             --input-plugin) INPUT_PLUGIN=${2:?missing value for --input-plugin}; shift 2 ;;
             --input-plugin-name) INPUT_PLUGIN_NAME=${2:?missing value for --input-plugin-name}; shift 2 ;;
             --state-dir) state_dir=${2:?missing value for --state-dir}; shift 2 ;;
+            --special-workspace) special_workspace=${2:?missing value for --special-workspace}; shift 2 ;;
             --crossing-timeout) crossing_timeout=${2:?missing value for --crossing-timeout}; shift 2 ;;
             --help|-h) usage; return ;;
             *) die "unknown start option: $1" ;;
         esac
     done
     [[ -n $config && -n $monitor ]] || die "start requires --config and --monitor"
+    safe_name "$special_workspace"
+    safe_name "$underlay_workspace"
     [[ -z $window || $window =~ ^0x[0-9A-Fa-f]{1,16}$ && $window != 0x0 ]] || die "--window must be a nonzero Hyprland 0x address"
     [[ $crossing_timeout =~ ^[0-9]+$ ]] || die "--crossing-timeout must be a non-negative number of seconds"
     [[ $state_dir = /* ]] || die "--state-dir must be absolute"
@@ -329,6 +353,7 @@ start() {
         sleep 0.1
     done
     [[ $layout_ready == 1 ]] || die "new headless output did not reach the requested layout and usable dimensions"
+    activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
 
     # The one-shot probe requires the capture plugin.  It runs after this
     # owned load, but before sender/input startup, and leaves no producer live.
@@ -337,6 +362,7 @@ start() {
     # Plugin loading schedules a config reload, which can reset runtime output rules.
     sleep 0.3
     "$HYPRCTL" eval "$lua"
+    activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
     if [[ $empty_desktop == 1 ]]; then
         [[ -z $window ]] || die "--empty-desktop cannot be combined with --window"
         install -d -m 700 "$(state_file native-control)"
@@ -356,16 +382,21 @@ start() {
     record_plugin_if_loaded_here "$INPUT_PLUGIN" "$INPUT_PLUGIN_NAME"
     sleep 0.3
     "$HYPRCTL" eval "$lua"
+    activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
     sleep 0.2
 
     # Capture authority comes only from this freshly created, read-back checked
     # output. Never persist/reuse an ID from the user's paired configuration.
     local owned_monitor_id
     owned_monitor_id=$("$HYPRCTL" -j monitors all | "$JQ" -er --arg name "$output" \
+        --arg workspace "$special_workspace" \
+        --arg underlay "$underlay_workspace" \
         --argjson x "$remote_x" --argjson y "$remote_y" \
         --argjson w "$remote_w" --argjson h "$remote_h" --argjson scale "$remote_scale" '
         [.[] | select(.name == $name and .x == $x and .y == $y and
             .width == $w and .height == $h and .scale == $scale and
+            .activeWorkspace.name == $underlay and
+            .specialWorkspace.name == "special:" + $workspace and
             (.disabled // false | not))] |
         select(length == 1) | .[0].id | select(type == "number" and . >= 0 and . == floor)') \
         || die "owned output changed before capture authority could be bound"

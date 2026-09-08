@@ -1,0 +1,35 @@
+{
+  "initial": {
+    "time": "2026-09-08T15:07:34.3902276-04:00",
+    "service_state": "Stopped",
+    "boot": "639244911215000000",
+    "process": null
+  },
+  "priority_changes": false,
+  "phases": [
+    {
+      "label": "probe-mask-ab",
+      "mode": "mask-toggle",
+      "before": {
+        "time": "2026-09-08T15:07:35.9915158-04:00",
+        "service_state": "Stopped",
+        "boot": "639244911215000000",
+        "process": null
+      },
+      "after": {
+        "time": "2026-09-08T15:08:00.3537283-04:00",
+        "service_state": "Running",
+        "boot": "639244911215000000",
+        "process": {
+          "priority": "High",
+          "critical": [
+            1540,
+            4612
+          ],
+          "id": 7092
+        }
+      },
+      "exit": 1
+    }
+  ]
+}

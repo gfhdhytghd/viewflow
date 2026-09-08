@@ -47,6 +47,12 @@ struct EncodedDmabufFrame {
   FrameMetadata metadata{};
   bool idr = false;
   std::optional<SparseResult> sparse;
+  // Immutable snapshot shared only after exact byte equality. Neither subsequent
+  // GPU readback nor encoder teardown may mutate or invalidate output storage.
+  std::shared_ptr<const std::vector<unsigned char>> sharedAlpha;
+  const std::vector<unsigned char>& alpha() const {
+    return sharedAlpha ? *sharedAlpha : rawAlpha;
+  }
 };
 struct DmabufAtlasTile {
   DmabufFrame frame;

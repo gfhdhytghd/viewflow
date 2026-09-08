@@ -1,0 +1,5326 @@
+{
+  "events_lost": 0,
+  "missing_stacks": 0,
+  "matched_delivery_kernel_events": 48260,
+  "ordered_packet_lengths_match": true,
+  "paths": {
+    "worker": 48170,
+    "timer": 90
+  },
+  "delivery_to_kernel_ms": {
+    "n": 48260,
+    "min": 0.00578,
+    "median": 0.01356,
+    "p95": 0.02741,
+    "max": 0.36318
+  },
+  "stacks": [
+    {
+      "count": 48170,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisReceiveWorkerThread",
+        "ntoskrnl!PspSystemThreadStartup",
+        "ntoskrnl!KiStartSystemThread"
+      ]
+    },
+    {
+      "count": 20,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt",
+        "ntoskrnl!HalpHpetQueryCounter",
+        "ntoskrnl!KeQueryPerformanceCounter",
+        "ntoskrnl!NtQueryPerformanceCounter",
+        "ntoskrnl!KiSystemServiceCopyEnd"
+      ]
+    },
+    {
+      "count": 10,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt",
+        "ntoskrnl!HalpHpetQueryCounter",
+        "ntoskrnl!KeQueryPerformanceCounter",
+        "ntoskrnl!EtwpGetLoggerTimeStamp",
+        "ntoskrnl!EtwpReserveTraceBuffer",
+        "ntoskrnl!EtwpLogKernelEvent",
+        "ntoskrnl!EtwTraceSiloKernelEvent",
+        "ntoskrnl!EtwTracePageFault",
+        "ntoskrnl!MiConvertFaultStatus",
+        "ntoskrnl!MmAccessFault",
+        "ntoskrnl!MiFaultInProbeAddress",
+        "ntoskrnl!MiLockPageLeafPageTable",
+        "ntoskrnl!MiProbeAndLockPacket",
+        "ntoskrnl!MmProbeAndLockPages",
+        "dxgmms2.sys!VIDMM_MDL_RANGE::Lock",
+        "dxgmms2.sys!VIDMM_RECYCLE_HEAP_PHYSICAL_VIEW::LockRange",
+        "dxgmms2.sys!VIDMM_RECYCLE_RANGE::Lock",
+        "dxgmms2.sys!VIDMM_RECYCLE_MULTIRANGE::Lock",
+        "dxgmms2.sys!VIDMM_RECYCLE_HEAP_MGR::LockHeapAllocation",
+        "dxgmms2.sys!VIDMM_SEGMENT::LockAllocationBackingStore",
+        "dxgmms2.sys!VIDMM_SYSMEM_SEGMENT::CommitResource",
+        "dxgmms2.sys!VIDMM_PHYSICAL_ADAPTER::CommitResources",
+        "dxgmms2.sys!VIDMM_PHYSICAL_ADAPTER::PageInAllocation",
+        "dxgmms2.sys!VIDMM_GLOBAL::PageInOneAllocation",
+        "dxgmms2.sys!VIDMM_GLOBAL::ProcessDeferredCommand",
+        "dxgmms2.sys!VidMmSubmitPacket",
+        "dxgmms2.sys!VidMmWorkerThreadProc",
+        "ntoskrnl!PspSystemThreadStartup",
+        "ntoskrnl!KiStartSystemThread"
+      ]
+    },
+    {
+      "count": 10,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt",
+        "ntoskrnl!KzLowerIrql",
+        "ndis.sys!ndisReceiveWorkerThread",
+        "ntoskrnl!PspSystemThreadStartup",
+        "ntoskrnl!KiStartSystemThread"
+      ]
+    },
+    {
+      "count": 10,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt",
+        "ntoskrnl!HalpHpetQueryCounter",
+        "ntoskrnl!KeQueryPerformanceCounter",
+        "ntoskrnl!EtwpGetLoggerTimeStamp",
+        "ntoskrnl!EtwpReserveTraceBuffer",
+        "ntoskrnl!EtwpLogKernelEvent",
+        "ntoskrnl!EtwTraceSiloKernelEvent",
+        "ntoskrnl!EtwTracePageFault",
+        "ntoskrnl!MiConvertFaultStatus",
+        "ntoskrnl!MmAccessFault",
+        "ntoskrnl!KiPageFault"
+      ]
+    },
+    {
+      "count": 10,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterruptBypass",
+        "ntoskrnl!KiInterruptDispatchNoLockNoEtw",
+        "ntoskrnl!HalpHpetQueryCounter",
+        "ntoskrnl!KeQueryPerformanceCounter",
+        "ntoskrnl!EtwpGetLoggerTimeStamp",
+        "ntoskrnl!EtwpReserveTraceBuffer",
+        "ntoskrnl!EtwpLogKernelEvent",
+        "ntoskrnl!EtwTraceSiloKernelEvent",
+        "ntoskrnl!EtwTracePageFault",
+        "ntoskrnl!MiConvertFaultStatus",
+        "ntoskrnl!MmAccessFault",
+        "ntoskrnl!KiPageFault"
+      ]
+    },
+    {
+      "count": 10,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt",
+        "ntoskrnl!RtlpHpAllocateHeap",
+        "ntoskrnl!ExAllocateHeapPool",
+        "ntoskrnl!ExpAllocatePoolWithTagFromNode",
+        "ntoskrnl!MiAllocatePool",
+        "ntoskrnl!MiMapViewOfDataSection",
+        "ntoskrnl!MiMapViewOfSection",
+        "ntoskrnl!NtMapViewOfSection",
+        "ntoskrnl!KiSystemServiceCopyEnd"
+      ]
+    },
+    {
+      "count": 9,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt",
+        "ntoskrnl!MiUnlockWorkingSetShared",
+        "ntoskrnl!MiReleaseWalkLocks",
+        "ntoskrnl!MiDeleteVaDirect",
+        "ntoskrnl!MiDeletePagablePteRange",
+        "ntoskrnl!MiDeleteVirtualAddresses",
+        "ntoskrnl!MiDeleteVad",
+        "ntoskrnl!MiFreeVadRange",
+        "ntoskrnl!MiFreeVirtualMemory",
+        "ntoskrnl!MmFreeVirtualMemory",
+        "ntoskrnl!NtFreeVirtualMemory",
+        "ntoskrnl!KiSystemServiceCopyEnd"
+      ]
+    },
+    {
+      "count": 8,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt",
+        "ucpd.sys!",
+        "ntoskrnl!CmpCallCallBacksEx",
+        "ntoskrnl!CmpCallCallBacks",
+        "ntoskrnl!CmpDoQueryKeyName",
+        "ntoskrnl!CmpQueryKeyName",
+        "ntoskrnl!ObQueryNameStringMode",
+        "ntoskrnl!NtQueryObject",
+        "ntoskrnl!KiSystemServiceCopyEnd"
+      ]
+    },
+    {
+      "count": 2,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterrupt"
+      ]
+    },
+    {
+      "count": 1,
+      "leaf_to_root": [
+        "ntoskrnl!KiExpandKernelStackAndCalloutSwitchStack",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!EtwpExpandStackAndWalkFrameChain",
+        "ntoskrnl!EtwpGetStackExtendedHeaderItem",
+        "ntoskrnl!EtwpEventWriteFull",
+        "ntoskrnl!EtwWriteEx",
+        "ntoskrnl!EtwWriteTransfer",
+        "tcpip.sys!McGenEventWrite_EtwWriteTransfer",
+        "tcpip.sys!McTemplateK0pqqqbr3qbr5qx_EtwWriteTransfer",
+        "tcpip.sys!UdpCreateMessageIndication",
+        "tcpip.sys!UdpCreateMessageIndications",
+        "tcpip.sys!UdpDeliverDatagrams",
+        "tcpip.sys!UdpReceiveDatagrams",
+        "tcpip.sys!UdpNlClientReceiveDatagrams",
+        "tcpip.sys!IppProcessDeliverList",
+        "tcpip.sys!IppReceiveHeaderBatch",
+        "tcpip.sys!IppReceivePackets",
+        "tcpip.sys!FlpReceiveNonPreValidatedNetBufferListChain",
+        "tcpip.sys!FlReceiveNetBufferListChainCalloutRoutine",
+        "ntoskrnl!KeExpandKernelStackAndCalloutInternal",
+        "ntoskrnl!KeExpandKernelStackAndCalloutEx",
+        "tcpip.sys!NetioExpandKernelStackAndCallout",
+        "tcpip.sys!FlReceiveNetBufferListChain",
+        "ndis.sys!ndisMIndicateNetBufferListsToOpen",
+        "ndis.sys!ndisIndicateSortedNetBufferLists",
+        "ndis.sys!ndisDoPeriodicReceivesIndication",
+        "ndis.sys!ndisPeriodicReceivesWorker",
+        "ndis.sys!ndisPeriodicReceivesTimer",
+        "ntoskrnl!KiExecuteAllDpcs",
+        "ntoskrnl!KiRetireDpcList",
+        "ntoskrnl!KxSwapStacksAndRetireDpcList",
+        "ntoskrnl!KiPlatformSwapStacksAndCallReturn",
+        "ntoskrnl!KiDispatchInterrupt",
+        "ntoskrnl!KiDpcInterruptBypass",
+        "ntoskrnl!KiInterruptDispatch",
+        "ntoskrnl!HalpHpetQueryCounter",
+        "ntoskrnl!KeQueryPerformanceCounter",
+        "ntoskrnl!NtQueryPerformanceCounter",
+        "ntoskrnl!KiSystemServiceCopyEnd"
+      ]
+    }
+  ],
+  "slow_frames": [
+    {
+      "frame": 10,
+      "feedback_ms": 148.756,
+      "media_packets": 26,
+      "clock_uncertainty_ms": 0.150372,
+      "source_clock_mapping_valid_until_ns": 197141162953874,
+      "source_end_ns": 197139516083824,
+      "paths": {
+        "worker": 46
+      },
+      "groups": [
+        {
+          "begin_ms": 0.211375,
+          "end_ms": 1.483005,
+          "packets": 34,
+          "paths": {
+            "worker": 34
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 47.861995,
+          "end_ms": 48.638985,
+          "packets": 2,
+          "paths": {
+            "worker": 2
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 49.768285,
+          "end_ms": 52.786165,
+          "packets": 10,
+          "paths": {
+            "worker": 10
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6930228426351,
+          "relative_ms": 0.211375,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228470708,
+          "relative_ms": 0.654945,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228473443,
+          "relative_ms": 0.682295,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228476060,
+          "relative_ms": 0.708465,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228478215,
+          "relative_ms": 0.730015,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228480155,
+          "relative_ms": 0.749415,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228482757,
+          "relative_ms": 0.775435,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228484731,
+          "relative_ms": 0.795175,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228486683,
+          "relative_ms": 0.814695,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228489731,
+          "relative_ms": 0.845175,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228492361,
+          "relative_ms": 0.871475,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228497397,
+          "relative_ms": 0.921835,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228499302,
+          "relative_ms": 0.940885,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228501921,
+          "relative_ms": 0.967075,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228503132,
+          "relative_ms": 0.979185,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228505752,
+          "relative_ms": 1.005385,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228508612,
+          "relative_ms": 1.033985,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228510576,
+          "relative_ms": 1.053625,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228512870,
+          "relative_ms": 1.076565,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228514202,
+          "relative_ms": 1.089885,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228517604,
+          "relative_ms": 1.123905,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228525226,
+          "relative_ms": 1.200125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228526506,
+          "relative_ms": 1.212925,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228527981,
+          "relative_ms": 1.227675,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228530578,
+          "relative_ms": 1.253645,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228532493,
+          "relative_ms": 1.272795,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228535122,
+          "relative_ms": 1.299085,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228537750,
+          "relative_ms": 1.325365,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228539665,
+          "relative_ms": 1.344515,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228542277,
+          "relative_ms": 1.370635,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228544925,
+          "relative_ms": 1.397115,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228549637,
+          "relative_ms": 1.444235,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228551590,
+          "relative_ms": 1.463765,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930228553514,
+          "relative_ms": 1.483005,
+          "path": "worker",
+          "bytes": 882,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233191413,
+          "relative_ms": 47.861995,
+          "path": "worker",
+          "bytes": 54,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233269112,
+          "relative_ms": 48.638985,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233382042,
+          "relative_ms": 49.768285,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233383390,
+          "relative_ms": 49.781765,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233420798,
+          "relative_ms": 50.155845,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233450067,
+          "relative_ms": 50.448535,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233451315,
+          "relative_ms": 50.461015,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233492465,
+          "relative_ms": 50.872515,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233546935,
+          "relative_ms": 51.417215,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233548221,
+          "relative_ms": 51.430075,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233601030,
+          "relative_ms": 51.958165,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930233683830,
+          "relative_ms": 52.786165,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        }
+      ]
+    },
+    {
+      "frame": 641,
+      "feedback_ms": 44.394,
+      "media_packets": 29,
+      "clock_uncertainty_ms": 0.278171,
+      "source_clock_mapping_valid_until_ns": 197152010961240,
+      "source_end_ns": 197150277453276,
+      "paths": {
+        "worker": 49
+      },
+      "groups": [
+        {
+          "begin_ms": 4.57260599609375,
+          "end_ms": 5.25311599609375,
+          "packets": 37,
+          "paths": {
+            "worker": 37
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 29.88253599609375,
+          "end_ms": 32.37794599609375,
+          "packets": 7,
+          "paths": {
+            "worker": 7
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 33.40493599609375,
+          "end_ms": 34.59576599609375,
+          "packets": 4,
+          "paths": {
+            "worker": 4
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 35.90669599609375,
+          "end_ms": 35.90669599609375,
+          "packets": 1,
+          "paths": {
+            "worker": 1
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6931315447346,
+          "relative_ms": 4.57260599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315449834,
+          "relative_ms": 4.59748599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315452178,
+          "relative_ms": 4.62092599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315454132,
+          "relative_ms": 4.64046599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315455541,
+          "relative_ms": 4.65455599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315456844,
+          "relative_ms": 4.66758599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315458805,
+          "relative_ms": 4.68719599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315460070,
+          "relative_ms": 4.69984599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315461368,
+          "relative_ms": 4.71282599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315462607,
+          "relative_ms": 4.72521599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315466112,
+          "relative_ms": 4.76026599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315468150,
+          "relative_ms": 4.78064599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315470084,
+          "relative_ms": 4.79998599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315472118,
+          "relative_ms": 4.82032599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315474003,
+          "relative_ms": 4.83917599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315475923,
+          "relative_ms": 4.85837599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315478070,
+          "relative_ms": 4.87984599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315479337,
+          "relative_ms": 4.89251599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315480611,
+          "relative_ms": 4.90525599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315481908,
+          "relative_ms": 4.91822599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315484121,
+          "relative_ms": 4.94035599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315485415,
+          "relative_ms": 4.95329599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315486691,
+          "relative_ms": 4.96605599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315488740,
+          "relative_ms": 4.98654599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315490062,
+          "relative_ms": 4.99976599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315492137,
+          "relative_ms": 5.02051599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315494175,
+          "relative_ms": 5.04089599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315496210,
+          "relative_ms": 5.06124599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315498274,
+          "relative_ms": 5.08188599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315499578,
+          "relative_ms": 5.09492599609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315503275,
+          "relative_ms": 5.13189599609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315506038,
+          "relative_ms": 5.15952599609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315508050,
+          "relative_ms": 5.17964599609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315509326,
+          "relative_ms": 5.19240599609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315510649,
+          "relative_ms": 5.20563599609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315513379,
+          "relative_ms": 5.23293599609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931315515397,
+          "relative_ms": 5.25311599609375,
+          "path": "worker",
+          "bytes": 285,
+          "tid": 532
+        },
+        {
+          "qpc": 6931317978339,
+          "relative_ms": 29.88253599609375,
+          "path": "worker",
+          "bytes": 54,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318049537,
+          "relative_ms": 30.59451599609375,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318101828,
+          "relative_ms": 31.11742599609375,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318104675,
+          "relative_ms": 31.14589599609375,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318168519,
+          "relative_ms": 31.78433599609375,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318224432,
+          "relative_ms": 32.34346599609375,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318227880,
+          "relative_ms": 32.37794599609375,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318330579,
+          "relative_ms": 33.40493599609375,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318387505,
+          "relative_ms": 33.97419599609375,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318390356,
+          "relative_ms": 34.00270599609375,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318449662,
+          "relative_ms": 34.59576599609375,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6931318580755,
+          "relative_ms": 35.90669599609375,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        }
+      ]
+    },
+    {
+      "frame": 615,
+      "feedback_ms": 43.744,
+      "media_packets": 29,
+      "clock_uncertainty_ms": 0.232091,
+      "source_clock_mapping_valid_until_ns": 197151746167451,
+      "source_end_ns": 197149810769234,
+      "paths": {
+        "worker": 37
+      },
+      "groups": [
+        {
+          "begin_ms": 8.591467001953125,
+          "end_ms": 9.971357001953125,
+          "packets": 37,
+          "paths": {
+            "worker": 37
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6931269237555,
+          "relative_ms": 8.591467001953125,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269292798,
+          "relative_ms": 9.143897001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269294948,
+          "relative_ms": 9.165397001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269296226,
+          "relative_ms": 9.178177001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269298184,
+          "relative_ms": 9.197757001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269300110,
+          "relative_ms": 9.217017001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269302074,
+          "relative_ms": 9.236657001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269304016,
+          "relative_ms": 9.256077001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269306021,
+          "relative_ms": 9.276127001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269307938,
+          "relative_ms": 9.295297001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269309869,
+          "relative_ms": 9.314607001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269313612,
+          "relative_ms": 9.352037001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269315539,
+          "relative_ms": 9.371307001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269317523,
+          "relative_ms": 9.391147001953126,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269318759,
+          "relative_ms": 9.403507001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269320681,
+          "relative_ms": 9.422727001953126,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269323254,
+          "relative_ms": 9.448457001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269325191,
+          "relative_ms": 9.467827001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269328490,
+          "relative_ms": 9.500817001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269330416,
+          "relative_ms": 9.520077001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269331646,
+          "relative_ms": 9.532377001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269336351,
+          "relative_ms": 9.579427001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269338238,
+          "relative_ms": 9.598297001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269347681,
+          "relative_ms": 9.692727001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269349578,
+          "relative_ms": 9.711697001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269351534,
+          "relative_ms": 9.731257001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269354137,
+          "relative_ms": 9.757287001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269356716,
+          "relative_ms": 9.783077001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269359350,
+          "relative_ms": 9.809417001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269361228,
+          "relative_ms": 9.828197001953125,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269363177,
+          "relative_ms": 9.847687001953124,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269366653,
+          "relative_ms": 9.882447001953125,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269367925,
+          "relative_ms": 9.895167001953125,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269369175,
+          "relative_ms": 9.907667001953126,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269371748,
+          "relative_ms": 9.933397001953125,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269373651,
+          "relative_ms": 9.952427001953126,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6931269375544,
+          "relative_ms": 9.971357001953125,
+          "path": "worker",
+          "bytes": 1310,
+          "tid": 532
+        }
+      ]
+    },
+    {
+      "frame": 1382,
+      "feedback_ms": 42.763,
+      "media_packets": 27,
+      "clock_uncertainty_ms": 0.186348,
+      "source_clock_mapping_valid_until_ns": 197164587264764,
+      "source_end_ns": 197162748706827,
+      "paths": {
+        "timer": 20,
+        "worker": 16
+      },
+      "groups": [
+        {
+          "begin_ms": 14.32799,
+          "end_ms": 14.46258,
+          "packets": 10,
+          "paths": {
+            "timer": 10
+          },
+          "tids": [
+            13372
+          ]
+        },
+        {
+          "begin_ms": 25.9889,
+          "end_ms": 26.11332,
+          "packets": 10,
+          "paths": {
+            "timer": 10
+          },
+          "tids": [
+            13372
+          ]
+        },
+        {
+          "begin_ms": 37.85822,
+          "end_ms": 39.15125,
+          "packets": 16,
+          "paths": {
+            "worker": 16
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6932563691315,
+          "relative_ms": 14.32799,
+          "path": "timer",
+          "bytes": 40,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563693134,
+          "relative_ms": 14.34618,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563694641,
+          "relative_ms": 14.36125,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563696018,
+          "relative_ms": 14.37502,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563697496,
+          "relative_ms": 14.3898,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563698971,
+          "relative_ms": 14.40455,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563700430,
+          "relative_ms": 14.41914,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563701869,
+          "relative_ms": 14.43353,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563703335,
+          "relative_ms": 14.44819,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932563704774,
+          "relative_ms": 14.46258,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564857406,
+          "relative_ms": 25.9889,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564858952,
+          "relative_ms": 26.00436,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564860329,
+          "relative_ms": 26.01813,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564861690,
+          "relative_ms": 26.03174,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564863033,
+          "relative_ms": 26.04517,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564864397,
+          "relative_ms": 26.05881,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564865763,
+          "relative_ms": 26.07247,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564867166,
+          "relative_ms": 26.0865,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564868518,
+          "relative_ms": 26.10002,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932564869848,
+          "relative_ms": 26.11332,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 13372
+        },
+        {
+          "qpc": 6932566044338,
+          "relative_ms": 37.85822,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566051649,
+          "relative_ms": 37.93133,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566056065,
+          "relative_ms": 37.97549,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566063867,
+          "relative_ms": 38.05351,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566069555,
+          "relative_ms": 38.11039,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566089705,
+          "relative_ms": 38.31189,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566098355,
+          "relative_ms": 38.39839,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566114672,
+          "relative_ms": 38.56156,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566117540,
+          "relative_ms": 38.59024,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566121848,
+          "relative_ms": 38.63332,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566140425,
+          "relative_ms": 38.81909,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566144682,
+          "relative_ms": 38.86166,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566150958,
+          "relative_ms": 38.92442,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566156618,
+          "relative_ms": 38.98102,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566168027,
+          "relative_ms": 39.09511,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932566173641,
+          "relative_ms": 39.15125,
+          "path": "worker",
+          "bytes": 327,
+          "tid": 532
+        }
+      ]
+    },
+    {
+      "frame": 90,
+      "feedback_ms": 40.1,
+      "media_packets": 18,
+      "clock_uncertainty_ms": 0.207768,
+      "source_clock_mapping_valid_until_ns": 197142761724163,
+      "source_end_ns": 197140956742367,
+      "paths": {
+        "worker": 61
+      },
+      "groups": [
+        {
+          "begin_ms": 0.305297998046875,
+          "end_ms": 0.855427998046875,
+          "packets": 26,
+          "paths": {
+            "worker": 26
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 23.363997998046877,
+          "end_ms": 23.363997998046877,
+          "packets": 1,
+          "paths": {
+            "worker": 1
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 40.76724799804688,
+          "end_ms": 41.31905799804687,
+          "packets": 34,
+          "paths": {
+            "worker": 34
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6930383367719,
+          "relative_ms": 0.305297998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383370170,
+          "relative_ms": 0.329807998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383372234,
+          "relative_ms": 0.350447998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383374940,
+          "relative_ms": 0.377507998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383377084,
+          "relative_ms": 0.398947998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383378624,
+          "relative_ms": 0.414347998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383379945,
+          "relative_ms": 0.427557998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383381991,
+          "relative_ms": 0.448017998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383384047,
+          "relative_ms": 0.468577998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383386068,
+          "relative_ms": 0.488787998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383391171,
+          "relative_ms": 0.539817998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383392510,
+          "relative_ms": 0.553207998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383393816,
+          "relative_ms": 0.566267998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383395885,
+          "relative_ms": 0.586957998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383397902,
+          "relative_ms": 0.607127998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383400634,
+          "relative_ms": 0.634447998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383402655,
+          "relative_ms": 0.654657998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383405299,
+          "relative_ms": 0.681097998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383407199,
+          "relative_ms": 0.700097998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383409095,
+          "relative_ms": 0.719057998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383413274,
+          "relative_ms": 0.760847998046875,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383415183,
+          "relative_ms": 0.779937998046875,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383417759,
+          "relative_ms": 0.805697998046875,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383419634,
+          "relative_ms": 0.824447998046875,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383420849,
+          "relative_ms": 0.836597998046875,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930383422732,
+          "relative_ms": 0.855427998046875,
+          "path": "worker",
+          "bytes": 288,
+          "tid": 532
+        },
+        {
+          "qpc": 6930385673589,
+          "relative_ms": 23.363997998046877,
+          "path": "worker",
+          "bytes": 37,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387413914,
+          "relative_ms": 40.76724799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387416906,
+          "relative_ms": 40.79716799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387418917,
+          "relative_ms": 40.817277998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387420199,
+          "relative_ms": 40.830097998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387422346,
+          "relative_ms": 40.851567998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387424315,
+          "relative_ms": 40.87125799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387425613,
+          "relative_ms": 40.88423799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387426834,
+          "relative_ms": 40.896447998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387428132,
+          "relative_ms": 40.90942799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387430119,
+          "relative_ms": 40.92929799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387434696,
+          "relative_ms": 40.975067998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387435971,
+          "relative_ms": 40.98781799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387438015,
+          "relative_ms": 41.00825799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387440117,
+          "relative_ms": 41.02927799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387441369,
+          "relative_ms": 41.041797998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387442609,
+          "relative_ms": 41.054197998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387444512,
+          "relative_ms": 41.073227998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387445774,
+          "relative_ms": 41.08584799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387447055,
+          "relative_ms": 41.098657998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387448424,
+          "relative_ms": 41.11234799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387451396,
+          "relative_ms": 41.142067998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387452692,
+          "relative_ms": 41.155027998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387453929,
+          "relative_ms": 41.16739799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387455312,
+          "relative_ms": 41.18122799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387456566,
+          "relative_ms": 41.19376799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387457784,
+          "relative_ms": 41.205947998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387459092,
+          "relative_ms": 41.219027998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387460411,
+          "relative_ms": 41.23221799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387461657,
+          "relative_ms": 41.244677998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387462989,
+          "relative_ms": 41.257997998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387465110,
+          "relative_ms": 41.27920799804688,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387466415,
+          "relative_ms": 41.29225799804688,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387467715,
+          "relative_ms": 41.305257998046876,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930387469095,
+          "relative_ms": 41.31905799804687,
+          "path": "worker",
+          "bytes": 612,
+          "tid": 532
+        }
+      ]
+    },
+    {
+      "frame": 19,
+      "feedback_ms": 39.131,
+      "media_packets": 150,
+      "clock_uncertainty_ms": 0.141003,
+      "source_clock_mapping_valid_until_ns": 197141417678516,
+      "source_end_ns": 197139722414837,
+      "paths": {
+        "timer": 1,
+        "worker": 191
+      },
+      "groups": [
+        {
+          "begin_ms": -1.32522,
+          "end_ms": -1.32522,
+          "packets": 1,
+          "paths": {
+            "timer": 1
+          },
+          "tids": [
+            7008
+          ]
+        },
+        {
+          "begin_ms": 2.38744,
+          "end_ms": 17.14163,
+          "packets": 169,
+          "paths": {
+            "worker": 169
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 39.538,
+          "end_ms": 40.9744,
+          "packets": 22,
+          "paths": {
+            "worker": 22
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6930259855805,
+          "relative_ms": -1.32522,
+          "path": "timer",
+          "bytes": 43,
+          "tid": 7008
+        },
+        {
+          "qpc": 6930260227071,
+          "relative_ms": 2.38744,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260230920,
+          "relative_ms": 2.42593,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260233810,
+          "relative_ms": 2.45483,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260236814,
+          "relative_ms": 2.48487,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260239668,
+          "relative_ms": 2.51341,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260243945,
+          "relative_ms": 2.55618,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260248308,
+          "relative_ms": 2.59981,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260252518,
+          "relative_ms": 2.64191,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260258214,
+          "relative_ms": 2.69887,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260261082,
+          "relative_ms": 2.72755,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260267383,
+          "relative_ms": 2.79056,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260270258,
+          "relative_ms": 2.81931,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260273135,
+          "relative_ms": 2.84808,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260276145,
+          "relative_ms": 2.87818,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260279384,
+          "relative_ms": 2.91057,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260285705,
+          "relative_ms": 2.97378,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260290894,
+          "relative_ms": 3.02567,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260293846,
+          "relative_ms": 3.05519,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260296743,
+          "relative_ms": 3.08416,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260299623,
+          "relative_ms": 3.11296,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260325801,
+          "relative_ms": 3.37474,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260334679,
+          "relative_ms": 3.46352,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260361982,
+          "relative_ms": 3.73655,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260366502,
+          "relative_ms": 3.78175,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260376234,
+          "relative_ms": 3.87907,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260413507,
+          "relative_ms": 4.2518,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260423646,
+          "relative_ms": 4.35319,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260426553,
+          "relative_ms": 4.38226,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260450067,
+          "relative_ms": 4.6174,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260452972,
+          "relative_ms": 4.64645,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260463239,
+          "relative_ms": 4.74912,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260466212,
+          "relative_ms": 4.77885,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260469084,
+          "relative_ms": 4.80757,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260490194,
+          "relative_ms": 5.01867,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260493055,
+          "relative_ms": 5.04728,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260496092,
+          "relative_ms": 5.07765,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260500053,
+          "relative_ms": 5.11726,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260503169,
+          "relative_ms": 5.14842,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260506145,
+          "relative_ms": 5.17818,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260509017,
+          "relative_ms": 5.2069,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260518492,
+          "relative_ms": 5.30165,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260521471,
+          "relative_ms": 5.33144,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260528316,
+          "relative_ms": 5.39989,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260531233,
+          "relative_ms": 5.42906,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260535869,
+          "relative_ms": 5.47542,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260540193,
+          "relative_ms": 5.51866,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260543048,
+          "relative_ms": 5.54721,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260547340,
+          "relative_ms": 5.59013,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260550287,
+          "relative_ms": 5.6196,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260553174,
+          "relative_ms": 5.64847,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260563492,
+          "relative_ms": 5.75165,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260589809,
+          "relative_ms": 6.01482,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260594287,
+          "relative_ms": 6.0596,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260598544,
+          "relative_ms": 6.10217,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260604278,
+          "relative_ms": 6.15951,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260607221,
+          "relative_ms": 6.18894,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260611636,
+          "relative_ms": 6.23309,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260615744,
+          "relative_ms": 6.27417,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260618669,
+          "relative_ms": 6.30342,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260621511,
+          "relative_ms": 6.33184,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260631084,
+          "relative_ms": 6.42757,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260634131,
+          "relative_ms": 6.45804,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260640263,
+          "relative_ms": 6.51936,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260643251,
+          "relative_ms": 6.54924,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260646130,
+          "relative_ms": 6.57803,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260649068,
+          "relative_ms": 6.60741,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260652043,
+          "relative_ms": 6.63716,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260654927,
+          "relative_ms": 6.666,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260659204,
+          "relative_ms": 6.70877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260662075,
+          "relative_ms": 6.73748,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260671457,
+          "relative_ms": 6.8313,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260674653,
+          "relative_ms": 6.86326,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260684105,
+          "relative_ms": 6.95778,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260693388,
+          "relative_ms": 7.05061,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260697679,
+          "relative_ms": 7.09352,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260701965,
+          "relative_ms": 7.13638,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260704861,
+          "relative_ms": 7.16534,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260709307,
+          "relative_ms": 7.2098,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260713678,
+          "relative_ms": 7.25351,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260716551,
+          "relative_ms": 7.28224,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260724918,
+          "relative_ms": 7.36591,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260752888,
+          "relative_ms": 7.64561,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260778179,
+          "relative_ms": 7.89852,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260782537,
+          "relative_ms": 7.9421,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260808235,
+          "relative_ms": 8.19908,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260811099,
+          "relative_ms": 8.22772,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260813964,
+          "relative_ms": 8.25637,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260816908,
+          "relative_ms": 8.28581,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260819938,
+          "relative_ms": 8.31611,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260823575,
+          "relative_ms": 8.35248,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260854879,
+          "relative_ms": 8.66552,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260860889,
+          "relative_ms": 8.72562,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260864058,
+          "relative_ms": 8.75731,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260873731,
+          "relative_ms": 8.85404,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260891491,
+          "relative_ms": 9.03164,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260896558,
+          "relative_ms": 9.08231,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260899431,
+          "relative_ms": 9.11104,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260903036,
+          "relative_ms": 9.14709,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260905908,
+          "relative_ms": 9.17581,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260908789,
+          "relative_ms": 9.20462,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260926591,
+          "relative_ms": 9.38264,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260936680,
+          "relative_ms": 9.48353,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260940143,
+          "relative_ms": 9.51816,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260942984,
+          "relative_ms": 9.54657,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260946521,
+          "relative_ms": 9.58194,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260949417,
+          "relative_ms": 9.6109,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260952273,
+          "relative_ms": 9.63946,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260956681,
+          "relative_ms": 9.68354,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260959639,
+          "relative_ms": 9.71312,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260962477,
+          "relative_ms": 9.7415,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260970583,
+          "relative_ms": 9.82256,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260973432,
+          "relative_ms": 9.85105,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260976314,
+          "relative_ms": 9.87987,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260983166,
+          "relative_ms": 9.94839,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260986004,
+          "relative_ms": 9.97677,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260988866,
+          "relative_ms": 10.00539,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260991727,
+          "relative_ms": 10.034,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260994686,
+          "relative_ms": 10.06359,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930260999692,
+          "relative_ms": 10.11365,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261002554,
+          "relative_ms": 10.14227,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261039813,
+          "relative_ms": 10.51486,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261042694,
+          "relative_ms": 10.54367,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261049983,
+          "relative_ms": 10.61656,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261073725,
+          "relative_ms": 10.85398,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261079695,
+          "relative_ms": 10.91368,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261082545,
+          "relative_ms": 10.94218,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261141348,
+          "relative_ms": 11.53021,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261156926,
+          "relative_ms": 11.68599,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261169433,
+          "relative_ms": 11.81106,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261173032,
+          "relative_ms": 11.84705,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261184607,
+          "relative_ms": 11.9628,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261187467,
+          "relative_ms": 11.9914,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261193572,
+          "relative_ms": 12.05245,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261196406,
+          "relative_ms": 12.08079,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261202058,
+          "relative_ms": 12.13731,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261207917,
+          "relative_ms": 12.1959,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261232971,
+          "relative_ms": 12.44644,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261238709,
+          "relative_ms": 12.50382,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261243246,
+          "relative_ms": 12.54919,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261246365,
+          "relative_ms": 12.58038,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261255838,
+          "relative_ms": 12.67511,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261258723,
+          "relative_ms": 12.70396,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261261581,
+          "relative_ms": 12.73254,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261269774,
+          "relative_ms": 12.81447,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261275420,
+          "relative_ms": 12.87093,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261278629,
+          "relative_ms": 12.90302,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261281489,
+          "relative_ms": 12.93162,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261286489,
+          "relative_ms": 12.98162,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261289381,
+          "relative_ms": 13.01054,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261292504,
+          "relative_ms": 13.04177,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261303118,
+          "relative_ms": 13.14791,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261307530,
+          "relative_ms": 13.19203,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261315004,
+          "relative_ms": 13.26677,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261319280,
+          "relative_ms": 13.30953,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261323057,
+          "relative_ms": 13.3473,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261327328,
+          "relative_ms": 13.39001,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261353459,
+          "relative_ms": 13.65132,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261368942,
+          "relative_ms": 13.80615,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261377188,
+          "relative_ms": 13.88861,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261380559,
+          "relative_ms": 13.92232,
+          "path": "worker",
+          "bytes": 116,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261410659,
+          "relative_ms": 14.22332,
+          "path": "worker",
+          "bytes": 44,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261476797,
+          "relative_ms": 14.8847,
+          "path": "worker",
+          "bytes": 38,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261480062,
+          "relative_ms": 14.91735,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261536201,
+          "relative_ms": 15.47874,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261586658,
+          "relative_ms": 15.98331,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261589483,
+          "relative_ms": 16.01156,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261670548,
+          "relative_ms": 16.82221,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261698302,
+          "relative_ms": 17.09975,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930261702490,
+          "relative_ms": 17.14163,
+          "path": "worker",
+          "bytes": 43,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263942127,
+          "relative_ms": 39.538,
+          "path": "worker",
+          "bytes": 36,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263975323,
+          "relative_ms": 39.86996,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263982978,
+          "relative_ms": 39.94651,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263985985,
+          "relative_ms": 39.97658,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263988887,
+          "relative_ms": 40.0056,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263993189,
+          "relative_ms": 40.04862,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263996083,
+          "relative_ms": 40.07756,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930263999017,
+          "relative_ms": 40.1069,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264002012,
+          "relative_ms": 40.13685,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264007704,
+          "relative_ms": 40.19377,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264033136,
+          "relative_ms": 40.44809,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264042473,
+          "relative_ms": 40.54146,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264046675,
+          "relative_ms": 40.58348,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264049513,
+          "relative_ms": 40.61186,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264052362,
+          "relative_ms": 40.64035,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264056564,
+          "relative_ms": 40.68237,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264064178,
+          "relative_ms": 40.75851,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264067034,
+          "relative_ms": 40.78707,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264072020,
+          "relative_ms": 40.83693,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264074885,
+          "relative_ms": 40.86558,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264078181,
+          "relative_ms": 40.89854,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930264085767,
+          "relative_ms": 40.9744,
+          "path": "worker",
+          "bytes": 893,
+          "tid": 532
+        }
+      ]
+    },
+    {
+      "frame": 12,
+      "feedback_ms": 38.241,
+      "media_packets": 151,
+      "clock_uncertainty_ms": 0.141003,
+      "source_clock_mapping_valid_until_ns": 197141417678516,
+      "source_end_ns": 197139572418459,
+      "paths": {
+        "timer": 10,
+        "worker": 172
+      },
+      "groups": [
+        {
+          "begin_ms": 6.554397998046875,
+          "end_ms": 6.708807998046875,
+          "packets": 10,
+          "paths": {
+            "timer": 10
+          },
+          "tids": [
+            912
+          ]
+        },
+        {
+          "begin_ms": 12.028697998046875,
+          "end_ms": 21.704367998046877,
+          "packets": 110,
+          "paths": {
+            "worker": 110
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 23.023277998046876,
+          "end_ms": 27.909727998046876,
+          "packets": 42,
+          "paths": {
+            "worker": 42
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 39.02889799804687,
+          "end_ms": 39.468487998046875,
+          "packets": 20,
+          "paths": {
+            "worker": 20
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6930245737629,
+          "relative_ms": 6.554397998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245740121,
+          "relative_ms": 6.579317998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245741823,
+          "relative_ms": 6.596337998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245743426,
+          "relative_ms": 6.612367998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245745181,
+          "relative_ms": 6.629917998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245746674,
+          "relative_ms": 6.644847998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245748338,
+          "relative_ms": 6.661487998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245749958,
+          "relative_ms": 6.677687998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245751499,
+          "relative_ms": 6.693097998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930245753070,
+          "relative_ms": 6.708807998046875,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 912
+        },
+        {
+          "qpc": 6930246285059,
+          "relative_ms": 12.028697998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246288248,
+          "relative_ms": 12.060587998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246291168,
+          "relative_ms": 12.089787998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246294095,
+          "relative_ms": 12.119057998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246296984,
+          "relative_ms": 12.147947998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246299926,
+          "relative_ms": 12.177367998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246302890,
+          "relative_ms": 12.207007998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246305979,
+          "relative_ms": 12.237897998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246309039,
+          "relative_ms": 12.268497998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246311969,
+          "relative_ms": 12.297797998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246339771,
+          "relative_ms": 12.575817998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246344436,
+          "relative_ms": 12.622467998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246350062,
+          "relative_ms": 12.678727998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246357653,
+          "relative_ms": 12.754637998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246360581,
+          "relative_ms": 12.783917998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246363603,
+          "relative_ms": 12.814137998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246369240,
+          "relative_ms": 12.870507998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246383343,
+          "relative_ms": 13.011537998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246387680,
+          "relative_ms": 13.054907998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246390646,
+          "relative_ms": 13.084567998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246409755,
+          "relative_ms": 13.275657998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246414108,
+          "relative_ms": 13.319187998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246417370,
+          "relative_ms": 13.351807998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246420516,
+          "relative_ms": 13.383267998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246423419,
+          "relative_ms": 13.412297998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246432094,
+          "relative_ms": 13.499047998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246440181,
+          "relative_ms": 13.579917998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246443187,
+          "relative_ms": 13.609977998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246449483,
+          "relative_ms": 13.672937998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246458801,
+          "relative_ms": 13.766117998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246500006,
+          "relative_ms": 14.178167998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246504348,
+          "relative_ms": 14.221587998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246507525,
+          "relative_ms": 14.253357998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246510418,
+          "relative_ms": 14.282287998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246513253,
+          "relative_ms": 14.310637998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246516573,
+          "relative_ms": 14.343837998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246520828,
+          "relative_ms": 14.386387998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246523724,
+          "relative_ms": 14.415347998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246526661,
+          "relative_ms": 14.444717998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246529673,
+          "relative_ms": 14.474837998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246541035,
+          "relative_ms": 14.588457998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246543900,
+          "relative_ms": 14.617107998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246546830,
+          "relative_ms": 14.646407998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246551515,
+          "relative_ms": 14.693257998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246555621,
+          "relative_ms": 14.734317998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246583830,
+          "relative_ms": 15.016407998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246586811,
+          "relative_ms": 15.046217998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246589713,
+          "relative_ms": 15.075237998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246593163,
+          "relative_ms": 15.109737998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246596256,
+          "relative_ms": 15.140667998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246639662,
+          "relative_ms": 15.574727998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246657460,
+          "relative_ms": 15.752707998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246673960,
+          "relative_ms": 15.917707998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246725055,
+          "relative_ms": 16.428657998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246735128,
+          "relative_ms": 16.529387998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246738053,
+          "relative_ms": 16.558637998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246754921,
+          "relative_ms": 16.727317998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246783076,
+          "relative_ms": 17.008867998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246786300,
+          "relative_ms": 17.041107998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246790758,
+          "relative_ms": 17.085687998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246808529,
+          "relative_ms": 17.263397998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246812275,
+          "relative_ms": 17.300857998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246815227,
+          "relative_ms": 17.330377998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246821635,
+          "relative_ms": 17.394457998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246825787,
+          "relative_ms": 17.435977998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246828777,
+          "relative_ms": 17.465877998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246831705,
+          "relative_ms": 17.495157998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246834585,
+          "relative_ms": 17.523957998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246837515,
+          "relative_ms": 17.553257998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246840465,
+          "relative_ms": 17.582757998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246860723,
+          "relative_ms": 17.785337998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246863738,
+          "relative_ms": 17.815487998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246881002,
+          "relative_ms": 17.988127998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246883954,
+          "relative_ms": 18.017647998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246886818,
+          "relative_ms": 18.046287998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246892504,
+          "relative_ms": 18.103147998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246895352,
+          "relative_ms": 18.131627998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246898209,
+          "relative_ms": 18.160197998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246931781,
+          "relative_ms": 18.495917998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246938830,
+          "relative_ms": 18.566407998046873,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246991795,
+          "relative_ms": 19.096057998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246996968,
+          "relative_ms": 19.147787998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930246999862,
+          "relative_ms": 19.176727998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247022818,
+          "relative_ms": 19.406287998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247058670,
+          "relative_ms": 19.764807998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247075539,
+          "relative_ms": 19.933497998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247078951,
+          "relative_ms": 19.967617998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247085681,
+          "relative_ms": 20.034917998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247088584,
+          "relative_ms": 20.063947998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247091740,
+          "relative_ms": 20.095507998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247113868,
+          "relative_ms": 20.316787998046873,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247133873,
+          "relative_ms": 20.516837998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247146302,
+          "relative_ms": 20.641127998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247150685,
+          "relative_ms": 20.684957998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247153608,
+          "relative_ms": 20.714187998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247179774,
+          "relative_ms": 20.975847998046873,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247182648,
+          "relative_ms": 21.004587998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247187017,
+          "relative_ms": 21.048277998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247189941,
+          "relative_ms": 21.077517998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247192885,
+          "relative_ms": 21.106957998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247214241,
+          "relative_ms": 21.320517998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247217106,
+          "relative_ms": 21.349167998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247219982,
+          "relative_ms": 21.377927998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247222896,
+          "relative_ms": 21.407067998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247226917,
+          "relative_ms": 21.447277998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247231477,
+          "relative_ms": 21.492877998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247234424,
+          "relative_ms": 21.522347998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247238731,
+          "relative_ms": 21.565417998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247244506,
+          "relative_ms": 21.623167998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247252626,
+          "relative_ms": 21.704367998046877,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247384517,
+          "relative_ms": 23.023277998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247389127,
+          "relative_ms": 23.069377998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247393348,
+          "relative_ms": 23.111587998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247411816,
+          "relative_ms": 23.296267998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247421918,
+          "relative_ms": 23.397287998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247442933,
+          "relative_ms": 23.607437998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247445803,
+          "relative_ms": 23.636137998046873,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247453306,
+          "relative_ms": 23.711167998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247480883,
+          "relative_ms": 23.986937998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247483884,
+          "relative_ms": 24.016947998046874,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247563811,
+          "relative_ms": 24.816217998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247566733,
+          "relative_ms": 24.845437998046876,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247582162,
+          "relative_ms": 24.999727998046875,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247589122,
+          "relative_ms": 25.069327998046877,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247611145,
+          "relative_ms": 25.289557998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247640248,
+          "relative_ms": 25.580587998046877,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247645877,
+          "relative_ms": 25.636877998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247650344,
+          "relative_ms": 25.681547998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247654654,
+          "relative_ms": 25.724647998046876,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247659017,
+          "relative_ms": 25.768277998046877,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247703997,
+          "relative_ms": 26.218077998046876,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247721808,
+          "relative_ms": 26.396187998046877,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247732261,
+          "relative_ms": 26.500717998046873,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247736503,
+          "relative_ms": 26.543137998046873,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247739373,
+          "relative_ms": 26.571837998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247743871,
+          "relative_ms": 26.616817998046876,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247746753,
+          "relative_ms": 26.645637998046876,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247749621,
+          "relative_ms": 26.674317998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247753897,
+          "relative_ms": 26.717077998046875,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247756858,
+          "relative_ms": 26.746687998046873,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247777192,
+          "relative_ms": 26.950027998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247780394,
+          "relative_ms": 26.982047998046873,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247786704,
+          "relative_ms": 27.045147998046875,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247790101,
+          "relative_ms": 27.079117998046875,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247792969,
+          "relative_ms": 27.107797998046873,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247797912,
+          "relative_ms": 27.157227998046874,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247812587,
+          "relative_ms": 27.303977998046875,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247827533,
+          "relative_ms": 27.453437998046876,
+          "path": "worker",
+          "bytes": 1444,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247831769,
+          "relative_ms": 27.495797998046875,
+          "path": "worker",
+          "bytes": 354,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247834674,
+          "relative_ms": 27.524847998046877,
+          "path": "worker",
+          "bytes": 37,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247870315,
+          "relative_ms": 27.881257998046873,
+          "path": "worker",
+          "bytes": 37,
+          "tid": 532
+        },
+        {
+          "qpc": 6930247873162,
+          "relative_ms": 27.909727998046876,
+          "path": "worker",
+          "bytes": 37,
+          "tid": 532
+        },
+        {
+          "qpc": 6930248985079,
+          "relative_ms": 39.02889799804687,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930248988122,
+          "relative_ms": 39.059327998046875,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930248991705,
+          "relative_ms": 39.09515799804687,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930248993757,
+          "relative_ms": 39.11567799804688,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930248995793,
+          "relative_ms": 39.136037998046874,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930248997835,
+          "relative_ms": 39.156457998046875,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249000518,
+          "relative_ms": 39.18328799804687,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249001791,
+          "relative_ms": 39.19601799804688,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249004447,
+          "relative_ms": 39.22257799804687,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249007090,
+          "relative_ms": 39.24900799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249015829,
+          "relative_ms": 39.33639799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249017102,
+          "relative_ms": 39.349127998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249018993,
+          "relative_ms": 39.36803799804687,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249020210,
+          "relative_ms": 39.38020799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249022094,
+          "relative_ms": 39.399047998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249024033,
+          "relative_ms": 39.418437998046876,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249025255,
+          "relative_ms": 39.430657998046875,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249026556,
+          "relative_ms": 39.44366799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249027785,
+          "relative_ms": 39.45595799804688,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6930249029038,
+          "relative_ms": 39.468487998046875,
+          "path": "worker",
+          "bytes": 161,
+          "tid": 532
+        }
+      ]
+    },
+    {
+      "frame": 1263,
+      "feedback_ms": 34.992,
+      "media_packets": 17,
+      "clock_uncertainty_ms": 0.234725,
+      "source_clock_mapping_valid_until_ns": 197162531159703,
+      "source_end_ns": 197160718968916,
+      "paths": {
+        "timer": 8,
+        "worker": 18
+      },
+      "groups": [
+        {
+          "begin_ms": 5.59501099609375,
+          "end_ms": 5.82295099609375,
+          "packets": 8,
+          "paths": {
+            "timer": 8
+          },
+          "tids": [
+            12484
+          ]
+        },
+        {
+          "begin_ms": 27.47033099609375,
+          "end_ms": 28.51252099609375,
+          "packets": 17,
+          "paths": {
+            "worker": 17
+          },
+          "tids": [
+            532
+          ]
+        },
+        {
+          "begin_ms": 29.99124099609375,
+          "end_ms": 29.99124099609375,
+          "packets": 1,
+          "paths": {
+            "worker": 1
+          },
+          "tids": [
+            532
+          ]
+        }
+      ],
+      "deliveries": [
+        {
+          "qpc": 6932360630752,
+          "relative_ms": 5.59501099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932360633998,
+          "relative_ms": 5.62747099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932360637074,
+          "relative_ms": 5.65823099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932360640283,
+          "relative_ms": 5.69032099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932360643582,
+          "relative_ms": 5.72331099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932360646643,
+          "relative_ms": 5.75392099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932360650370,
+          "relative_ms": 5.79119099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932360653546,
+          "relative_ms": 5.82295099609375,
+          "path": "timer",
+          "bytes": 1443,
+          "tid": 12484
+        },
+        {
+          "qpc": 6932362818284,
+          "relative_ms": 27.47033099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362824218,
+          "relative_ms": 27.52967099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362827121,
+          "relative_ms": 27.55870099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362830028,
+          "relative_ms": 27.58777099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362832877,
+          "relative_ms": 27.61626099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362835769,
+          "relative_ms": 27.64518099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362838616,
+          "relative_ms": 27.67365099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362843054,
+          "relative_ms": 27.71803099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362845998,
+          "relative_ms": 27.74747099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362848857,
+          "relative_ms": 27.77606099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362870129,
+          "relative_ms": 27.98878099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362881969,
+          "relative_ms": 28.10718099609375,
+          "path": "worker",
+          "bytes": 1443,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362890454,
+          "relative_ms": 28.19203099609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362900317,
+          "relative_ms": 28.29066099609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362910017,
+          "relative_ms": 28.38766099609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362917014,
+          "relative_ms": 28.45763099609375,
+          "path": "worker",
+          "bytes": 1452,
+          "tid": 532
+        },
+        {
+          "qpc": 6932362922503,
+          "relative_ms": 28.51252099609375,
+          "path": "worker",
+          "bytes": 269,
+          "tid": 532
+        },
+        {
+          "qpc": 6932363070375,
+          "relative_ms": 29.99124099609375,
+          "path": "worker",
+          "bytes": 40,
+          "tid": 532
+        }
+      ]
+    }
+  ]
+}

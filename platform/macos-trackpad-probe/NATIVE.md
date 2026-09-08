@@ -1,14 +1,27 @@
-# Native multitouch protocol experiment — version 4 / ABI 2
+# Native multitouch protocol experiment — version 12 / ABI 2
 
 This replaces the version 3 generic Digitizer report with a native MT bridge
 experiment. It is not a proven gesture implementation until physical testing
 succeeds. It does not synthesize shortcuts or gesture CGEvents.
 
-Installation status, 2026-09-08: signed version 4 was accepted, with SIP enabled.
-The running process remains version 3, marked terminating for upgrade; restart
-is required before ABI 2 or native attachment can be evaluated. The new host's
-current `0xe00002c2` status error reflects the old running ABI, not a native
-handshake result. No physical trial of version 4 has been started.
+Installation status, 2026-09-08 17:07 EDT: corrected version 12 runs with
+ABI 2/profile 1. AppleMultitouchTrackpadHIDEventDriver creates a native device
+with parser 1000/options 39, correct surface/row/column metadata, and a
+WindowServer user client. All five initialization reads and four writes
+succeed; unknown features and input errors are zero. Physical input reports
+remain zero: this is ready for a user-operated trial, not proof of gestures.
+The fix uses public DriverKit CPU access for unmappable feature buffers and
+implements the native 0xc8 configuration register, including explicit initial
+state for DriverKit's raw allocation. See the
+[runtime evidence](../../docs/evidence/macos-trackpad-20260907/native-v11-runtime.md).
+Versions 7–8 used a separate standard digitizer profile 2 for diagnosis; the
+installed version is back on the native bridge protocol documented below.
+
+The user reported that version 11 gestures respond but roll back on finger lift.
+Version 12 routes normal all-up through stop/inactive/empty completion, orders
+native timestamps, and retries failed completion before starting a new gesture.
+Offline regressions and signed deployment pass; physical retest is pending.
+See the [gesture-end fix](../../docs/evidence/macos-trackpad-20260907/native-v12-gesture-end.md).
 
 ## Native path and evidence
 
@@ -87,6 +100,15 @@ profiles are retained. SIP remains enabled. A successful signature or status ABI
 alone does not prove native device attachment or usable gestures.
 
 ## User-operated trial
+
+For combined Viewflow coordinate and HID operation, keep the HID receiver
+connected and add `--route-config /run/user/1000/viewflow/macos-cursor.json` to
+the forwarding command. This follows the compositor's actual capture phase
+and matching Mac peer/output, not keyboard focus or a guessed cursor position.
+On return to Linux it sends the contact/button release and suppresses local
+snapshots while preserving SSH. Entering Mac resumes content on that same
+connection. The standalone command below forwards unconditionally and is only
+for a dedicated manual test, not combined cross-desktop use.
 
 Only after the native attachment check passes, run on Linux:
 

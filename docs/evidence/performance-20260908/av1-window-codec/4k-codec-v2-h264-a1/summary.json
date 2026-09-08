@@ -1,0 +1,390 @@
+{
+  "label": "4k-codec-v2-h264-a1",
+  "native_commit_hz": 57.88757101244134,
+  "desktop": {
+    "desktop_present_not_photon": true,
+    "end_to_end_latency_verified": false,
+    "observed_changes": 791,
+    "positive_present_timestamps": 791,
+    "elapsed_seconds": 19.74079814,
+    "observed_changes_per_second": 40.018645365673144,
+    "nonincreasing_present_timestamps": 0,
+    "nonincreasing_frame_ids": 0,
+    "desktop_change_gap_ms": {
+      "n": 790,
+      "min": 5.86973,
+      "median": 20.963405,
+      "p95": 46.39557,
+      "max": 127.52008
+    },
+    "producer_frame_step": {
+      "n": 790,
+      "min": 1,
+      "median": 1.0,
+      "p95": 3,
+      "max": 7
+    },
+    "present_to_observation_ms": {
+      "n": 791,
+      "min": 5.32708,
+      "median": 12.44077,
+      "p95": 25.23409,
+      "max": 46.05147
+    },
+    "accumulated_desktop_frames": {
+      "n": 791,
+      "min": 1,
+      "median": 1,
+      "p95": 2,
+      "max": 3
+    },
+    "acquire_us": {
+      "n": 791,
+      "min": 109,
+      "median": 7453,
+      "p95": 19033,
+      "max": 23323
+    },
+    "copy_map_us": {
+      "n": 791,
+      "min": 3134,
+      "median": 11220,
+      "p95": 19586,
+      "max": 45423
+    }
+  },
+  "bounds": {
+    "start": "fixture pre-draw CLOCK_MONOTONIC timestamp",
+    "end": "DXGI desktop LastPresentTime QPC timestamp",
+    "clock_model": "existing paired QUIC minimum-RTT four-timestamp estimate and uncertainty",
+    "input_to_photon_measured": false,
+    "receiver_anchor_interval_ns": 13970,
+    "missing_fixture_frame": 0,
+    "missing_preceding_clock": 0,
+    "expired_clock_mapping": 0,
+    "latency_lower_ms": {
+      "n": 791,
+      "min": 39.145996,
+      "median": 57.312014,
+      "p95": 71.76123,
+      "max": 135.023628
+    },
+    "latency_upper_ms": {
+      "n": 791,
+      "min": 39.45714,
+      "median": 57.583908,
+      "p95": 72.250566,
+      "max": 135.434368
+    },
+    "clock_uncertainty_ms": {
+      "n": 791,
+      "min": 0.07494,
+      "median": 0.161163,
+      "p95": 0.231791,
+      "max": 0.27189
+    },
+    "definitely_over_two_60hz_frames": 791,
+    "definitely_within_two_60hz_frames": 0,
+    "negative_upper_bound": 0,
+    "unique_capture_stage_samples": {
+      "missing_capture_marker": 0,
+      "ambiguous_repeated_marker": 7,
+      "missing_native_mutation": 0,
+      "render_to_capture_ms": {
+        "n": 784,
+        "min": 4.735206,
+        "median": 5.897047499999999,
+        "p95": 6.375953,
+        "max": 6.855433
+      },
+      "capture_to_desktop_lower_ms": {
+        "n": 784,
+        "min": 33.391616,
+        "median": 51.2573455,
+        "p95": 65.877022,
+        "max": 129.037423
+      },
+      "capture_to_desktop_upper_ms": {
+        "n": 784,
+        "min": 33.818258,
+        "median": 51.650056,
+        "p95": 66.238301,
+        "max": 129.448163
+      },
+      "capture_to_mutation_lower_ms": {
+        "n": 784,
+        "min": 10.898347,
+        "median": 14.929708000000002,
+        "p95": 23.280648,
+        "max": 86.270653
+      },
+      "capture_to_mutation_upper_ms": {
+        "n": 784,
+        "min": 11.285017,
+        "median": 15.2607885,
+        "p95": 23.652436,
+        "max": 86.681393
+      },
+      "mutation_to_desktop_ms": {
+        "n": 784,
+        "min": 12.47288,
+        "median": 35.385225,
+        "p95": 49.82768,
+        "max": 61.50677
+      },
+      "negative_mutation_to_desktop": 0,
+      "gpu_copy_completion_bounds": {
+        "scope": "event after composition surface copy on application's D3D queue; polling bounds, not DWM completion",
+        "missing": 0,
+        "invalid_or_multiple": 0,
+        "submitted_to_complete_lower_ms": {
+          "n": 784,
+          "min": 0.0,
+          "median": 0.0,
+          "p95": 17.53159,
+          "max": 37.22296
+        },
+        "submitted_to_complete_upper_ms": {
+          "n": 784,
+          "min": 6.76849,
+          "median": 16.24577,
+          "p95": 33.17008,
+          "max": 143.99367
+        },
+        "complete_to_desktop_lower_ms": {
+          "n": 784,
+          "min": -106.40433,
+          "median": 16.874164999999998,
+          "p95": 32.47086,
+          "max": 40.49117
+        },
+        "complete_to_desktop_upper_ms": {
+          "n": 784,
+          "min": 12.60576,
+          "median": 31.617714999999997,
+          "p95": 47.16365,
+          "max": 54.82154
+        },
+        "ready_observed_before_desktop": 764
+      }
+    }
+  },
+  "clock_and_stages": {
+    "raw_exchange_count": 776,
+    "invalid_exchanges": [],
+    "mapping_count": 97,
+    "uncertainty_ms": {
+      "n": 97,
+      "min": 0.07494,
+      "median": 0.157457,
+      "p95": 0.231791,
+      "max": 0.27189
+    },
+    "network_rtt_ms": {
+      "n": 776,
+      "min": 0.14988,
+      "median": 0.49084249999999996,
+      "p95": 1.260506,
+      "max": 51.504862
+    },
+    "offset_span_ms": 0.17494,
+    "apparent_offset_slope_ppm": -0.23287825067045187,
+    "slope_is_not_independent_oscillator_drift": true,
+    "anchor_width_ns": 13970,
+    "skipped": {
+      "nonunique_marker": 7
+    },
+    "wall_stage_ms": {
+      "capture to encode": {
+        "n": 1409,
+        "min": 0.146344,
+        "median": 1.299857,
+        "p95": 2.305159,
+        "max": 28.609478
+      },
+      "encode (host incl waits)": {
+        "n": 1409,
+        "min": 6.233942,
+        "median": 7.021961,
+        "p95": 7.6156,
+        "max": 83.375965
+      },
+      "release": {
+        "n": 1409,
+        "min": 0.002843,
+        "median": 0.005908,
+        "p95": 0.009113,
+        "max": 0.043627
+      },
+      "batch return / previous feedback": {
+        "n": 1409,
+        "min": 0.000832,
+        "median": 0.01053,
+        "p95": 0.041299,
+        "max": 99.55809
+      },
+      "encoded to pipe admission (transport + receiver + pipe parse)": {
+        "n": 1393,
+        "min": 2.086591,
+        "median": 3.6874,
+        "p95": 10.422494,
+        "max": 80.940102
+      },
+      "pipe admission to decoded": {
+        "n": 1393,
+        "min": 0.83337,
+        "median": 1.54466,
+        "p95": 3.4832,
+        "max": 30.19038
+      },
+      "decoded to proxy ready": {
+        "n": 1393,
+        "min": 0.25748,
+        "median": 0.54102,
+        "p95": 8.27351,
+        "max": 106.92632
+      },
+      "surface copy host": {
+        "n": 1393,
+        "min": 0.0083,
+        "median": 0.01581,
+        "p95": 0.03433,
+        "max": 0.53061
+      },
+      "visual bind / commit host": {
+        "n": 1393,
+        "min": 0.02898,
+        "median": 0.05677,
+        "p95": 0.0915,
+        "max": 3.9136
+      },
+      "commit to desktop (queue + GPU + DWM; NOT DWM CPU)": {
+        "n": 784,
+        "min": 12.46617,
+        "median": 35.382265000000004,
+        "p95": 49.82028,
+        "max": 61.50385
+      }
+    },
+    "caveat": "Overlapping pipelines; do not sum independent medians. CPU flame graph and wall spans are distinct. Desktop timestamp is not photon time."
+  },
+  "readback": {
+    "pending_peak": 2,
+    "map_busy": 2263,
+    "abandoned": 0
+  },
+  "observer_result": {
+    "acquired": 795,
+    "valid": 794,
+    "invalid": 1,
+    "changes": 791
+  },
+  "cpu_map_us": {
+    "n": 791,
+    "min": 5,
+    "median": 10,
+    "p95": 19,
+    "max": 467
+  },
+  "matched_unique_markers": 784,
+  "missing_capture_marker": 0,
+  "ambiguous_capture_marker": 7,
+  "monitor_lines": [
+    "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+    "owned_proxy_moved=-4,-4 no_activate=true",
+    "desktop_image_in_system_memory=0",
+    "adapter vendor=32902 device=32103 software=0",
+    "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+  ],
+  "timer": {
+    "requested": 1,
+    "active": 1,
+    "result": 0
+  },
+  "one_ms_wait_us": {
+    "n": 8,
+    "min": 707,
+    "median": 4409.5,
+    "p95": 4948,
+    "max": 4948
+  },
+  "nvenc_control_lines": [],
+  "decoder_lines": [],
+  "malformed_encoder_rows": [],
+  "malformed_wire_rows": [],
+  "encoder_host_us": {
+    "fence": {
+      "n": 1379,
+      "min": 0,
+      "median": 2,
+      "p95": 3,
+      "max": 907
+    },
+    "import": {
+      "n": 1379,
+      "min": 539,
+      "median": 886,
+      "p95": 1101,
+      "max": 2307
+    },
+    "copy_prepare": {
+      "n": 1379,
+      "min": 1431,
+      "median": 1682,
+      "p95": 1990,
+      "max": 4107
+    },
+    "nv12_alpha_readback": {
+      "n": 1379,
+      "min": 83,
+      "median": 89,
+      "p95": 100,
+      "max": 452
+    },
+    "nvenc": {
+      "n": 1379,
+      "min": 3803,
+      "median": 4192,
+      "p95": 4410,
+      "max": 5205
+    },
+    "total": {
+      "n": 1379,
+      "min": 6120,
+      "median": 6879,
+      "p95": 7431,
+      "max": 9614
+    }
+  },
+  "wire_per_frame": {
+    "encoded_bytes": {
+      "n": 1370,
+      "min": 154442,
+      "median": 180527.5,
+      "p95": 192138,
+      "max": 312148
+    },
+    "wire_bytes": {
+      "n": 1370,
+      "min": 3716,
+      "median": 29801.5,
+      "p95": 41412,
+      "max": 312148
+    },
+    "packets": {
+      "n": 1370,
+      "min": 4,
+      "median": 23.0,
+      "p95": 32,
+      "max": 230
+    },
+    "feedback_us": {
+      "n": 1370,
+      "min": 4208,
+      "median": 7092.5,
+      "p95": 15573,
+      "max": 83273
+    }
+  },
+  "codec": "h264"
+}

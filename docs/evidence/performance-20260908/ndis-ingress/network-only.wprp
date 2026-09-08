@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="Viewflow">
+ <Profiles>
+  <SystemCollector Id="ViewflowNetworkCollector" Name="Viewflow network metadata"><BufferSize Value="256"/><Buffers Value="128"/></SystemCollector>
+  <SystemProvider Id="ViewflowNetworkProvider"><Keywords><Keyword Value="NetworkTrace"/></Keywords></SystemProvider>
+  <Profile Id="ViewflowNetwork.Verbose.Memory" Name="ViewflowNetwork" Description="Network metadata only" DetailLevel="Verbose" LoggingMode="Memory"><Collectors><SystemCollectorId Value="ViewflowNetworkCollector"><SystemProviderId Value="ViewflowNetworkProvider"/></SystemCollectorId></Collectors></Profile>
+ </Profiles>
+</WindowsPerformanceRecorder>

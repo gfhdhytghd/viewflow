@@ -1,0 +1,56 @@
+
+
+Id          : 1381
+Version     : 0
+Description : TCP: AssociateNameResContext Endpoint: %1 Status: %16 NameResolutionContext: %2 DnsName: %3 InterfaceInde
+              x: %4 IPAddrCount: %5 IPAddrs: %7 %9 %11 %13 %15
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="Endpoint" inType="win:Pointer" outType="win:HexInt64"/>
+                <data name="NameResContext" inType="win:Pointer" outType="win:HexInt64"/>
+                <data name="DnsName" inType="win:UnicodeString" outType="xs:string"/>
+                <data name="InterfaceIndex" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpCount" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpAddr1Length" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpAddr1" inType="win:Binary" outType="win:SocketAddress" length="IpAddr1Length"/>
+                <data name="IpAddr2Length" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpAddr2" inType="win:Binary" outType="win:SocketAddress" length="IpAddr2Length"/>
+                <data name="IpAddr3Length" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpAddr3" inType="win:Binary" outType="win:SocketAddress" length="IpAddr3Length"/>
+                <data name="IpAddr4Length" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpAddr4" inType="win:Binary" outType="win:SocketAddress" length="IpAddr4Length"/>
+                <data name="IpAddr5Length" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpAddr5" inType="win:Binary" outType="win:SocketAddress" length="IpAddr5Length"/>
+                <data name="Status" inType="win:UInt32" outType="win:NTStatus"/>
+              </template>
+              
+
+Id          : 1381
+Version     : 1
+Description : TCP: AssociateNameResContext EndpointObj: %1 IsConnectionObj: %2 NameResContext: %3 Status: %4
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="EndpointObj" inType="win:Pointer" outType="win:HexInt64"/>
+                <data name="IsConnectionObj" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="NameResContext" inType="win:Pointer" outType="win:HexInt64"/>
+                <data name="Status" inType="win:UInt32" outType="win:NTStatus"/>
+              </template>
+              
+
+Id          : 1382
+Version     : 0
+Description : TCP: InspectConnectWithNameResContext Connection: %5 (local: %2 remote: %4) NameResolutionContext: %6 Dns
+              Name: %7 Status: %8.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="RemoteAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="RemoteAddress" inType="win:Binary" outType="win:SocketAddress" length="RemoteAddressLength"
+              />
+                <data name="Tcb" inType="win:Pointer" outType="win:HexInt64"/>
+                <data name="NameResContext" inType="win:Pointer" outType="win:HexInt64"/>
+                <data name="DnsName" inType="win:UnicodeString" outType="xs:string"/>
+                <data name="Status" inType="win:UInt32" outType="win:NTStatus"/>
+              </template>
+              
+
+
+

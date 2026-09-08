@@ -356,7 +356,7 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_output_get_info(
     const auto& value = output->value;
     *info = vf_gpu_dmabuf_output_info{value.metadata.frameId, value.metadata.captureTimestampNs,
                                       value.metadata.geometryEpoch, static_cast<uint32_t>(value.idr),
-                                      value.colorAnnexB.size(), value.rawAlpha.size()};
+                                      value.colorAnnexB.size(), value.alpha().size()};
     return VF_GPU_DMABUF_OK;
   });
 }
@@ -374,8 +374,8 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_output_copy_raw_alpha(
   return no_throw([&] {
     const auto status = require_owner(output);
     if (status != VF_GPU_DMABUF_OK) return status;
-    viewflow::gpu::AlphaCopyProfile profile("cabi_to_rust", output->value.metadata.frameId, output->value.rawAlpha.size());
-    return copy_plane(output->value.rawAlpha, destination, capacity, required);
+    viewflow::gpu::AlphaCopyProfile profile("cabi_to_rust", output->value.metadata.frameId, output->value.alpha().size());
+    return copy_plane(output->value.alpha(), destination, capacity, required);
   });
 }
 
@@ -387,8 +387,8 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_output_view_raw_alpha(
     *length = 0;
     const auto status = require_owner(output);
     if (status != VF_GPU_DMABUF_OK) return status;
-    *data = output->value.rawAlpha.data();
-    *length = output->value.rawAlpha.size();
+    *data = output->value.alpha().data();
+    *length = output->value.alpha().size();
     return VF_GPU_DMABUF_OK;
   });
 }

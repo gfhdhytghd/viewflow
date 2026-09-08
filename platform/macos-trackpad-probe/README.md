@@ -3,8 +3,17 @@
 Version 4 adds native MT bridge report encoding, initialization feature reports,
 button/pressure/geometry forwarding and contact/handshake diagnostics. See
 [NATIVE.md](NATIVE.md). Local offline tests and the Mac unsigned DriverKit build
-pass. Signed version 4 is installed, but macOS still runs version 3 pending
-restart. Native service attachment and physical gestures remain unverified.
+pass. Corrected version 12 is installed and running with the native trackpad
+bridge, parser 1000/options 39, correct sensor metadata and a WindowServer
+native user client. Public DriverKit CPU access resolves feature-buffer mapping
+failures; a stateful configuration register resolves the remaining write
+retries. All initialization requests succeed with zero unknown features.
+Version 11's user trial found gestures roll back on finger lift; version 12
+fixes the missing inactive-contact phase on normal all-up and orders end-frame
+timestamps. Offline regressions pass; physical gesture retest is pending.
+See the [gesture-end fix](../../docs/evidence/macos-trackpad-20260907/native-v12-gesture-end.md).
+See the [runtime evidence](../../docs/evidence/macos-trackpad-20260907/native-v11-runtime.md)
+and the trial command in [NATIVE.md](NATIVE.md).
 
 Version 3's generic Digitizer path successfully enumerated and received reports,
 but the user reported no multi-finger gestures. That is a failed gesture gate,

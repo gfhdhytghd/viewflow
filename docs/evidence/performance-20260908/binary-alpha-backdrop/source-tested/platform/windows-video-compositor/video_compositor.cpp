@@ -1,0 +1,531 @@
+#include "video_compositor.h"
+#include "annex_b_clean_point.h"
+
+#include <d3dcompiler.h>
+#include <d3d10.h>
+#include <codecapi.h>
+#include <mfapi.h>
+#include <mferror.h>
+#include <mftransform.h>
+#include <wmcodecdsp.h>
+
+#include <algorithm>
+#include <chrono>
+#include <cstring>
+#include <cstdio>
+#include <limits>
+#include <string>
+
+using Microsoft::WRL::ComPtr;
+
+namespace viewflow::windows {
+namespace {
+// Opt-in startup evidence only. This adds no per-frame work and does not
+// extend any readiness or presentation deadline.
+struct InitializationTrace {
+  bool enabled = false;
+  std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
+  InitializationTrace() {
+    wchar_t value[2]{};
+    enabled = GetEnvironmentVariableW(L"VIEWFLOW_GPU_INIT_TIMINGS", value, 2) == 1 && value[0] == L'1';
+  }
+  void stage(char const* name) const {
+    if (!enabled) return;
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - started).count();
+    std::fprintf(stderr, "gpu initialize stage=%s elapsed_us=%lld\n", name,
+                 static_cast<long long>(elapsed));
+    std::fflush(stderr);
+  }
+};
+constexpr char kShader[] = R"(
+Texture2D yPlane : register(t0); Texture2D uvPlane : register(t1); Texture2D alphaPlane : register(t2);
+SamplerState pointSampler : register(s0);
+struct V { float4 p : SV_Position; float2 uv : TEXCOORD; };
+V vs(uint id : SV_VertexID) { float2 p[3]={float2(-1,-1),float2(-1,3),float2(3,-1)}; V o; o.p=float4(p[id],0,1); o.uv=float2((p[id].x+1)*.5,(1-p[id].y)*.5); return o; }
+float4 ps(V i) : SV_Target { float y=1.16438*(yPlane.Sample(pointSampler,i.uv).r-16.0/255.0); float2 uv=uvPlane.Sample(pointSampler,i.uv).rg-float2(.5,.5); float3 rgb=saturate(float3(y+1.79274*uv.y,y-.21325*uv.x-.53291*uv.y,y+2.11240*uv.x)); float a=alphaPlane.Sample(pointSampler,i.uv).r; return float4(rgb*a,a); }
+Texture2D bgraPlane : register(t0); Texture2D alphaAfterVideoProcessor : register(t1);
+float4 ps_bgra(V i) : SV_Target { float4 color=bgraPlane.Sample(pointSampler,i.uv); float a=alphaAfterVideoProcessor.Sample(pointSampler,i.uv).r; return float4(color.rgb*a,a); }
+)";
+
+HRESULT Compile(const char* entry, const char* target, ComPtr<ID3DBlob>* blob) {
+  ComPtr<ID3DBlob> errors;
+  return D3DCompile(kShader, sizeof(kShader) - 1, "viewflow_gpu_compositor.hlsl", nullptr,
+                    nullptr, entry, target, D3DCOMPILE_ENABLE_STRICTNESS, 0,
+                    blob->GetAddressOf(), errors.GetAddressOf());
+}
+HRESULT CreateHardwareDevice(ComPtr<ID3D11Device>* device, ComPtr<ID3D11DeviceContext>* context) {
+  ComPtr<IDXGIFactory1> factory; HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+  if (FAILED(hr)) return hr;
+  for (UINT i = 0;; ++i) {
+    ComPtr<IDXGIAdapter1> adapter; hr = factory->EnumAdapters1(i, &adapter);
+    if (hr == DXGI_ERROR_NOT_FOUND) return MF_E_HW_MFT_FAILED_START_STREAMING;
+    if (FAILED(hr)) return hr;
+    DXGI_ADAPTER_DESC1 desc{};
+    hr = adapter->GetDesc1(&desc); if (FAILED(hr)) return hr;
+    if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) continue;
+    D3D_FEATURE_LEVEL level{};
+    hr = D3D11CreateDevice(adapter.Get(), D3D_DRIVER_TYPE_UNKNOWN, nullptr,
+                           D3D11_CREATE_DEVICE_VIDEO_SUPPORT |
+                               D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                           nullptr, 0,
+                           D3D11_SDK_VERSION, device->GetAddressOf(), &level,
+                           context->GetAddressOf());
+    if (SUCCEEDED(hr)) {
+      InitializationTrace trace;
+      if (trace.enabled) {
+        std::fprintf(stderr, "gpu adapter index=%u vendor=%04x device=%04x luid=%08lx:%08lx feature=%x\n",
+                     i, desc.VendorId, desc.DeviceId,
+                     static_cast<unsigned long>(desc.AdapterLuid.HighPart),
+                     static_cast<unsigned long>(desc.AdapterLuid.LowPart),
+                     static_cast<unsigned>(level));
+        std::fflush(stderr);
+      }
+      return hr;
+    }
+  }
+}
+HRESULT CreateSrv(ID3D11Device* d, ID3D11Texture2D* texture, DXGI_FORMAT format,
+                  UINT /*plane*/, ComPtr<ID3D11ShaderResourceView>* result) {
+  D3D11_SHADER_RESOURCE_VIEW_DESC desc{}; desc.Format = format;
+  desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D; desc.Texture2D.MipLevels = 1;
+  // For D3D11 planar resources the view format selects the plane: R8 is Y,
+  // R8G8 is interleaved UV.  PlaneSlice is a D3D11.3-only desc field and must
+  // not be used with the inbox D3D11 headers/ID3D11Device API.
+  return d->CreateShaderResourceView(texture, &desc, result->GetAddressOf());
+}
+class ScopedHostDuration final {
+ public:
+  explicit ScopedHostDuration(uint64_t* destination) : destination_(destination) {
+    if (destination_) started_ = std::chrono::steady_clock::now();
+  }
+  ~ScopedHostDuration() {
+    if (destination_) {
+      *destination_ += static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now() - started_).count());
+    }
+  }
+  ScopedHostDuration(const ScopedHostDuration&) = delete;
+  ScopedHostDuration& operator=(const ScopedHostDuration&) = delete;
+ private:
+  uint64_t* destination_{};
+  std::chrono::steady_clock::time_point started_{};
+};
+void ReleaseOutputData(MFT_OUTPUT_DATA_BUFFER* output) {
+  if (output->pEvents) { output->pEvents->Release(); output->pEvents = nullptr; }
+  if (output->pSample) { output->pSample->Release(); output->pSample = nullptr; }
+}
+} // namespace
+
+GpuVideoCompositor::~GpuVideoCompositor() {
+  if (decoder_) { decoder_->ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0); decoder_.Reset(); }
+}
+HRESULT GpuVideoCompositor::Create(GpuVideoCompositor* out, uint32_t diagnostic_workers, uint32_t color_codec) {
+  if (!out) return E_POINTER;
+  if (diagnostic_workers != 0 && diagnostic_workers != 2) return E_INVALIDARG;
+  return out->Initialize(diagnostic_workers, color_codec);
+}
+HRESULT GpuVideoCompositor::Initialize(uint32_t diagnostic_workers, uint32_t color_codec) {
+  if (color_codec != 2 && color_codec != 4) return E_INVALIDARG;
+  InitializationTrace trace;
+  trace.stage("create-hardware-device");
+  HRESULT hr = CreateHardwareDevice(&device_, &context_); if (FAILED(hr)) return hr;
+  // The decoder and compositor share this immediate context. MF may use
+  // internal worker threads even though our Submit calls are serialized.
+  // SetMultithreadProtected returns the previous state, not an HRESULT.
+  trace.stage("enable-device-multithread-protection");
+  ComPtr<ID3D10Multithread> multithread;
+  hr = device_.As(&multithread); if (FAILED(hr)) return hr;
+  multithread->SetMultithreadProtected(TRUE);
+  if (!multithread->GetMultithreadProtected()) return E_FAIL;
+  trace.stage("create-dxgi-manager");
+  hr = MFCreateDXGIDeviceManager(&reset_token_, &manager_); if (FAILED(hr)) return hr;
+  trace.stage("reset-dxgi-device");
+  hr = manager_->ResetDevice(device_.Get(), reset_token_); if (FAILED(hr)) return hr;
+  if (color_codec == 4) {
+#ifdef VIEWFLOW_HAVE_FFMPEG
+    trace.stage("create-av1-d3d11-decoder");
+    ffmpeg_decoder_ = std::make_unique<FfmpegDecoder>();
+    hr = ffmpeg_decoder_->Initialize(device_.Get(), color_codec);
+    if (FAILED(hr)) return hr;
+#else
+    return E_NOTIMPL;
+#endif
+  } else {
+  trace.stage("create-h264-decoder");
+  hr = CoCreateInstance(CLSID_CMSH264DecoderMFT, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&decoder_)); if (FAILED(hr)) return hr;
+  trace.stage("low-latency-attributes");
+  ComPtr<IMFAttributes> attributes;
+  hr = decoder_->GetAttributes(&attributes); if (FAILED(hr)) return hr;
+  if (diagnostic_workers) {
+    hr = attributes->SetUINT32(CODECAPI_AVDecNumWorkerThreads, diagnostic_workers);
+    if (FAILED(hr)) return hr;
+    UINT32 actual{};
+    hr = attributes->GetUINT32(CODECAPI_AVDecNumWorkerThreads, &actual);
+    if (FAILED(hr)) return hr;
+    if (actual != diagnostic_workers) return E_FAIL;
+    std::fprintf(stderr, "gpu diagnostic decoder_workers=%u\n", actual);
+    std::fflush(stderr);
+  }
+  hr = attributes->SetUINT32(MF_LOW_LATENCY, TRUE); if (FAILED(hr)) return hr;
+  UINT32 low_latency{};
+  hr = attributes->GetUINT32(MF_LOW_LATENCY, &low_latency); if (FAILED(hr)) return hr;
+  if (low_latency != TRUE) return E_FAIL;
+  trace.stage("attach-decoder-device");
+  hr = decoder_->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, reinterpret_cast<ULONG_PTR>(manager_.Get())); if (FAILED(hr)) return hr;
+  trace.stage("set-input-type");
+  ComPtr<IMFMediaType> input; hr = MFCreateMediaType(&input);
+  if (SUCCEEDED(hr)) hr = input->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+  if (SUCCEEDED(hr)) hr = input->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_H264);
+  // Geometry/rate/profile are not known until the first access unit arrives.
+  // Do not claim the old 256x256@30 Level 2.1 fixture describes a live window.
+  // The documented minimal H.264 input uses a placeholder output type; Drain
+  // handles MF_E_TRANSFORM_STREAM_CHANGE when SPS establishes real geometry.
+  if (SUCCEEDED(hr)) hr = decoder_->SetInputType(0, input.Get(), 0); if (FAILED(hr)) return hr;
+  trace.stage("set-output-type");
+  hr = SetOutputType(); if (FAILED(hr)) return hr;
+  }
+  trace.stage("compile-shaders");
+  ComPtr<ID3DBlob> vertex, pixel; hr = Compile("vs", "vs_5_0", &vertex); if (FAILED(hr)) return hr;
+  hr = Compile("ps", "ps_5_0", &pixel); if (FAILED(hr)) return hr;
+  trace.stage("create-shaders");
+  hr = device_->CreateVertexShader(vertex->GetBufferPointer(), vertex->GetBufferSize(), nullptr, &vs_); if (FAILED(hr)) return hr;
+  hr = device_->CreatePixelShader(pixel->GetBufferPointer(), pixel->GetBufferSize(), nullptr, &ps_); if (FAILED(hr)) return hr;
+  ComPtr<ID3DBlob> bgra_pixel; hr = Compile("ps_bgra", "ps_5_0", &bgra_pixel); if (FAILED(hr)) return hr;
+  hr = device_->CreatePixelShader(bgra_pixel->GetBufferPointer(), bgra_pixel->GetBufferSize(), nullptr, &bgra_alpha_ps_); if (FAILED(hr)) return hr;
+  trace.stage("create-sampler-video-context");
+  D3D11_SAMPLER_DESC s{}; s.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT; s.AddressU = s.AddressV = s.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+  hr = device_->CreateSamplerState(&s, &sampler_); if (FAILED(hr)) return hr;
+  hr = device_.As(&video_device_); if (FAILED(hr)) return hr;
+  hr = context_.As(&video_context_); if (FAILED(hr)) return hr;
+  if (decoder_) {
+  trace.stage("begin-streaming");
+  hr = decoder_->ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0); if (FAILED(hr)) return hr;
+  trace.stage("start-stream");
+  hr = decoder_->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0); if (SUCCEEDED(hr)) streaming_ = true;
+  } else { streaming_ = true; }
+  trace.stage("finished");
+  return hr;
+}
+HRESULT GpuVideoCompositor::SetOutputType() {
+  for (DWORD i = 0;; ++i) {
+    ComPtr<IMFMediaType> t; HRESULT hr = decoder_->GetOutputAvailableType(0, i, &t);
+    if (FAILED(hr)) return hr;
+    GUID subtype{}; t->GetGUID(MF_MT_SUBTYPE, &subtype);
+    if (subtype != MFVideoFormat_NV12) continue;
+    hr = decoder_->SetOutputType(0, t.Get(), 0);
+    if (SUCCEEDED(hr)) {
+      decoder_geometry_ = {};
+      MFGetAttributeSize(t.Get(), MF_MT_FRAME_SIZE,
+                         &decoder_geometry_.negotiated_width,
+                         &decoder_geometry_.negotiated_height);
+      MFVideoArea aperture{}; UINT32 aperture_bytes{};
+      if (SUCCEEDED(t->GetBlob(MF_MT_MINIMUM_DISPLAY_APERTURE,
+                                      reinterpret_cast<UINT8*>(&aperture), sizeof(aperture),
+                                      &aperture_bytes)) && aperture_bytes == sizeof(aperture)) {
+        decoder_geometry_.has_minimum_display_aperture = true;
+        decoder_geometry_.aperture_x = aperture.OffsetX.value;
+        decoder_geometry_.aperture_y = aperture.OffsetY.value;
+        decoder_geometry_.aperture_x_fraction = aperture.OffsetX.fract;
+        decoder_geometry_.aperture_y_fraction = aperture.OffsetY.fract;
+        decoder_geometry_.aperture_width = static_cast<uint32_t>(aperture.Area.cx);
+        decoder_geometry_.aperture_height = static_cast<uint32_t>(aperture.Area.cy);
+      }
+      return hr;
+    }
+  }
+}
+HRESULT GpuVideoCompositor::Submit(uint64_t identity, std::span<const uint8_t> au,
+                                    const RawGray8Alpha& a, std::vector<CompositedFrame>* completed) {
+  if (!completed || !streaming_ || poisoned_ || !identity || identity <= last_frame_identity_ || identity != a.frame_identity || au.empty() || !a.width || !a.height ||
+      a.bytes.size() != uint64_t(a.width) * a.height || a.bytes.size() > std::numeric_limits<UINT>::max()) return E_INVALIDARG;
+  if (a.owner && (a.owner->data() != a.bytes.data() || a.owner->size() != a.bytes.size())) return E_INVALIDARG;
+  if (std::ranges::any_of(pending_, [identity](const Pending& p) { return p.identity == identity; })) return MF_E_INVALIDREQUEST;
+#ifdef VIEWFLOW_HAVE_FFMPEG
+  if (ffmpeg_decoder_ && decoder_geometry_.negotiated_width &&
+      (decoder_geometry_.negotiated_width != a.width || decoder_geometry_.negotiated_height != a.height)) {
+    // The atlas binding admits a size change only with paired keyframes. FFmpeg's
+    // AV1 D3D11VA decoder can retain its old surface pool across a new sequence
+    // header, so replace it once every previous frame has been composited.
+    if (!pending_.empty()) return MF_E_NOTACCEPTING;
+    auto next = std::make_unique<FfmpegDecoder>();
+    const HRESULT prepare = next->Initialize(device_.Get(), 4);
+    if (FAILED(prepare)) return prepare;
+    ffmpeg_decoder_ = std::move(next);
+    decoder_geometry_ = {};
+  }
+#endif
+  last_submit_host_durations_ = {};
+  last_submit_host_durations_.frame_identity = identity;
+  recording_submit_host_durations_ = true;
+  const auto submit_started = std::chrono::steady_clock::now();
+  auto finish_submit_timing = [&] {
+    last_submit_host_durations_.total_submit_us = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - submit_started).count());
+    recording_submit_host_durations_ = false;
+  };
+  struct SubmitScope final {
+    decltype(finish_submit_timing)* finish;
+    ~SubmitScope() { (*finish)(); }
+  } submit_scope{&finish_submit_timing};
+  D3D11_TEXTURE2D_DESC alpha{}; alpha.Width=a.width; alpha.Height=a.height; alpha.MipLevels=1; alpha.ArraySize=1;
+  alpha.Format=DXGI_FORMAT_R8_UNORM; alpha.SampleDesc.Count=1; alpha.Usage=D3D11_USAGE_DEFAULT; alpha.BindFlags=D3D11_BIND_SHADER_RESOURCE;
+  Pending p{identity,next_sample_time_,a.width,a.height}; D3D11_SUBRESOURCE_DATA initial{a.bytes.data(), a.width, 0};
+  HRESULT hr = S_OK;
+  {
+    ScopedHostDuration timer(&last_submit_host_durations_.alpha_texture_create_us);
+    if (cached_alpha_texture_ && cached_alpha_srv_ && cached_alpha_width_ == a.width &&
+        cached_alpha_height_ == a.height &&
+        ((a.owner && a.owner == cached_alpha_owner_) ||
+         std::ranges::equal(cached_alpha_owner_ ? std::span<const uint8_t>(*cached_alpha_owner_)
+                                              : std::span<const uint8_t>(cached_alpha_bytes_), a.bytes))) {
+      p.alpha = cached_alpha_texture_;
+      p.alpha_srv = cached_alpha_srv_;
+      last_submit_host_durations_.alpha_texture_reused = true;
+      // Equality may have matched a fresh immutable snapshot (for example after
+      // an equivalent raw/RLE representation change). Adopt it so later frames
+      // sharing that snapshot also bypass the full-plane comparison.
+      if (a.owner && a.owner != cached_alpha_owner_) {
+        cached_alpha_owner_ = a.owner;
+        cached_alpha_bytes_.clear();
+      }
+    } else {
+      // Keep a previous complete cache pair live if either allocation fails.
+      // Pending receives its own COM references only after the new texture and
+      // SRV are both ready.
+      ComPtr<ID3D11Texture2D> next_alpha;
+      ComPtr<ID3D11ShaderResourceView> next_alpha_srv;
+      hr = device_->CreateTexture2D(&alpha, &initial, &next_alpha);
+      if (SUCCEEDED(hr)) {
+        hr = CreateSrv(device_.Get(), next_alpha.Get(), DXGI_FORMAT_R8_UNORM, 0,
+                       &next_alpha_srv);
+      }
+      if (SUCCEEDED(hr)) {
+        p.alpha = next_alpha;
+        p.alpha_srv = next_alpha_srv;
+        if (a.owner) {
+          cached_alpha_owner_ = a.owner;
+          cached_alpha_bytes_.clear();
+        } else {
+          cached_alpha_bytes_.assign(a.bytes.begin(), a.bytes.end());
+          cached_alpha_owner_.reset();
+        }
+        cached_alpha_width_ = a.width;
+        cached_alpha_height_ = a.height;
+        cached_alpha_texture_ = std::move(next_alpha);
+        cached_alpha_srv_ = std::move(next_alpha_srv);
+      }
+    }
+  }
+  if (FAILED(hr)) return hr; pending_.push_back(std::move(p));
+#ifdef VIEWFLOW_HAVE_FFMPEG
+  if (ffmpeg_decoder_) {
+    std::vector<FfmpegDecodedFrame> decoded;
+    {
+      ScopedHostDuration timer(&last_submit_host_durations_.mf_process_input_us);
+      hr = ffmpeg_decoder_->Submit(au, pending_.back().sample_time, &decoded);
+    }
+    if (FAILED(hr)) { pending_.pop_back(); poisoned_ = true; return hr; }
+    next_sample_time_ += 333333;
+    for (const auto& frame : decoded) {
+      // The AVFrame remains owned until composition has queued its GPU reads.
+      ComPtr<IMFMediaBuffer> buffer;
+      ComPtr<IMFSample> sample;
+      hr = MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), frame.texture.Get(),
+                                    frame.subresource, FALSE, &buffer);
+      if (SUCCEEDED(hr)) hr = MFCreateSample(&sample);
+      if (SUCCEEDED(hr)) hr = sample->AddBuffer(buffer.Get());
+      if (SUCCEEDED(hr)) hr = sample->SetSampleTime(frame.timestamp);
+      decoder_geometry_ = {};
+      decoder_geometry_.negotiated_width = frame.width;
+      decoder_geometry_.negotiated_height = frame.height;
+      decoder_geometry_.has_minimum_display_aperture = true;
+      decoder_geometry_.aperture_x = static_cast<int>(frame.crop_x);
+      decoder_geometry_.aperture_y = static_cast<int>(frame.crop_y);
+      decoder_geometry_.aperture_width = frame.width;
+      decoder_geometry_.aperture_height = frame.height;
+      if (SUCCEEDED(hr)) hr = Composite(sample.Get(), completed);
+      if (FAILED(hr)) { poisoned_ = true; return hr; }
+    }
+    last_frame_identity_ = identity;
+    return S_OK;
+  }
+#endif
+
+  ComPtr<IMFMediaBuffer> bytes; ComPtr<IMFSample> sample; hr=MFCreateMemoryBuffer(static_cast<DWORD>(au.size()),&bytes);
+  if (SUCCEEDED(hr)) { ScopedHostDuration timer(&last_submit_host_durations_.mf_sample_copy_us); BYTE* dst{}; DWORD cap{}; hr=bytes->Lock(&dst,&cap,nullptr); if (SUCCEEDED(hr)) { memcpy(dst,au.data(),au.size()); bytes->Unlock(); hr=bytes->SetCurrentLength(static_cast<DWORD>(au.size())); } }
+  if (SUCCEEDED(hr)) hr=MFCreateSample(&sample); if (SUCCEEDED(hr)) hr=sample->AddBuffer(bytes.Get());
+  if (SUCCEEDED(hr)) hr=sample->SetSampleTime(pending_.back().sample_time);
+  if (SUCCEEDED(hr)) hr=sample->SetSampleDuration(333333);
+  if (SUCCEEDED(hr)) hr=sample->SetUINT32(MFSampleExtension_CleanPoint, annex_b_clean_point(au) ? TRUE : FALSE);
+  if (SUCCEEDED(hr)) { ScopedHostDuration timer(&last_submit_host_durations_.mf_process_input_us); hr=decoder_->ProcessInput(0,sample.Get(),0); } if (FAILED(hr)) { pending_.pop_back(); return hr; }
+  next_sample_time_ += 333333;
+  hr = Drain(completed);
+  if (FAILED(hr)) poisoned_ = true;
+  else last_frame_identity_ = identity;
+  return hr;
+}
+HRESULT GpuVideoCompositor::Drain(std::vector<CompositedFrame>* completed) {
+  for (;;) {
+    MFT_OUTPUT_STREAM_INFO info{}; HRESULT hr=decoder_->GetOutputStreamInfo(0,&info); if(FAILED(hr)) return hr;
+    MFT_OUTPUT_DATA_BUFFER out{}; DWORD status{};
+    if ((info.dwFlags & MFT_OUTPUT_STREAM_PROVIDES_SAMPLES) == 0) {
+      ComPtr<IMFSample> client_sample; ComPtr<IMFMediaBuffer> client_buffer;
+      hr=MFCreateSample(&client_sample); if(SUCCEEDED(hr)) hr=MFCreateMemoryBuffer(info.cbSize,&client_buffer);
+      if(SUCCEEDED(hr)) hr=client_sample->AddBuffer(client_buffer.Get());
+      if(FAILED(hr)) return hr;
+      out.pSample=client_sample.Detach(); // ReleaseOutputData owns this reference on every ProcessOutput result.
+    }
+    { ScopedHostDuration timer(recording_submit_host_durations_ ? &last_submit_host_durations_.mf_process_output_us : nullptr); hr=decoder_->ProcessOutput(0,1,&out,&status); }
+    if (hr==MF_E_TRANSFORM_NEED_MORE_INPUT) { ReleaseOutputData(&out); return S_OK; }
+    if (hr==MF_E_TRANSFORM_STREAM_CHANGE) { ReleaseOutputData(&out); hr=SetOutputType(); if (FAILED(hr)) return hr; continue; }
+    if (FAILED(hr)) { ReleaseOutputData(&out); return hr; }
+    hr=Composite(out.pSample,completed); ReleaseOutputData(&out); if (FAILED(hr)) return hr;
+  }
+}
+HRESULT GpuVideoCompositor::Composite(IMFSample* sample, std::vector<CompositedFrame>* completed) {
+  if (!sample) return E_FAIL; LONGLONG time{}; HRESULT hr=sample->GetSampleTime(&time); if (FAILED(hr) || time<0) return FAILED(hr)?hr:MF_E_INVALIDREQUEST;
+  auto found=std::find_if(pending_.begin(),pending_.end(),[time](const Pending& p){return p.sample_time==time;}); if(found==pending_.end()) return MF_E_INVALIDREQUEST;
+  ComPtr<IMFMediaBuffer> buffer; ComPtr<IMFDXGIBuffer> dxgi; ComPtr<ID3D11Texture2D> source;
+  hr=sample->GetBufferByIndex(0,&buffer); if(SUCCEEDED(hr)) hr=buffer.As(&dxgi); UINT subresource{};
+  if(SUCCEEDED(hr)) hr=dxgi->GetResource(IID_PPV_ARGS(&source)); if(SUCCEEDED(hr)) hr=dxgi->GetSubresourceIndex(&subresource); if(FAILED(hr)) return hr;
+  D3D11_TEXTURE2D_DESC sd{}; source->GetDesc(&sd);
+  decoder_geometry_.texture_width = sd.Width;
+  decoder_geometry_.texture_height = sd.Height;
+  if(sd.Format!=DXGI_FORMAT_NV12) return MF_E_INVALIDMEDIATYPE;
+  UINT crop_x=0, crop_y=0;
+  if (decoder_geometry_.has_minimum_display_aperture) {
+    const auto& geometry = decoder_geometry_;
+    if (geometry.aperture_x < 0 || geometry.aperture_y < 0 ||
+        geometry.aperture_x_fraction || geometry.aperture_y_fraction ||
+        geometry.aperture_width != found->width || geometry.aperture_height != found->height)
+      return MF_E_INVALIDMEDIATYPE;
+    crop_x=UINT(geometry.aperture_x); crop_y=UINT(geometry.aperture_y);
+  } else if (sd.Width!=found->width || sd.Height!=found->height) {
+    return MF_E_INVALIDMEDIATYPE; // Never guess a padded surface's visible area.
+  }
+  if ((crop_x | crop_y | found->width | found->height) & 1u ||
+      uint64_t(crop_x)+found->width > sd.Width ||
+      uint64_t(crop_y)+found->height > sd.Height)
+    return MF_E_INVALIDMEDIATYPE;
+  const bool cropped = crop_x || crop_y || sd.Width!=found->width || sd.Height!=found->height;
+  const D3D11_BOX source_box{crop_x,crop_y,0,crop_x+found->width,crop_y+found->height,1};
+  D3D11_TEXTURE2D_DESC nv=sd; nv.BindFlags=D3D11_BIND_SHADER_RESOURCE; nv.Usage=D3D11_USAGE_DEFAULT; nv.CPUAccessFlags=0; nv.MiscFlags=0;
+  nv.Width=found->width; nv.Height=found->height; nv.MipLevels=1; nv.ArraySize=1;
+  // Prefer direct sampling if the decoder exported shader-bindable planes;
+  // otherwise make the required GPU-only copy into a shader-bindable NV12.
+  ComPtr<ID3D11ShaderResourceView> y,uv,a,bgra;
+  bool video_processed = false;
+  if (cropped) hr = E_FAIL;
+  else {
+    ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr);
+    hr=CreateSrv(device_.Get(),source.Get(),DXGI_FORMAT_R8_UNORM,0,&y);
+    if(SUCCEEDED(hr)) hr=CreateSrv(device_.Get(),source.Get(),DXGI_FORMAT_R8G8_UNORM,1,&uv);
+  }
+  if(FAILED(hr)) {
+    y.Reset(); uv.Reset();
+    const bool scratch_matches =
+        shader_nv12_.texture && shader_nv12_.device == device_.Get() &&
+        shader_nv12_.input_format == sd.Format &&
+        shader_nv12_.input_width == sd.Width && shader_nv12_.input_height == sd.Height &&
+        shader_nv12_.input_sample_count == sd.SampleDesc.Count &&
+        shader_nv12_.input_sample_quality == sd.SampleDesc.Quality &&
+        shader_nv12_.crop_x == crop_x && shader_nv12_.crop_y == crop_y &&
+        shader_nv12_.output_width == found->width && shader_nv12_.output_height == found->height;
+    if (!scratch_matches) {
+      // Do not replace a usable cache until the entire texture/view set exists.
+      ShaderNv12Cache next;
+      next.device = device_.Get(); next.input_format = sd.Format;
+      next.input_width = sd.Width; next.input_height = sd.Height;
+      next.input_sample_count = sd.SampleDesc.Count;
+      next.input_sample_quality = sd.SampleDesc.Quality;
+      next.crop_x = crop_x; next.crop_y = crop_y;
+      next.output_width = found->width; next.output_height = found->height;
+      { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr);
+        hr=device_->CreateTexture2D(&nv,nullptr,&next.texture);
+        if(SUCCEEDED(hr)) hr=CreateSrv(device_.Get(),next.texture.Get(),DXGI_FORMAT_R8_UNORM,0,&next.y);
+        if(SUCCEEDED(hr)) hr=CreateSrv(device_.Get(),next.texture.Get(),DXGI_FORMAT_R8G8_UNORM,1,&next.uv); }
+      if(SUCCEEDED(hr)) shader_nv12_=std::move(next);
+    } else {
+      hr = S_OK;
+    }
+    if(SUCCEEDED(hr)) {
+      // Calls on this immediate context are ordered: this copy completes before
+      // the Draw below samples the cached Y/UV views, without a CPU-side wait.
+      // Keep this API call in the same resource-stage bucket as the uncached
+      // baseline, so stage comparisons do not merely move time out of view.
+      ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr);
+      context_->CopySubresourceRegion(shader_nv12_.texture.Get(),0,0,0,0,source.Get(),subresource,&source_box);
+      y=shader_nv12_.y;
+      uv=shader_nv12_.uv;
+    }
+  }
+  // Some hardware decoders expose NV12 only as D3D11_BIND_DECODER and the
+  // adapter cannot allocate shader-bindable NV12.  Keep conversion on the GPU:
+  // video processor does BT.709 limited YUV -> full-range BGRA, then the pixel
+  // shader performs the exact independent R8 alpha premultiplication.
+  if(FAILED(hr)) {
+    D3D11_VIDEO_PROCESSOR_CONTENT_DESC content{};
+    content.InputFrameFormat=D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
+    content.InputWidth=sd.Width; content.InputHeight=sd.Height;
+    content.OutputWidth=found->width; content.OutputHeight=found->height;
+    content.Usage=D3D11_VIDEO_USAGE_PLAYBACK_NORMAL;
+    if (!conversion_.processor || conversion_.input_width!=sd.Width || conversion_.input_height!=sd.Height ||
+        conversion_.output_width!=found->width || conversion_.output_height!=found->height) {
+      ConversionCache next;
+      { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr); hr=video_device_->CreateVideoProcessorEnumerator(&content,&next.enumerator); } if(FAILED(hr)) return hr;
+      UINT nv12_support{}, bgra_support{};
+      hr=next.enumerator->CheckVideoProcessorFormat(DXGI_FORMAT_NV12,&nv12_support);
+      if(SUCCEEDED(hr)) hr=next.enumerator->CheckVideoProcessorFormat(DXGI_FORMAT_B8G8R8A8_UNORM,&bgra_support);
+      if(FAILED(hr) || !(nv12_support&D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_INPUT) || !(bgra_support&D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_OUTPUT)) return E_NOTIMPL;
+      { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr); hr=video_device_->CreateVideoProcessor(next.enumerator.Get(),0,&next.processor); } if(FAILED(hr)) return hr;
+      next.input_width=sd.Width; next.input_height=sd.Height;
+      next.output_width=found->width; next.output_height=found->height;
+      conversion_=std::move(next);
+    }
+    const auto& enumerator=conversion_.enumerator;
+    const auto& processor=conversion_.processor;
+    D3D11_TEXTURE2D_DESC converted_desc{}; converted_desc.Width=found->width; converted_desc.Height=found->height; converted_desc.MipLevels=1; converted_desc.ArraySize=1; converted_desc.Format=DXGI_FORMAT_B8G8R8A8_UNORM; converted_desc.SampleDesc.Count=1; converted_desc.Usage=D3D11_USAGE_DEFAULT; converted_desc.BindFlags=D3D11_BIND_RENDER_TARGET|D3D11_BIND_SHADER_RESOURCE;
+    ComPtr<ID3D11Texture2D> converted; { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr); hr=device_->CreateTexture2D(&converted_desc,nullptr,&converted); } if(FAILED(hr)) return hr;
+    D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_desc{}; input_desc.ViewDimension=D3D11_VPIV_DIMENSION_TEXTURE2D; input_desc.Texture2D.ArraySlice=subresource;
+    D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC output_desc{}; output_desc.ViewDimension=D3D11_VPOV_DIMENSION_TEXTURE2D;
+    ComPtr<ID3D11VideoProcessorInputView> input_view; ComPtr<ID3D11VideoProcessorOutputView> output_view;
+    { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr); hr=video_device_->CreateVideoProcessorInputView(source.Get(),enumerator.Get(),&input_desc,&input_view);
+      if(SUCCEEDED(hr)) hr=video_device_->CreateVideoProcessorOutputView(converted.Get(),enumerator.Get(),&output_desc,&output_view); }
+    if(FAILED(hr)) return hr;
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE in_space{}; in_space.YCbCr_Matrix=1; in_space.Nominal_Range=D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;
+    D3D11_VIDEO_PROCESSOR_COLOR_SPACE out_space{}; out_space.RGB_Range=1; out_space.Nominal_Range=D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_0_255;
+    video_context_->VideoProcessorSetStreamColorSpace(processor.Get(),0,&in_space);
+    video_context_->VideoProcessorSetOutputColorSpace(processor.Get(),&out_space);
+    RECT source_rect{LONG(crop_x),LONG(crop_y),LONG(crop_x+found->width),LONG(crop_y+found->height)};
+    RECT target_rect{0,0,LONG(found->width),LONG(found->height)};
+    video_context_->VideoProcessorSetStreamSourceRect(processor.Get(),0,TRUE,&source_rect);
+    video_context_->VideoProcessorSetStreamDestRect(processor.Get(),0,TRUE,&target_rect);
+    video_context_->VideoProcessorSetOutputTargetRect(processor.Get(),TRUE,&target_rect);
+    D3D11_VIDEO_PROCESSOR_STREAM stream{}; stream.Enable=TRUE; stream.pInputSurface=input_view.Get();
+    { ScopedHostDuration processor_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_video_processor_us : nullptr); hr=video_context_->VideoProcessorBlt(processor.Get(),output_view.Get(),0,1,&stream); } if(FAILED(hr)) return hr;
+    { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr); hr=CreateSrv(device_.Get(),converted.Get(),DXGI_FORMAT_B8G8R8A8_UNORM,0,&bgra); } if(FAILED(hr)) return hr;
+    video_processed=true;
+  }
+  if (!found->alpha || !found->alpha_srv) return E_FAIL;
+  a = found->alpha_srv;
+  D3D11_TEXTURE2D_DESC od{}; od.Width=found->width; od.Height=found->height; od.MipLevels=1; od.ArraySize=1; od.Format=DXGI_FORMAT_B8G8R8A8_UNORM; od.SampleDesc.Count=1; od.Usage=D3D11_USAGE_DEFAULT; od.BindFlags=D3D11_BIND_RENDER_TARGET|D3D11_BIND_SHADER_RESOURCE;
+  ComPtr<ID3D11Texture2D> target; ComPtr<ID3D11RenderTargetView> rtv; { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr); hr=device_->CreateTexture2D(&od,nullptr,&target); if(SUCCEEDED(hr)) hr=device_->CreateRenderTargetView(target.Get(),nullptr,&rtv); } if(FAILED(hr)) return hr;
+  GpuTimestampScope gpu_time(device_.Get(),context_.Get(),found->identity,video_processed?"bgra_alpha_shader":"nv12_alpha_shader",0);
+  ID3D11ShaderResourceView* srvs[]={video_processed?bgra.Get():y.Get(),video_processed?a.Get():uv.Get(),video_processed?nullptr:a.Get()}; ID3D11SamplerState* samplers[]={sampler_.Get()};
+  { ScopedHostDuration shader_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_shader_us : nullptr); D3D11_VIEWPORT vp{0,0,float(od.Width),float(od.Height),0,1}; context_->OMSetRenderTargets(1,rtv.GetAddressOf(),nullptr); context_->RSSetViewports(1,&vp); context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); context_->VSSetShader(vs_.Get(),nullptr,0); context_->PSSetShader(video_processed?bgra_alpha_ps_.Get():ps_.Get(),nullptr,0); context_->PSSetShaderResources(0,video_processed?2:3,srvs); context_->PSSetSamplers(0,1,samplers); context_->Draw(3,0); }
+  ID3D11ShaderResourceView* clear[]={nullptr,nullptr,nullptr}; context_->PSSetShaderResources(0,3,clear); context_->OMSetRenderTargets(0,nullptr,nullptr);
+  completed->push_back({found->identity,od.Width,od.Height,target,std::nullopt,gpu_time.Finish()}); pending_.erase(found); return S_OK;
+}
+HRESULT GpuVideoCompositor::Finish(std::vector<CompositedFrame>* completed) {
+#ifdef VIEWFLOW_HAVE_FFMPEG
+  if (ffmpeg_decoder_) {
+    // AV1 is configured for immediate output without reordering. All decoded
+    // allocations have already been handed to Composite on the owning thread.
+    if (!completed || !streaming_ || poisoned_) return E_INVALIDARG;
+    return pending_.empty() ? S_OK : MF_E_TRANSFORM_NEED_MORE_INPUT;
+  }
+#endif
+  if(!completed || !streaming_ || poisoned_) return E_INVALIDARG; HRESULT hr=decoder_->ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN,0); if(FAILED(hr)) { poisoned_=true; return hr; } hr=Drain(completed); if(SUCCEEDED(hr) && !pending_.empty()) hr=MF_E_TRANSFORM_NEED_MORE_INPUT; if(FAILED(hr)) poisoned_=true; return hr;
+}
+} // namespace viewflow::windows

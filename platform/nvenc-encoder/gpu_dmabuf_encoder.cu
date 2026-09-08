@@ -92,6 +92,18 @@ bool idr(const std::vector<unsigned char> &b) {
   }
   return false;
 }
+// Exact comparison, not a checksum: every in-bounds alpha byte participates.
+// All threads reach the block vote, including the padded edge of the grid.
+__global__ void alphaChanged(const unsigned char* current, size_t currentPitch,
+                             const unsigned char* previous, int width, int height,
+                             unsigned* changed) {
+  const int x = int(blockIdx.x * blockDim.x + threadIdx.x);
+  const int y = int(blockIdx.y * blockDim.y + threadIdx.y);
+  const bool different = x < width && y < height &&
+      current[size_t(y) * currentPitch + x] != previous[size_t(y) * width + x];
+  const int any = __syncthreads_or(different);
+  if (any && threadIdx.x == 0 && threadIdx.y == 0) atomicExch(changed, 1U);
+}
 __global__ void nv12(const unsigned char *rgba, size_t rp, unsigned char *y,
                      size_t yp, unsigned char *uv, size_t up, int w, int h) {
   const int x = int(blockIdx.x * blockDim.x + threadIdx.x),
@@ -139,6 +151,9 @@ struct GpuDmabufEncoder::Impl {
   unsigned char *src = nullptr, *rgba = nullptr, *alpha = nullptr;
   size_t srcPitch = 0, rgbaPitch = 0, alphaPitch = 0;
   unsigned char *pinnedAlpha = nullptr;
+  unsigned char *previousAlphaDevice = nullptr;
+  unsigned *alphaChangedDevice = nullptr, *alphaChangedHost = nullptr;
+  bool gpuAlphaDiff = false, alphaDeviceValid = false;
   AVBufferRef *device = nullptr, *frames = nullptr;
   AVCodecContext *encoder = nullptr;
   bool good = false;
@@ -147,12 +162,14 @@ struct GpuDmabufEncoder::Impl {
   bool timingsEnabled = false;
   bool timingsAll = false;
   bool borrowPreparedTile = true;
+  bool reuseAlpha = true;
+  std::shared_ptr<const std::vector<unsigned char>> lastAlpha;
   ~Impl() {
-    if (pinnedAlpha) {
-      // The persistent host destination must outlive any submitted DMA.
-      if (stream) cudaStreamSynchronize(stream);
-      cudaFreeHost(pinnedAlpha);
-    }
+    // Persistent host destinations must outlive every submitted DMA, including
+    // an error after a comparison flag copy has been queued.
+    if ((pinnedAlpha || alphaChangedHost) && stream) cudaStreamSynchronize(stream);
+    if (pinnedAlpha) cudaFreeHost(pinnedAlpha);
+    if (alphaChangedHost) cudaFreeHost(alphaChangedHost);
     if (encoder)
       avcodec_free_context(&encoder);
     if (frames)
@@ -165,6 +182,8 @@ struct GpuDmabufEncoder::Impl {
       cudaFree(rgba);
     if (alpha)
       cudaFree(alpha);
+    if (previousAlphaDevice) cudaFree(previousAlphaDevice);
+    if (alphaChangedDevice) cudaFree(alphaChangedDevice);
     if (stream)
       cudaStreamDestroy(stream);
     if (display != EGL_NO_DISPLAY) {
@@ -197,6 +216,8 @@ struct GpuDmabufEncoder::Impl {
     const char *timings = std::getenv("VIEWFLOW_GPU_TIMINGS");
     timingsAll = timings && std::strcmp(timings, "all") == 0;
     timingsEnabled = timingsAll || (timings && std::strcmp(timings, "1") == 0);
+    const char* reuseAlphaEnv = std::getenv("VIEWFLOW_GPU_ALPHA_REUSE");
+    reuseAlpha = !reuseAlphaEnv || std::strcmp(reuseAlphaEnv, "0") != 0;
     const char* copyTile = std::getenv("VIEWFLOW_GPU_TILE_COPY");
     borrowPreparedTile = !copyTile || std::strcmp(copyTile, "1") != 0;
     if (timingsEnabled)
@@ -341,6 +362,20 @@ struct GpuDmabufEncoder::Impl {
     encoder->color_trc = AVCOL_TRC_BT709;
     encoder->colorspace = AVCOL_SPC_BT709;
     encoder->hw_frames_ctx = av_buffer_ref(frames);
+    // Same-encoder diagnostic control. Default NVENC auto mode is unchanged.
+    // Missing/rejected AVOptions fall back to auto. Driver-open errors below
+    // still report initialization failure through the existing path.
+    const char* splitMode = std::getenv("VIEWFLOW_NVENC_SPLIT_MODE");
+    int splitResult = 0;
+    if (config.colorCodec == 4 && splitMode) {
+      if (std::strcmp(splitMode, "auto") == 0 || std::strcmp(splitMode, "4") == 0)
+        splitResult = av_opt_set(encoder->priv_data, "split_encode_mode", splitMode, 0);
+      else
+        splitResult = AVERROR(EINVAL);
+      if (splitResult < 0)
+        av_opt_set(encoder->priv_data, "split_encode_mode", "auto", 0);
+    }
+
     if (!encoder->hw_frames_ctx ||
         !avOk(av_opt_set(encoder->priv_data, "preset", "p1", 0), error,
               "NVENC preset") ||
@@ -362,7 +397,40 @@ struct GpuDmabufEncoder::Impl {
               "NVENC High profile")) ||
         !avOk(avcodec_open2(encoder, codec, nullptr), error, "avcodec_open2"))
       return false;
+    if (config.colorCodec == 4 && splitMode) {
+      int64_t observed = -1;
+      const int readResult = av_opt_get_int(encoder->priv_data, "split_encode_mode", 0, &observed);
+      std::fprintf(stderr, "GPU nvenc-split requested=%s set_status=%d read_status=%d observed=%lld\n",
+          splitMode, splitResult, readResult, static_cast<long long>(observed));
+    }
     glGenTextures(1, &texture);
+    // Required NVENC resources are ready before the optional comparison cache.
+    const char* diffEnv = std::getenv("VIEWFLOW_GPU_ALPHA_DIFF");
+    if (reuseAlpha && (!diffEnv || std::strcmp(diffEnv, "0") != 0)) {
+      // Optional bounded cache. Allocation failure retains the existing exact
+      // CPU comparison path, with no per-frame allocation/retry loop.
+      bool allocate = true;
+#ifdef VIEWFLOW_TEST_GPU_EXPIRY
+      const char* forced = std::getenv("VIEWFLOW_TEST_GPU_ALPHA_DIFF_ALLOC_FAIL");
+      allocate = !forced || std::strcmp(forced, "1") != 0;
+#endif
+      gpuAlphaDiff = allocate &&
+          cudaMalloc(reinterpret_cast<void**>(&previousAlphaDevice),
+                     size_t(config.outputWidth) * config.outputHeight) == cudaSuccess &&
+          cudaMalloc(reinterpret_cast<void**>(&alphaChangedDevice), sizeof(unsigned)) == cudaSuccess &&
+          cudaHostAlloc(reinterpret_cast<void**>(&alphaChangedHost), sizeof(unsigned),
+                        cudaHostAllocDefault) == cudaSuccess;
+      if (!gpuAlphaDiff) {
+        if (previousAlphaDevice) cudaFree(previousAlphaDevice);
+        if (alphaChangedDevice) cudaFree(alphaChangedDevice);
+        if (alphaChangedHost) cudaFreeHost(alphaChangedHost);
+        previousAlphaDevice = nullptr;
+        alphaChangedDevice = alphaChangedHost = nullptr;
+        cudaGetLastError();
+      }
+    }
+    if (timingsEnabled)
+      std::fprintf(stderr, "GPU alpha-diff enabled=%u\n", unsigned(gpuAlphaDiff));
     good = true;
     return true;
   }
@@ -877,24 +945,77 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
       impl_->config.outputHeight);
   const size_t alphaBytes = size_t(impl_->config.outputWidth) * impl_->config.outputHeight;
   std::vector<unsigned char> rawAlpha;
-  if (!impl_->pinnedAlpha) rawAlpha.resize(alphaBytes);
-  unsigned char *alphaDestination = impl_->pinnedAlpha ? impl_->pinnedAlpha : rawAlpha.data();
-  if (!cudaOk(cudaGetLastError(), error, "RGBA NV12 launch") ||
-      !cudaOk(cudaMemcpy2DAsync(
-                  alphaDestination, size_t(impl_->config.outputWidth),
-                  impl_->alpha, impl_->alphaPitch,
-                  size_t(impl_->config.outputWidth), impl_->config.outputHeight,
-                  cudaMemcpyDeviceToHost, impl_->stream),
-              error, "alpha download") ||
-      !cudaOk(cudaStreamSynchronize(impl_->stream), error,
-              "NV12/alpha completion")) {
+  std::shared_ptr<const std::vector<unsigned char>> sharedAlpha;
+  const bool comparedOnGpu = impl_->gpuAlphaDiff && impl_->alphaDeviceValid &&
+      impl_->lastAlpha && impl_->lastAlpha->size() == alphaBytes;
+  bool alphaReused = false, deviceSnapshotUpdated = false;
+  auto failedAlphaPreparation = [&] {
+    impl_->alphaDeviceValid = false;
+    impl_->poisoned = true;
+    // Finish queued NV12/flag/readback work before releasing its AVFrame.
+    cudaStreamSynchronize(impl_->stream);
     cleanup();
     return false;
+  };
+  if (!cudaOk(cudaGetLastError(), error, "RGBA NV12 launch"))
+    return failedAlphaPreparation();
+  if (comparedOnGpu) {
+    if (!cudaOk(cudaMemsetAsync(impl_->alphaChangedDevice, 0, sizeof(unsigned), impl_->stream),
+                error, "alpha change flag reset")) return failedAlphaPreparation();
+    alphaChanged<<<g, b, 0, impl_->stream>>>(impl_->alpha, impl_->alphaPitch,
+        impl_->previousAlphaDevice, impl_->config.outputWidth,
+        impl_->config.outputHeight, impl_->alphaChangedDevice);
+    if (!cudaOk(cudaGetLastError(), error, "alpha comparison launch") ||
+        !cudaOk(cudaMemcpyAsync(impl_->alphaChangedHost, impl_->alphaChangedDevice,
+                               sizeof(unsigned), cudaMemcpyDeviceToHost, impl_->stream),
+                error, "alpha comparison result") ||
+        !cudaOk(cudaStreamSynchronize(impl_->stream), error, "NV12/alpha comparison completion"))
+      return failedAlphaPreparation();
+    alphaReused = *impl_->alphaChangedHost == 0;
+    timingExit.mark("alpha_gpu_check");
   }
-  if (impl_->pinnedAlpha) {
-    AlphaCopyProfile profile("pinned_to_vector", metadata.frameId, alphaBytes);
-    rawAlpha.assign(impl_->pinnedAlpha, impl_->pinnedAlpha + alphaBytes);
+  if (!alphaReused) {
+    if (!impl_->pinnedAlpha) rawAlpha.resize(alphaBytes);
+    unsigned char* alphaDestination = impl_->pinnedAlpha ? impl_->pinnedAlpha : rawAlpha.data();
+    if (impl_->gpuAlphaDiff) {
+      // The device mirror is now a candidate. If NVENC or any later step fails
+      // or expires, it must not authorize reuse of the old CPU snapshot.
+      impl_->alphaDeviceValid = false;
+      if (!cudaOk(cudaMemcpy2DAsync(impl_->previousAlphaDevice, size_t(impl_->config.outputWidth),
+                  impl_->alpha, impl_->alphaPitch, size_t(impl_->config.outputWidth),
+                  impl_->config.outputHeight, cudaMemcpyDeviceToDevice, impl_->stream),
+                  error, "retain device alpha candidate")) return failedAlphaPreparation();
+      deviceSnapshotUpdated = true;
+    }
+    if (!cudaOk(cudaMemcpy2DAsync(alphaDestination, size_t(impl_->config.outputWidth),
+                  impl_->alpha, impl_->alphaPitch, size_t(impl_->config.outputWidth),
+                  impl_->config.outputHeight, cudaMemcpyDeviceToHost, impl_->stream),
+                error, "alpha download") ||
+        !cudaOk(cudaStreamSynchronize(impl_->stream), error, "NV12/alpha completion"))
+      return failedAlphaPreparation();
+    timingExit.mark("alpha_full_readback");
+    if (impl_->reuseAlpha && !comparedOnGpu) {
+      AlphaCopyProfile profile("native_alpha_compare", metadata.frameId, alphaBytes);
+      alphaReused = impl_->lastAlpha && impl_->lastAlpha->size() == alphaBytes &&
+          std::memcmp(impl_->lastAlpha->data(), alphaDestination, alphaBytes) == 0;
+    }
+    if (!alphaReused && impl_->pinnedAlpha) {
+      AlphaCopyProfile profile("pinned_to_vector", metadata.frameId, alphaBytes);
+      rawAlpha.assign(impl_->pinnedAlpha, impl_->pinnedAlpha + alphaBytes);
+    }
   }
+  if (impl_->reuseAlpha)
+    sharedAlpha = alphaReused ? impl_->lastAlpha :
+        std::make_shared<const std::vector<unsigned char>>(std::move(rawAlpha));
+  if (logTimings)
+    std::fprintf(stderr, "GPU alpha-transfer frame=%llu compared=%u download_bytes=%zu candidate=%u\n",
+                 (unsigned long long)metadata.frameId, unsigned(comparedOnGpu),
+                 comparedOnGpu && alphaReused ? size_t(0) : alphaBytes, unsigned(deviceSnapshotUpdated));
+  if (logTimings)
+    std::fprintf(stderr, "GPU alpha-storage frame=%llu mode=%s reused=%u bytes=%zu\n",
+                 (unsigned long long)metadata.frameId,
+                 impl_->reuseAlpha ? "shared-snapshot" : "per-frame-copy",
+                 unsigned(alphaReused), alphaBytes);
   if (!preparationBefore(deadline, 2)) {
     fail(error, "frame deadline expired after GPU encode preparation");
     if (cleanup() && disposition)
@@ -970,7 +1091,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     impl_->recoveryIdr = false;
   if (ok)
     output = EncodedDmabufFrame{std::move(color), std::move(rawAlpha),
-                                metadata, actualIdr, std::move(sparseResult)};
+                                metadata, actualIdr, std::move(sparseResult), std::move(sharedAlpha)};
   if (ok && output.sparse) impl_->lastSparsePatches = output.sparse->patches;
   if (logTimings)
     outputDone = std::chrono::steady_clock::now();
@@ -1001,6 +1122,10 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
         static_cast<long long>(elapsedUs(nvencDone, outputDone)),
         static_cast<long long>(elapsedUs(outputDone, cleanupDone)),
         static_cast<long long>(elapsedUs(totalStart, cleanupDone)));
+  }
+  if (ok && impl_->reuseAlpha) {
+    impl_->lastAlpha = output.sharedAlpha;
+    if (deviceSnapshotUpdated) impl_->alphaDeviceValid = true;
   }
   if (ok && disposition) *disposition = EncodeDisposition::Encoded;
   return ok;

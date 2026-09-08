@@ -1,0 +1,616 @@
+[
+    {
+        "Id":  1169,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (LocalAddress = %5, RemoteAddress = %7) sending %2 messages and a total of %3 bytes. PID = %8.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NumMessages\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NumBytes\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalSockAddrLength\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"RemoteSockAddrLength\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1169,
+        "Version":  1,
+        "Description":  "UDP: endpoint %1 (LocalAddress = %5, RemoteAddress = %7) sending %2 messages and a total of %3 bytes. PID = %8 ProcessSeqNum %9.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NumMessages\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NumBytes\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalSockAddrLength\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"RemoteSockAddrLength\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1170,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (LocalAddress = %5, RemoteAddress = %7) delivering %3 bytes. PID = %8.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:ReceivePath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NumMessages\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NumBytes\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalSockAddrLength\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"RemoteSockAddrLength\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1170,
+        "Version":  1,
+        "Description":  "UDP: endpoint %1 (LocalAddress = %5, RemoteAddress = %7) delivering %3 bytes. PID = %8 ProcessSeqNum %9.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:ReceivePath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NumMessages\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NumBytes\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalSockAddrLength\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"RemoteSockAddrLength\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1334,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 notification channel request. NcmContext = %2, Endpoint State = %3, PID = %4, IsLoopback = %5, Status = %7.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Udp Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NcmContext\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Activated\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"IsLoopback\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ChannelStatus\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1335,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 query notification channel status request. NcmContext = %2, Endpoint State = %3, PID = %4, Channel Status = %6, Status = %7.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Udp Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NcmContext\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Activated\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"IsLoopback\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ChannelStatus\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1336,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 notification channel request processed. NcmContext = %2, PID = %3, Status = %4 PushNotificationId = %5.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Udp Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NcmContext\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"PushNotificationGuid\" inType=\"win:GUID\" outType=\"xs:GUID\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1337,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 notification channel signal event. NcmContext = %2, PID = %3, Delivered Data = %4 FinalEvent = %5.",
+        "Level":  5,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Udp Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NcmContext\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Delivered\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"FinalEvent\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1338,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 notification channel detached. NcmContext = %2, Endpoint State = %3.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Udp Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NcmContext\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Activated\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"IsLoopback\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ChannelStatus\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1339,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 notification channel unlinked. Endpoint State = %3.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Udp Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"NcmContext\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Activated\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"IsLoopback\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ChannelStatus\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1340,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 notification channel request processing. Local IP address = %3 %5 %4, Local Port = %6.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Udp Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"IpAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Local IPv4 Address\" inType=\"win:UInt32\" outType=\"win:IPv4\"/\u003e\r\n  \u003cdata name=\"Local IPv6 Address\" inType=\"win:Binary\" outType=\"win:IPv6\" length=\"IpAddrLength\"/\u003e\r\n  \u003cdata name=\"IPProtocol\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SrcPort\" inType=\"win:UInt16\" outType=\"xs:unsignedShort\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1389,
+        "Version":  0,
+        "Description":  "UDP: endpoint (family=%5 pid=%3) create failed: address family not attached.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1389,
+        "Version":  1,
+        "Description":  "UDP: endpoint (family=%5 pid=%3 processseqnum=%6) create failed: address family not attached.",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1390,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (family=%5 pid=%3) create failed: compartment %4 not found.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1390,
+        "Version":  1,
+        "Description":  "UDP: endpoint %1 (family=%5 compartment=%4 pid=%3 processseqnum=%6) create failed: compartment not found.",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1391,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (family=%5 pid=%3) created.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1391,
+        "Version":  1,
+        "Description":  "UDP: endpoint %1 (family=%5 compartment=%4 pid=%3 processseqnum=%6) created.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1392,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (family=%5 pid=%3) create failed: inspection status = %2",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1392,
+        "Version":  1,
+        "Description":  "UDP: endpoint %1 (family=%5 compartment=%4 pid=%3 processseqnum=%6) create failed: inspection status = %2",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1393,
+        "Version":  0,
+        "Description":  "UDP: endpoint %4 bind failed: address %2 cannot be resolved, status = %3",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipBind",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1394,
+        "Version":  0,
+        "Description":  "UDP: endpoint %4 (sockaddr=%2) bind failed: port-acquisition status = %3",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipBind",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1395,
+        "Version":  0,
+        "Description":  "UDP: endpoint %4 (sockaddr=%2) bind failed: inspection status = %3",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipBind",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1396,
+        "Version":  0,
+        "Description":  "UDP: endpoint %4 (sockaddr=%2) bound.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipBind",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1396,
+        "Version":  1,
+        "Description":  "UDP: endpoint %4 (sockaddr=%2) bound pid = %5 ProcessSeqNum %6.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipBind",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Pid\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1397,
+        "Version":  0,
+        "Description":  "UDP: endpoint %4 (sockaddr=%2) closed.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:ClosePath",
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1398,
+        "Version":  0,
+        "Description":  "UDP: endpoint %4 closed.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:ClosePath",
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1399,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (sockaddr=%3) send messages %5: address resolution status = %6",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"EndpointAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"EndpointAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"EndpointAddressLength\"/\u003e\r\n  \u003cdata name=\"SendAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SendAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"SendAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1400,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (sockaddr=%3) send messages %5: address validation failed.",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"EndpointAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"EndpointAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"EndpointAddressLength\"/\u003e\r\n  \u003cdata name=\"SendAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SendAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"SendAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1401,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (sockaddr=%3) send messages %5: source-address selection status = %6",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"EndpointAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"EndpointAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"EndpointAddressLength\"/\u003e\r\n  \u003cdata name=\"SendAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SendAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"SendAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1403,
+        "Version":  0,
+        "Description":  "UDP: address family %2added to interface %1.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global",
+                         "ut:TcpipInterface"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"InterfaceIndex\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1404,
+        "Version":  0,
+        "Description":  "UDP: address family %2removed from interface %1.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global",
+                         "ut:TcpipInterface"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"InterfaceIndex\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1405,
+        "Version":  0,
+        "Description":  "UDP: Failure initializing transport protocol, status = %1",
+        "Level":  1,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1406,
+        "Version":  0,
+        "Description":  "UDP: Failure starting NLNPI client, status = %1",
+        "Level":  1,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1407,
+        "Version":  0,
+        "Description":  "UDP: Failure initializing NSI support, status = %1",
+        "Level":  1,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1408,
+        "Version":  0,
+        "Description":  "UDP: Failure starting TLNPI provider, status = %1",
+        "Level":  1,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1409,
+        "Version":  0,
+        "Description":  "UDP: Failure initializing QoS support, status = %1",
+        "Level":  1,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1410,
+        "Version":  0,
+        "Description":  "UDP: Failure starting %1, status = %2",
+        "Level":  1,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"FailedQueueString\" inType=\"win:UnicodeString\" outType=\"xs:string\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1411,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (sockaddr=%3) send messages %5: could not allocate send context.",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"EndpointAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"EndpointAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"EndpointAddressLength\"/\u003e\r\n  \u003cdata name=\"SendAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SendAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"SendAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1412,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (sockaddr=%3) send messages %5: path af failure, status = %6",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"EndpointAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"EndpointAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"EndpointAddressLength\"/\u003e\r\n  \u003cdata name=\"SendAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SendAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"SendAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1413,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (sockaddr=%3) send messages %5: path missing next hop failure.",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"EndpointAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"EndpointAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"EndpointAddressLength\"/\u003e\r\n  \u003cdata name=\"SendAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SendAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"SendAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1414,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1 (sockaddr=%3) send messages %5: path next hop address failure.",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"EndpointAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"EndpointAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"EndpointAddressLength\"/\u003e\r\n  \u003cdata name=\"SendAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SendAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"SendAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1471,
+        "Version":  0,
+        "Description":  "UDP: endpoint %4 (sockaddr=%2) bind failed: wake status = %3",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipBind",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"LocalAddressLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalAddress\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalAddressLength\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1482,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 segment message. SegmentSize = %2 (0 == No Segmentation) MessageLength = %3 HwDatagrams = %4 HwSegments = %5 SwSegments = %6 Status = %7.",
+        "Level":  5,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"SegmentSize\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"MessageLength\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n  \u003cdata name=\"HwDatagrams\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"HwSegments\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SwSegments\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1482,
+        "Version":  1,
+        "Description":  "UDP: Endpoint %1 segment message. SegmentSize = %2 (0 == No Segmentation) MessageLength = %3 HwDatagrams = %4 HwSegments = %5 SwSegments = %6 SubMssSegments = %7 Status = %8.",
+        "Level":  5,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"SegmentSize\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"MessageLength\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n  \u003cdata name=\"HwDatagrams\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"HwSegments\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SwSegments\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SubMssSegments\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1483,
+        "Version":  0,
+        "Description":  "UDP: Endpoint %1 segmentation offload unavailable. Reason = %2 SegmentSize = %3 LocalAddress = %5, RemoteAddress = %7.",
+        "Level":  5,
+        "Keywords":  [
+                         null,
+                         "ut:SendPath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"FailureReason\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"SegmentSize\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LocalSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"LocalSockAddrLength\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddrLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"RemoteSockAddr\" inType=\"win:Binary\" outType=\"win:SocketAddress\" length=\"RemoteSockAddrLength\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1515,
+        "Version":  0,
+        "Description":  "UDP: endpoint %1: URO SCU received. SegCount = %2, SegSize = %3, DataLength = %4.",
+        "Level":  5,
+        "Keywords":  [
+                         null,
+                         "ut:ReceivePath"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"SegCount\" inType=\"win:UInt16\" outType=\"xs:unsignedShort\"/\u003e\r\n  \u003cdata name=\"SegSize\" inType=\"win:UInt16\" outType=\"xs:unsignedShort\"/\u003e\r\n  \u003cdata name=\"DataLength\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1517,
+        "Version":  0,
+        "Description":  "UDP: Global parameters updated for Address Family %1: DisableUro = %2.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global",
+                         "ut:Configuration",
+                         "ut:TcpipDiagnosis"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"DisableUro\" inType=\"win:UInt8\" outType=\"xs:unsignedByte\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1517,
+        "Version":  1,
+        "Description":  "UDP: Global parameters updated for Address Family %1: DisableUro = %2 DisableUso = %3.",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global",
+                         "ut:Configuration",
+                         "ut:TcpipDiagnosis"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"DisableUro\" inType=\"win:UInt8\" outType=\"xs:unsignedByte\"/\u003e\r\n  \u003cdata name=\"DisableUso\" inType=\"win:UInt8\" outType=\"xs:unsignedByte\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1563,
+        "Version":  0,
+        "Description":  "UDP: endpoint (PID=%3 ProcessSeqNum=%6) create failed: access denied.",
+        "Level":  2,
+        "Keywords":  [
+                         null,
+                         "ut:Endpoint",
+                         "ut:TcpipEndpoint"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Endpoint\" inType=\"win:Pointer\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"ProcessId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CompartmentId\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"AddressFamily\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"ProcessStartKey\" inType=\"win:UInt64\" outType=\"xs:unsignedLong\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1627,
+        "Version":  0,
+        "Description":  "UDP: %2 scheduled HW URO to be %3 on interface %1. CurrentState:%4. Last scheduled state: %5",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"IfLuid\" inType=\"win:UInt64\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"ChangeReason\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NewUroState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CurrentUroState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LastScheduledState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1627,
+        "Version":  1,
+        "Description":  "UDP: %2 scheduled HW URO to be %3 on interface %1. CurrentState:%4. Last scheduled state: %5. Failure Reason Flags: %6",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"IfLuid\" inType=\"win:UInt64\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"ChangeReason\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NewUroState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"CurrentUroState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"LastScheduledState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"FailureReasonFlags\" inType=\"win:UInt32\" outType=\"win:HexInt32\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1628,
+        "Version":  0,
+        "Description":  "UDP: %2 %3 HW URO on interface %1. Status: %4",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"IfLuid\" inType=\"win:UInt64\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"ChangeReason\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NewUroState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  1628,
+        "Version":  1,
+        "Description":  "UDP: %2 %3 HW URO on interface %1. Status: %4. Failure Reason Flags: %5",
+        "Level":  4,
+        "Keywords":  [
+                         null,
+                         "ut:Global"
+                     ],
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"IfLuid\" inType=\"win:UInt64\" outType=\"win:HexInt64\"/\u003e\r\n  \u003cdata name=\"ChangeReason\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"NewUroState\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n  \u003cdata name=\"Status\" inType=\"win:UInt32\" outType=\"win:NTStatus\"/\u003e\r\n  \u003cdata name=\"FailureReasonFlags\" inType=\"win:UInt32\" outType=\"win:HexInt32\"/\u003e\r\n\u003c/template\u003e\r\n"
+    }
+]

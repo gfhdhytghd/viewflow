@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="Viewflow">
+ <Profiles>
+  <SystemCollector Id="VFKernel" Name="Viewflow UDP kernel metadata"><BufferSize Value="256"/><Buffers Value="128"/></SystemCollector>
+  <EventCollector Id="VFEvents" Name="Viewflow UDP delivery stacks"><BufferSize Value="256"/><Buffers Value="256"/></EventCollector>
+  <SystemProvider Id="VFKernelProvider"><Keywords><Keyword Value="ProcessThread"/><Keyword Value="Loader"/><Keyword Value="NetworkTrace"/></Keywords></SystemProvider>
+  <EventProvider Id="VFTcpip" Name="Microsoft-Windows-TCPIP" Level="4" Stack="true" NonPagedMemory="true">
+   <Keywords><Keyword Value="0x200000000"/></Keywords>
+   <EventFilters FilterIn="true"><EventId Value="1170"/></EventFilters>
+   <StackFilters FilterIn="true"><EventId Value="1170"/></StackFilters>
+  </EventProvider>
+  <Profile Id="ViewflowUdpStack.Verbose.Memory" Name="ViewflowUdpStack" Description="UDP delivery event 1170 stacks and kernel network metadata" DetailLevel="Verbose" LoggingMode="Memory">
+   <Collectors><SystemCollectorId Value="VFKernel"><SystemProviderId Value="VFKernelProvider"/></SystemCollectorId>
+    <EventCollectorId Value="VFEvents"><EventProviders><EventProviderId Value="VFTcpip"/></EventProviders></EventCollectorId>
+   </Collectors>
+  </Profile>
+ </Profiles>
+</WindowsPerformanceRecorder>

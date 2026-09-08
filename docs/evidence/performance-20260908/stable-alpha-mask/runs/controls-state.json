@@ -1,0 +1,80 @@
+{
+  "initial": {
+    "time": "2026-09-08T16:51:59.2163698-04:00",
+    "service_state": "Running",
+    "boot": "639244911215000000",
+    "process": {
+      "priority": "High",
+      "critical": [
+        5416,
+        7500
+      ],
+      "id": 10132
+    }
+  },
+  "priority_changes": false,
+  "phases": [
+    {
+      "label": "probe-mask-ab",
+      "mode": "mask-toggle",
+      "before": {
+        "time": "2026-09-08T16:52:01.4671700-04:00",
+        "service_state": "Running",
+        "boot": "639244911215000000",
+        "process": {
+          "priority": "High",
+          "critical": [
+            5416,
+            7500
+          ],
+          "id": 10132
+        }
+      },
+      "after": {
+        "time": "2026-09-08T16:52:47.9515188-04:00",
+        "service_state": "Running",
+        "boot": "639244911215000000",
+        "process": {
+          "priority": "High",
+          "critical": [
+            5416,
+            7500
+          ],
+          "id": 10132
+        }
+      },
+      "exit": 0
+    },
+    {
+      "label": "probe-mask-ba",
+      "mode": "mask-toggle-reverse",
+      "before": {
+        "time": "2026-09-08T16:52:50.2123125-04:00",
+        "service_state": "Running",
+        "boot": "639244911215000000",
+        "process": {
+          "priority": "High",
+          "critical": [
+            5416,
+            7500
+          ],
+          "id": 10132
+        }
+      },
+      "after": {
+        "time": "2026-09-08T16:53:37.3047341-04:00",
+        "service_state": "Running",
+        "boot": "639244911215000000",
+        "process": {
+          "priority": "High",
+          "critical": [
+            5416,
+            7500
+          ],
+          "id": 10132
+        }
+      },
+      "exit": 0
+    }
+  ]
+}

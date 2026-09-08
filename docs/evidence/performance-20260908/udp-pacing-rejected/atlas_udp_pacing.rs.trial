@@ -1,0 +1,242 @@
+//! Source-only burst-pacing experiment. Unset means the original transport.
+//! `VIEWFLOW_QUIC_BURST_PACKETS=0` disables GSO without pacing (A/B control);
+//! 1..=256 limits successful single-datagram sends per 1 ms window. Waiting
+//! uses Quinn's writable contract; no payload is retained or acknowledged early.
+use quinn::{
+    AsyncTimer, AsyncUdpSocket, Runtime, UdpPoller,
+    udp::{RecvMeta, Transmit},
+};
+use std::{
+    future::Future,
+    io::{self, IoSliceMut},
+    net::SocketAddr,
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll},
+    time::{Duration, Instant},
+};
+
+pub(crate) fn config() -> Option<usize> {
+    std::env::var("VIEWFLOW_QUIC_BURST_PACKETS")
+        .ok()?
+        .parse::<usize>()
+        .ok()
+        .filter(|n| *n <= 256)
+}
+pub(crate) fn runtime(inner: Arc<dyn Runtime>, packets: usize) -> Arc<dyn Runtime> {
+    crate::atlas_feedback::trace_line(format_args!(
+        "atlas-udp-pacing packets={packets} window_us=1000 transmit_segments=1"
+    ));
+    Arc::new(PacedRuntime {
+        inner,
+        packets,
+        interval: Duration::from_millis(1),
+    })
+}
+#[derive(Debug)]
+struct PacedRuntime {
+    inner: Arc<dyn Runtime>,
+    packets: usize,
+    interval: Duration,
+}
+impl Runtime for PacedRuntime {
+    fn new_timer(&self, at: Instant) -> Pin<Box<dyn AsyncTimer>> {
+        self.inner.new_timer(at)
+    }
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        self.inner.spawn(future);
+    }
+    fn now(&self) -> Instant {
+        self.inner.now()
+    }
+    fn wrap_udp_socket(&self, socket: std::net::UdpSocket) -> io::Result<Arc<dyn AsyncUdpSocket>> {
+        Ok(Arc::new(PacedSocket {
+            inner: self.inner.wrap_udp_socket(socket)?,
+            runtime: self.inner.clone(),
+            packets: self.packets,
+            interval: self.interval,
+            budget: Mutex::new(Budget {
+                until: self.now(),
+                sent: 0,
+            }),
+        }))
+    }
+}
+#[derive(Debug)]
+struct Budget {
+    until: Instant,
+    sent: usize,
+}
+#[derive(Debug)]
+struct PacedSocket {
+    inner: Arc<dyn AsyncUdpSocket>,
+    runtime: Arc<dyn Runtime>,
+    packets: usize,
+    interval: Duration,
+    budget: Mutex<Budget>,
+}
+impl PacedSocket {
+    fn ready_at(&self) -> Option<Instant> {
+        let b = self.budget.lock().unwrap_or_else(|e| e.into_inner());
+        (self.packets != 0 && b.sent >= self.packets && self.runtime.now() < b.until)
+            .then_some(b.until)
+    }
+}
+impl AsyncUdpSocket for PacedSocket {
+    fn create_io_poller(self: Arc<Self>) -> Pin<Box<dyn UdpPoller>> {
+        Box::pin(PacedPoller {
+            inner: self.inner.clone().create_io_poller(),
+            socket: self,
+            timer: None,
+            deadline: None,
+        })
+    }
+    fn try_send(&self, transmit: &Transmit) -> io::Result<()> {
+        if self.packets == 0 {
+            return self.inner.try_send(transmit);
+        }
+        let mut b = self.budget.lock().unwrap_or_else(|e| e.into_inner());
+        let now = self.runtime.now();
+        if now >= b.until {
+            b.until = now + self.interval;
+            b.sent = 0;
+        }
+        if b.sent >= self.packets {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
+        // Serialize the nonblocking send and charge only after it succeeds.
+        // Quinn owns and retries the exact Transmit on WouldBlock/error.
+        self.inner.try_send(transmit)?;
+        b.sent += 1;
+        Ok(())
+    }
+    fn poll_recv(
+        &self,
+        cx: &mut Context,
+        bufs: &mut [IoSliceMut<'_>],
+        meta: &mut [RecvMeta],
+    ) -> Poll<io::Result<usize>> {
+        self.inner.poll_recv(cx, bufs, meta)
+    }
+    fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.inner.local_addr()
+    }
+    fn max_transmit_segments(&self) -> usize {
+        1
+    }
+    fn max_receive_segments(&self) -> usize {
+        self.inner.max_receive_segments()
+    }
+    fn may_fragment(&self) -> bool {
+        self.inner.may_fragment()
+    }
+}
+#[derive(Debug)]
+struct PacedPoller {
+    socket: Arc<PacedSocket>,
+    inner: Pin<Box<dyn UdpPoller>>,
+    // AsyncTimer is Send; UdpPoller additionally requires Sync. Each poller
+    // owns its own timer/waker, so different connections cannot steal wakes.
+    timer: Option<Mutex<Pin<Box<dyn AsyncTimer>>>>,
+    deadline: Option<Instant>,
+}
+impl UdpPoller for PacedPoller {
+    fn poll_writable(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        if let Some(at) = self.socket.ready_at() {
+            if self.deadline != Some(at) {
+                self.timer = Some(Mutex::new(self.socket.runtime.new_timer(at)));
+                self.deadline = Some(at);
+            }
+            let timer = self
+                .timer
+                .as_mut()
+                .unwrap()
+                .get_mut()
+                .unwrap_or_else(|e| e.into_inner());
+            if timer.as_mut().poll(cx).is_pending() {
+                return Poll::Pending;
+            }
+        }
+        self.timer = None;
+        self.deadline = None;
+        self.inner.as_mut().poll_writable(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn pacing_preserves_packets_receive_and_independent_wakeups() {
+        let runtime = PacedRuntime {
+            inner: Arc::new(quinn::TokioRuntime),
+            packets: 2,
+            interval: Duration::from_millis(30),
+        };
+        let socket = runtime
+            .wrap_udp_socket(std::net::UdpSocket::bind("127.0.0.1:0").unwrap())
+            .unwrap();
+        let peer = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let mut a = socket.clone().create_io_poller();
+        let mut b = socket.clone().create_io_poller();
+        std::future::poll_fn(|cx| a.as_mut().poll_writable(cx))
+            .await
+            .unwrap();
+        let tx = |payload| Transmit {
+            destination: peer.local_addr().unwrap(),
+            ecn: None,
+            contents: payload,
+            segment_size: None,
+            src_ip: None,
+        };
+        let began = Instant::now();
+        socket.try_send(&tx(b"one")).unwrap();
+        socket.try_send(&tx(b"two")).unwrap();
+        assert_eq!(
+            socket.try_send(&tx(b"three")).unwrap_err().kind(),
+            io::ErrorKind::WouldBlock
+        );
+        std::future::poll_fn(|cx| {
+            assert!(a.as_mut().poll_writable(cx).is_pending());
+            assert!(b.as_mut().poll_writable(cx).is_pending());
+            Poll::Ready(())
+        })
+        .await;
+        // Exhausted send quota does not prevent receive or lose its metadata.
+        peer.send_to(b"incoming", socket.local_addr().unwrap())
+            .await
+            .unwrap();
+        let mut bytes = [0; 128];
+        let mut meta = [RecvMeta::default()];
+        let count = std::future::poll_fn(|cx| {
+            socket.poll_recv(cx, &mut [IoSliceMut::new(&mut bytes)], &mut meta)
+        })
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(&bytes[..meta[0].len], b"incoming");
+        assert_eq!(meta[0].addr, peer.local_addr().unwrap());
+        tokio::time::timeout(Duration::from_secs(1), async {
+            let (ra, rb) = tokio::join!(
+                std::future::poll_fn(|cx| a.as_mut().poll_writable(cx)),
+                std::future::poll_fn(|cx| b.as_mut().poll_writable(cx))
+            );
+            ra.unwrap();
+            rb.unwrap();
+        })
+        .await
+        .unwrap();
+        assert!(began.elapsed() >= Duration::from_millis(30));
+        socket.try_send(&tx(b"three")).unwrap();
+        for expected in [b"one".as_slice(), b"two", b"three"] {
+            let (n, addr) = peer.recv_from(&mut bytes).await.unwrap();
+            assert_eq!(&bytes[..n], expected);
+            assert_eq!(addr, socket.local_addr().unwrap());
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_millis(10), peer.recv_from(&mut bytes))
+                .await
+                .is_err()
+        );
+    }
+}

@@ -22,4 +22,8 @@ with tempfile.TemporaryDirectory() as directory:
     assert result['desktop']['local_display']['height'] == 1080
     assert result['remote'] == old['remote']
     assert json.loads(path.read_text()) == old
+    expression = autostart.special_workspace_expression('HEADLESS-6')
+    assert 'hl.get_monitor("HEADLESS-6")' in expression
+    assert 'monitor:set_workspace("name:viewflow-underlay")' in expression
+    assert 'monitor:set_special_workspace("viewflow")' in expression
 print('autostart configuration test passed')

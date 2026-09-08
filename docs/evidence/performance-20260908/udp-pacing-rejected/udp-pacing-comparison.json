@@ -1,0 +1,870 @@
+[
+  {
+    "label": "4k-pacing-off-a1",
+    "pacing": [
+      {
+        "packets": "0",
+        "window_us": "1000",
+        "transmit_segments": "1"
+      }
+    ],
+    "native_commit_hz": 53.23877668407843,
+    "feedback_ms": {
+      "n": 1259,
+      "min": 4.238,
+      "median": 7.449,
+      "p95": 15.449,
+      "max": 342.178
+    },
+    "feedback_over_33ms": 20,
+    "feedback_over_100ms": 6,
+    "feedback_excess_over_33ms_sum": 1720.5963399999998,
+    "wall_stage_ms": {
+      "capture to encode": {
+        "n": 1311,
+        "min": 0.154566,
+        "median": 1.343847,
+        "p95": 2.518401,
+        "max": 32.323
+      },
+      "encode (host incl waits)": {
+        "n": 1311,
+        "min": 2.001921,
+        "median": 6.914796,
+        "p95": 7.608329,
+        "max": 87.343677
+      },
+      "release": {
+        "n": 1311,
+        "min": 0.002262,
+        "median": 0.005446,
+        "p95": 0.009011,
+        "max": 0.045349
+      },
+      "batch return / previous feedback": {
+        "n": 1311,
+        "min": 0.000483,
+        "median": 0.009878,
+        "p95": 0.711972,
+        "max": 325.715904
+      },
+      "encoded to pipe admission (transport + receiver + pipe parse)": {
+        "n": 1283,
+        "min": 2.226167,
+        "median": 3.60377,
+        "p95": 10.21126,
+        "max": 339.807232
+      },
+      "pipe admission to decoded": {
+        "n": 1283,
+        "min": 0.81822,
+        "median": 1.59889,
+        "p95": 3.47305,
+        "max": 107.7283
+      },
+      "decoded to proxy ready": {
+        "n": 1283,
+        "min": 0.22769,
+        "median": 0.52997,
+        "p95": 8.40246,
+        "max": 15.87595
+      },
+      "surface copy host": {
+        "n": 1283,
+        "min": 0.00938,
+        "median": 0.01581,
+        "p95": 0.02858,
+        "max": 0.48607
+      },
+      "visual bind / commit host": {
+        "n": 1283,
+        "min": 0.02979,
+        "median": 0.05798,
+        "p95": 0.08806,
+        "max": 6.64416
+      }
+    },
+    "trace_counts": {
+      "source": {
+        "records": 200251,
+        "omitted": 0
+      },
+      "receiver": {
+        "records": 186973,
+        "omitted": 0
+      }
+    },
+    "source_send_group_sizes": {
+      "n": 1867,
+      "min": 1,
+      "median": 27,
+      "p95": 39,
+      "max": 344
+    },
+    "source_send_group_gap_ms": {
+      "n": 1866,
+      "min": 1.011361,
+      "median": 12.3545455,
+      "p95": 18.798992,
+      "max": 297.367265
+    },
+    "source_send_count": 45649,
+    "slow_frames": [
+      {
+        "frame": 477,
+        "encoded_bytes": 245305,
+        "wire_bytes": 245305,
+        "packets": 181,
+        "fragment_us": 9,
+        "manifest_us": 112,
+        "enqueue_us": 60,
+        "feedback_us": 342178,
+        "total_us": 342360,
+        "successful_connection_socket_sends": 191,
+        "connection_socket_send_span_ms": 337.979233
+      },
+      {
+        "frame": 332,
+        "encoded_bytes": 304744,
+        "wire_bytes": 304744,
+        "packets": 225,
+        "fragment_us": 6,
+        "manifest_us": 106,
+        "enqueue_us": 106,
+        "feedback_us": 309818,
+        "total_us": 310037,
+        "successful_connection_socket_sends": 242,
+        "connection_socket_send_span_ms": 305.906217
+      },
+      {
+        "frame": 855,
+        "encoded_bytes": 233809,
+        "wire_bytes": 233809,
+        "packets": 172,
+        "fragment_us": 11,
+        "manifest_us": 118,
+        "enqueue_us": 45,
+        "feedback_us": 282296,
+        "total_us": 282472,
+        "successful_connection_socket_sends": 189,
+        "connection_socket_send_span_ms": 280.543529
+      },
+      {
+        "frame": 903,
+        "encoded_bytes": 306722,
+        "wire_bytes": 306722,
+        "packets": 226,
+        "fragment_us": 13,
+        "manifest_us": 125,
+        "enqueue_us": 102,
+        "feedback_us": 234891,
+        "total_us": 235132,
+        "successful_connection_socket_sends": 243,
+        "connection_socket_send_span_ms": 228.48807
+      },
+      {
+        "frame": 705,
+        "encoded_bytes": 302471,
+        "wire_bytes": 302471,
+        "packets": 223,
+        "fragment_us": 10,
+        "manifest_us": 115,
+        "enqueue_us": 72,
+        "feedback_us": 217075,
+        "total_us": 217274,
+        "successful_connection_socket_sends": 247,
+        "connection_socket_send_span_ms": 216.751594
+      },
+      {
+        "frame": 269,
+        "encoded_bytes": 205373,
+        "wire_bytes": 205373,
+        "packets": 152,
+        "fragment_us": 9,
+        "manifest_us": 113,
+        "enqueue_us": 66,
+        "feedback_us": 116587,
+        "total_us": 116776,
+        "successful_connection_socket_sends": 171,
+        "connection_socket_send_span_ms": 116.269991
+      },
+      {
+        "frame": 1302,
+        "encoded_bytes": 237581,
+        "wire_bytes": 237581,
+        "packets": 175,
+        "fragment_us": 9,
+        "manifest_us": 117,
+        "enqueue_us": 42,
+        "feedback_us": 93518,
+        "total_us": 93688,
+        "successful_connection_socket_sends": 192,
+        "connection_socket_send_span_ms": 88.524913
+      },
+      {
+        "frame": 901,
+        "encoded_bytes": 192402,
+        "wire_bytes": 41676,
+        "packets": 32,
+        "fragment_us": 26,
+        "manifest_us": 108,
+        "enqueue_us": 16,
+        "feedback_us": 79290,
+        "total_us": 79442,
+        "successful_connection_socket_sends": 43,
+        "connection_socket_send_span_ms": 57.436315
+      }
+    ]
+  },
+  {
+    "label": "4k-pacing-eight-b1",
+    "pacing": [
+      {
+        "packets": "8",
+        "window_us": "1000",
+        "transmit_segments": "1"
+      }
+    ],
+    "native_commit_hz": 40.548398954454726,
+    "feedback_ms": {
+      "n": 963,
+      "min": 6.629,
+      "median": 12.996,
+      "p95": 53.97,
+      "max": 125.831
+    },
+    "feedback_over_33ms": 147,
+    "feedback_over_100ms": 2,
+    "feedback_excess_over_33ms_sum": 2611.7430489999997,
+    "wall_stage_ms": {
+      "capture to encode": {
+        "n": 1165,
+        "min": 0.160138,
+        "median": 1.527955,
+        "p95": 22.179567,
+        "max": 33.312
+      },
+      "encode (host incl waits)": {
+        "n": 1165,
+        "min": 1.625627,
+        "median": 7.177506,
+        "p95": 8.152713,
+        "max": 85.45465
+      },
+      "release": {
+        "n": 1165,
+        "min": 0.002243,
+        "median": 0.005615,
+        "p95": 0.009612,
+        "max": 0.165878
+      },
+      "batch return / previous feedback": {
+        "n": 1165,
+        "min": 0.000264,
+        "median": 0.011911,
+        "p95": 37.663747,
+        "max": 111.454103
+      },
+      "encoded to pipe admission (transport + receiver + pipe parse)": {
+        "n": 987,
+        "min": 4.321521,
+        "median": 9.335361,
+        "p95": 51.3175,
+        "max": 123.293747
+      },
+      "pipe admission to decoded": {
+        "n": 987,
+        "min": 0.82784,
+        "median": 1.64117,
+        "p95": 3.36257,
+        "max": 11.36187
+      },
+      "decoded to proxy ready": {
+        "n": 987,
+        "min": 0.25209,
+        "median": 0.51805,
+        "p95": 8.12952,
+        "max": 26.27478
+      },
+      "surface copy host": {
+        "n": 987,
+        "min": 0.00914,
+        "median": 0.01587,
+        "p95": 0.03595,
+        "max": 0.54433
+      },
+      "visual bind / commit host": {
+        "n": 987,
+        "min": 0.02959,
+        "median": 0.05826,
+        "p95": 0.10585,
+        "max": 3.79018
+      }
+    },
+    "trace_counts": {
+      "source": {
+        "records": 295138,
+        "omitted": 0
+      },
+      "receiver": {
+        "records": 263500,
+        "omitted": 0
+      }
+    },
+    "source_send_group_sizes": {
+      "n": 7118,
+      "min": 1,
+      "median": 8.0,
+      "p95": 12,
+      "max": 45
+    },
+    "source_send_group_gap_ms": {
+      "n": 7117,
+      "min": 1.016709,
+      "median": 1.927138,
+      "p95": 12.351634,
+      "max": 153.112468
+    },
+    "source_send_count": 56189,
+    "slow_frames": [
+      {
+        "frame": 769,
+        "encoded_bytes": 203219,
+        "wire_bytes": 203219,
+        "packets": 150,
+        "fragment_us": 13,
+        "manifest_us": 111,
+        "enqueue_us": 44,
+        "feedback_us": 125831,
+        "total_us": 126001,
+        "successful_connection_socket_sends": 158,
+        "connection_socket_send_span_ms": 39.403455
+      },
+      {
+        "frame": 1134,
+        "encoded_bytes": 310303,
+        "wire_bytes": 310303,
+        "packets": 229,
+        "fragment_us": 10,
+        "manifest_us": 102,
+        "enqueue_us": 92,
+        "feedback_us": 113068,
+        "total_us": 113273,
+        "successful_connection_socket_sends": 249,
+        "connection_socket_send_span_ms": 112.798951
+      },
+      {
+        "frame": 137,
+        "encoded_bytes": 249430,
+        "wire_bytes": 249430,
+        "packets": 184,
+        "fragment_us": 12,
+        "manifest_us": 124,
+        "enqueue_us": 88,
+        "feedback_us": 85069,
+        "total_us": 85295,
+        "successful_connection_socket_sends": 192,
+        "connection_socket_send_span_ms": 44.723205
+      },
+      {
+        "frame": 299,
+        "encoded_bytes": 306039,
+        "wire_bytes": 306039,
+        "packets": 225,
+        "fragment_us": 5,
+        "manifest_us": 93,
+        "enqueue_us": 79,
+        "feedback_us": 75388,
+        "total_us": 75567,
+        "successful_connection_socket_sends": 238,
+        "connection_socket_send_span_ms": 75.079946
+      },
+      {
+        "frame": 1165,
+        "encoded_bytes": 310687,
+        "wire_bytes": 310687,
+        "packets": 229,
+        "fragment_us": 19,
+        "manifest_us": 122,
+        "enqueue_us": 84,
+        "feedback_us": 68816,
+        "total_us": 69043,
+        "successful_connection_socket_sends": 239,
+        "connection_socket_send_span_ms": 59.76628
+      },
+      {
+        "frame": 757,
+        "encoded_bytes": 312945,
+        "wire_bytes": 312945,
+        "packets": 231,
+        "fragment_us": 12,
+        "manifest_us": 120,
+        "enqueue_us": 62,
+        "feedback_us": 68002,
+        "total_us": 68198,
+        "successful_connection_socket_sends": 249,
+        "connection_socket_send_span_ms": 67.729258
+      },
+      {
+        "frame": 833,
+        "encoded_bytes": 304723,
+        "wire_bytes": 304723,
+        "packets": 225,
+        "fragment_us": 11,
+        "manifest_us": 122,
+        "enqueue_us": 58,
+        "feedback_us": 65402,
+        "total_us": 65595,
+        "successful_connection_socket_sends": 234,
+        "connection_socket_send_span_ms": 58.605045
+      },
+      {
+        "frame": 285,
+        "encoded_bytes": 298227,
+        "wire_bytes": 298227,
+        "packets": 220,
+        "fragment_us": 12,
+        "manifest_us": 117,
+        "enqueue_us": 87,
+        "feedback_us": 65222,
+        "total_us": 65439,
+        "successful_connection_socket_sends": 229,
+        "connection_socket_send_span_ms": 53.210188
+      }
+    ]
+  },
+  {
+    "label": "4k-pacing-eight-b2",
+    "pacing": [
+      {
+        "packets": "8",
+        "window_us": "1000",
+        "transmit_segments": "1"
+      }
+    ],
+    "native_commit_hz": 35.918154205922804,
+    "feedback_ms": {
+      "n": 845,
+      "min": 6.275,
+      "median": 13.225,
+      "p95": 57.826,
+      "max": 342.637
+    },
+    "feedback_over_33ms": 169,
+    "feedback_over_100ms": 5,
+    "feedback_excess_over_33ms_sum": 3806.7167229999995,
+    "wall_stage_ms": {
+      "capture to encode": {
+        "n": 1069,
+        "min": 0.122776,
+        "median": 1.505214,
+        "p95": 24.371169,
+        "max": 33.347
+      },
+      "encode (host incl waits)": {
+        "n": 1069,
+        "min": 0.006427,
+        "median": 6.993988,
+        "p95": 8.100231,
+        "max": 80.69939
+      },
+      "release": {
+        "n": 1069,
+        "min": 0.002722,
+        "median": 0.005599,
+        "p95": 0.008531,
+        "max": 0.074535
+      },
+      "batch return / previous feedback": {
+        "n": 1069,
+        "min": 0.000104,
+        "median": 0.011882,
+        "p95": 42.288845,
+        "max": 333.402317
+      },
+      "encoded to pipe admission (transport + receiver + pipe parse)": {
+        "n": 856,
+        "min": 3.862197,
+        "median": 9.4515315,
+        "p95": 55.306702,
+        "max": 338.480937
+      },
+      "pipe admission to decoded": {
+        "n": 856,
+        "min": 0.86054,
+        "median": 1.572295,
+        "p95": 3.33567,
+        "max": 32.22955
+      },
+      "decoded to proxy ready": {
+        "n": 856,
+        "min": 0.24216,
+        "median": 0.52468,
+        "p95": 8.10036,
+        "max": 19.78448
+      },
+      "surface copy host": {
+        "n": 856,
+        "min": 0.00901,
+        "median": 0.015710000000000002,
+        "p95": 0.03676,
+        "max": 0.49814
+      },
+      "visual bind / commit host": {
+        "n": 856,
+        "min": 0.02961,
+        "median": 0.05846,
+        "p95": 0.10394,
+        "max": 6.08303
+      }
+    },
+    "trace_counts": {
+      "source": {
+        "records": 304172,
+        "omitted": 0
+      },
+      "receiver": {
+        "records": 266893,
+        "omitted": 0
+      }
+    },
+    "source_send_group_sizes": {
+      "n": 7215,
+      "min": 1,
+      "median": 8,
+      "p95": 9,
+      "max": 36
+    },
+    "source_send_group_gap_ms": {
+      "n": 7214,
+      "min": 1.014951,
+      "median": 1.916168,
+      "p95": 12.257243,
+      "max": 230.259912
+    },
+    "source_send_count": 56934,
+    "slow_frames": [
+      {
+        "frame": 992,
+        "encoded_bytes": 238629,
+        "wire_bytes": 238629,
+        "packets": 176,
+        "fragment_us": 9,
+        "manifest_us": 122,
+        "enqueue_us": 58,
+        "feedback_us": 342637,
+        "total_us": 342828,
+        "successful_connection_socket_sends": 190,
+        "connection_socket_send_span_ms": 342.345905
+      },
+      {
+        "frame": 348,
+        "encoded_bytes": 294851,
+        "wire_bytes": 294851,
+        "packets": 217,
+        "fragment_us": 7,
+        "manifest_us": 97,
+        "enqueue_us": 69,
+        "feedback_us": 235620,
+        "total_us": 235794,
+        "successful_connection_socket_sends": 227,
+        "connection_socket_send_span_ms": 230.871956
+      },
+      {
+        "frame": 326,
+        "encoded_bytes": 204796,
+        "wire_bytes": 204796,
+        "packets": 151,
+        "fragment_us": 11,
+        "manifest_us": 105,
+        "enqueue_us": 55,
+        "feedback_us": 215659,
+        "total_us": 215831,
+        "successful_connection_socket_sends": 172,
+        "connection_socket_send_span_ms": 215.331875
+      },
+      {
+        "frame": 350,
+        "encoded_bytes": 298838,
+        "wire_bytes": 298838,
+        "packets": 220,
+        "fragment_us": 11,
+        "manifest_us": 108,
+        "enqueue_us": 82,
+        "feedback_us": 212127,
+        "total_us": 212329,
+        "successful_connection_socket_sends": 236,
+        "connection_socket_send_span_ms": 211.811853
+      },
+      {
+        "frame": 994,
+        "encoded_bytes": 296139,
+        "wire_bytes": 296139,
+        "packets": 218,
+        "fragment_us": 7,
+        "manifest_us": 106,
+        "enqueue_us": 69,
+        "feedback_us": 102711,
+        "total_us": 102896,
+        "successful_connection_socket_sends": 232,
+        "connection_socket_send_span_ms": 102.387368
+      },
+      {
+        "frame": 324,
+        "encoded_bytes": 189707,
+        "wire_bytes": 38981,
+        "packets": 30,
+        "fragment_us": 18,
+        "manifest_us": 95,
+        "enqueue_us": 13,
+        "feedback_us": 72676,
+        "total_us": 72804,
+        "successful_connection_socket_sends": 40,
+        "connection_socket_send_span_ms": 30.792354
+      },
+      {
+        "frame": 1040,
+        "encoded_bytes": 310303,
+        "wire_bytes": 310303,
+        "packets": 229,
+        "fragment_us": 10,
+        "manifest_us": 120,
+        "enqueue_us": 100,
+        "feedback_us": 68795,
+        "total_us": 69026,
+        "successful_connection_socket_sends": 244,
+        "connection_socket_send_span_ms": 68.476776
+      },
+      {
+        "frame": 193,
+        "encoded_bytes": 309345,
+        "wire_bytes": 309345,
+        "packets": 228,
+        "fragment_us": 10,
+        "manifest_us": 116,
+        "enqueue_us": 56,
+        "feedback_us": 68595,
+        "total_us": 68778,
+        "successful_connection_socket_sends": 237,
+        "connection_socket_send_span_ms": 53.946773
+      }
+    ]
+  },
+  {
+    "label": "4k-pacing-off-a2",
+    "pacing": [
+      {
+        "packets": "0",
+        "window_us": "1000",
+        "transmit_segments": "1"
+      }
+    ],
+    "native_commit_hz": 52.93996231538856,
+    "feedback_ms": {
+      "n": 1274,
+      "min": 4.0,
+      "median": 7.8535,
+      "p95": 17.687,
+      "max": 379.96
+    },
+    "feedback_over_33ms": 19,
+    "feedback_over_100ms": 5,
+    "feedback_excess_over_33ms_sum": 1928.540673,
+    "wall_stage_ms": {
+      "capture to encode": {
+        "n": 1321,
+        "min": 0.145377,
+        "median": 1.517537,
+        "p95": 2.936816,
+        "max": 29.633133
+      },
+      "encode (host incl waits)": {
+        "n": 1321,
+        "min": 6.285258,
+        "median": 7.048662,
+        "p95": 7.912815,
+        "max": 84.792243
+      },
+      "release": {
+        "n": 1321,
+        "min": 0.00197,
+        "median": 0.006033,
+        "p95": 0.011305,
+        "max": 0.034579
+      },
+      "batch return / previous feedback": {
+        "n": 1321,
+        "min": 0.000831,
+        "median": 0.011099,
+        "p95": 4.402933,
+        "max": 364.119621
+      },
+      "encoded to pipe admission (transport + receiver + pipe parse)": {
+        "n": 1300,
+        "min": 2.164588,
+        "median": 3.7879820000000004,
+        "p95": 12.540704,
+        "max": 376.602437
+      },
+      "pipe admission to decoded": {
+        "n": 1300,
+        "min": 0.8222,
+        "median": 1.6704050000000001,
+        "p95": 3.6569,
+        "max": 20.47668
+      },
+      "decoded to proxy ready": {
+        "n": 1300,
+        "min": 0.24051,
+        "median": 0.5923350000000001,
+        "p95": 8.82784,
+        "max": 25.78063
+      },
+      "surface copy host": {
+        "n": 1300,
+        "min": 0.00893,
+        "median": 0.0162,
+        "p95": 0.03521,
+        "max": 0.53126
+      },
+      "visual bind / commit host": {
+        "n": 1300,
+        "min": 0.0298,
+        "median": 0.058234999999999995,
+        "p95": 0.09199,
+        "max": 3.80447
+      }
+    },
+    "trace_counts": {
+      "source": {
+        "records": 196513,
+        "omitted": 0
+      },
+      "receiver": {
+        "records": 188476,
+        "omitted": 0
+      }
+    },
+    "source_send_group_sizes": {
+      "n": 1908,
+      "min": 1,
+      "median": 27.0,
+      "p95": 38,
+      "max": 270
+    },
+    "source_send_group_gap_ms": {
+      "n": 1907,
+      "min": 1.035227,
+      "median": 12.076686,
+      "p95": 18.664554,
+      "max": 276.232517
+    },
+    "source_send_count": 46121,
+    "slow_frames": [
+      {
+        "frame": 1270,
+        "encoded_bytes": 299828,
+        "wire_bytes": 299828,
+        "packets": 221,
+        "fragment_us": 11,
+        "manifest_us": 119,
+        "enqueue_us": 63,
+        "feedback_us": 379960,
+        "total_us": 380155,
+        "successful_connection_socket_sends": 230,
+        "connection_socket_send_span_ms": 248.739734
+      },
+      {
+        "frame": 1272,
+        "encoded_bytes": 285223,
+        "wire_bytes": 285223,
+        "packets": 210,
+        "fragment_us": 11,
+        "manifest_us": 114,
+        "enqueue_us": 53,
+        "feedback_us": 375008,
+        "total_us": 375187,
+        "successful_connection_socket_sends": 222,
+        "connection_socket_send_span_ms": 235.525422
+      },
+      {
+        "frame": 771,
+        "encoded_bytes": 237072,
+        "wire_bytes": 237072,
+        "packets": 175,
+        "fragment_us": 14,
+        "manifest_us": 105,
+        "enqueue_us": 61,
+        "feedback_us": 354321,
+        "total_us": 354502,
+        "successful_connection_socket_sends": 187,
+        "connection_socket_send_span_ms": 348.707259
+      },
+      {
+        "frame": 1323,
+        "encoded_bytes": 234023,
+        "wire_bytes": 234023,
+        "packets": 173,
+        "fragment_us": 13,
+        "manifest_us": 129,
+        "enqueue_us": 60,
+        "feedback_us": 337619,
+        "total_us": 337823,
+        "successful_connection_socket_sends": 196,
+        "connection_socket_send_span_ms": 337.097064
+      },
+      {
+        "frame": 1100,
+        "encoded_bytes": 204703,
+        "wire_bytes": 204703,
+        "packets": 151,
+        "fragment_us": 11,
+        "manifest_us": 117,
+        "enqueue_us": 40,
+        "feedback_us": 294426,
+        "total_us": 294595,
+        "successful_connection_socket_sends": 161,
+        "connection_socket_send_span_ms": 289.556999
+      },
+      {
+        "frame": 716,
+        "encoded_bytes": 187422,
+        "wire_bytes": 36696,
+        "packets": 28,
+        "fragment_us": 32,
+        "manifest_us": 122,
+        "enqueue_us": 10,
+        "feedback_us": 81884,
+        "total_us": 82050,
+        "successful_connection_socket_sends": 40,
+        "connection_socket_send_span_ms": 77.047232
+      },
+      {
+        "frame": 1268,
+        "encoded_bytes": 180756,
+        "wire_bytes": 30030,
+        "packets": 23,
+        "fragment_us": 66,
+        "manifest_us": 122,
+        "enqueue_us": 38,
+        "feedback_us": 78933,
+        "total_us": 79160,
+        "successful_connection_socket_sends": 35,
+        "connection_socket_send_span_ms": 74.471043
+      },
+      {
+        "frame": 1098,
+        "encoded_bytes": 189969,
+        "wire_bytes": 39243,
+        "packets": 30,
+        "fragment_us": 24,
+        "manifest_us": 98,
+        "enqueue_us": 13,
+        "feedback_us": 77576,
+        "total_us": 77712,
+        "successful_connection_socket_sends": 40,
+        "connection_socket_send_span_ms": 30.853628
+      }
+    ]
+  }
+]

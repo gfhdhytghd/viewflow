@@ -354,8 +354,8 @@ int main(int argc, char** argv) {
             (i == 1 ? "unchanged frame remains P" :
              (i == 2 ? "changed frame remains P" : "forced H.264 IDR NAL"))))
       return 1;
-    if (!ck(out.rawAlpha.size() == size_t(W) * H && out.rawAlpha[0] == 128 &&
-                out.rawAlpha.back() == 128,
+    if (!ck(out.alpha().size() == size_t(W) * H && out.alpha()[0] == 128 &&
+                out.alpha().back() == 128,
             "alpha exact"))
       return 1;
     const int change = i < 2 ? 0 : i * 20;
@@ -395,18 +395,20 @@ int main(int argc, char** argv) {
   if (!ck(vf_gpu_dmabuf_encoder_create(&cabiConfig, &cabi) == VF_GPU_DMABUF_OK,
           "C ABI encoder create"))
     return 1;
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < 4; ++i) {
     if (!ck(eglMakeCurrent(e.d, e.s, e.s, e.c) == EGL_TRUE,
             "restore producer EGL context for C ABI"))
       return 1;
+    const int opacity = i < 2 ? 128 : 192;
     const int change = i == 1 ? 0 : i * 20;
     const int red = 60 + change, green = 30 + change / 2, blue = 15 + change / 4;
     for (size_t p = 0; p < pixels.size(); p += 4) {
       pixels[p] = static_cast<unsigned char>(red);
       pixels[p + 1] = static_cast<unsigned char>(green);
       pixels[p + 2] = static_cast<unsigned char>(blue);
-      pixels[p + 3] = 128;
+      pixels[p + 3] = static_cast<unsigned char>(opacity);
     }
+    if (i == 3) pixels.back() = 191; // Last byte change must invalidate reuse.
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE,
                     pixels.data());
     Export exported;
@@ -427,7 +429,7 @@ int main(int argc, char** argv) {
     input.capture_timestamp_ns = static_cast<uint64_t>(900 + 2 * i);
     input.geometry_epoch = 99;
     vf_gpu_dmabuf_output *output = nullptr;
-    uint32_t requestIdr = i == 2;
+    uint32_t requestIdr = i >= 2;
 #ifdef VIEWFLOW_TEST_GPU_EXPIRY
     {
       auto dropped = input;
@@ -478,25 +480,30 @@ int main(int argc, char** argv) {
                 VF_GPU_DMABUF_OK &&
                 vf_gpu_dmabuf_output_copy_raw_alpha(output, alpha.data(), alpha.size(), &alphaBytes) ==
                     VF_GPU_DMABUF_OK &&
-                alpha.front() == 128 && alpha.back() == 128 &&
+                std::all_of(alpha.begin(), alpha.end() - 1, [opacity](unsigned char v) { return v == opacity; }) &&
+                alpha.back() == (i == 3 ? 191 : opacity) &&
                 hasIdrNal(color) == (i != 1) &&
-                ((i == 1) || decodedBt709LimitedMatches(color, red * 255 / 128,
-                                                         green * 255 / 128,
-                                                         blue * 255 / 128)),
+                ((i == 1) || decodedBt709LimitedMatches(color, red * 255 / opacity,
+                                                         green * 255 / opacity,
+                                                         blue * 255 / opacity)),
             "C ABI copied BT.709 color/VUI and alpha"))
       return 1;
     cabiUnits.push_back(color);
-    cabiRgb.push_back({red * 255 / 128, green * 255 / 128, blue * 255 / 128});
+    cabiRgb.push_back({red * 255 / opacity, green * 255 / opacity, blue * 255 / opacity});
     const uint8_t* view = nullptr;
     size_t viewLength = 0;
     if (!ck(vf_gpu_dmabuf_output_view_raw_alpha(output, &view, &viewLength) == VF_GPU_DMABUF_OK &&
                 view && viewLength == alpha.size() &&
                 std::equal(alpha.begin(), alpha.end(), view), "C ABI immutable alpha view")) return 1;
+    const char* reuseEnv = std::getenv("VIEWFLOW_GPU_ALPHA_REUSE");
+    const bool reuse = !reuseEnv || std::strcmp(reuseEnv, "0") != 0;
+    if (i > 0 && !ck((view == retainedViews.back()) == (reuse && i == 1),
+                    "alpha storage reuse follows exact bytes including final byte")) return 1;
     retainedOutputs.push_back(output);
     retainedViews.push_back(view);
     retainedAlphas.push_back(std::move(alpha));
   }
-  if (!ck(decodedBt709LimitedGopMatches(cabiUnits, cabiRgb, {true, false, true}),
+  if (!ck(decodedBt709LimitedGopMatches(cabiUnits, cabiRgb, {true, false, true, true}),
           "C ABI GOP decodes across clean expiry without missing references"))
     return 1;
   if (!ck(vf_gpu_dmabuf_encoder_destroy(cabi) == VF_GPU_DMABUF_OK,
@@ -627,7 +634,7 @@ int main(int argc, char** argv) {
                                &error, &disposition) &&
               disposition == (stage == 5U ? viewflow::gpu::EncodeDisposition::ExpiredAfterSubmission :
                                            viewflow::gpu::EncodeDisposition::ExpiredBeforeSubmission) &&
-              out.colorAnnexB.empty() && out.rawAlpha.empty(),
+              out.colorAnnexB.empty() && out.alpha().empty(),
               "atlas expiry before import or after scratch borrowing is clean")) return 1;
     }
 #endif
@@ -645,11 +652,11 @@ int main(int argc, char** argv) {
                            true, deadlineNs(5000), out, &error, &disposition)) {
         std::fprintf(stderr, "atlas encoding failed: %s\n", error.c_str()); return 1;
       }
-      bool alphaOk = out.rawAlpha.size() == size_t(W) * H;
+      bool alphaOk = out.alpha().size() == size_t(W) * H;
       for (int y = 0; alphaOk && y < H; ++y) for (int x = 0; x < W; ++x) {
         const int want = count > 0 && x < 64 && y < 48 ? 128 :
             count == 2 && x >= 96 && x < 160 && y >= 64 && y < 112 ? 64 : 0;
-        if (out.rawAlpha[size_t(y) * W + x] != want) { alphaOk = false; break; }
+        if (out.alpha()[size_t(y) * W + x] != want) { alphaOk = false; break; }
       }
       if (!ck(alphaOk && out.metadata.frameId == frameId &&
               out.metadata.geometryEpoch == 101 && out.idr &&
@@ -696,7 +703,7 @@ int main(int argc, char** argv) {
       if (!ck(vf_gpu_dmabuf_output_copy_color(coutput, color.data(), color.size(), &required) == VF_GPU_DMABUF_OK &&
               required == color.size() && decodedAtlasMatches(color, count) &&
               vf_gpu_dmabuf_output_copy_raw_alpha(coutput, alpha.data(), alpha.size(), &required) == VF_GPU_DMABUF_OK &&
-              required == alpha.size() && alpha == out.rawAlpha,
+              required == alpha.size() && alpha == out.alpha(),
               "C ABI atlas decoded color and exact paired alpha")) return 1;
       if (!ck(vf_gpu_dmabuf_output_destroy(coutput) == VF_GPU_DMABUF_OK, "destroy C ABI atlas output")) return 1;
     }
@@ -711,10 +718,10 @@ int main(int argc, char** argv) {
                              {frameId, frameId + 780, 101}, true,
                              deadlineNs(5000), out, &error, &disposition),
               "large final atlas tile encode")) return 1;
-      bool exact = out.rawAlpha.size() == size_t(W) * H;
+      bool exact = out.alpha().size() == size_t(W) * H;
       for (int y = 0; exact && y < H; ++y) for (int x = 0; x < W; ++x) {
         const int wanted = x < W - inset && y < H - inset ? (x < 64 ? 128 : 64) : 0;
-        if (out.rawAlpha[size_t(y) * W + x] != wanted) { exact = false; break; }
+        if (out.alpha()[size_t(y) * W + x] != wanted) { exact = false; break; }
       }
       if (!ck(exact, "large final tile and cleared padding alpha exact")) return 1;
     }
@@ -760,7 +767,7 @@ int main(int argc, char** argv) {
   vf_test_expire_gpu_preparation(5);
   if (!ck(!enc.encode(expired, false, deadlineNs(5000), discarded, nullptr, &disposition) &&
           disposition == viewflow::gpu::EncodeDisposition::ExpiredAfterSubmission &&
-          discarded.colorAnnexB.empty() && discarded.rawAlpha.empty(),
+          discarded.colorAnnexB.empty() && discarded.alpha().empty(),
           "late matching packet is drained with completed cleanup")) return 1;
   expired.metadata = {4, 703, 99};
   if (!ck(enc.encode(expired, false, deadlineNs(5000), discarded, nullptr, &disposition) &&
@@ -771,7 +778,7 @@ int main(int argc, char** argv) {
           "expired admission rejected"))
     return 1;
   if (!ck(disposition == viewflow::gpu::EncodeDisposition::ExpiredBeforeSubmission &&
-          discarded.colorAnnexB.empty() && discarded.rawAlpha.empty(),
+          discarded.colorAnnexB.empty() && discarded.alpha().empty(),
           "early scheduling miss clears output before any source reads"))
     return 1;
   expired.metadata = {5, 704, 99};

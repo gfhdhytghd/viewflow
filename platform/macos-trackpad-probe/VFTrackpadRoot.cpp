@@ -97,5 +97,5 @@ void VFTrackpadRoot::status(uint64_t *v) {
     v[7] = ivars->reports.clicks; v[8] = ivars->reports.last[1];
     if(ivars->device)ivars->device->featureStatus(v+9);
     v[13] = ivars->reports.last[0]; v[14] = vf_native::u32(ivars->reports.last+4);
-    v[15] = 1; // native MT bridge profile
+    v[15] = 1; // native trackpad bridge, packed contacts and feature dialogue
 }

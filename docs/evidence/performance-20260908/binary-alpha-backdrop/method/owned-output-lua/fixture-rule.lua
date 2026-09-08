@@ -1,0 +1,1 @@
+_G.viewflow_binary_backdrop_fixture_rule=hl.window_rule({name="viewflow-binary-backdrop-owned-fixture",match={class="^viewflow-frame-fixture$"},monitor="HEADLESS-44",workspace="6 silent",float=true,size="1920 1200",move="0 0",no_initial_focus=true,no_anim=true,no_shadow=true,no_blur=true,border_size=0,rounding=0})

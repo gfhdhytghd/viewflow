@@ -1,0 +1,1655 @@
+
+
+Path : C:\Users\wilf\Viewflow\perf-isolated-8e97c1b751fc\target\release\vf-media-peer.exe
+Hash : A39CB1F4BD003EC3EE1237AF05D9915316E86119DC21FBE1C9F626CE61B3C30A
+
+Path : C:\Users\wilf\Viewflow\perf-isolated-8e97c1b751fc\native-build\Release\viewflow_windows_composition_preview.exe
+Hash : EAE3451BA0E830B072D2328C66C03B2ADFBA1CC0807EEEADA54E774D0EC54A26
+
+
+
+owned_processes=0
+owned_tasks=0
+
+Microsoft Windows Performance Recorder Version 10.0.26100 (CoreSystem)
+Copyright (c) 2024 Microsoft Corporation. All rights reserved.
+
+WPR is not recording
+
+数据包监视器没有运行。
+数据包筛选器:
+    无
+There is no trace session currently in progress.
+
+
+ifIndex Name  InterfaceDescription                      
+------- ----  --------------------                      
+     12 以太网 2 Intel(R) PRO/1000 MT Network Connection #2
+
+
+[
+    {
+        "Group":"WAN Miniport (IP)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (IP)",
+                "DriverName":"ndiswan.sys",
+                "Type":"微型端口",
+                "Id":3,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"以太网"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{0300C8C1-AEA8-4BFE-B338-8BCF01A1AD81}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":2
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"WFP Native Filter",
+                "DriverName":"wfplwfs.sys",
+                "Type":"筛选器",
+                "Id":15,
+                "Properties":[
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":2
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":19
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"QoS Packet Scheduler",
+                "DriverName":"pacer.sys",
+                "Type":"筛选器",
+                "Id":14,
+                "Properties":[
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":19
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":2
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":20
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"WANARP",
+                "DriverName":"wanarp.sys",
+                "Type":"协议",
+                "Id":20,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"IPv4"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":2
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"WAN Miniport (Network Monitor)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (Network Monitor)",
+                "DriverName":"ndiswan.sys",
+                "Type":"微型端口",
+                "Id":1,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"以太网"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{12962D29-6BAC-4040-B472-80E4FD6E7DB1}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":5
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"WFP Native Filter",
+                "DriverName":"wfplwfs.sys",
+                "Type":"筛选器",
+                "Id":11,
+                "Properties":[
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":5
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":23
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"QoS Packet Scheduler",
+                "DriverName":"pacer.sys",
+                "Type":"筛选器",
+                "Id":10,
+                "Properties":[
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":23
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":5
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":24
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"WAN Miniport (PPPOE)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (PPPOE)",
+                "DriverName":"raspppoe.sys",
+                "Type":"微型端口",
+                "Id":4,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"面向连接的 WAN"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{46AC6C8F-79DB-4657-A0C4-28CAEE9CC081}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":7
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":26,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":7
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":26,
+                "SecondaryId":27,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":7
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDISWAN",
+                "DriverName":"ndiswan.sys",
+                "Type":"协议",
+                "Id":25,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":7
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"WAN Miniport (SSTP)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (SSTP)",
+                "DriverName":"rassstp.sys",
+                "Type":"微型端口",
+                "Id":8,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"面向连接的 WAN"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{788BA9F5-78BC-4BCD-BDD0-0A4FDD459F59}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":8
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":34,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":8
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":34,
+                "SecondaryId":35,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":8
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDISWAN",
+                "DriverName":"ndiswan.sys",
+                "Type":"协议",
+                "Id":21,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":8
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"WAN Miniport (L2TP)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (L2TP)",
+                "DriverName":"rasl2tp.sys",
+                "Type":"微型端口",
+                "Id":6,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"面向连接的 WAN"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{A9FC17CC-039C-4A4A-A430-506BA1A5F887}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":11
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":30,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":11
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":30,
+                "SecondaryId":31,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":11
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDISWAN",
+                "DriverName":"ndiswan.sys",
+                "Type":"协议",
+                "Id":24,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":11
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"Intel(R) PRO/1000 MT Network Connection #2",
+        "Components":[
+            {
+                "Name":"Intel(R) PRO/1000 MT Network Connection #2",
+                "DriverName":"E1G6032E.sys",
+                "Type":"微型端口",
+                "Id":9,
+                "Properties":[
+                    {
+                        "Name":"MAC 地址",
+                        "Value":"52-54-00-12-34-56"
+                    },
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"以太网"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{C51F481F-C78C-47D6-B785-61DD0068B795}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"Microsoft NDIS Capture",
+                "DriverName":"ndiscap.sys",
+                "Type":"筛选器",
+                "Id":59,
+                "Properties":[
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":18
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":28
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"Microsoft NDIS Capture",
+                "DriverName":"ndiscap.sys",
+                "Type":"筛选器",
+                "Id":58,
+                "Properties":[
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":17
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":27
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"Microsoft NDIS Capture",
+                "DriverName":"ndiscap.sys",
+                "Type":"筛选器",
+                "Id":57,
+                "Properties":[
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":16
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":26
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"Microsoft NDIS Capture",
+                "DriverName":"ndiscap.sys",
+                "Type":"筛选器",
+                "Id":56,
+                "Properties":[
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":25
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"WFP Native Filter",
+                "DriverName":"wfplwfs.sys",
+                "Type":"筛选器",
+                "Id":18,
+                "Properties":[
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":16
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"QoS Packet Scheduler",
+                "DriverName":"pacer.sys",
+                "Type":"筛选器",
+                "Id":17,
+                "Properties":[
+                    {
+                        "Name":"选择数据路径",
+                        "Value":true
+                    },
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":16
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":17
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"WFP 802.3 Filter",
+                "DriverName":"wfplwfs.sys",
+                "Type":"筛选器",
+                "Id":16,
+                "Properties":[
+                    {
+                        "Name":"选择数据路径",
+                        "Value":true
+                    },
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":17
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":18
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"TCPIP6",
+                "DriverName":"tcpip.sys",
+                "Type":"协议",
+                "Id":41,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"IPv6"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"TCP/IPv6 - L2",
+                "DriverName":"tcpip.sys",
+                "Type":"协议",
+                "Id":41,
+                "SecondaryId":43,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"IPv6"
+                    },
+                    {
+                        "Name":"分段 ID",
+                        "Value":"1"
+                    },
+                    {
+                        "Name":"IP ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"TCP/IPv6 - L3/L4",
+                "DriverName":"tcpip.sys",
+                "Type":"IP 接口",
+                "Id":41,
+                "SecondaryId":47,
+                "Properties":[
+                    {
+                        "Name":"IP 地址",
+                        "Value":"fe80::60b5:6ed0:72db:b155"
+                    },
+                    {
+                        "Name":"IP 地址",
+                        "Value":"2604:fa00:130:a69:fdb3:ec1a:7636:cbfd"
+                    },
+                    {
+                        "Name":"IP 地址",
+                        "Value":"2604:fa00:130:a69:946a:de80:26c6:e4c7"
+                    },
+                    {
+                        "Name":"分段 ID",
+                        "Value":"1"
+                    },
+                    {
+                        "Name":"IP ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    
+                ]
+            },
+            {
+                "Name":"TCPIP",
+                "DriverName":"tcpip.sys",
+                "Type":"协议",
+                "Id":40,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"ARP"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"IPv4"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"TCP/IPv4 - L2",
+                "DriverName":"tcpip.sys",
+                "Type":"协议",
+                "Id":40,
+                "SecondaryId":42,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"ARP"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"IPv4"
+                    },
+                    {
+                        "Name":"分段 ID",
+                        "Value":"1"
+                    },
+                    {
+                        "Name":"IP ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"TCP/IPv4 - L3/L4",
+                "DriverName":"tcpip.sys",
+                "Type":"IP 接口",
+                "Id":40,
+                "SecondaryId":45,
+                "Properties":[
+                    {
+                        "Name":"IP 地址",
+                        "Value":"172.16.105.70"
+                    },
+                    {
+                        "Name":"分段 ID",
+                        "Value":"1"
+                    },
+                    {
+                        "Name":"IP ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    
+                ]
+            },
+            {
+                "Name":"LLTDIO",
+                "DriverName":"lltdio.sys",
+                "Type":"协议",
+                "Id":39,
+                "Properties":[
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"MSLLDP",
+                "DriverName":"mslldp.sys",
+                "Type":"协议",
+                "Id":38,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"LLDP"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"RSPNDR",
+                "DriverName":"rspndr.sys",
+                "Type":"协议",
+                "Id":37,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"LLTD"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDISUIO",
+                "DriverName":"ndisuio.sys",
+                "Type":"协议",
+                "Id":36,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.11i"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"HTTP",
+                "DriverName":"http.sys",
+                "Type":"HTTP",
+                "Id":54,
+                "Properties":[
+                    {
+                        "Name":"IP 地址",
+                        "Value":"fe80::60b5:6ed0:72db:b155"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    },
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"HTTP",
+                "DriverName":"http.sys",
+                "Type":"HTTP",
+                "Id":53,
+                "Properties":[
+                    {
+                        "Name":"IP 地址",
+                        "Value":"2604:fa00:130:a69:fdb3:ec1a:7636:cbfd"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    },
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"HTTP",
+                "DriverName":"http.sys",
+                "Type":"HTTP",
+                "Id":52,
+                "Properties":[
+                    {
+                        "Name":"IP 地址",
+                        "Value":"2604:fa00:130:a69:946a:de80:26c6:e4c7"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    },
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"HTTP",
+                "DriverName":"http.sys",
+                "Type":"HTTP",
+                "Id":50,
+                "Properties":[
+                    {
+                        "Name":"IP 地址",
+                        "Value":"172.16.105.70"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":12
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    },
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"WAN Miniport (IPv6)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (IPv6)",
+                "DriverName":"ndiswan.sys",
+                "Type":"微型端口",
+                "Id":2,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"以太网"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{CA275C28-AE90-4547-BB20-3E8A024A876A}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":13
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"WFP Native Filter",
+                "DriverName":"wfplwfs.sys",
+                "Type":"筛选器",
+                "Id":13,
+                "Properties":[
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":13
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":21
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"QoS Packet Scheduler",
+                "DriverName":"pacer.sys",
+                "Type":"筛选器",
+                "Id":12,
+                "Properties":[
+                    {
+                        "Name":"低 ifIndex",
+                        "Value":21
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":13
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":22
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    },
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"WANARPV6",
+                "DriverName":"wanarp.sys",
+                "Type":"协议",
+                "Id":19,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"IPv6"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":13
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"WAN Miniport (IKEv2)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (IKEv2)",
+                "DriverName":"AgileVpn.sys",
+                "Type":"微型端口",
+                "Id":7,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"面向连接的 WAN"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{EF5839C0-8292-4EB0-B8D9-7C2FF8D725AC}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":14
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":32,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":14
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":32,
+                "SecondaryId":33,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":14
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDISWAN",
+                "DriverName":"ndiswan.sys",
+                "Type":"协议",
+                "Id":23,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":14
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"WAN Miniport (PPTP)",
+        "Components":[
+            {
+                "Name":"WAN Miniport (PPTP)",
+                "DriverName":"raspptp.sys",
+                "Type":"微型端口",
+                "Id":5,
+                "Properties":[
+                    {
+                        "Name":"NdisMedium",
+                        "Value":"面向连接的 WAN"
+                    },
+                    {
+                        "Name":"ifGuid",
+                        "Value":"{F7AE74EB-D1C5-46A8-97F8-820DF88741D0}"
+                    },
+                    {
+                        "Name":"ifIndex",
+                        "Value":15
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Upper"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":28,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":15
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDPROXY",
+                "DriverName":"NDProxy.sys",
+                "Type":"协议",
+                "Id":28,
+                "SecondaryId":29,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":15
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            },
+            {
+                "Name":"NDISWAN",
+                "DriverName":"ndiswan.sys",
+                "Type":"协议",
+                "Id":22,
+                "Properties":[
+                    {
+                        "Name":"EtherType",
+                        "Value":"VLAN"
+                    },
+                    {
+                        "Name":"EtherType",
+                        "Value":"802.1X"
+                    },
+                    {
+                        "Name":"微型端口 ifIndex",
+                        "Value":15
+                    },
+                    {
+                        "Name":"Ndis 对象",
+                        "Value":true
+                    }
+                ],
+                "Counters":[
+                    {
+                        "Name":"Lower"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"HTTP Message",
+        "Components":[
+            {
+                "Name":"HTTP Message",
+                "DriverName":"HTTP.SYS",
+                "Type":"HTTP 消息",
+                "Id":55,
+                "Properties":[
+                    
+                ],
+                "Counters":[
+                    {
+                        "Name":"Ssl"
+                    },
+                    {
+                        "Name":"HttpLow"
+                    },
+                    {
+                        "Name":"HttpUp"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "Group":"IPSEC",
+        "Components":[
+            {
+                "Name":"IPSEC",
+                "DriverName":"tcpip.sys",
+                "Type":"13",
+                "Id":48,
+                "Properties":[
+                    
+                ],
+                "Counters":[
+                    
+                ]
+            }
+        ]
+    }
+]

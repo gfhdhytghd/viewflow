@@ -1,0 +1,1330 @@
+[
+  {
+    "label": "probe-winrt-a1",
+    "mode": "winrt",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "winrt",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "0",
+        "sparse": "0",
+        "backgrounds": "0",
+        "diagnostic_elision": "0"
+      }
+    ],
+    "ready": {
+      "pid": 18988,
+      "hwnd": 4850968,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1497,
+      "elapsed_qpc": 2500357255,
+      "missed_periods": 3,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 1060,
+      "positive_present_timestamps": 1060,
+      "elapsed_seconds": 19.80309629,
+      "observed_changes_per_second": 53.47648592380803,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 1059,
+        "min": 7.80062,
+        "median": 17.59509,
+        "p95": 32.25619,
+        "max": 46.98719
+      },
+      "producer_frame_step": {
+        "n": 1059,
+        "min": 1,
+        "median": 1,
+        "p95": 2,
+        "max": 3
+      },
+      "present_to_observation_ms": {
+        "n": 1060,
+        "min": 5.71937,
+        "median": 10.87714,
+        "p95": 16.80379,
+        "max": 26.30277
+      },
+      "accumulated_desktop_frames": {
+        "n": 1060,
+        "min": 1,
+        "median": 1.0,
+        "p95": 2,
+        "max": 2
+      },
+      "acquire_us": {
+        "n": 1060,
+        "min": 103,
+        "median": 7118.5,
+        "p95": 16828,
+        "max": 23261
+      },
+      "copy_map_us": {
+        "n": 1060,
+        "min": 5159,
+        "median": 10310.0,
+        "p95": 16276,
+        "max": 25882
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2803,
+      "abandoned": 0
+    },
+    "paired": 1053,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 7,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 1053,
+        "min": 18.50642,
+        "median": 26.38462,
+        "p95": 31.06053,
+        "max": 35.76147
+      },
+      "ended_to_desktop_ms": {
+        "n": 1053,
+        "min": 17.94358,
+        "median": 25.91477,
+        "p95": 30.56738,
+        "max": 35.33111
+      },
+      "mutation_to_desktop_ms": {
+        "n": 1053,
+        "min": 17.94062,
+        "median": 25.91096,
+        "p95": 30.56056,
+        "max": 35.32445
+      },
+      "committed_to_desktop_ms": {
+        "n": 1053,
+        "min": 17.93486,
+        "median": 25.89971,
+        "p95": 30.55003,
+        "max": 35.31461
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1468,
+        "min": 0.01609,
+        "median": 0.03063,
+        "p95": 0.04938,
+        "max": 0.46089
+      },
+      "begin_and_copy_host": {
+        "n": 1468,
+        "min": 0.01959,
+        "median": 0.035135,
+        "p95": 0.05234,
+        "max": 0.63257
+      },
+      "end_and_flush_host": {
+        "n": 1468,
+        "min": 0.18457,
+        "median": 0.392905,
+        "p95": 0.7101,
+        "max": 3.38692
+      },
+      "bind_and_commit_host": {
+        "n": 1468,
+        "min": 0.00429,
+        "median": 0.00903,
+        "p95": 0.01051,
+        "max": 0.03934
+      }
+    },
+    "submitted_hz": 60.006719550000945,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  },
+  {
+    "label": "probe-hostflag-b1",
+    "mode": "hostflag",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "hostflag",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "1",
+        "sparse": "0",
+        "backgrounds": "0",
+        "diagnostic_elision": "0"
+      }
+    ],
+    "ready": {
+      "pid": 7868,
+      "hwnd": 4916504,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1499,
+      "elapsed_qpc": 2500174392,
+      "missed_periods": 1,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 622,
+      "positive_present_timestamps": 622,
+      "elapsed_seconds": 19.71856448,
+      "observed_changes_per_second": 31.493164760034293,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 621,
+        "min": 6.49671,
+        "median": 32.50045,
+        "p95": 43.10812,
+        "max": 58.80409
+      },
+      "producer_frame_step": {
+        "n": 621,
+        "min": 1,
+        "median": 2,
+        "p95": 2,
+        "max": 4
+      },
+      "present_to_observation_ms": {
+        "n": 622,
+        "min": 6.29525,
+        "median": 17.04511,
+        "p95": 25.39743,
+        "max": 45.4691
+      },
+      "accumulated_desktop_frames": {
+        "n": 622,
+        "min": 1,
+        "median": 1.0,
+        "p95": 2,
+        "max": 2
+      },
+      "acquire_us": {
+        "n": 622,
+        "min": 108,
+        "median": 14492.5,
+        "p95": 21746,
+        "max": 23992
+      },
+      "copy_map_us": {
+        "n": 622,
+        "min": 3379,
+        "median": 16453.5,
+        "p95": 24827,
+        "max": 44949
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2480,
+      "abandoned": 0
+    },
+    "paired": 609,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 13,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 609,
+        "min": 11.06178,
+        "median": 18.93861,
+        "p95": 26.11131,
+        "max": 40.96641
+      },
+      "ended_to_desktop_ms": {
+        "n": 609,
+        "min": 9.87699,
+        "median": 18.41132,
+        "p95": 25.76447,
+        "max": 40.40155
+      },
+      "mutation_to_desktop_ms": {
+        "n": 609,
+        "min": 9.87382,
+        "median": 18.40823,
+        "p95": 25.76154,
+        "max": 40.39472
+      },
+      "committed_to_desktop_ms": {
+        "n": 609,
+        "min": 9.86764,
+        "median": 18.40308,
+        "p95": 25.75639,
+        "max": 40.38513
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1470,
+        "min": 0.01377,
+        "median": 0.02789,
+        "p95": 0.03915,
+        "max": 0.34589
+      },
+      "begin_and_copy_host": {
+        "n": 1470,
+        "min": 0.01825,
+        "median": 0.033895,
+        "p95": 0.04996,
+        "max": 6.52582
+      },
+      "end_and_flush_host": {
+        "n": 1470,
+        "min": 0.18817,
+        "median": 0.375525,
+        "p95": 0.65066,
+        "max": 4.9685
+      },
+      "bind_and_commit_host": {
+        "n": 1470,
+        "min": 0.00423,
+        "median": 0.00892,
+        "p95": 0.01084,
+        "max": 0.04506
+      }
+    },
+    "submitted_hz": 60.00117957662727,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  },
+  {
+    "label": "probe-sparse-c1",
+    "mode": "sparse",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "sparse",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "1",
+        "sparse": "1",
+        "backgrounds": "4",
+        "diagnostic_elision": "0"
+      }
+    ],
+    "ready": {
+      "pid": 19204,
+      "hwnd": 4982040,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1500,
+      "elapsed_qpc": 2500082491,
+      "missed_periods": 0,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 838,
+      "positive_present_timestamps": 838,
+      "elapsed_seconds": 19.74067151,
+      "observed_changes_per_second": 42.39977346140441,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 837,
+        "min": 5.6584,
+        "median": 19.85554,
+        "p95": 44.28367,
+        "max": 57.68064
+      },
+      "producer_frame_step": {
+        "n": 837,
+        "min": 1,
+        "median": 1,
+        "p95": 2,
+        "max": 4
+      },
+      "present_to_observation_ms": {
+        "n": 838,
+        "min": 6.38252,
+        "median": 11.858045,
+        "p95": 22.73828,
+        "max": 51.84112
+      },
+      "accumulated_desktop_frames": {
+        "n": 838,
+        "min": 1,
+        "median": 1.0,
+        "p95": 2,
+        "max": 3
+      },
+      "acquire_us": {
+        "n": 838,
+        "min": 103,
+        "median": 7190.0,
+        "p95": 19016,
+        "max": 23720
+      },
+      "copy_map_us": {
+        "n": 838,
+        "min": 2565,
+        "median": 11073.0,
+        "p95": 19210,
+        "max": 51405
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2387,
+      "abandoned": 0
+    },
+    "paired": 825,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 13,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 825,
+        "min": 11.79873,
+        "median": 25.40805,
+        "p95": 36.46004,
+        "max": 48.4911
+      },
+      "ended_to_desktop_ms": {
+        "n": 825,
+        "min": 11.50904,
+        "median": 24.91206,
+        "p95": 35.90551,
+        "max": 48.07074
+      },
+      "mutation_to_desktop_ms": {
+        "n": 825,
+        "min": 11.50599,
+        "median": 24.90901,
+        "p95": 35.89891,
+        "max": 48.06396
+      },
+      "committed_to_desktop_ms": {
+        "n": 825,
+        "min": 11.49729,
+        "median": 24.90003,
+        "p95": 35.8834,
+        "max": 48.04976
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1471,
+        "min": 0.01452,
+        "median": 0.02716,
+        "p95": 0.03813,
+        "max": 0.40524
+      },
+      "begin_and_copy_host": {
+        "n": 1471,
+        "min": 0.01884,
+        "median": 0.03475,
+        "p95": 0.04819,
+        "max": 0.48113
+      },
+      "end_and_flush_host": {
+        "n": 1471,
+        "min": 0.18987,
+        "median": 0.38162,
+        "p95": 0.64778,
+        "max": 4.83723
+      },
+      "bind_and_commit_host": {
+        "n": 1471,
+        "min": 0.0069,
+        "median": 0.01276,
+        "p95": 0.0166,
+        "max": 0.15038
+      }
+    },
+    "submitted_hz": 60.00047755482135,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  },
+  {
+    "label": "probe-elided-d1",
+    "mode": "elided",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "elided",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "1",
+        "sparse": "1",
+        "backgrounds": "0",
+        "diagnostic_elision": "1"
+      }
+    ],
+    "ready": {
+      "pid": 11388,
+      "hwnd": 5047576,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1500,
+      "elapsed_qpc": 2500424003,
+      "missed_periods": 0,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 673,
+      "positive_present_timestamps": 673,
+      "elapsed_seconds": 19.76041001,
+      "observed_changes_per_second": 34.00739152982788,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 672,
+        "min": 3.81402,
+        "median": 32.21557,
+        "p95": 48.34541,
+        "max": 77.43031
+      },
+      "producer_frame_step": {
+        "n": 672,
+        "min": 1,
+        "median": 2.0,
+        "p95": 3,
+        "max": 4
+      },
+      "present_to_observation_ms": {
+        "n": 673,
+        "min": 6.19665,
+        "median": 14.68342,
+        "p95": 28.61681,
+        "max": 52.98697
+      },
+      "accumulated_desktop_frames": {
+        "n": 673,
+        "min": 1,
+        "median": 1,
+        "p95": 2,
+        "max": 2
+      },
+      "acquire_us": {
+        "n": 673,
+        "min": 105,
+        "median": 10961,
+        "p95": 22604,
+        "max": 23972
+      },
+      "copy_map_us": {
+        "n": 673,
+        "min": 2956,
+        "median": 13711,
+        "p95": 25580,
+        "max": 37545
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2365,
+      "abandoned": 0
+    },
+    "paired": 656,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 17,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 656,
+        "min": 12.42227,
+        "median": 21.82795,
+        "p95": 27.82114,
+        "max": 42.42321
+      },
+      "ended_to_desktop_ms": {
+        "n": 656,
+        "min": 12.02657,
+        "median": 21.213365,
+        "p95": 27.3414,
+        "max": 42.13234
+      },
+      "mutation_to_desktop_ms": {
+        "n": 656,
+        "min": 12.01987,
+        "median": 21.207794999999997,
+        "p95": 27.33796,
+        "max": 42.12941
+      },
+      "committed_to_desktop_ms": {
+        "n": 656,
+        "min": 12.00534,
+        "median": 21.196469999999998,
+        "p95": 27.3276,
+        "max": 42.12017
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1471,
+        "min": 0.01324,
+        "median": 0.027,
+        "p95": 0.03775,
+        "max": 0.42076
+      },
+      "begin_and_copy_host": {
+        "n": 1471,
+        "min": 0.01751,
+        "median": 0.03291,
+        "p95": 0.04582,
+        "max": 0.37883
+      },
+      "end_and_flush_host": {
+        "n": 1471,
+        "min": 0.18291,
+        "median": 0.36561,
+        "p95": 0.65519,
+        "max": 6.08818
+      },
+      "bind_and_commit_host": {
+        "n": 1471,
+        "min": 0.00626,
+        "median": 0.01264,
+        "p95": 0.01655,
+        "max": 0.15438
+      }
+    },
+    "submitted_hz": 60.00364650731775,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  },
+  {
+    "label": "probe-elided-d2",
+    "mode": "elided",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "elided",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "1",
+        "sparse": "1",
+        "backgrounds": "0",
+        "diagnostic_elision": "1"
+      }
+    ],
+    "ready": {
+      "pid": 10620,
+      "hwnd": 5113112,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1500,
+      "elapsed_qpc": 2500334025,
+      "missed_periods": 0,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 643,
+      "positive_present_timestamps": 643,
+      "elapsed_seconds": 19.76324744,
+      "observed_changes_per_second": 32.484539899076424,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 642,
+        "min": 3.73268,
+        "median": 32.123945,
+        "p95": 47.09564,
+        "max": 57.99546
+      },
+      "producer_frame_step": {
+        "n": 642,
+        "min": 1,
+        "median": 2.0,
+        "p95": 4,
+        "max": 5
+      },
+      "present_to_observation_ms": {
+        "n": 643,
+        "min": 7.21067,
+        "median": 14.35547,
+        "p95": 27.51155,
+        "max": 38.3058
+      },
+      "accumulated_desktop_frames": {
+        "n": 643,
+        "min": 1,
+        "median": 1,
+        "p95": 2,
+        "max": 3
+      },
+      "acquire_us": {
+        "n": 643,
+        "min": 102,
+        "median": 12005,
+        "p95": 22409,
+        "max": 24704
+      },
+      "copy_map_us": {
+        "n": 643,
+        "min": 2810,
+        "median": 13501,
+        "p95": 26459,
+        "max": 37797
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2259,
+      "abandoned": 0
+    },
+    "paired": 631,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 12,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 631,
+        "min": 9.87148,
+        "median": 17.84768,
+        "p95": 36.43501,
+        "max": 50.33448
+      },
+      "ended_to_desktop_ms": {
+        "n": 631,
+        "min": 9.33851,
+        "median": 17.33958,
+        "p95": 35.92345,
+        "max": 50.01167
+      },
+      "mutation_to_desktop_ms": {
+        "n": 631,
+        "min": 9.33557,
+        "median": 17.33297,
+        "p95": 35.91686,
+        "max": 50.00489
+      },
+      "committed_to_desktop_ms": {
+        "n": 631,
+        "min": 9.32586,
+        "median": 17.31893,
+        "p95": 35.90432,
+        "max": 49.99111
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1471,
+        "min": 0.0145,
+        "median": 0.02777,
+        "p95": 0.0382,
+        "max": 0.56207
+      },
+      "begin_and_copy_host": {
+        "n": 1471,
+        "min": 0.0188,
+        "median": 0.03356,
+        "p95": 0.0456,
+        "max": 12.81528
+      },
+      "end_and_flush_host": {
+        "n": 1471,
+        "min": 0.17912,
+        "median": 0.36927,
+        "p95": 0.61339,
+        "max": 5.62503
+      },
+      "bind_and_commit_host": {
+        "n": 1471,
+        "min": 0.00632,
+        "median": 0.01269,
+        "p95": 0.01618,
+        "max": 0.14613
+      }
+    },
+    "submitted_hz": 60.00603917922882,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  },
+  {
+    "label": "probe-sparse-c2",
+    "mode": "sparse",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "sparse",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "1",
+        "sparse": "1",
+        "backgrounds": "4",
+        "diagnostic_elision": "0"
+      }
+    ],
+    "ready": {
+      "pid": 19592,
+      "hwnd": 5178648,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1500,
+      "elapsed_qpc": 2500133853,
+      "missed_periods": 0,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 932,
+      "positive_present_timestamps": 932,
+      "elapsed_seconds": 19.77304424,
+      "observed_changes_per_second": 47.084302684997176,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 931,
+        "min": 5.75974,
+        "median": 18.72467,
+        "p95": 44.90314,
+        "max": 59.56782
+      },
+      "producer_frame_step": {
+        "n": 931,
+        "min": 1,
+        "median": 1,
+        "p95": 3,
+        "max": 4
+      },
+      "present_to_observation_ms": {
+        "n": 932,
+        "min": 6.37684,
+        "median": 12.69133,
+        "p95": 25.69616,
+        "max": 35.20105
+      },
+      "accumulated_desktop_frames": {
+        "n": 932,
+        "min": 1,
+        "median": 1.0,
+        "p95": 2,
+        "max": 3
+      },
+      "acquire_us": {
+        "n": 932,
+        "min": 97,
+        "median": 6863.5,
+        "p95": 17536,
+        "max": 22722
+      },
+      "copy_map_us": {
+        "n": 932,
+        "min": 2805,
+        "median": 11766.5,
+        "p95": 20469,
+        "max": 31882
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2808,
+      "abandoned": 0
+    },
+    "paired": 914,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 18,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 914,
+        "min": 19.04055,
+        "median": 34.758700000000005,
+        "p95": 42.92672,
+        "max": 50.47807
+      },
+      "ended_to_desktop_ms": {
+        "n": 914,
+        "min": 18.55203,
+        "median": 34.344315,
+        "p95": 42.39065,
+        "max": 50.03436
+      },
+      "mutation_to_desktop_ms": {
+        "n": 914,
+        "min": 18.54234,
+        "median": 34.339394999999996,
+        "p95": 42.38403,
+        "max": 50.02768
+      },
+      "committed_to_desktop_ms": {
+        "n": 914,
+        "min": 18.5276,
+        "median": 34.324005,
+        "p95": 42.36906,
+        "max": 50.01223
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1471,
+        "min": 0.01524,
+        "median": 0.02724,
+        "p95": 0.04399,
+        "max": 1.05187
+      },
+      "begin_and_copy_host": {
+        "n": 1471,
+        "min": 0.01819,
+        "median": 0.03412,
+        "p95": 0.05151,
+        "max": 0.48339
+      },
+      "end_and_flush_host": {
+        "n": 1471,
+        "min": 0.18771,
+        "median": 0.37352,
+        "p95": 0.67704,
+        "max": 6.03798
+      },
+      "bind_and_commit_host": {
+        "n": 1471,
+        "min": 0.00648,
+        "median": 0.01278,
+        "p95": 0.01683,
+        "max": 0.15196
+      }
+    },
+    "submitted_hz": 59.99556921701738,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  },
+  {
+    "label": "probe-hostflag-b2",
+    "mode": "hostflag",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "hostflag",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "1",
+        "sparse": "0",
+        "backgrounds": "0",
+        "diagnostic_elision": "0"
+      }
+    ],
+    "ready": {
+      "pid": 16764,
+      "hwnd": 5244184,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1500,
+      "elapsed_qpc": 2500063672,
+      "missed_periods": 0,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 836,
+      "positive_present_timestamps": 836,
+      "elapsed_seconds": 19.78501077,
+      "observed_changes_per_second": 42.203666690245626,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 835,
+        "min": 5.1378,
+        "median": 19.93724,
+        "p95": 45.02934,
+        "max": 56.35694
+      },
+      "producer_frame_step": {
+        "n": 835,
+        "min": 1,
+        "median": 1,
+        "p95": 3,
+        "max": 3
+      },
+      "present_to_observation_ms": {
+        "n": 836,
+        "min": 6.25653,
+        "median": 12.60224,
+        "p95": 24.69426,
+        "max": 36.03423
+      },
+      "accumulated_desktop_frames": {
+        "n": 836,
+        "min": 1,
+        "median": 1.0,
+        "p95": 2,
+        "max": 2
+      },
+      "acquire_us": {
+        "n": 836,
+        "min": 101,
+        "median": 7631.5,
+        "p95": 21620,
+        "max": 23298
+      },
+      "copy_map_us": {
+        "n": 836,
+        "min": 3199,
+        "median": 12006.5,
+        "p95": 22573,
+        "max": 35586
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2638,
+      "abandoned": 0
+    },
+    "paired": 818,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 18,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 818,
+        "min": 14.66352,
+        "median": 23.790680000000002,
+        "p95": 27.57773,
+        "max": 31.47283
+      },
+      "ended_to_desktop_ms": {
+        "n": 818,
+        "min": 14.17258,
+        "median": 23.236155,
+        "p95": 27.06288,
+        "max": 30.75358
+      },
+      "mutation_to_desktop_ms": {
+        "n": 818,
+        "min": 14.16594,
+        "median": 23.23133,
+        "p95": 27.05621,
+        "max": 30.74682
+      },
+      "committed_to_desktop_ms": {
+        "n": 818,
+        "min": 14.15697,
+        "median": 23.223405,
+        "p95": 27.04706,
+        "max": 30.73738
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1471,
+        "min": 0.01527,
+        "median": 0.02734,
+        "p95": 0.04078,
+        "max": 0.67576
+      },
+      "begin_and_copy_host": {
+        "n": 1471,
+        "min": 0.01994,
+        "median": 0.03413,
+        "p95": 0.05239,
+        "max": 0.75819
+      },
+      "end_and_flush_host": {
+        "n": 1471,
+        "min": 0.19899,
+        "median": 0.39214,
+        "p95": 0.68908,
+        "max": 3.15416
+      },
+      "bind_and_commit_host": {
+        "n": 1471,
+        "min": 0.00445,
+        "median": 0.00897,
+        "p95": 0.01048,
+        "max": 0.20653
+      }
+    },
+    "submitted_hz": 59.998115348996265,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  },
+  {
+    "label": "probe-winrt-a2",
+    "mode": "winrt",
+    "probe_hash": "E852DA1B66033246C45378E9A0F79EC73DC29E3EA767576A9F2576EE14A21B9A",
+    "observer_hash": "D57C7377AEFCD603D01626948805949EB78BB9B7C7C8C52CB0604A471841AAEA",
+    "qpc_frequency": 100000000,
+    "header": {
+      "mode": "winrt",
+      "qpc_frequency": 100000000,
+      "duration_ms": 25000,
+      "width": 3848,
+      "height": 2408,
+      "surfaces": 2,
+      "input_injected": 0,
+      "foreground_before": 66054
+    },
+    "scene": [
+      {
+        "host_flag": "0",
+        "sparse": "0",
+        "backgrounds": "0",
+        "diagnostic_elision": "0"
+      }
+    ],
+    "ready": {
+      "pid": 10848,
+      "hwnd": 5309720,
+      "high_resolution_timer": 1
+    },
+    "final": {
+      "frames": 1500,
+      "elapsed_qpc": 2500327301,
+      "missed_periods": 0,
+      "foreground_after": 66054,
+      "foreground_unchanged": 1
+    },
+    "observed": {
+      "desktop_present_not_photon": true,
+      "end_to_end_latency_verified": false,
+      "observed_changes": 1030,
+      "positive_present_timestamps": 1030,
+      "elapsed_seconds": 19.80084816,
+      "observed_changes_per_second": 51.967470872217426,
+      "nonincreasing_present_timestamps": 0,
+      "nonincreasing_frame_ids": 0,
+      "desktop_change_gap_ms": {
+        "n": 1029,
+        "min": 6.08024,
+        "median": 17.73271,
+        "p95": 35.16371,
+        "max": 49.80085
+      },
+      "producer_frame_step": {
+        "n": 1029,
+        "min": 1,
+        "median": 1,
+        "p95": 2,
+        "max": 3
+      },
+      "present_to_observation_ms": {
+        "n": 1030,
+        "min": 5.88525,
+        "median": 10.85359,
+        "p95": 16.7548,
+        "max": 23.49972
+      },
+      "accumulated_desktop_frames": {
+        "n": 1030,
+        "min": 1,
+        "median": 1.0,
+        "p95": 2,
+        "max": 2
+      },
+      "acquire_us": {
+        "n": 1030,
+        "min": 92,
+        "median": 6571.5,
+        "p95": 18759,
+        "max": 23699
+      },
+      "copy_map_us": {
+        "n": 1030,
+        "min": 1582,
+        "median": 10300.0,
+        "p95": 16027,
+        "max": 22947
+      }
+    },
+    "readback": {
+      "pending_peak": 2,
+      "map_busy": 2693,
+      "abandoned": 0
+    },
+    "paired": 1012,
+    "mouse_only_excluded": 0,
+    "warmup_excluded": 18,
+    "latency": {
+      "render_to_desktop_ms": {
+        "n": 1012,
+        "min": 17.52346,
+        "median": 24.121789999999997,
+        "p95": 29.38841,
+        "max": 32.01559
+      },
+      "ended_to_desktop_ms": {
+        "n": 1012,
+        "min": 16.91189,
+        "median": 23.610805,
+        "p95": 28.8143,
+        "max": 31.5477
+      },
+      "mutation_to_desktop_ms": {
+        "n": 1012,
+        "min": 16.90517,
+        "median": 23.602555000000002,
+        "p95": 28.80746,
+        "max": 31.54477
+      },
+      "committed_to_desktop_ms": {
+        "n": 1012,
+        "min": 16.89528,
+        "median": 23.592905000000002,
+        "p95": 28.79734,
+        "max": 31.53882
+      }
+    },
+    "host_stage_ms": {
+      "source_render_host": {
+        "n": 1471,
+        "min": 0.01491,
+        "median": 0.02782,
+        "p95": 0.04132,
+        "max": 0.39347
+      },
+      "begin_and_copy_host": {
+        "n": 1471,
+        "min": 0.01748,
+        "median": 0.03391,
+        "p95": 0.05568,
+        "max": 0.69294
+      },
+      "end_and_flush_host": {
+        "n": 1471,
+        "min": 0.17606,
+        "median": 0.39254,
+        "p95": 0.72693,
+        "max": 3.90071
+      },
+      "bind_and_commit_host": {
+        "n": 1471,
+        "min": 0.00425,
+        "median": 0.00893,
+        "p95": 0.01043,
+        "max": 0.22371
+      }
+    },
+    "submitted_hz": 60.00738512113326,
+    "negative_mutation_to_desktop": 0,
+    "negative_commit_to_desktop": 0,
+    "monitor_lines": [
+      "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+      "desktop_image_in_system_memory=0",
+      "adapter vendor=32902 device=32103 software=0",
+      "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+    ]
+  }
+]

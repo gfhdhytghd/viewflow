@@ -1,0 +1,2058 @@
+{
+  "counts": {
+    "12": 44393,
+    "16": 44393,
+    "17": 44393,
+    "18": 44393,
+    "kernel": 44393,
+    "socket": 44393
+  },
+  "ndis_events_lost": 0,
+  "kernel_events_lost": 0,
+  "ndis_packet_identity_and_order_match": true,
+  "all_ordered_lengths_match": true,
+  "stage_ms": {
+    "12->16": {
+      "n": 44393,
+      "min": 0.00359,
+      "median": 0.18737,
+      "p95": 0.41087,
+      "max": 1.57486
+    },
+    "16->17": {
+      "n": 44393,
+      "min": 0.00321,
+      "median": 0.16775,
+      "p95": 0.39105,
+      "max": 1.44402
+    },
+    "17->18": {
+      "n": 44393,
+      "min": 0.0032,
+      "median": 0.16929,
+      "p95": 0.39903,
+      "max": 0.64862
+    },
+    "18->kernel": {
+      "n": 44393,
+      "min": 0.01942,
+      "median": 0.42113,
+      "p95": 8.21777,
+      "max": 340.97041
+    },
+    "12->kernel": {
+      "n": 44393,
+      "min": 0.02972,
+      "median": 1.03891,
+      "p95": 9.35702,
+      "max": 341.34261
+    },
+    "kernel->socket": {
+      "n": 44393,
+      "min": 0.01325,
+      "median": 0.7065900078125,
+      "p95": 3.05584,
+      "max": 8.51388
+    }
+  },
+  "slow_frames": [
+    {
+      "frame": 777,
+      "feedback_ms": 350.346,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": -0.585084,
+            "end_ms": 3.676296,
+            "packets": 232
+          },
+          {
+            "begin_ms": 17.428096,
+            "end_ms": 17.431766,
+            "packets": 2
+          },
+          {
+            "begin_ms": 82.221966,
+            "end_ms": 82.2258260078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 212.747726,
+            "end_ms": 212.755636,
+            "packets": 2
+          },
+          {
+            "begin_ms": 345.993316,
+            "end_ms": 348.388876,
+            "packets": 6
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": -0.578964,
+            "end_ms": 3.748606,
+            "packets": 232
+          },
+          {
+            "begin_ms": 17.4378259921875,
+            "end_ms": 17.4411360078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 82.236496,
+            "end_ms": 82.239996,
+            "packets": 2
+          },
+          {
+            "begin_ms": 212.768566,
+            "end_ms": 212.776386,
+            "packets": 2
+          },
+          {
+            "begin_ms": 346.004956,
+            "end_ms": 348.397746,
+            "packets": 6
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": -0.575494,
+            "end_ms": 3.8102060078125,
+            "packets": 232
+          },
+          {
+            "begin_ms": 17.444696,
+            "end_ms": 17.448176,
+            "packets": 2
+          },
+          {
+            "begin_ms": 82.243896,
+            "end_ms": 82.247466,
+            "packets": 2
+          },
+          {
+            "begin_ms": 212.784516,
+            "end_ms": 212.791926,
+            "packets": 2
+          },
+          {
+            "begin_ms": 346.012796,
+            "end_ms": 348.405406,
+            "packets": 6
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": -0.571934,
+            "end_ms": -0.571934,
+            "packets": 1
+          },
+          {
+            "begin_ms": 0.4630659921875,
+            "end_ms": 0.526956,
+            "packets": 20
+          },
+          {
+            "begin_ms": 1.608946,
+            "end_ms": 3.870846,
+            "packets": 211
+          },
+          {
+            "begin_ms": 17.4516060078125,
+            "end_ms": 17.4548959921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 82.251596,
+            "end_ms": 82.254956,
+            "packets": 2
+          },
+          {
+            "begin_ms": 212.8004759921875,
+            "end_ms": 212.8079059921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 346.020706,
+            "end_ms": 348.413026,
+            "packets": 6
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": -1.520234,
+            "end_ms": -1.511964,
+            "packets": 2
+          },
+          {
+            "begin_ms": 16.825516,
+            "end_ms": 16.895986,
+            "packets": 10
+          },
+          {
+            "begin_ms": 35.5014560078125,
+            "end_ms": 35.572116,
+            "packets": 10
+          },
+          {
+            "begin_ms": 54.013806,
+            "end_ms": 54.084856,
+            "packets": 10
+          },
+          {
+            "begin_ms": 72.8273760078125,
+            "end_ms": 72.8974460078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 91.935576,
+            "end_ms": 92.106096,
+            "packets": 10
+          },
+          {
+            "begin_ms": 109.2490460078125,
+            "end_ms": 109.423686,
+            "packets": 10
+          },
+          {
+            "begin_ms": 124.040876,
+            "end_ms": 124.205426,
+            "packets": 10
+          },
+          {
+            "begin_ms": 142.222406,
+            "end_ms": 142.386556,
+            "packets": 10
+          },
+          {
+            "begin_ms": 157.258276,
+            "end_ms": 157.426866,
+            "packets": 10
+          },
+          {
+            "begin_ms": 175.480736,
+            "end_ms": 175.647046,
+            "packets": 10
+          },
+          {
+            "begin_ms": 193.9474160078125,
+            "end_ms": 194.1146060078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 212.2842359921875,
+            "end_ms": 212.4495460078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 230.515076,
+            "end_ms": 230.682626,
+            "packets": 10
+          },
+          {
+            "begin_ms": 249.204016,
+            "end_ms": 249.3792560078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 267.962306,
+            "end_ms": 268.138486,
+            "packets": 10
+          },
+          {
+            "begin_ms": 286.1167859921875,
+            "end_ms": 286.286586,
+            "packets": 10
+          },
+          {
+            "begin_ms": 300.782326,
+            "end_ms": 300.949656,
+            "packets": 10
+          },
+          {
+            "begin_ms": 318.595266,
+            "end_ms": 318.760006,
+            "packets": 10
+          },
+          {
+            "begin_ms": 337.031086,
+            "end_ms": 337.193306,
+            "packets": 10
+          },
+          {
+            "begin_ms": 343.863926,
+            "end_ms": 345.060456,
+            "packets": 48
+          },
+          {
+            "begin_ms": 346.090796,
+            "end_ms": 348.474096,
+            "packets": 6
+          }
+        ]
+      }
+    },
+    {
+      "frame": 829,
+      "feedback_ms": 343.141,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": 0.407648,
+            "end_ms": 1.4666779921875,
+            "packets": 109
+          },
+          {
+            "begin_ms": 6.8286880078125,
+            "end_ms": 8.014828,
+            "packets": 70
+          },
+          {
+            "begin_ms": 9.190778,
+            "end_ms": 9.257158,
+            "packets": 20
+          },
+          {
+            "begin_ms": 12.167258,
+            "end_ms": 12.234228,
+            "packets": 20
+          },
+          {
+            "begin_ms": 15.146188,
+            "end_ms": 15.925858,
+            "packets": 16
+          },
+          {
+            "begin_ms": 73.257958,
+            "end_ms": 73.257958,
+            "packets": 1
+          },
+          {
+            "begin_ms": 162.0486379921875,
+            "end_ms": 162.2887779921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 335.537188,
+            "end_ms": 339.073848,
+            "packets": 10
+          },
+          {
+            "begin_ms": 343.089738,
+            "end_ms": 343.089738,
+            "packets": 1
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": 0.658018,
+            "end_ms": 1.632128,
+            "packets": 109
+          },
+          {
+            "begin_ms": 6.9525180078125,
+            "end_ms": 8.161438,
+            "packets": 70
+          },
+          {
+            "begin_ms": 9.268148,
+            "end_ms": 9.3329880078125,
+            "packets": 20
+          },
+          {
+            "begin_ms": 12.244678,
+            "end_ms": 12.307278,
+            "packets": 20
+          },
+          {
+            "begin_ms": 15.151608,
+            "end_ms": 15.981568,
+            "packets": 16
+          },
+          {
+            "begin_ms": 73.264328,
+            "end_ms": 73.264328,
+            "packets": 1
+          },
+          {
+            "begin_ms": 162.059588,
+            "end_ms": 162.2983279921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 335.5491179921875,
+            "end_ms": 339.091148,
+            "packets": 10
+          },
+          {
+            "begin_ms": 343.101348,
+            "end_ms": 343.101348,
+            "packets": 1
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": 0.873728,
+            "end_ms": 1.781638,
+            "packets": 109
+          },
+          {
+            "begin_ms": 7.0536280078125,
+            "end_ms": 7.1525280078125,
+            "packets": 30
+          },
+          {
+            "begin_ms": 8.175268,
+            "end_ms": 8.302408,
+            "packets": 40
+          },
+          {
+            "begin_ms": 9.336558,
+            "end_ms": 9.400688,
+            "packets": 20
+          },
+          {
+            "begin_ms": 12.3117380078125,
+            "end_ms": 12.374458,
+            "packets": 20
+          },
+          {
+            "begin_ms": 15.155168,
+            "end_ms": 16.030468,
+            "packets": 16
+          },
+          {
+            "begin_ms": 73.2680180078125,
+            "end_ms": 73.2680180078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 162.067478,
+            "end_ms": 162.306078,
+            "packets": 2
+          },
+          {
+            "begin_ms": 335.5570980078125,
+            "end_ms": 339.107178,
+            "packets": 10
+          },
+          {
+            "begin_ms": 343.109498,
+            "end_ms": 343.109498,
+            "packets": 1
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": 1.0845579921875,
+            "end_ms": 1.935458,
+            "packets": 109
+          },
+          {
+            "begin_ms": 7.1563079921875,
+            "end_ms": 7.2532080078125,
+            "packets": 30
+          },
+          {
+            "begin_ms": 8.305848,
+            "end_ms": 9.467698,
+            "packets": 60
+          },
+          {
+            "begin_ms": 12.377768,
+            "end_ms": 12.441798,
+            "packets": 20
+          },
+          {
+            "begin_ms": 15.1596880078125,
+            "end_ms": 16.080328,
+            "packets": 16
+          },
+          {
+            "begin_ms": 73.272618,
+            "end_ms": 73.272618,
+            "packets": 1
+          },
+          {
+            "begin_ms": 162.0756279921875,
+            "end_ms": 162.3137680078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 335.565078,
+            "end_ms": 339.123498,
+            "packets": 10
+          },
+          {
+            "begin_ms": 343.118278,
+            "end_ms": 343.118278,
+            "packets": 1
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": 14.388708,
+            "end_ms": 14.460828,
+            "packets": 10
+          },
+          {
+            "begin_ms": 45.539488,
+            "end_ms": 45.614178,
+            "packets": 10
+          },
+          {
+            "begin_ms": 70.717258,
+            "end_ms": 70.7915679921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 91.0994379921875,
+            "end_ms": 91.176858,
+            "packets": 10
+          },
+          {
+            "begin_ms": 108.072458,
+            "end_ms": 108.245568,
+            "packets": 10
+          },
+          {
+            "begin_ms": 124.0469679921875,
+            "end_ms": 124.126288,
+            "packets": 10
+          },
+          {
+            "begin_ms": 132.769318,
+            "end_ms": 132.844478,
+            "packets": 10
+          },
+          {
+            "begin_ms": 152.229398,
+            "end_ms": 152.409568,
+            "packets": 10
+          },
+          {
+            "begin_ms": 170.623108,
+            "end_ms": 170.793678,
+            "packets": 10
+          },
+          {
+            "begin_ms": 189.1846979921875,
+            "end_ms": 189.358538,
+            "packets": 10
+          },
+          {
+            "begin_ms": 208.229328,
+            "end_ms": 208.4013579921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 226.431628,
+            "end_ms": 226.604118,
+            "packets": 10
+          },
+          {
+            "begin_ms": 244.900848,
+            "end_ms": 245.072138,
+            "packets": 10
+          },
+          {
+            "begin_ms": 263.342248,
+            "end_ms": 263.511638,
+            "packets": 10
+          },
+          {
+            "begin_ms": 278.3968979921875,
+            "end_ms": 278.4675180078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 297.001908,
+            "end_ms": 297.1759180078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 315.764198,
+            "end_ms": 315.9381180078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 332.202198,
+            "end_ms": 339.354238,
+            "packets": 78
+          },
+          {
+            "begin_ms": 343.257068,
+            "end_ms": 343.257068,
+            "packets": 1
+          }
+        ]
+      }
+    },
+    {
+      "frame": 20,
+      "feedback_ms": 331.864,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": 15.013204,
+            "end_ms": 15.177894,
+            "packets": 22
+          },
+          {
+            "begin_ms": 36.568204,
+            "end_ms": 36.568204,
+            "packets": 1
+          },
+          {
+            "begin_ms": 38.5552439921875,
+            "end_ms": 38.5552439921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 40.431914,
+            "end_ms": 40.437114,
+            "packets": 2
+          },
+          {
+            "begin_ms": 43.349714,
+            "end_ms": 43.349714,
+            "packets": 1
+          },
+          {
+            "begin_ms": 45.093714,
+            "end_ms": 45.097274,
+            "packets": 2
+          },
+          {
+            "begin_ms": 48.697164,
+            "end_ms": 48.697164,
+            "packets": 1
+          },
+          {
+            "begin_ms": 50.7226939921875,
+            "end_ms": 50.7310440078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 51.973064,
+            "end_ms": 51.973064,
+            "packets": 1
+          },
+          {
+            "begin_ms": 54.591524,
+            "end_ms": 54.591524,
+            "packets": 1
+          },
+          {
+            "begin_ms": 306.055624,
+            "end_ms": 306.055624,
+            "packets": 1
+          },
+          {
+            "begin_ms": 307.395484,
+            "end_ms": 307.395484,
+            "packets": 1
+          },
+          {
+            "begin_ms": 309.498744,
+            "end_ms": 309.5021739921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 310.761164,
+            "end_ms": 310.761164,
+            "packets": 1
+          },
+          {
+            "begin_ms": 312.452434,
+            "end_ms": 312.457484,
+            "packets": 2
+          },
+          {
+            "begin_ms": 313.659254,
+            "end_ms": 315.578634,
+            "packets": 5
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": 15.198044,
+            "end_ms": 15.359374,
+            "packets": 22
+          },
+          {
+            "begin_ms": 36.578654,
+            "end_ms": 36.578654,
+            "packets": 1
+          },
+          {
+            "begin_ms": 38.559464,
+            "end_ms": 38.559464,
+            "packets": 1
+          },
+          {
+            "begin_ms": 40.441504,
+            "end_ms": 40.444674,
+            "packets": 2
+          },
+          {
+            "begin_ms": 43.361554,
+            "end_ms": 43.361554,
+            "packets": 1
+          },
+          {
+            "begin_ms": 45.1025440078125,
+            "end_ms": 45.1059540078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 48.7021740078125,
+            "end_ms": 48.7021740078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 50.741004,
+            "end_ms": 50.7496239921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 51.981944,
+            "end_ms": 51.981944,
+            "packets": 1
+          },
+          {
+            "begin_ms": 54.602664,
+            "end_ms": 54.602664,
+            "packets": 1
+          },
+          {
+            "begin_ms": 306.065084,
+            "end_ms": 306.065084,
+            "packets": 1
+          },
+          {
+            "begin_ms": 307.401814,
+            "end_ms": 307.401814,
+            "packets": 1
+          },
+          {
+            "begin_ms": 309.507104,
+            "end_ms": 309.510354,
+            "packets": 2
+          },
+          {
+            "begin_ms": 310.765844,
+            "end_ms": 310.765844,
+            "packets": 1
+          },
+          {
+            "begin_ms": 312.462074,
+            "end_ms": 312.465244,
+            "packets": 2
+          },
+          {
+            "begin_ms": 313.663624,
+            "end_ms": 315.584164,
+            "packets": 5
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": 15.367814,
+            "end_ms": 15.530894,
+            "packets": 22
+          },
+          {
+            "begin_ms": 36.582424,
+            "end_ms": 36.582424,
+            "packets": 1
+          },
+          {
+            "begin_ms": 38.563024,
+            "end_ms": 38.563024,
+            "packets": 1
+          },
+          {
+            "begin_ms": 40.447924,
+            "end_ms": 40.451234,
+            "packets": 2
+          },
+          {
+            "begin_ms": 43.370884,
+            "end_ms": 43.370884,
+            "packets": 1
+          },
+          {
+            "begin_ms": 45.111004,
+            "end_ms": 45.114174,
+            "packets": 2
+          },
+          {
+            "begin_ms": 48.705854,
+            "end_ms": 48.705854,
+            "packets": 1
+          },
+          {
+            "begin_ms": 50.757614,
+            "end_ms": 50.7661739921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 51.990984,
+            "end_ms": 51.990984,
+            "packets": 1
+          },
+          {
+            "begin_ms": 54.611544,
+            "end_ms": 54.611544,
+            "packets": 1
+          },
+          {
+            "begin_ms": 306.070474,
+            "end_ms": 306.070474,
+            "packets": 1
+          },
+          {
+            "begin_ms": 307.405254,
+            "end_ms": 307.405254,
+            "packets": 1
+          },
+          {
+            "begin_ms": 309.513984,
+            "end_ms": 309.517174,
+            "packets": 2
+          },
+          {
+            "begin_ms": 310.770954,
+            "end_ms": 310.770954,
+            "packets": 1
+          },
+          {
+            "begin_ms": 312.468504,
+            "end_ms": 312.4718339921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 313.667154,
+            "end_ms": 315.587414,
+            "packets": 5
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": 15.539364,
+            "end_ms": 15.698174,
+            "packets": 22
+          },
+          {
+            "begin_ms": 36.586034,
+            "end_ms": 36.586034,
+            "packets": 1
+          },
+          {
+            "begin_ms": 38.566394,
+            "end_ms": 38.566394,
+            "packets": 1
+          },
+          {
+            "begin_ms": 40.456034,
+            "end_ms": 40.459194,
+            "packets": 2
+          },
+          {
+            "begin_ms": 43.3786640078125,
+            "end_ms": 43.3786640078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 45.121134,
+            "end_ms": 45.124454,
+            "packets": 2
+          },
+          {
+            "begin_ms": 48.710674,
+            "end_ms": 48.710674,
+            "packets": 1
+          },
+          {
+            "begin_ms": 50.773774,
+            "end_ms": 50.781564,
+            "packets": 2
+          },
+          {
+            "begin_ms": 51.999724,
+            "end_ms": 51.999724,
+            "packets": 1
+          },
+          {
+            "begin_ms": 54.619404,
+            "end_ms": 54.619404,
+            "packets": 1
+          },
+          {
+            "begin_ms": 306.0743940078125,
+            "end_ms": 306.0743940078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 307.4085740078125,
+            "end_ms": 307.4085740078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 309.5223439921875,
+            "end_ms": 309.526384,
+            "packets": 2
+          },
+          {
+            "begin_ms": 310.774224,
+            "end_ms": 310.774224,
+            "packets": 1
+          },
+          {
+            "begin_ms": 312.476634,
+            "end_ms": 312.479824,
+            "packets": 2
+          },
+          {
+            "begin_ms": 313.670584,
+            "end_ms": 315.5906240078125,
+            "packets": 5
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": 15.791914,
+            "end_ms": 16.233834,
+            "packets": 22
+          },
+          {
+            "begin_ms": 36.671154,
+            "end_ms": 36.671154,
+            "packets": 1
+          },
+          {
+            "begin_ms": 38.601674,
+            "end_ms": 38.601674,
+            "packets": 1
+          },
+          {
+            "begin_ms": 40.500184,
+            "end_ms": 40.5158540078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 43.463354,
+            "end_ms": 43.463354,
+            "packets": 1
+          },
+          {
+            "begin_ms": 45.188834,
+            "end_ms": 45.197314,
+            "packets": 2
+          },
+          {
+            "begin_ms": 48.769284,
+            "end_ms": 48.769284,
+            "packets": 1
+          },
+          {
+            "begin_ms": 50.957664,
+            "end_ms": 50.975804,
+            "packets": 2
+          },
+          {
+            "begin_ms": 52.142284,
+            "end_ms": 52.142284,
+            "packets": 1
+          },
+          {
+            "begin_ms": 54.749014,
+            "end_ms": 54.749014,
+            "packets": 1
+          },
+          {
+            "begin_ms": 306.152374,
+            "end_ms": 306.152374,
+            "packets": 1
+          },
+          {
+            "begin_ms": 307.448874,
+            "end_ms": 307.448874,
+            "packets": 1
+          },
+          {
+            "begin_ms": 309.570774,
+            "end_ms": 309.5887240078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 310.817504,
+            "end_ms": 310.817504,
+            "packets": 1
+          },
+          {
+            "begin_ms": 312.522794,
+            "end_ms": 312.530504,
+            "packets": 2
+          },
+          {
+            "begin_ms": 313.706514,
+            "end_ms": 315.632164,
+            "packets": 5
+          }
+        ]
+      }
+    },
+    {
+      "frame": 9,
+      "feedback_ms": 299.683,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": 0.1831790078125,
+            "end_ms": 0.268859,
+            "packets": 25
+          },
+          {
+            "begin_ms": 85.987589,
+            "end_ms": 85.987589,
+            "packets": 1
+          },
+          {
+            "begin_ms": 88.2387089921875,
+            "end_ms": 88.2387089921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 90.481059,
+            "end_ms": 90.490099,
+            "packets": 2
+          },
+          {
+            "begin_ms": 91.842839,
+            "end_ms": 91.842839,
+            "packets": 1
+          },
+          {
+            "begin_ms": 94.202369,
+            "end_ms": 94.2110689921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 95.595129,
+            "end_ms": 95.595129,
+            "packets": 1
+          },
+          {
+            "begin_ms": 96.6696489921875,
+            "end_ms": 97.451319,
+            "packets": 3
+          },
+          {
+            "begin_ms": 98.839019,
+            "end_ms": 98.839019,
+            "packets": 1
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": 0.301419,
+            "end_ms": 0.383669,
+            "packets": 25
+          },
+          {
+            "begin_ms": 85.999459,
+            "end_ms": 85.999459,
+            "packets": 1
+          },
+          {
+            "begin_ms": 88.243239,
+            "end_ms": 88.243239,
+            "packets": 1
+          },
+          {
+            "begin_ms": 90.500079,
+            "end_ms": 90.510119,
+            "packets": 2
+          },
+          {
+            "begin_ms": 91.853459,
+            "end_ms": 91.853459,
+            "packets": 1
+          },
+          {
+            "begin_ms": 94.221379,
+            "end_ms": 94.2300690078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 95.604359,
+            "end_ms": 95.604359,
+            "packets": 1
+          },
+          {
+            "begin_ms": 96.688019,
+            "end_ms": 97.460499,
+            "packets": 3
+          },
+          {
+            "begin_ms": 98.8497390078125,
+            "end_ms": 98.8497390078125,
+            "packets": 1
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": 0.387699,
+            "end_ms": 0.467699,
+            "packets": 25
+          },
+          {
+            "begin_ms": 86.003269,
+            "end_ms": 86.003269,
+            "packets": 1
+          },
+          {
+            "begin_ms": 88.2466289921875,
+            "end_ms": 88.2466289921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 90.517889,
+            "end_ms": 90.526499,
+            "packets": 2
+          },
+          {
+            "begin_ms": 91.862339,
+            "end_ms": 91.862339,
+            "packets": 1
+          },
+          {
+            "begin_ms": 94.2378090078125,
+            "end_ms": 94.2512589921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 95.612139,
+            "end_ms": 95.612139,
+            "packets": 1
+          },
+          {
+            "begin_ms": 96.7060989921875,
+            "end_ms": 97.469429,
+            "packets": 3
+          },
+          {
+            "begin_ms": 98.857459,
+            "end_ms": 98.857459,
+            "packets": 1
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": 0.471209,
+            "end_ms": 0.547749,
+            "packets": 25
+          },
+          {
+            "begin_ms": 86.007449,
+            "end_ms": 86.007449,
+            "packets": 1
+          },
+          {
+            "begin_ms": 88.2515690078125,
+            "end_ms": 88.2515690078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 90.5343689921875,
+            "end_ms": 90.5430289921875,
+            "packets": 2
+          },
+          {
+            "begin_ms": 91.870859,
+            "end_ms": 91.870859,
+            "packets": 1
+          },
+          {
+            "begin_ms": 94.260159,
+            "end_ms": 94.2679890078125,
+            "packets": 2
+          },
+          {
+            "begin_ms": 95.6198589921875,
+            "end_ms": 95.6198589921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 96.7237490078125,
+            "end_ms": 97.481069,
+            "packets": 3
+          },
+          {
+            "begin_ms": 98.866359,
+            "end_ms": 98.866359,
+            "packets": 1
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": 0.591299,
+            "end_ms": 0.808459,
+            "packets": 25
+          },
+          {
+            "begin_ms": 86.1221390078125,
+            "end_ms": 86.1221390078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 88.291169,
+            "end_ms": 88.291169,
+            "packets": 1
+          },
+          {
+            "begin_ms": 90.927339,
+            "end_ms": 91.002159,
+            "packets": 2
+          },
+          {
+            "begin_ms": 92.068359,
+            "end_ms": 92.068359,
+            "packets": 1
+          },
+          {
+            "begin_ms": 94.491079,
+            "end_ms": 94.510109,
+            "packets": 2
+          },
+          {
+            "begin_ms": 95.803509,
+            "end_ms": 95.803509,
+            "packets": 1
+          },
+          {
+            "begin_ms": 96.8426690078125,
+            "end_ms": 97.641979,
+            "packets": 3
+          },
+          {
+            "begin_ms": 98.961089,
+            "end_ms": 98.961089,
+            "packets": 1
+          }
+        ]
+      }
+    },
+    {
+      "frame": 775,
+      "feedback_ms": 293.105,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": 0.3375189921875,
+            "end_ms": 2.222619,
+            "packets": 160
+          },
+          {
+            "begin_ms": 66.011829,
+            "end_ms": 66.011829,
+            "packets": 1
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": 0.580599,
+            "end_ms": 2.339289,
+            "packets": 160
+          },
+          {
+            "begin_ms": 66.0188090078125,
+            "end_ms": 66.0188090078125,
+            "packets": 1
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": 0.786069,
+            "end_ms": 2.442549,
+            "packets": 160
+          },
+          {
+            "begin_ms": 66.0222489921875,
+            "end_ms": 66.0222489921875,
+            "packets": 1
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": 0.992739,
+            "end_ms": 2.545289,
+            "packets": 160
+          },
+          {
+            "begin_ms": 66.025669,
+            "end_ms": 66.025669,
+            "packets": 1
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": 19.534559,
+            "end_ms": 19.604429,
+            "packets": 10
+          },
+          {
+            "begin_ms": 35.8740590078125,
+            "end_ms": 35.945319,
+            "packets": 10
+          },
+          {
+            "begin_ms": 63.675659,
+            "end_ms": 63.7476489921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 72.301179,
+            "end_ms": 72.373829,
+            "packets": 10
+          },
+          {
+            "begin_ms": 91.1555689921875,
+            "end_ms": 91.228569,
+            "packets": 10
+          },
+          {
+            "begin_ms": 110.493589,
+            "end_ms": 110.5708889921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 129.626769,
+            "end_ms": 129.701549,
+            "packets": 10
+          },
+          {
+            "begin_ms": 148.160059,
+            "end_ms": 148.234479,
+            "packets": 10
+          },
+          {
+            "begin_ms": 167.421329,
+            "end_ms": 167.496729,
+            "packets": 10
+          },
+          {
+            "begin_ms": 182.200979,
+            "end_ms": 182.2763690078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 197.803609,
+            "end_ms": 197.880219,
+            "packets": 10
+          },
+          {
+            "begin_ms": 217.250969,
+            "end_ms": 217.322879,
+            "packets": 10
+          },
+          {
+            "begin_ms": 233.3374590078125,
+            "end_ms": 233.420079,
+            "packets": 10
+          },
+          {
+            "begin_ms": 251.675699,
+            "end_ms": 251.7505790078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 266.933429,
+            "end_ms": 267.0089789921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 285.391499,
+            "end_ms": 285.466559,
+            "packets": 10
+          }
+        ]
+      }
+    },
+    {
+      "frame": 1092,
+      "feedback_ms": 256.453,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": 0.264484,
+            "end_ms": 0.896434,
+            "packets": 64
+          },
+          {
+            "begin_ms": 2.476094,
+            "end_ms": 2.989704,
+            "packets": 64
+          },
+          {
+            "begin_ms": 4.8653040078125,
+            "end_ms": 5.256524,
+            "packets": 50
+          },
+          {
+            "begin_ms": 6.5290340078125,
+            "end_ms": 6.5290340078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 32.495734,
+            "end_ms": 32.495734,
+            "packets": 1
+          },
+          {
+            "begin_ms": 65.1752539921875,
+            "end_ms": 65.178704,
+            "packets": 2
+          },
+          {
+            "begin_ms": 184.311134,
+            "end_ms": 184.311134,
+            "packets": 1
+          },
+          {
+            "begin_ms": 247.057044,
+            "end_ms": 248.531414,
+            "packets": 4
+          },
+          {
+            "begin_ms": 249.539244,
+            "end_ms": 250.069544,
+            "packets": 3
+          },
+          {
+            "begin_ms": 256.507314,
+            "end_ms": 256.507314,
+            "packets": 1
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": 0.935944,
+            "end_ms": 1.433764,
+            "packets": 64
+          },
+          {
+            "begin_ms": 3.0225640078125,
+            "end_ms": 3.5189640078125,
+            "packets": 64
+          },
+          {
+            "begin_ms": 5.277904,
+            "end_ms": 6.538104,
+            "packets": 51
+          },
+          {
+            "begin_ms": 32.509274,
+            "end_ms": 32.509274,
+            "packets": 1
+          },
+          {
+            "begin_ms": 65.184974,
+            "end_ms": 65.188244,
+            "packets": 2
+          },
+          {
+            "begin_ms": 184.3239639921875,
+            "end_ms": 184.3239639921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 247.068254,
+            "end_ms": 248.540324,
+            "packets": 4
+          },
+          {
+            "begin_ms": 249.543374,
+            "end_ms": 250.076594,
+            "packets": 3
+          },
+          {
+            "begin_ms": 256.514354,
+            "end_ms": 256.514354,
+            "packets": 1
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": 1.442424,
+            "end_ms": 1.936744,
+            "packets": 64
+          },
+          {
+            "begin_ms": 3.5271640078125,
+            "end_ms": 4.027664,
+            "packets": 64
+          },
+          {
+            "begin_ms": 5.674504,
+            "end_ms": 6.545914,
+            "packets": 51
+          },
+          {
+            "begin_ms": 32.5184039921875,
+            "end_ms": 32.5184039921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 65.191934,
+            "end_ms": 65.196024,
+            "packets": 2
+          },
+          {
+            "begin_ms": 184.332164,
+            "end_ms": 184.332164,
+            "packets": 1
+          },
+          {
+            "begin_ms": 247.076174,
+            "end_ms": 250.0844139921875,
+            "packets": 7
+          },
+          {
+            "begin_ms": 256.517844,
+            "end_ms": 256.517844,
+            "packets": 1
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": 1.946034,
+            "end_ms": 2.452364,
+            "packets": 64
+          },
+          {
+            "begin_ms": 4.0359139921875,
+            "end_ms": 4.537244,
+            "packets": 64
+          },
+          {
+            "begin_ms": 6.069824,
+            "end_ms": 6.554424,
+            "packets": 51
+          },
+          {
+            "begin_ms": 32.526514,
+            "end_ms": 32.526514,
+            "packets": 1
+          },
+          {
+            "begin_ms": 65.199454,
+            "end_ms": 65.203044,
+            "packets": 2
+          },
+          {
+            "begin_ms": 184.3410939921875,
+            "end_ms": 184.3410939921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 247.084374,
+            "end_ms": 250.090864,
+            "packets": 7
+          },
+          {
+            "begin_ms": 256.5213640078125,
+            "end_ms": 256.5213640078125,
+            "packets": 1
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": 4.648034,
+            "end_ms": 4.816274,
+            "packets": 10
+          },
+          {
+            "begin_ms": 29.6696840078125,
+            "end_ms": 29.841454,
+            "packets": 10
+          },
+          {
+            "begin_ms": 37.250934,
+            "end_ms": 37.4292139921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 57.754964,
+            "end_ms": 57.924004,
+            "packets": 10
+          },
+          {
+            "begin_ms": 74.226484,
+            "end_ms": 74.302184,
+            "packets": 10
+          },
+          {
+            "begin_ms": 94.090274,
+            "end_ms": 94.1675039921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 112.5311239921875,
+            "end_ms": 112.605474,
+            "packets": 10
+          },
+          {
+            "begin_ms": 131.054234,
+            "end_ms": 131.236284,
+            "packets": 10
+          },
+          {
+            "begin_ms": 146.189694,
+            "end_ms": 146.360944,
+            "packets": 10
+          },
+          {
+            "begin_ms": 164.385734,
+            "end_ms": 164.5605440078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 179.032194,
+            "end_ms": 179.234004,
+            "packets": 10
+          },
+          {
+            "begin_ms": 197.589584,
+            "end_ms": 197.7603440078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 212.247524,
+            "end_ms": 212.419794,
+            "packets": 10
+          },
+          {
+            "begin_ms": 230.650354,
+            "end_ms": 230.821954,
+            "packets": 10
+          },
+          {
+            "begin_ms": 245.002004,
+            "end_ms": 250.1321540078125,
+            "packets": 52
+          },
+          {
+            "begin_ms": 256.561484,
+            "end_ms": 256.561484,
+            "packets": 1
+          }
+        ]
+      }
+    },
+    {
+      "frame": 76,
+      "feedback_ms": 236.873,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": 0.51331,
+            "end_ms": 1.00053,
+            "packets": 64
+          },
+          {
+            "begin_ms": 2.54613,
+            "end_ms": 2.9855699921875,
+            "packets": 59
+          },
+          {
+            "begin_ms": 4.65999,
+            "end_ms": 4.8787,
+            "packets": 30
+          },
+          {
+            "begin_ms": 10.62714,
+            "end_ms": 11.1206700078125,
+            "packets": 15
+          },
+          {
+            "begin_ms": 12.80543,
+            "end_ms": 12.92689,
+            "packets": 17
+          },
+          {
+            "begin_ms": 14.9504000078125,
+            "end_ms": 15.0753099921875,
+            "packets": 17
+          },
+          {
+            "begin_ms": 17.02329,
+            "end_ms": 17.15923,
+            "packets": 17
+          },
+          {
+            "begin_ms": 19.10909,
+            "end_ms": 19.1693,
+            "packets": 9
+          },
+          {
+            "begin_ms": 229.25375,
+            "end_ms": 229.25375,
+            "packets": 1
+          },
+          {
+            "begin_ms": 231.9309699921875,
+            "end_ms": 235.4468300078125,
+            "packets": 9
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": 1.0542799921875,
+            "end_ms": 1.5401799921875,
+            "packets": 64
+          },
+          {
+            "begin_ms": 3.05302,
+            "end_ms": 3.4986100078125,
+            "packets": 59
+          },
+          {
+            "begin_ms": 4.90994,
+            "end_ms": 5.1385799921875,
+            "packets": 30
+          },
+          {
+            "begin_ms": 10.74968,
+            "end_ms": 11.1293000078125,
+            "packets": 15
+          },
+          {
+            "begin_ms": 12.97101,
+            "end_ms": 13.09401,
+            "packets": 17
+          },
+          {
+            "begin_ms": 15.10149,
+            "end_ms": 15.22723,
+            "packets": 17
+          },
+          {
+            "begin_ms": 17.1903999921875,
+            "end_ms": 17.31111,
+            "packets": 17
+          },
+          {
+            "begin_ms": 19.1900099921875,
+            "end_ms": 19.2503400078125,
+            "packets": 9
+          },
+          {
+            "begin_ms": 229.2641,
+            "end_ms": 229.2641,
+            "packets": 1
+          },
+          {
+            "begin_ms": 231.94166,
+            "end_ms": 235.4557399921875,
+            "packets": 9
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": 1.54868,
+            "end_ms": 2.0377499921875,
+            "packets": 64
+          },
+          {
+            "begin_ms": 3.50668,
+            "end_ms": 4.06821,
+            "packets": 59
+          },
+          {
+            "begin_ms": 5.14639,
+            "end_ms": 5.3659799921875,
+            "packets": 30
+          },
+          {
+            "begin_ms": 10.85495,
+            "end_ms": 11.13702,
+            "packets": 15
+          },
+          {
+            "begin_ms": 13.10188,
+            "end_ms": 13.22171,
+            "packets": 17
+          },
+          {
+            "begin_ms": 15.23511,
+            "end_ms": 15.4767,
+            "packets": 17
+          },
+          {
+            "begin_ms": 17.31877,
+            "end_ms": 17.43823,
+            "packets": 17
+          },
+          {
+            "begin_ms": 19.2580500078125,
+            "end_ms": 19.31749,
+            "packets": 9
+          },
+          {
+            "begin_ms": 229.27954,
+            "end_ms": 229.27954,
+            "packets": 1
+          },
+          {
+            "begin_ms": 231.94995,
+            "end_ms": 235.46356,
+            "packets": 9
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": 2.0469899921875,
+            "end_ms": 2.52303,
+            "packets": 64
+          },
+          {
+            "begin_ms": 4.07647,
+            "end_ms": 5.5924899921875,
+            "packets": 89
+          },
+          {
+            "begin_ms": 10.9615600078125,
+            "end_ms": 11.14512,
+            "packets": 15
+          },
+          {
+            "begin_ms": 13.22964,
+            "end_ms": 13.34938,
+            "packets": 17
+          },
+          {
+            "begin_ms": 15.4845,
+            "end_ms": 15.60578,
+            "packets": 17
+          },
+          {
+            "begin_ms": 17.44609,
+            "end_ms": 17.56804,
+            "packets": 17
+          },
+          {
+            "begin_ms": 19.3254,
+            "end_ms": 19.38502,
+            "packets": 9
+          },
+          {
+            "begin_ms": 229.28728,
+            "end_ms": 229.28728,
+            "packets": 1
+          },
+          {
+            "begin_ms": 231.95797,
+            "end_ms": 235.47147,
+            "packets": 9
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": 9.7065400078125,
+            "end_ms": 9.98007,
+            "packets": 9
+          },
+          {
+            "begin_ms": 31.90829,
+            "end_ms": 32.0788999921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 49.74539,
+            "end_ms": 49.9175900078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 62.20039,
+            "end_ms": 62.3667600078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 80.89601,
+            "end_ms": 81.06742,
+            "packets": 10
+          },
+          {
+            "begin_ms": 99.29763,
+            "end_ms": 99.4641,
+            "packets": 10
+          },
+          {
+            "begin_ms": 117.86689,
+            "end_ms": 118.0355499921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 136.7557,
+            "end_ms": 136.92341,
+            "packets": 10
+          },
+          {
+            "begin_ms": 155.1296799921875,
+            "end_ms": 155.2941000078125,
+            "packets": 10
+          },
+          {
+            "begin_ms": 173.60686,
+            "end_ms": 173.7730499921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 192.98789,
+            "end_ms": 193.15435,
+            "packets": 10
+          },
+          {
+            "begin_ms": 211.49824,
+            "end_ms": 211.6758199921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 226.77862,
+            "end_ms": 229.7929,
+            "packets": 110
+          },
+          {
+            "begin_ms": 232.04859,
+            "end_ms": 235.53108,
+            "packets": 9
+          }
+        ]
+      }
+    },
+    {
+      "frame": 827,
+      "feedback_ms": 102.596,
+      "groups": {
+        "12": [
+          {
+            "begin_ms": 0.41716,
+            "end_ms": 0.72972,
+            "packets": 41
+          },
+          {
+            "begin_ms": 15.26649,
+            "end_ms": 15.26649,
+            "packets": 1
+          },
+          {
+            "begin_ms": 19.9543999921875,
+            "end_ms": 19.96234,
+            "packets": 2
+          },
+          {
+            "begin_ms": 78.3294900078125,
+            "end_ms": 78.3294900078125,
+            "packets": 1
+          }
+        ],
+        "16": [
+          {
+            "begin_ms": 0.75958,
+            "end_ms": 1.0673,
+            "packets": 41
+          },
+          {
+            "begin_ms": 15.2797400078125,
+            "end_ms": 15.2797400078125,
+            "packets": 1
+          },
+          {
+            "begin_ms": 19.97284,
+            "end_ms": 19.98078,
+            "packets": 2
+          },
+          {
+            "begin_ms": 78.33559,
+            "end_ms": 78.33559,
+            "packets": 1
+          }
+        ],
+        "17": [
+          {
+            "begin_ms": 1.0758300078125,
+            "end_ms": 1.38447,
+            "packets": 41
+          },
+          {
+            "begin_ms": 15.28786,
+            "end_ms": 15.28786,
+            "packets": 1
+          },
+          {
+            "begin_ms": 19.98864,
+            "end_ms": 19.99635,
+            "packets": 2
+          },
+          {
+            "begin_ms": 78.33917,
+            "end_ms": 78.33917,
+            "packets": 1
+          }
+        ],
+        "18": [
+          {
+            "begin_ms": 1.3930100078125,
+            "end_ms": 1.71155,
+            "packets": 41
+          },
+          {
+            "begin_ms": 15.2965999921875,
+            "end_ms": 15.2965999921875,
+            "packets": 1
+          },
+          {
+            "begin_ms": 20.00533,
+            "end_ms": 20.01276,
+            "packets": 2
+          },
+          {
+            "begin_ms": 78.34256,
+            "end_ms": 78.34256,
+            "packets": 1
+          }
+        ],
+        "kernel": [
+          {
+            "begin_ms": 19.6777200078125,
+            "end_ms": 19.8500999921875,
+            "packets": 10
+          },
+          {
+            "begin_ms": 38.65595,
+            "end_ms": 38.82779,
+            "packets": 10
+          },
+          {
+            "begin_ms": 68.02155,
+            "end_ms": 68.19368,
+            "packets": 10
+          },
+          {
+            "begin_ms": 73.30782,
+            "end_ms": 73.38157,
+            "packets": 10
+          },
+          {
+            "begin_ms": 97.2090400078125,
+            "end_ms": 97.24029,
+            "packets": 5
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "scope": "Offscreen full-image Direct2D GaussianBlur GPU interval; not HostBackdrop, DWM or remote latency",
+  "warmup_per_block": 10,
+  "blocks": [
+    {
+      "block": 0,
+      "mode": "balanced",
+      "gpu_ms": {
+        "n": 60,
+        "median": 3.3811718749999997,
+        "p95": 3.39921875,
+        "max": 3.429895833
+      }
+    },
+    {
+      "block": 1,
+      "mode": "speed",
+      "gpu_ms": {
+        "n": 60,
+        "median": 3.0833072915,
+        "p95": 3.099947917,
+        "max": 3.103333333
+      }
+    },
+    {
+      "block": 2,
+      "mode": "quality",
+      "gpu_ms": {
+        "n": 60,
+        "median": 7.5019791665,
+        "p95": 7.52,
+        "max": 7.53296875
+      }
+    },
+    {
+      "block": 3,
+      "mode": "quality",
+      "gpu_ms": {
+        "n": 60,
+        "median": 7.4990104165,
+        "p95": 7.52359375,
+        "max": 7.555885417
+      }
+    },
+    {
+      "block": 4,
+      "mode": "speed",
+      "gpu_ms": {
+        "n": 60,
+        "median": 3.0823697914999997,
+        "p95": 3.09890625,
+        "max": 3.10171875
+      }
+    },
+    {
+      "block": 5,
+      "mode": "balanced",
+      "gpu_ms": {
+        "n": 60,
+        "median": 3.3871614585,
+        "p95": 3.412864583,
+        "max": 3.417760417
+      }
+    }
+  ],
+  "modes": {
+    "speed": {
+      "n": 120,
+      "median": 3.0827083335,
+      "p95": 3.098958333,
+      "max": 3.103333333
+    },
+    "balanced": {
+      "n": 120,
+      "median": 3.3824739585000003,
+      "p95": 3.4084375,
+      "max": 3.429895833
+    },
+    "quality": {
+      "n": 120,
+      "median": 7.5005989584999995,
+      "p95": 7.5203125,
+      "max": 7.555885417
+    }
+  },
+  "pixels": {
+    "speed": {
+      "max_rgb_error": 8,
+      "mean_rgb_error": 0.46208108281893007,
+      "differing_rgb_channels": 8974492,
+      "channels_error_over_2": 393301,
+      "alpha_error": 0
+    },
+    "balanced": {
+      "max_rgb_error": 0,
+      "mean_rgb_error": 0.0,
+      "differing_rgb_channels": 0,
+      "channels_error_over_2": 0,
+      "alpha_error": 0
+    },
+    "quality": {
+      "max_rgb_error": 3,
+      "mean_rgb_error": 0.23093054751800413,
+      "differing_rgb_channels": 5716868,
+      "channels_error_over_2": 1,
+      "alpha_error": 0
+    }
+  }
+}

@@ -1,10 +1,14 @@
 # Viewflow：校准、火焰图与 GPU 排队归因
 
+最新对照：[独立 alpha 遮罩，完整毛玻璃保留](stable-alpha-mask/README.md)。图像正/负例完成；两轮性能没有稳定收益，未接入产品。[完整 4K 链路复测](full-glass-retest/README.md)已完成两轮：捕获→所见桌面上界中位 38.98 / 38.61 ms，完整绘制→桌面上界中位 41.49 / 53.46 ms，仍未达标。
+
+最新毛玻璃研究：[完整保留背景的 Windows 模糊 GPU 实测](full-glass-kernel/README.md)。相同 sigma 下 SPEED 仅减少约 0.30 ms 且产生画面差异，未采用；[此前二值背景静音已撤回](binary-alpha-backdrop/README.md)。4K60 与两帧内完整显示仍未验证。
+
 2026-09-08 · 面向 Viewflow 开发决策 · Linux → Windows 原生接收端
 
 **当前最有证据支持的优化方向是减少透明度数据的重复复制、展开与比较。此前围绕提交 API 的尝试优先级应降低。尚未证明 4K 60 fps、延迟不超过两帧；本轮完成的是定位与测量基础，不是性能达标。**
 
-后续进展：已完成[源端 alpha 输出所有权优化](alpha-output-ownership/README.md)与[Windows alpha 复用](native-alpha-reuse/README.md)，并新增[长停顿分段诊断](longtail-diagnostics/README.md)。以下火焰图与阶段数据保留为优化前研究基线；最新隔离测试约 54–55 次原生 commit/s，物理 4K60 与两帧内延迟仍未验证。
+后续进展：已完成[源端 alpha 输出所有权优化](alpha-output-ownership/README.md)与[Windows alpha 复用](native-alpha-reuse/README.md)，并新增[长停顿分段诊断](longtail-diagnostics/README.md)、[显存 scratch 复用](scratch-tile-borrow/README.md)、[实际 socket 边界证据](socket-boundary/README.md)、[源端 alpha 快照复用](source-alpha-snapshots/README.md)、[GPU 精确 alpha 比较](gpu-alpha-diff/README.md)、[接收调用、唤醒与内核网络追踪](deep-socket/README.md)及[Windows 网卡入口与 UDP 交付对照](ndis-ingress/README.md)、[并行普通 UDP 复现](active-udp-controls/README.md)、[已撤回的发送平滑实验](udp-pacing-rejected/README.md)、[NDIS 接收调度与遥测线程优先级对照](ndis-receive-scheduling/README.md)、[桌面观察器异步读取对照](async-desktop-observer/README.md)、[未采用的 GPU 优先级对照](gpu-priority-rejected/README.md)、[观察器等待精度与窗口端点对照](observer-timing/README.md)、[未采用的绘图表面原位更新](inplace-surface-rejected/README.md)、[AV1 窗口支持与六轮编码对照](av1-window-codec/README.md)、[未采用的无帧槽等待交换链](nowait-swapchain/README.md)、[GPU 查询与日志开销六轮对照](trace-controls/README.md)、[捕获帧到达唤醒优化](capture-readiness/README.md)、[未采用的窗口提交采集调度](capture-commit-cadence/README.md)、[Windows 合成路径与背景效果对照](composition-path-probe/README.md)。以下火焰图与阶段数据保留为优化前研究基线；常规配置的隔离测试约 49–58 次原生 commit/s；调低冲突的遥测线程优先级后约 59.5–59.6 次/s，原设置已恢复。物理 4K60 与两帧内显示延迟仍未验证。
 
 ## 1. 时间已经校准，几十毫秒差异不是时钟偏差
 

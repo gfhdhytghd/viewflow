@@ -9,6 +9,8 @@ import subprocess
 import time
 
 stopping = False
+SPECIAL_WORKSPACE = 'viewflow'
+UNDERLAY_WORKSPACE = 'viewflow-underlay'
 
 def stop(_signal, _frame):
     global stopping
@@ -32,6 +34,32 @@ def save(path, value):
     temporary.write_text(json.dumps(value, indent=2) + '\n')
     temporary.chmod(0o600)
     temporary.replace(path)
+
+
+def special_workspace_expression(output, workspace=SPECIAL_WORKSPACE,
+                                 underlay=UNDERLAY_WORKSPACE):
+    output_value = json.dumps(output)
+    workspace_value = json.dumps(workspace)
+    underlay_value = json.dumps(f'name:{underlay}')
+    return (f'local monitor = hl.get_monitor({output_value}); '
+            f'if not monitor then error("Viewflow output is unavailable") end; '
+            f'monitor:set_workspace({underlay_value}); '
+            f'monitor:set_special_workspace({workspace_value})')
+
+
+def activate_special_workspace(output, workspace=SPECIAL_WORKSPACE,
+                               underlay=UNDERLAY_WORKSPACE):
+    subprocess.run(['hyprctl', 'eval', special_workspace_expression(output, workspace, underlay)],
+                   check=True, timeout=5)
+    deadline = time.monotonic() + 2
+    while time.monotonic() < deadline:
+        monitors = read_json('hyprctl', '-j', 'monitors')
+        if any(m['name'] == output and m.get('activeWorkspace', {}).get('name') == underlay and
+               m.get('specialWorkspace', {}).get('name') == f'special:{workspace}'
+               for m in monitors):
+            return
+        time.sleep(0.1)
+    raise RuntimeError(f'Owned output did not activate special workspace special:{workspace}')
 
 
 def prepare(template, instance, monitor, runtime):
@@ -112,6 +140,7 @@ def main():
             remote = config['desktop']['remote_display']
             if any(owned[k] != remote[k] for k in ('x', 'y', 'width', 'height', 'scale')):
                 raise RuntimeError('Owned output differs from configured remote display')
+            activate_special_workspace(output)
             config['pointer']['cursor_monitor_id'] = owned['id']
             config['desktop']['native_control_dir'] = str(state / 'native-control')
             (state / 'native-control').mkdir(mode=0o700, exist_ok=True)

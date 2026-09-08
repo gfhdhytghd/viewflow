@@ -45,6 +45,7 @@ mod atlas_cursor_handoff;
 pub mod cursor_source;
 mod atlas_cursor_receiver;
 pub mod atlas_feedback;
+mod atlas_socket_trace;
 #[cfg(target_os = "linux")]
 pub mod atlas_input_policy;
 pub mod atlas_input_recovery;

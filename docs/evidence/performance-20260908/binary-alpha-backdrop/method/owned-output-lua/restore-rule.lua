@@ -1,0 +1,1 @@
+if _G.viewflow_binary_backdrop_fixture_rule then _G.viewflow_binary_backdrop_fixture_rule:set_enabled(false);_G.viewflow_binary_backdrop_fixture_rule=nil end

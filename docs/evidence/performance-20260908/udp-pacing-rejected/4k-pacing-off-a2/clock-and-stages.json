@@ -1,0 +1,90 @@
+{
+  "raw_exchange_count": 736,
+  "invalid_exchanges": [],
+  "mapping_count": 92,
+  "uncertainty_ms": {
+    "n": 92,
+    "min": 0.0852,
+    "median": 0.15022449999999998,
+    "p95": 0.251312,
+    "max": 0.301684
+  },
+  "network_rtt_ms": {
+    "n": 736,
+    "min": 0.170399,
+    "median": 0.4994855,
+    "p95": 2.14136,
+    "max": 380.050616
+  },
+  "offset_span_ms": 0.211418,
+  "apparent_offset_slope_ppm": 0.08878014383548563,
+  "slope_is_not_independent_oscillator_drift": true,
+  "anchor_width_ns": 23880,
+  "skipped": {},
+  "wall_stage_ms": {
+    "capture to encode": {
+      "n": 1321,
+      "min": 0.145377,
+      "median": 1.517537,
+      "p95": 2.936816,
+      "max": 29.633133
+    },
+    "encode (host incl waits)": {
+      "n": 1321,
+      "min": 6.285258,
+      "median": 7.048662,
+      "p95": 7.912815,
+      "max": 84.792243
+    },
+    "release": {
+      "n": 1321,
+      "min": 0.00197,
+      "median": 0.006033,
+      "p95": 0.011305,
+      "max": 0.034579
+    },
+    "batch return / previous feedback": {
+      "n": 1321,
+      "min": 0.000831,
+      "median": 0.011099,
+      "p95": 4.402933,
+      "max": 364.119621
+    },
+    "encoded to pipe admission (transport + receiver + pipe parse)": {
+      "n": 1300,
+      "min": 2.164588,
+      "median": 3.7879820000000004,
+      "p95": 12.540704,
+      "max": 376.602437
+    },
+    "pipe admission to decoded": {
+      "n": 1300,
+      "min": 0.8222,
+      "median": 1.6704050000000001,
+      "p95": 3.6569,
+      "max": 20.47668
+    },
+    "decoded to proxy ready": {
+      "n": 1300,
+      "min": 0.24051,
+      "median": 0.5923350000000001,
+      "p95": 8.82784,
+      "max": 25.78063
+    },
+    "surface copy host": {
+      "n": 1300,
+      "min": 0.00893,
+      "median": 0.0162,
+      "p95": 0.03521,
+      "max": 0.53126
+    },
+    "visual bind / commit host": {
+      "n": 1300,
+      "min": 0.0298,
+      "median": 0.058234999999999995,
+      "p95": 0.09199,
+      "max": 3.80447
+    }
+  },
+  "caveat": "Overlapping pipelines; do not sum independent medians. CPU flame graph and wall spans are distinct. Desktop timestamp is not photon time."
+}

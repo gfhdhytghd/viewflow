@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(viewflow_linux_frame_fixture LANGUAGES CXX)
+find_package(Qt6 REQUIRED COMPONENTS Gui OpenGL)
+add_executable(viewflow_linux_frame_fixture main.cpp)
+target_compile_features(viewflow_linux_frame_fixture PRIVATE cxx_std_20)
+target_link_libraries(viewflow_linux_frame_fixture PRIVATE Qt6::Gui Qt6::OpenGL)
+target_compile_options(viewflow_linux_frame_fixture PRIVATE -Wall -Wextra -Werror)

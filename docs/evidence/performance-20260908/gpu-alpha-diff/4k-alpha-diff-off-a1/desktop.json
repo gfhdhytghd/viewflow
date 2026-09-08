@@ -1,0 +1,116 @@
+{
+  "start": "fixture pre-draw CLOCK_MONOTONIC timestamp",
+  "end": "DXGI desktop LastPresentTime QPC timestamp",
+  "clock_model": "existing paired QUIC minimum-RTT four-timestamp estimate and uncertainty",
+  "input_to_photon_measured": false,
+  "receiver_anchor_interval_ns": 14800,
+  "missing_fixture_frame": 0,
+  "missing_preceding_clock": 0,
+  "expired_clock_mapping": 0,
+  "latency_lower_ms": {
+    "n": 676,
+    "min": 46.626353,
+    "median": 67.87604999999999,
+    "p95": 94.254977,
+    "max": 446.414002
+  },
+  "latency_upper_ms": {
+    "n": 676,
+    "min": 46.846745,
+    "median": 68.0918085,
+    "p95": 94.425289,
+    "max": 446.652278
+  },
+  "clock_uncertainty_ms": {
+    "n": 676,
+    "min": 0.074239,
+    "median": 0.10783300000000001,
+    "p95": 0.185187,
+    "max": 0.217802
+  },
+  "definitely_over_two_60hz_frames": 676,
+  "definitely_within_two_60hz_frames": 0,
+  "negative_upper_bound": 0,
+  "unique_capture_stage_samples": {
+    "missing_capture_marker": 0,
+    "ambiguous_repeated_marker": 0,
+    "missing_native_mutation": 0,
+    "render_to_capture_ms": {
+      "n": 676,
+      "min": 12.679936,
+      "median": 13.875634999999999,
+      "p95": 14.389647,
+      "max": 15.274975
+    },
+    "capture_to_desktop_lower_ms": {
+      "n": 676,
+      "min": 32.223978,
+      "median": 53.714174,
+      "p95": 80.280501,
+      "max": 432.474134
+    },
+    "capture_to_desktop_upper_ms": {
+      "n": 676,
+      "min": 32.44437,
+      "median": 53.990811,
+      "p95": 80.502585,
+      "max": 432.71241
+    },
+    "capture_to_mutation_lower_ms": {
+      "n": 676,
+      "min": 12.029184,
+      "median": 15.9221725,
+      "p95": 30.278478,
+      "max": 396.754654
+    },
+    "capture_to_mutation_upper_ms": {
+      "n": 676,
+      "min": 12.282164,
+      "median": 16.20835,
+      "p95": 30.508652,
+      "max": 396.99293
+    },
+    "mutation_to_desktop_ms": {
+      "n": 676,
+      "min": 13.56105,
+      "median": 37.005595,
+      "p95": 51.56485,
+      "max": 88.87342
+    },
+    "negative_mutation_to_desktop": 0,
+    "gpu_copy_completion_bounds": {
+      "scope": "event after composition surface copy on application's D3D queue; polling bounds, not DWM completion",
+      "missing": 0,
+      "invalid_or_multiple": 0,
+      "submitted_to_complete_lower_ms": {
+        "n": 676,
+        "min": 0.0,
+        "median": 0.0,
+        "p95": 17.96193,
+        "max": 33.24305
+      },
+      "submitted_to_complete_upper_ms": {
+        "n": 676,
+        "min": 8.33874,
+        "median": 16.92929,
+        "p95": 51.66091,
+        "max": 403.70897
+      },
+      "complete_to_desktop_lower_ms": {
+        "n": 676,
+        "min": -366.13824,
+        "median": 17.56751,
+        "p95": 33.64624,
+        "max": 52.69738
+      },
+      "complete_to_desktop_upper_ms": {
+        "n": 676,
+        "min": 11.00012,
+        "median": 32.39032,
+        "p95": 49.41489,
+        "max": 78.38925
+      },
+      "ready_observed_before_desktop": 634
+    }
+  }
+}

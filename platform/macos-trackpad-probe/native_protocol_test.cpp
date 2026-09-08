@@ -8,7 +8,53 @@ static void contact(uint8_t *p,unsigned slot,unsigned id,unsigned down,unsigned 
     c[6]=20;c[7]=40;c[8]=30;c[9]=35;c[10]=4;c[11]=2;
 }
 static int signed13(uint32_t v) {v&=8191;return (v&4096)?int(v)-8192:int(v);}
+static uint32_t stamp(const std::vector<uint8_t>& p) {
+    return (uint32_t(p[9])|(uint32_t(p[10])<<8)|(uint32_t(p[11])<<16))>>3;
+}
+static void natural_lift() {
+    State s{};s.init();uint8_t p[wire_size];empty_wire(p,20000);
+    for(unsigned i=0;i<4;++i)contact(p,i,i,1,10000+i*100,12000);
+    std::vector<std::vector<uint8_t>> packets;
+    auto send=[&](const uint8_t* b,size_t n){packets.emplace_back(b,b+n);return 0;};
+    assert(!s.apply(p,sizeof(p),send));
+    // Partial lift keeps surviving contacts active; it must not end the gesture.
+    p[13]=0;assert(!s.apply(p,sizeof(p),send));assert(s.ids==14);
+    assert(packets.size()==2 && ((u32(packets.back().data()+21)>>29)==4));
+    for(unsigned i=0;i<4;++i)p[13+12*i]=0;
+    size_t start=packets.size();assert(!s.apply(p,sizeof(p),send));
+    assert(packets.size()==start+3 && !s.active());
+    const auto &stop=packets[start], &inactive=packets[start+1], &empty=packets[start+2];
+    for(unsigned i=0;i<4;++i) {
+        const auto a=stop.data()+12+9*i,b=inactive.data()+12+9*i;
+        assert((u32(a)>>29)==7 && (u32(b)>>26)==0);
+        assert((u32(a)&0x3ffffff)==(u32(b)&0x3ffffff));
+        assert((a[8]&15)==i+1 && a[8]==b[8]);
+        for(unsigned j=4;j<8;++j)assert(a[j]==0 && b[j]==0);
+    }
+    assert(empty.size()==12 && empty[7]==2);
+    uint32_t end_stamp=stamp(empty);
+    for(size_t i=1;i<packets.size();++i)assert(((stamp(packets[i])-stamp(packets[i-1]))&0x1fffff)>0);
+    empty_wire(p,20000);assert(!s.apply(p,sizeof(p),send));assert(packets.size()==start+3);
+    // A next gesture sharing the evdev timestamp must not go backwards.
+    contact(p,0,4,1,14000,15000);assert(!s.apply(p,sizeof(p),send));
+    assert(stamp(packets.back())==end_stamp+1);
+    // Direct empty snapshots use the previous contact coordinates. Failed
+    // tails must finish before a later gesture can begin.
+    empty_wire(p,21000);unsigned calls=0;
+    auto fail=[&](const uint8_t*,size_t){return ++calls==2?7:0;};
+    assert(s.apply(p,sizeof(p),fail)==7 && s.active() && s.ending_pending);
+    contact(p,0,5,1,22000,23000);start=packets.size();
+    assert(!s.apply(p,sizeof(p),send));assert(packets.size()==start+4);
+    assert((packets[start][20]&15)==5 && packets[start+2].size()==12);
+    assert((packets.back()[20]&15)==6 && s.ids==(1<<5));
+    // The native 21-bit millisecond clock wraps without losing an end phase.
+    s.emitted_stamp=0x1ffffe;s.have_stamp=true;
+    empty_wire(p,0x1ffffe*10);assert(!s.apply(p,sizeof(p),send));
+    assert(stamp(packets[packets.size()-3])==0x1fffff);
+    assert(stamp(packets[packets.size()-2])==0 && stamp(packets.back())==1);
+}
 int main() {
+    natural_lift();
     uint8_t wire[wire_size];empty_wire(wire,12000);
     for(unsigned i=0;i<5;++i)contact(wire,i,i,1,i*7000,i*7000);
     assert(valid(wire,sizeof(wire)));assert(down_count(wire)==5);
@@ -42,5 +88,12 @@ int main() {
     assert(f.get(0xdb,out)==74 && out[2]==2 && out[4]==0xd1);
     assert(f.get(0xd9,out)==17 && u32(out+1)==width && u32(out+5)==height);
     assert(f.get(0xee,out)==0 && f.unknown==1);
+    assert(f.get(0xc8,out)==2 && out[1]==8);
+    uint8_t mode[]={0xc8,9};
+    assert(f.set(0xc8,mode,sizeof(mode)));
+    assert(f.get(0xc8,out)==2 && out[1]==9);
+    assert(!f.set(0xc8,mode,1));
+    mode[0]=0xc9;assert(!f.set(0xc8,mode,sizeof(mode)));
+    assert(f.get(0xc8,out)==2 && out[1]==9);
     puts("native protocol: five contacts, state transitions, failed cleanup and feature dialogue passed");
 }

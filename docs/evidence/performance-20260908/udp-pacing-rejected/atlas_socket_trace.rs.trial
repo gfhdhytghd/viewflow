@@ -1,0 +1,625 @@
+//! Opt-in buffered socket-boundary diagnostics. These timestamps bracket the
+//! runtime's UDP calls, not NIC transmission or arrival. No packet payloads are
+//! retained, and recording stops at a fixed bound without changing I/O results.
+use quinn::{
+    AsyncTimer, AsyncUdpSocket, Runtime, UdpPoller,
+    udp::{RecvMeta, Transmit},
+};
+use std::{
+    fmt,
+    future::Future,
+    io::{self, IoSliceMut},
+    net::SocketAddr,
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll, Wake, Waker},
+    time::Instant,
+};
+
+const MAX_RECORDS: usize = 500_000;
+#[derive(Debug)]
+struct Record {
+    operation: &'static str,
+    before_ns: u64,
+    after_ns: u64,
+    status: &'static str,
+    bytes: usize,
+    datagrams: usize,
+}
+#[derive(Debug)]
+struct Buffer {
+    records: Vec<Record>,
+    omitted: usize,
+    active: bool,
+}
+#[derive(Debug)]
+struct Trace {
+    origin: Instant,
+    buffer: Mutex<Buffer>,
+}
+impl Trace {
+    fn now(&self) -> u64 {
+        self.origin
+            .elapsed()
+            .as_nanos()
+            .try_into()
+            .unwrap_or(u64::MAX)
+    }
+    fn record(&self, record: Record) {
+        // Diagnostics must not turn a poisoned diagnostic lock into I/O failure.
+        let Ok(mut buffer) = self.buffer.lock() else {
+            return;
+        };
+        if !buffer.active {
+            return;
+        }
+        if buffer.records.len() < MAX_RECORDS {
+            buffer.records.push(record);
+        } else {
+            buffer.omitted = buffer.omitted.saturating_add(1);
+        }
+    }
+}
+/// Drop after session retirement, while endpoint tasks may still own the socket.
+/// Closing recording under the lock gives a coherent, explicitly bounded dump.
+pub(crate) struct Guard(Option<(&'static str, Arc<Trace>)>);
+impl Drop for Guard {
+    fn drop(&mut self) {
+        let Some((role, trace)) = &self.0 else {
+            return;
+        };
+        let Ok(mut buffer) = trace.buffer.lock() else {
+            return;
+        };
+        buffer.active = false;
+        let records = std::mem::take(&mut buffer.records);
+        let omitted = buffer.omitted;
+        drop(buffer);
+        crate::atlas_feedback::trace_line(format_args!(
+            "atlas-socket-end role={role} records={} omitted={omitted}",
+            records.len()
+        ));
+        for r in records {
+            crate::atlas_feedback::trace_line(format_args!(
+                "atlas-socket role={role} op={} before_ns={} after_ns={} status={} bytes={} datagrams={}",
+                r.operation, r.before_ns, r.after_ns, r.status, r.bytes, r.datagrams
+            ));
+        }
+    }
+}
+
+/// `anchor` returns external clock ticks and their frequency. Sampling is
+/// bracketed by the trace clock so cross-clock analysis retains uncertainty.
+pub(crate) fn runtime(
+    role: &'static str,
+    anchor: impl FnOnce() -> anyhow::Result<(u64, u64)>,
+) -> (Arc<dyn Runtime>, Guard) {
+    let inner: Arc<dyn Runtime> = Arc::new(quinn::TokioRuntime);
+    if std::env::var("VIEWFLOW_QUIC_SOCKET_TRACE").as_deref() != Ok("1") {
+        return (inner, Guard(None));
+    }
+    let trace = Arc::new(Trace {
+        origin: Instant::now(),
+        buffer: Mutex::new(Buffer {
+            records: Vec::with_capacity(MAX_RECORDS),
+            omitted: 0,
+            active: true,
+        }),
+    });
+    let before_ns = trace.now();
+    let anchor = anchor();
+    let after_ns = trace.now();
+    let Ok((ticks, frequency)) = anchor else {
+        crate::atlas_feedback::trace_line(format_args!(
+            "atlas-socket-disabled role={role} reason=clock-anchor"
+        ));
+        return (inner, Guard(None));
+    };
+    crate::atlas_feedback::trace_line(format_args!(
+        "atlas-socket-anchor role={role} before_ns={before_ns} ticks={ticks} frequency={frequency} after_ns={after_ns}"
+    ));
+    (
+        Arc::new(TraceRuntime {
+            inner,
+            trace: trace.clone(),
+        }),
+        Guard(Some((role, trace))),
+    )
+}
+
+/// Preserve Quinn's normal client socket setup, including best-effort IPv6
+/// dual-stack support. The default path does not install any wrapper.
+pub(crate) fn client(
+    bind: SocketAddr,
+    anchor: impl FnOnce() -> anyhow::Result<(u64, u64)>,
+) -> io::Result<(quinn::Endpoint, Guard)> {
+    let pacing = crate::atlas_udp_pacing::config();
+    if std::env::var("VIEWFLOW_QUIC_SOCKET_TRACE").as_deref() != Ok("1") && pacing.is_none() {
+        return Ok((quinn::Endpoint::client(bind)?, Guard(None)));
+    }
+    let socket = socket2::Socket::new(
+        socket2::Domain::for_address(bind),
+        socket2::Type::DGRAM,
+        Some(socket2::Protocol::UDP),
+    )?;
+    if bind.is_ipv6() {
+        let _ = socket.set_only_v6(false);
+    }
+    socket.bind(&bind.into())?;
+    let (runtime, guard) = runtime("source", anchor);
+    let runtime = match pacing {
+        Some(packets) => crate::atlas_udp_pacing::runtime(runtime, packets),
+        None => runtime,
+    };
+    Ok((
+        quinn::Endpoint::new(Default::default(), None, socket.into(), runtime)?,
+        guard,
+    ))
+}
+
+#[derive(Debug)]
+struct TraceRuntime {
+    inner: Arc<dyn Runtime>,
+    trace: Arc<Trace>,
+}
+impl Runtime for TraceRuntime {
+    fn new_timer(&self, at: Instant) -> Pin<Box<dyn AsyncTimer>> {
+        self.inner.new_timer(at)
+    }
+    fn spawn(&self, future: Pin<Box<dyn Future<Output = ()> + Send>>) {
+        self.inner.spawn(future);
+    }
+    fn now(&self) -> Instant {
+        self.inner.now()
+    }
+    fn wrap_udp_socket(&self, socket: std::net::UdpSocket) -> io::Result<Arc<dyn AsyncUdpSocket>> {
+        Ok(Arc::new(TraceSocket {
+            inner: Arc::new(DeepTraceSocket::new(socket, self.trace.clone())?),
+            trace: self.trace.clone(),
+        }))
+    }
+}
+// Mirrors Quinn 0.11.11's Tokio UDP adapter, with additional opt-in records
+// inside readiness and UdpSocketState::recv. The normal runtime never uses it.
+#[derive(Debug)]
+struct DeepTraceSocket {
+    io: tokio::net::UdpSocket,
+    udp: quinn::udp::UdpSocketState,
+    trace: Arc<Trace>,
+    read_wake: Arc<ReadWake>,
+}
+impl DeepTraceSocket {
+    fn new(socket: std::net::UdpSocket, trace: Arc<Trace>) -> io::Result<Self> {
+        let udp = quinn::udp::UdpSocketState::new((&socket).into())?;
+        Ok(Self {
+            io: tokio::net::UdpSocket::from_std(socket)?,
+            udp,
+            read_wake: Arc::new(ReadWake {
+                parent: Mutex::new(None),
+                trace: trace.clone(),
+            }),
+            trace,
+        })
+    }
+}
+#[derive(Debug)]
+struct ReadWake {
+    parent: Mutex<Option<Waker>>,
+    trace: Arc<Trace>,
+}
+impl ReadWake {
+    fn register(&self, waker: &Waker) {
+        let mut parent = self.parent.lock().unwrap_or_else(|e| e.into_inner());
+        if parent.as_ref().is_none_or(|p| !p.will_wake(waker)) {
+            *parent = Some(waker.clone());
+        }
+    }
+    fn forward(&self) {
+        let at = self.trace.now();
+        let parent = self
+            .parent
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        self.trace.record(Record {
+            operation: "recv_wake",
+            before_ns: at,
+            after_ns: at,
+            status: "wake",
+            bytes: 0,
+            datagrams: 0,
+        });
+        // Never call the original waker while holding either diagnostic lock.
+        if let Some(parent) = parent {
+            parent.wake_by_ref();
+        }
+    }
+}
+impl Wake for ReadWake {
+    fn wake(self: Arc<Self>) {
+        self.forward();
+    }
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.forward();
+    }
+}
+impl AsyncUdpSocket for DeepTraceSocket {
+    fn create_io_poller(self: Arc<Self>) -> Pin<Box<dyn UdpPoller>> {
+        Box::pin(ReadyPoller {
+            socket: self,
+            future: None,
+        })
+    }
+    fn try_send(&self, transmit: &Transmit) -> io::Result<()> {
+        self.io.try_io(tokio::io::Interest::WRITABLE, || {
+            self.udp.send((&self.io).into(), transmit)
+        })
+    }
+    fn poll_recv(
+        &self,
+        cx: &mut Context,
+        bufs: &mut [IoSliceMut<'_>],
+        meta: &mut [RecvMeta],
+    ) -> Poll<io::Result<usize>> {
+        self.read_wake.register(cx.waker());
+        // Stable Arc identity preserves will_wake across polls. No allocation
+        // per datagram; only the temporary Waker's Arc count changes.
+        let waker = Waker::from(self.read_wake.clone());
+        let mut traced_cx = Context::from_waker(&waker);
+        loop {
+            let before_ns = self.trace.now();
+            let had_budget = tokio::task::coop::has_budget_remaining();
+            let ready = self.io.poll_recv_ready(&mut traced_cx);
+            let after_ns = self.trace.now();
+            let state = match &ready {
+                Poll::Pending if !had_budget => "pending_budget",
+                Poll::Pending => "pending",
+                Poll::Ready(r) => status(r),
+            };
+            self.trace.record(Record {
+                operation: "recv_ready",
+                before_ns,
+                after_ns,
+                status: state,
+                bytes: 0,
+                datagrams: 0,
+            });
+            match ready {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
+                Poll::Ready(Ok(())) => {}
+            }
+            // This closure runs only when Tokio permits the actual UDP call.
+            let received = self.io.try_io(tokio::io::Interest::READABLE, || {
+                let before_ns = self.trace.now();
+                let result = self.udp.recv((&self.io).into(), bufs, meta);
+                let after_ns = self.trace.now();
+                let (bytes, datagrams) = match &result {
+                    Ok(count) => (
+                        meta[..*count].iter().map(|m| m.len).sum(),
+                        meta[..*count]
+                            .iter()
+                            .map(|m| m.len.div_ceil(m.stride.max(1)))
+                            .sum(),
+                    ),
+                    Err(_) => (0, 0),
+                };
+                self.trace.record(Record {
+                    operation: "recv_syscall",
+                    before_ns,
+                    after_ns,
+                    status: status(&result),
+                    bytes,
+                    datagrams,
+                });
+                result
+            });
+            // Preserve the upstream adapter's retry/readiness behavior.
+            if let Ok(count) = received {
+                return Poll::Ready(Ok(count));
+            }
+        }
+    }
+    fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.io.local_addr()
+    }
+    fn max_transmit_segments(&self) -> usize {
+        self.udp.max_gso_segments()
+    }
+    fn max_receive_segments(&self) -> usize {
+        self.udp.gro_segments()
+    }
+    fn may_fragment(&self) -> bool {
+        self.udp.may_fragment()
+    }
+}
+type ReadyFuture = Pin<Box<dyn Future<Output = io::Result<()>> + Send + Sync>>;
+struct ReadyPoller {
+    socket: Arc<DeepTraceSocket>,
+    future: Option<ReadyFuture>,
+}
+impl fmt::Debug for ReadyPoller {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReadyPoller").finish_non_exhaustive()
+    }
+}
+impl UdpPoller for ReadyPoller {
+    fn poll_writable(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        if self.future.is_none() {
+            let socket = self.socket.clone();
+            self.future = Some(Box::pin(async move { socket.io.writable().await }));
+        }
+        let result = self.future.as_mut().unwrap().as_mut().poll(cx);
+        if result.is_ready() {
+            self.future = None;
+        }
+        result
+    }
+}
+
+#[derive(Debug)]
+struct TraceSocket {
+    inner: Arc<dyn AsyncUdpSocket>,
+    trace: Arc<Trace>,
+}
+fn status<T>(result: &io::Result<T>) -> &'static str {
+    match result {
+        Ok(_) => "ok",
+        Err(e) if e.kind() == io::ErrorKind::WouldBlock => "would_block",
+        Err(_) => "error",
+    }
+}
+impl AsyncUdpSocket for TraceSocket {
+    fn create_io_poller(self: Arc<Self>) -> Pin<Box<dyn UdpPoller>> {
+        Box::pin(TracePoller {
+            inner: self.inner.clone().create_io_poller(),
+            trace: self.trace.clone(),
+        })
+    }
+    fn try_send(&self, transmit: &Transmit) -> io::Result<()> {
+        let before_ns = self.trace.now();
+        let result = self.inner.try_send(transmit);
+        let after_ns = self.trace.now();
+        let size = transmit.contents.len();
+        let segment = transmit.segment_size.unwrap_or(size).max(1);
+        self.trace.record(Record {
+            operation: "send",
+            before_ns,
+            after_ns,
+            status: status(&result),
+            bytes: size,
+            datagrams: size.div_ceil(segment),
+        });
+        result
+    }
+    fn poll_recv(
+        &self,
+        cx: &mut Context,
+        bufs: &mut [IoSliceMut<'_>],
+        meta: &mut [RecvMeta],
+    ) -> Poll<io::Result<usize>> {
+        let before_ns = self.trace.now();
+        let result = self.inner.poll_recv(cx, bufs, meta);
+        let after_ns = self.trace.now();
+        let (state, bytes, datagrams) = match &result {
+            Poll::Pending => ("pending", 0, 0),
+            Poll::Ready(Ok(count)) => (
+                "ok",
+                meta[..*count].iter().map(|m| m.len).sum(),
+                meta[..*count]
+                    .iter()
+                    .map(|m| m.len.div_ceil(m.stride.max(1)))
+                    .sum(),
+            ),
+            Poll::Ready(Err(_)) => ("error", 0, 0),
+        };
+        self.trace.record(Record {
+            operation: "recv",
+            before_ns,
+            after_ns,
+            status: state,
+            bytes,
+            datagrams,
+        });
+        result
+    }
+    fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.inner.local_addr()
+    }
+    fn max_transmit_segments(&self) -> usize {
+        self.inner.max_transmit_segments()
+    }
+    fn max_receive_segments(&self) -> usize {
+        self.inner.max_receive_segments()
+    }
+    fn may_fragment(&self) -> bool {
+        self.inner.may_fragment()
+    }
+}
+struct TracePoller {
+    inner: Pin<Box<dyn UdpPoller>>,
+    trace: Arc<Trace>,
+}
+impl fmt::Debug for TracePoller {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TracePoller").finish_non_exhaustive()
+    }
+}
+impl UdpPoller for TracePoller {
+    fn poll_writable(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
+        let before_ns = self.trace.now();
+        let result = self.inner.as_mut().poll_writable(cx);
+        let after_ns = self.trace.now();
+        let state = match &result {
+            Poll::Pending => "pending",
+            Poll::Ready(r) => status(r),
+        };
+        self.trace.record(Record {
+            operation: "writable",
+            before_ns,
+            after_ns,
+            status: state,
+            bytes: 0,
+            datagrams: 0,
+        });
+        result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn exhausted_cooperative_budget_is_distinct_from_socket_would_block() {
+        // A spawned task has a Tokio cooperative budget even when the test's
+        // root block_on future is unconstrained.
+        tokio::spawn(async {
+            let trace = Arc::new(Trace {
+                origin: Instant::now(),
+                buffer: Mutex::new(Buffer {
+                    records: Vec::new(),
+                    omitted: 0,
+                    active: true,
+                }),
+            });
+            let socket = DeepTraceSocket::new(
+                std::net::UdpSocket::bind("127.0.0.1:0").unwrap(),
+                trace.clone(),
+            )
+            .unwrap();
+            let mut data = [0; 128];
+            let mut meta = [RecvMeta::default()];
+            std::future::poll_fn(|cx| {
+                for _ in 0..256 {
+                    if !tokio::task::coop::has_budget_remaining() {
+                        break;
+                    }
+                    let mut consume = std::pin::pin!(tokio::task::coop::consume_budget());
+                    assert!(consume.as_mut().poll(cx).is_ready());
+                }
+                assert!(!tokio::task::coop::has_budget_remaining());
+                assert!(
+                    socket
+                        .poll_recv(cx, &mut [IoSliceMut::new(&mut data)], &mut meta)
+                        .is_pending()
+                );
+                Poll::Ready(())
+            })
+            .await;
+            // Tokio defers the cooperative wake until this task yields.
+            tokio::task::yield_now().await;
+            let buffer = trace.buffer.lock().unwrap();
+            assert!(
+                buffer
+                    .records
+                    .iter()
+                    .any(|r| r.operation == "recv_ready" && r.status == "pending_budget")
+            );
+            assert!(!buffer.records.iter().any(|r| r.operation == "recv_syscall"));
+            assert!(buffer.records.iter().any(|r| r.operation == "recv_wake"));
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn wrapper_preserves_udp_payload_metadata_and_receive_wakeup() {
+        let trace = Arc::new(Trace {
+            origin: Instant::now(),
+            buffer: Mutex::new(Buffer {
+                records: Vec::new(),
+                omitted: 0,
+                active: true,
+            }),
+        });
+        let runtime = TraceRuntime {
+            inner: Arc::new(quinn::TokioRuntime),
+            trace: trace.clone(),
+        };
+        let socket = runtime
+            .wrap_udp_socket(std::net::UdpSocket::bind("127.0.0.1:0").unwrap())
+            .unwrap();
+        let peer = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let destination = peer.local_addr().unwrap();
+        let transmit = Transmit {
+            destination,
+            ecn: None,
+            contents: b"socket-boundary-test",
+            segment_size: None,
+            src_ip: None,
+        };
+        let mut poller = socket.clone().create_io_poller();
+        loop {
+            std::future::poll_fn(|cx| poller.as_mut().poll_writable(cx))
+                .await
+                .unwrap();
+            match socket.try_send(&transmit) {
+                Ok(()) => break,
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {}
+                Err(e) => panic!("{e}"),
+            }
+        }
+        let mut data = [0; 128];
+        let (len, sender) = peer.recv_from(&mut data).await.unwrap();
+        assert_eq!(&data[..len], transmit.contents);
+        assert_eq!(sender, socket.local_addr().unwrap());
+        // Poll before the response exists: Pending must register the actual
+        // receiver waker, so the delayed response can complete this future.
+        let mut meta = [RecvMeta::default()];
+        let mut initially_pending = false;
+        std::future::poll_fn(|cx| {
+            let mut bufs = [IoSliceMut::new(&mut data)];
+            assert!(socket.poll_recv(cx, &mut bufs, &mut meta).is_pending());
+            initially_pending = true;
+            Poll::Ready(())
+        })
+        .await;
+        assert!(initially_pending);
+        let reply = async {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            peer.send_to(b"reply", sender).await.unwrap();
+        };
+        let receive = async {
+            std::future::poll_fn(|cx| {
+                socket.poll_recv(cx, &mut [IoSliceMut::new(&mut data)], &mut meta)
+            })
+            .await
+            .unwrap()
+        };
+        let (_, count) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            tokio::join!(reply, receive)
+        })
+        .await
+        .unwrap();
+        assert_eq!(count, 1);
+        assert_eq!(&data[..meta[0].len], b"reply");
+        assert_eq!(meta[0].addr, destination);
+        let buffer = trace.buffer.lock().unwrap();
+        assert!(
+            buffer
+                .records
+                .iter()
+                .any(|r| r.operation == "recv" && r.status == "pending")
+        );
+        assert!(
+            buffer
+                .records
+                .iter()
+                .any(|r| r.operation == "recv" && r.status == "ok" && r.bytes == 5)
+        );
+        assert!(buffer.records.iter().any(|r| r.operation == "recv_wake"));
+        assert!(
+            buffer
+                .records
+                .iter()
+                .any(|r| r.operation == "recv_ready" && r.status == "pending")
+        );
+        assert!(
+            buffer
+                .records
+                .iter()
+                .any(|r| r.operation == "recv_syscall" && r.status == "ok" && r.bytes == 5)
+        );
+        assert!(buffer.records.iter().all(|r| r.before_ns <= r.after_ns));
+    }
+}

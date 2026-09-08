@@ -1,0 +1,28 @@
+from pathlib import Path
+import subprocess,base64,json,hashlib
+root=Path('/tmp/viewflow-windows-isolated-root.txt').read_text().strip()
+s=r'''$ErrorActionPreference='Stop';$r='__ROOT__';$s=Get-CimInstance Win32_Service -Filter "Name='ESRV_SVC_QUEENCREEK'";$p=Get-Process -Id $s.ProcessId;$owned=@(Get-CimInstance Win32_Process|Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($r,[StringComparison]::OrdinalIgnoreCase)});$tasks=@(Get-ScheduledTask -TaskName 'ViewflowPerf-IntegratedReceiver','ViewflowPerf-RestoreCaptureReady','ViewflowPerf-FrameObserver','ViewflowPerf-CoalescePixels','ViewflowPerf-HostBackdrop' -ErrorAction SilentlyContinue);$paths=@('native-trace-controls-build\Release\viewflow_windows_composition_preview.exe','native-build\Release\viewflow_windows_composition_preview.exe','target\release\vf-media-peer.exe','native-build\Release\viewflow_windows_frame_observer.exe','isolated-receiver-runner-trace-full.exe','isolated-receiver-runner-trace-noquery.exe','isolated-receiver-runner-trace-minimal.exe','isolated-receive.json','platform\windows-composition-preview\main.cpp','platform\windows-video-compositor\gpu_timestamp_probe.h','target\release\vf_media_peer.pdb','native-build\Release\viewflow_windows_composition_preview.pdb');@{time=(Get-Date).ToString('o');process_id=$p.Id;priority=$p.PriorityClass.ToString();threads=@($p.Threads|Where-Object PriorityLevel -eq 'TimeCritical'|Select-Object Id,PriorityLevel,BasePriority);service_state=$s.State;service_start=$s.StartMode;owned_processes=$owned.Count;owned_tasks=$tasks.Count;experimental_header_exists=(Test-Path ($r+'\platform\windows-composition-preview\stable_surface_layout.h'));hashes=@($paths|ForEach-Object {Get-FileHash ($r+'\'+$_)}|Select-Object Path,Hash)}|ConvertTo-Json -Depth 4'''.replace('__ROOT__',root)
+r=subprocess.run(['ssh','-o','BatchMode=yes','wilf@172.16.105.70','powershell','-NoProfile','-EncodedCommand',base64.b64encode(s.encode('utf-16le')).decode()],capture_output=True,timeout=30);r.check_returncode();v=json.loads(r.stdout);h=v['hashes'];b=json.loads(Path('/tmp/viewflow-trace-controls-binaries.json').read_text());assert h[:7]==b['hashes']
+assert not v['experimental_header_exists'] and v['owned_processes']==v['owned_tasks']==0 and v['priority']=='High' and v['service_state']=='Running' and v['service_start']=='Auto'
+assert len(v['threads'])==2
+assert h[7]['Hash'].lower()==hashlib.sha256(Path('/tmp/viewflow-codec-restore-receive-remote.json').read_bytes()).hexdigest()
+for i,n in enumerate(['platform/windows-composition-preview/main.cpp','platform/windows-video-compositor/gpu_timestamp_probe.h']):
+ assert h[8+i]['Hash'].lower()==hashlib.sha256(Path(n).read_bytes()).hexdigest()
+old=json.loads(Path('/tmp/viewflow-nowait-binaries.json').read_text())['hashes'];assert h[10]==old[3] and h[11]==old[4]
+for n in ['send','receive']:assert Path('/tmp/viewflow-integrated-pair/'+n+'.json').read_bytes()==Path('/tmp/viewflow-codec-restore-'+n+'.json').read_bytes()
+final_source={}
+for n,d in json.loads(Path('/tmp/viewflow-capture-ready-trial-source-sha256.json').read_text()).items():
+ current=Path(n).read_bytes()
+ if n.startswith('crates/viewflowd/'):
+  tested=Path('/tmp/viewflow-capture-ready-tested-'+Path(n).name).read_bytes()
+  expected=current.replace(b'    #[cfg(feature = "native-gpu-nvenc")]\n    #[tokio::test]\n    async fn capture_readiness_collects_partial_sources_and_survives_restore()',b'    #[tokio::test]\n    async fn capture_readiness_collects_partial_sources_and_survives_restore()') if n.endswith('hyprcapture_gpu_socket.rs') else current
+  assert expected==tested
+ elif n=='target/release/vf-media-peer':tested=Path('/tmp/viewflow-capture-ready-vf-media-peer').read_bytes()
+ else:tested=current
+ assert hashlib.sha256(tested).hexdigest()==d
+ final_source[n]=hashlib.sha256(current).hexdigest()
+v['current_source_and_linux_binary_sha256']=final_source
+v['tested_linux_binary_sha256']=hashlib.sha256(Path('/tmp/viewflow-capture-ready-vf-media-peer').read_bytes()).hexdigest()
+v['original_linux_binary_sha256']=hashlib.sha256(Path('/tmp/viewflow-before-capture-ready-vf-media-peer').read_bytes()).hexdigest()
+v['post_trial_source_change']='only cfg(native-gpu-nvenc) on one cfg(test) test; final release rebuilt'
+Path('/tmp/viewflow-capture-ready-final-state.json').write_text(json.dumps(v,indent=2)+'\n');print('original Windows binaries/PDB/configs and cleanup verified; Linux event implementation retained with final test feature guard',v['process_id'],v['priority'],len(v['threads']))

@@ -1,0 +1,12 @@
+from pathlib import Path
+import subprocess,base64,json,hashlib
+base=Path('platform/windows-composition-preview');root=Path('/tmp/viewflow-windows-isolated-root.txt').read_text().strip()
+Path('/tmp/viewflow-inplace-main-experiment.cpp').write_bytes((base/'main.cpp').read_bytes());Path('/tmp/viewflow-inplace-stable_surface_layout.h').write_bytes((base/'stable_surface_layout.h').read_bytes())
+# First freeze and restore executable plus its matching PDB only when none of
+# this isolated experiment's processes is alive.
+s="$ErrorActionPreference='Stop';$r='"+root+"';$owned=@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($r,[StringComparison]::OrdinalIgnoreCase)});if($owned.Count){throw 'owned process running'};Copy-Item ($r+'\\native-build\\Release\\viewflow_windows_composition_preview.exe') ($r+'\\inplace-experiment-preview.exe');Copy-Item ($r+'\\native-build\\Release\\viewflow_windows_composition_preview.pdb') ($r+'\\inplace-experiment-preview.pdb');Copy-Item ($r+'\\native-build\\Release\\viewflow_windows_composition_preview.exe') ($r+'\\inplace-experiment-preview-copy.exe');Copy-Item ($r+'\\before-inplace-preview.exe') ($r+'\\native-build\\Release\\viewflow_windows_composition_preview.exe');Copy-Item ($r+'\\before-inplace-preview.pdb') ($r+'\\native-build\\Release\\viewflow_windows_composition_preview.pdb');Get-FileHash ($r+'\\native-build\\Release\\viewflow_windows_composition_preview.exe'),($r+'\\inplace-experiment-preview.exe') | Select-Object Path,Hash | ConvertTo-Json"
+p=subprocess.run(['ssh','-o','BatchMode=yes','wilf@172.16.105.70','powershell','-NoProfile','-EncodedCommand',base64.b64encode(s.encode('utf-16le')).decode()],capture_output=True,timeout=30);p.check_returncode();data=json.loads(p.stdout);assert data[0]['Hash']=='81CB49DD9269A50B7FB6124539F8034EDB094BD54700707E2BDF0F2E1442E0B4';exp=json.loads(Path('/tmp/viewflow-inplace-experiment-binaries.json').read_text());assert data[1]['Hash']==exp[0]['Hash'];Path('/tmp/viewflow-inplace-restored-binaries.json').write_text(json.dumps(data,indent=2)+'\n')
+(base/'main.cpp').write_bytes(Path('/tmp/viewflow-before-inplace-main.cpp').read_bytes());(base/'stable_surface_layout.h').unlink()
+for name in ['main.cpp','sparse_coalesce_capture_test.cpp']:
+ subprocess.run(['scp','-q','-o','BatchMode=yes',str(base/name),'wilf@172.16.105.70:'+root.replace(chr(92),'/')+'/platform/windows-composition-preview/'+name],check=True)
+print('original isolated native/PDB restored byte-for-byte; original main and pixel test source restored')

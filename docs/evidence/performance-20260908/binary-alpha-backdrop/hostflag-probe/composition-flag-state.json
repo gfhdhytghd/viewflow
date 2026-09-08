@@ -1,0 +1,125 @@
+{
+  "initial": {
+    "id": 2344,
+    "service_state": "Running",
+    "service_start": "Auto",
+    "path": "C:\\Program Files\\Intel\\SUR\\QUEENCREEK\\x64\\esrv_svc.exe",
+    "priority": "High",
+    "threads": [
+      {
+        "priority": "TimeCritical",
+        "start_ticks": "639244580948942905",
+        "id": 12232
+      },
+      {
+        "priority": "TimeCritical",
+        "start_ticks": "639244580956606500",
+        "id": 16604
+      }
+    ],
+    "start_ticks": "639244580941617907"
+  },
+  "phases": [
+    {
+      "label": "probe-flag-ab",
+      "mode": "flag-toggle",
+      "before": {
+        "priority": "Normal",
+        "other_critical": 0,
+        "threads": [
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 12232
+          },
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 16604
+          }
+        ],
+        "id": 2344,
+        "time": "2026-09-08T10:32:25.7853786-04:00"
+      },
+      "after": {
+        "priority": "Normal",
+        "other_critical": 0,
+        "threads": [
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 12232
+          },
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 16604
+          }
+        ],
+        "id": 2344,
+        "time": "2026-09-08T10:33:09.6222592-04:00"
+      },
+      "exit": 0
+    },
+    {
+      "label": "probe-flag-ba",
+      "mode": "flag-toggle-reverse",
+      "before": {
+        "priority": "Normal",
+        "other_critical": 0,
+        "threads": [
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 12232
+          },
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 16604
+          }
+        ],
+        "id": 2344,
+        "time": "2026-09-08T10:33:10.4344016-04:00"
+      },
+      "after": {
+        "priority": "Normal",
+        "other_critical": 0,
+        "threads": [
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 12232
+          },
+          {
+            "priority": "Normal",
+            "base_priority": 8,
+            "id": 16604
+          }
+        ],
+        "id": 2344,
+        "time": "2026-09-08T10:33:54.5658700-04:00"
+      },
+      "exit": 0
+    }
+  ],
+  "restored": {
+    "priority": "High",
+    "other_critical": 2,
+    "threads": [
+      {
+        "priority": "TimeCritical",
+        "base_priority": 15,
+        "id": 12232
+      },
+      {
+        "priority": "TimeCritical",
+        "base_priority": 15,
+        "id": 16604
+      }
+    ],
+    "id": 2344,
+    "time": "2026-09-08T10:33:55.9893193-04:00"
+  },
+  "restore_task_removed": true
+}

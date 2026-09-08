@@ -63,12 +63,52 @@ struct State {
     uint8_t last[wire_size] = {};
     uint16_t ids=0;
     uint64_t peak=0, clicks=0, frames=0;
+    uint32_t emitted_stamp=0;
+    bool have_stamp=false;
+    bool ending_pending=false;
+    uint8_t ending[wire_size]={};
     void init() { empty_wire(last); }
     bool active() const { return ids || last[1]; }
+    template<class Submit> int emit(uint8_t *hid,size_t n,Submit submit) {
+        constexpr uint32_t mask=0x1fffff;
+        uint32_t stamp=(uint32_t(hid[9])|(uint32_t(hid[10])<<8)|(uint32_t(hid[11])<<16))>>3;
+        uint32_t delta=(stamp-emitted_stamp)&mask;
+        // Several lifecycle reports can share one physical SYN_REPORT. Keep
+        // their native millisecond timestamps ordered, including at wrap.
+        if(have_stamp && (!delta || delta>mask/2))stamp=(emitted_stamp+1)&mask;
+        uint32_t packed=(stamp<<3)|4;
+        hid[9]=packed;hid[10]=packed>>8;hid[11]=packed>>16;
+        int r=submit(hid,n);
+        if(!r){emitted_stamp=stamp;have_stamp=true;}
+        return r;
+    }
+    template<class Submit> int finish(const uint8_t *p,Submit submit) {
+        uint8_t lifted[wire_size],hid[max_hid_size];
+        // An empty snapshot must still finish the previous contact IDs/XY.
+        memcpy(lifted,p[0]?p:last,wire_size);
+        put32(lifted+4,u32(p+4));lifted[1]=0;
+        for(unsigned i=0;i<lifted[0];++i)lifted[13+12*i]=0;
+        memcpy(ending,lifted,wire_size);ending_pending=true;
+        size_t n=encode(lifted,ids,hid);int r=emit(hid,n,submit);if(r)return r;
+        n=encode(lifted,0,hid,true);r=emit(hid,n,submit);if(r)return r;
+        empty_wire(lifted,u32(p+4));n=encode(lifted,0,hid);
+        r=emit(hid,n,submit);if(r)return r;
+        // Commit only after all three phases. A failed tail retains ownership
+        // and contacts so the same path can retry on close or the next update.
+        if(last[1])++clicks;
+        memcpy(last,lifted,wire_size);ids=0;ending_pending=false;return 0;
+    }
     template<class Submit> int apply(const uint8_t *p,size_t n,Submit submit) {
         if(!valid(p,n)) return -1;
+        if(ending_pending){int r=finish(ending,submit);if(r)return r;}
+        if(active() && !down_count(p) && !p[1]) {
+            int r=finish(p,submit);if(!r)++frames;return r;
+        }
+        // The sender follows an explicit lift with an empty snapshot. finish
+        // already emitted that boundary; do not send a second equal-time one.
+        if(!active() && !p[0] && !p[1]){++frames;return 0;}
         uint8_t hid[max_hid_size];size_t len=encode(p,ids,hid);
-        int r=submit(hid,len); if(r) return r;
+        int r=emit(hid,len,submit); if(r) return r;
         if(last[1]!=p[1]) ++clicks;
         memcpy(last,p,wire_size);ids=down_ids(p);++frames;
         unsigned count=down_count(p);if(count>peak)peak=count;
@@ -76,18 +116,7 @@ struct State {
     }
     template<class Submit> int release(Submit submit) {
         if(!active())return 0;
-        uint8_t lifted[wire_size],hid[max_hid_size];memcpy(lifted,last,wire_size);
-        lifted[1]=0;
-        for(unsigned i=0;i<lifted[0];++i)lifted[13+12*i]=0;
-        // Finish contacts before the empty frame. Retain last state if any send
-        // fails, so a later cleanup retries rather than pretending success.
-        size_t n=encode(lifted,ids,hid);int r=submit(hid,n);if(r)return r;
-        put32(lifted+4,u32(lifted+4)+10);
-        n=encode(lifted,0,hid,true);r=submit(hid,n);if(r)return r;
-        empty_wire(lifted,u32(lifted+4)+10);n=encode(lifted,0,hid);
-        r=submit(hid,n);if(r)return r;
-        if(last[1])++clicks;
-        memcpy(last,lifted,wire_size);ids=0;return 0;
+        return finish(ending_pending?ending:last,submit);
     }
 };
 
@@ -95,6 +124,7 @@ struct State {
 // fail visibly; they are not acknowledged as successful empty responses.
 struct Features {
     uint8_t pending=0;
+    uint8_t mode=8; // native 0xc8 configuration byte; retain host writes
     uint64_t gets=0,sets=0,unknown=0,last_request=0;
     static size_t value(uint8_t id,uint8_t *out) {
         out[0]=id;
@@ -121,6 +151,7 @@ struct Features {
     }
     size_t get(uint8_t id,uint8_t *out) {
         ++gets;last_request=id;
+        if(id==0xc8){out[0]=id;out[1]=mode;return 2;}
         if(id==1) {
             if(!pending){++unknown;return 0;}
             uint8_t buf[96];size_t n=value(pending,buf);
@@ -131,6 +162,7 @@ struct Features {
     }
     bool set(uint8_t id,const uint8_t *p,size_t n) {
         ++sets;last_request=0x100|id;
+        if(id==0xc8 && p && n==2 && p[0]==id){mode=p[1];return true;}
         if(id==1 && n>=2 && p[0]==1) {
             uint8_t b[96];if(value(p[1],b)){pending=p[1];return true;}
         }

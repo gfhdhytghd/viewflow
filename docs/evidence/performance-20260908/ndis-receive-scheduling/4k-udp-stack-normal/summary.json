@@ -1,0 +1,76 @@
+{
+  "native_commit_hz": 58.85667964565118,
+  "feedback_ms": {
+    "n": 1393,
+    "min": 4.389,
+    "median": 8.626,
+    "p95": 19.479,
+    "max": 44.394
+  },
+  "desktop_observation": false,
+  "wall_stage_ms": {
+    "capture to encode": {
+      "n": 1426,
+      "min": 0.164676,
+      "median": 1.3595925000000002,
+      "p95": 2.502192,
+      "max": 29.339073
+    },
+    "encode (host incl waits)": {
+      "n": 1426,
+      "min": 6.207926,
+      "median": 7.0014695,
+      "p95": 7.618829,
+      "max": 77.483267
+    },
+    "release": {
+      "n": 1426,
+      "min": 0.002623,
+      "median": 0.005959,
+      "p95": 0.009664,
+      "max": 0.044533
+    },
+    "batch return / previous feedback": {
+      "n": 1426,
+      "min": 0.001169,
+      "median": 0.011501500000000001,
+      "p95": 5.637309,
+      "max": 133.953683
+    },
+    "encoded to pipe admission (transport + receiver + pipe parse)": {
+      "n": 1417,
+      "min": 2.46594,
+      "median": 4.186761,
+      "p95": 13.841568,
+      "max": 43.45481
+    },
+    "pipe admission to decoded": {
+      "n": 1417,
+      "min": 0.8534,
+      "median": 1.76105,
+      "p95": 4.60934,
+      "max": 123.72786
+    },
+    "decoded to proxy ready": {
+      "n": 1417,
+      "min": 0.25292,
+      "median": 0.61882,
+      "p95": 9.81342,
+      "max": 26.06458
+    },
+    "surface copy host": {
+      "n": 1417,
+      "min": 0.00927,
+      "median": 0.01638,
+      "p95": 0.04372,
+      "max": 0.39413
+    },
+    "visual bind / commit host": {
+      "n": 1417,
+      "min": 0.03006,
+      "median": 0.0587,
+      "p95": 0.13869,
+      "max": 2.93012
+    }
+  }
+}

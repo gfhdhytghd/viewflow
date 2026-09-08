@@ -23,6 +23,38 @@ HEADER = b'VFTP\x02\0\0\0'
 WIDTH, HEIGHT = 16000, 11490
 
 
+def captured_for_route(status, config, peer_pid, alive, destination):
+    """Use compositor capture ownership, never keyboard focus or cursor XY."""
+    return (alive and peer_pid > 0 and config.get('remote', '').rsplit(':', 1)[0] == destination
+            and status.get('connected') == 1 and status.get('phase') == 3
+            and isinstance(status.get('remote'), list) and len(status['remote']) == 5
+            and status['remote'][0] == config.get('pointer', {}).get('cursor_monitor_id'))
+
+
+class ViewflowRoute:
+    def __init__(self, config_path, destination):
+        self.config_path = config_path
+        self.destination = destination.rsplit('@', 1)[-1]
+
+    def active(self):
+        try:
+            with open(self.config_path) as f:
+                config = json.load(f)
+            ready = os.path.join(os.environ['XDG_RUNTIME_DIR'], 'viewflow/cursor-ready')
+            with open(ready) as f:
+                pid = int(f.read())
+            alive = os.path.basename(os.readlink(f'/proc/{pid}/exe')) == 'vf-cursor-peer'
+            with open(f'/proc/{pid}/cmdline', 'rb') as f:
+                command = f.read().decode().rstrip('\0').split('\0')
+            at = command.index('--config')
+            alive = alive and os.path.realpath(command[at+1]) == os.path.realpath(self.config_path)
+            result = subprocess.run(['hyprctl', 'repl', 'return hl.plugin.viewflow.capture_status()'],
+                                    capture_output=True, text=True, timeout=0.2, check=True)
+            return captured_for_route(json.loads(result.stdout), config, pid, alive, self.destination)
+        except (OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError):
+            return False
+
+
 def report(contacts, button, ticks):
     if len(contacts) > 5:
         raise ValueError('maximum five contact records')
@@ -129,6 +161,7 @@ def main():
     p.add_argument('--device', required=True)
     p.add_argument('--ssh')
     p.add_argument('--receiver', default='/Applications/VFTrackpadHost.app/Contents/MacOS/VFTrackpadHost')
+    p.add_argument('--route-config', help='Follow this active Viewflow cursor route; release while local')
     args = p.parse_args()
     if args.mode == 'forward' and (not args.ssh or args.ssh.startswith('-')):
         p.error('forward requires an SSH destination')
@@ -136,6 +169,7 @@ def main():
     child = None
     sent = 0
     encoder = NativeEncoder(dev.x_range, dev.y_range)
+    route = ViewflowRoute(args.route_config, args.ssh or '') if args.route_config else None
     try:
         if args.mode == 'inspect':
             print(json.dumps(dict(name=dev.name, slots=dev.capacity, x=dev.x_range,
@@ -166,12 +200,22 @@ def main():
             if len(data) == 72:
                 sent += 1
         send(HEADER)
-        for frame in encoder.frames(dev.snapshot(), dev.button, time.monotonic_ns()//100000):
+        forwarding = route.active() if route else True
+        for frame in encoder.frames(dev.snapshot() if forwarding else {}, dev.button if forwarding else False,
+                                    time.monotonic_ns()//100000):
             send(frame)
-        print('Forwarding real touches; Linux input remains active. Ctrl-C stops.', file=sys.stderr)
+        print(f'HID route={"macos" if forwarding else "linux"}; following Viewflow={route is not None}.', file=sys.stderr)
         pending = bytearray()
         while child.poll() is None:
-            if not select.select([dev.fd], [], [], 0.25)[0]:
+            if route:
+                active = route.active()
+                if active != forwarding:
+                    forwarding = active
+                    for frame in encoder.frames(dev.snapshot() if active else {}, dev.button if active else False,
+                                                time.monotonic_ns()//100000):
+                        send(frame)
+                    print(f'HID route={"macos" if active else "linux"}', file=sys.stderr)
+            if not select.select([dev.fd], [], [], 0.01 if route else 0.25)[0]:
                 continue
             try:
                 data = os.read(dev.fd, EVENT.size*64)
@@ -185,7 +229,15 @@ def main():
                 del pending[:EVENT.size]
                 snapshot = dev.event(kind, code, value)
                 if snapshot is not None:
-                    for frame in encoder.frames(snapshot, dev.button, (sec*1000000+usec)//100):
+                    # Recheck at the physical frame boundary, after compositor
+                    # processing; buffered Linux touches cannot extend an old lease.
+                    if route:
+                        active = route.active()
+                        if active != forwarding:
+                            forwarding = active
+                            print(f'HID route={"macos" if active else "linux"}', file=sys.stderr)
+                    for frame in encoder.frames(snapshot if forwarding else {}, dev.button if forwarding else False,
+                                                (sec*1000000+usec)//100):
                         send(frame)
     except KeyboardInterrupt:
         pass

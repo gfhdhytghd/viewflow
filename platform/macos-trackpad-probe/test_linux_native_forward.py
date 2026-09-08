@@ -1,6 +1,6 @@
 import struct
 import unittest
-from linux_native_forward import NativeEncoder, NativeDevice, PRESSURE, MAJOR, MINOR, ORIENTATION, EV_KEY, BTN_LEFT
+from linux_native_forward import NativeEncoder, NativeDevice, captured_for_route, PRESSURE, MAJOR, MINOR, ORIENTATION, EV_KEY, BTN_LEFT
 from linux_forward import TRACKING, X, Y, EV_ABS, EV_SYN, SYN_REPORT, SYN_DROPPED
 
 
@@ -9,6 +9,30 @@ def decode(p):
 
 
 class NativeForwardTests(unittest.TestCase):
+    def test_viewflow_route_and_return_release(self):
+        config = {'remote':'172.16.105.83:44139', 'pointer':{'cursor_monitor_id':2}}
+        status = {'connected':1,'phase':3,'remote':[2,3072,390,1920,1200]}
+        def active(s=status,c=config,alive=True):
+            return captured_for_route(s,c,123,alive,'172.16.105.83')
+        self.assertTrue(active())
+        for phase in (0,1,2):
+            self.assertFalse(active(dict(status,phase=phase)))
+        self.assertFalse(active(dict(status,connected=0)))
+        self.assertFalse(active(dict(status,remote=None)))
+        self.assertFalse(active(dict(status,remote=[3,0,0,1920,1200])))
+        self.assertFalse(active(c=dict(config,remote='172.16.105.70:44149')))
+        self.assertFalse(active(alive=False))
+        e=NativeEncoder((0,100),(0,100))
+        held={(0,1):(10,10,20,80,80,0)}
+        e.frames(held,True,100)
+        # Control returns while fingers/button remain physically held. The
+        # remote sees explicit lifts and button-up, then no local updates.
+        release=e.frames({},False,110)
+        self.assertEqual(decode(release[0])[0][1],0)
+        self.assertEqual(release[0][1],0)
+        self.assertEqual(e.frames({},False,120),[])
+        self.assertEqual(decode(e.frames(held,True,130)[0])[0][1],1)
+
     def test_contacts_and_button_only_change(self):
         e = NativeEncoder((-100, 100), (-50, 50))
         snap = {(i,i): (i*10, i*5, 31, 160, 120, -2) for i in range(5)}

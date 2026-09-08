@@ -1,0 +1,213 @@
+
+
+Id          : 1022
+Version     : 0
+Description : TCP: Bypass rate limiting since flag is set on path %5 (local=%2 remote=%4) 
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="RemoteAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="RemoteAddress" inType="win:Binary" outType="win:SocketAddress" length="RemoteAddressLength"
+              />
+                <data name="Path" inType="win:Pointer" outType="win:HexInt64"/>
+              </template>
+              
+
+Id          : 1023
+Version     : 0
+Description : TCP: Charge rate limiting quota and set rate limiting flag for path %5 (local=%2 remote=%4) 
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="RemoteAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="RemoteAddress" inType="win:Binary" outType="win:SocketAddress" length="RemoteAddressLength"
+              />
+                <data name="Path" inType="win:Pointer" outType="win:HexInt64"/>
+              </template>
+              
+
+Id          : 1024
+Version     : 0
+Description : TCP: connection %8 (local=%2 remote=%4) deferred.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="RemoteAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="RemoteAddress" inType="win:Binary" outType="win:SocketAddress" length="RemoteAddressLength"
+              />
+                <data name="Status" inType="win:UInt32" outType="win:NTStatus"/>
+                <data name="ProcessId" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="Compartment" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="Tcb" inType="win:Pointer" outType="win:HexInt64"/>
+              </template>
+              
+
+Id          : 1024
+Version     : 1
+Description : TCP: connection %8 (local=%2 remote=%4) deferred.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="RemoteAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="RemoteAddress" inType="win:Binary" outType="win:SocketAddress" length="RemoteAddressLength"
+              />
+                <data name="Status" inType="win:UInt32" outType="win:NTStatus"/>
+                <data name="ProcessId" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="Compartment" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="Tcb" inType="win:Pointer" outType="win:HexInt64"/>
+                <data name="ProcessStartKey" inType="win:UInt64" outType="xs:unsignedLong"/>
+              </template>
+              
+
+Id          : 1025
+Version     : 0
+Description : TCP: %6 rate-limiting paths %3 backlogged connections.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="SynAttacksDetected" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ReassemblyLimitViolations" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitBacklog" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitViolations" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LandAttackSegmentsDropped" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitDepth" inType="win:UInt32" outType="xs:unsignedInt"/>
+              </template>
+              
+
+Id          : 1026
+Version     : 0
+Description : TCP: Release and set rate limiting flag on path %5 (local=%2 remote=%4) 
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="RemoteAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="RemoteAddress" inType="win:Binary" outType="win:SocketAddress" length="RemoteAddressLength"
+              />
+                <data name="Path" inType="win:Pointer" outType="win:HexInt64"/>
+              </template>
+              
+
+Id          : 1028
+Version     : 0
+Description : TCP: Clear rate limiting flag on path %5 (local=%2 remote=%4) since connection is cancelled.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="RemoteAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="RemoteAddress" inType="win:Binary" outType="win:SocketAddress" length="RemoteAddressLength"
+              />
+                <data name="Path" inType="win:Pointer" outType="win:HexInt64"/>
+              </template>
+              
+
+Id          : 1056
+Version     : 0
+Description : TCP: reasembly rate-limiting violated %2 times since boot.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="SynAttacksDetected" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ReassemblyLimitViolations" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitBacklog" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitViolations" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LandAttackSegmentsDropped" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitDepth" inType="win:UInt32" outType="xs:unsignedInt"/>
+              </template>
+              
+
+Id          : 1057
+Version     : 0
+Description : TCP: connection rate-limiting violated %4 times since boot.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="SynAttacksDetected" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ReassemblyLimitViolations" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitBacklog" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitViolations" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LandAttackSegmentsDropped" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="ConnectionRateLimitDepth" inType="win:UInt32" outType="xs:unsignedInt"/>
+              </template>
+              
+
+Id          : 1366
+Version     : 0
+Description : TCP port selection deferred for outbound connect- LocalAddress: %2
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="LocalAddressLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="LocalAddress" inType="win:Binary" outType="win:SocketAddress" length="LocalAddressLength"/>
+                <data name="Status" inType="win:UInt32" outType="win:NTStatus"/>
+              </template>
+              
+
+Id          : 1505
+Version     : 0
+Description : Redirect path rate limit for IPv6 source address %3. Interface = %1.
+Template    : <template xmlns="http://schemas.microsoft.com/win/2004/08/events">
+                <data name="IfIndex" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IpAddrLength" inType="win:UInt32" outType="xs:unsignedInt"/>
+                <data name="IPv6Address" inType="win:Binary" outType="win:IPv6" length="IpAddrLength"/>
+              </template>
+              
+
+
+
+
+Provider                                 GUID
+-------------------------------------------------------------------------------
+Microsoft-Windows-TCPIP                  {2F07E2EE-15DB-40F1-90EF-9D7BA282188A}
+
+Value               Keyword              Description
+-------------------------------------------------------------------------------
+0x0000000000000001  ut:TcpipEndpoint     
+0x0000000000000002  ut:TcpipListener     
+0x0000000000000004  ut:TcpipTcb          
+0x0000000000000008  ut:TcpipBind         
+0x0000000000000010  ut:TcpipInterface    
+0x0000000000000020  ut:TcpipRoute        
+0x0000000000000040  ut:TcpipCtcp         
+0x0000000000000080  ut:TcpipDiagnosis    
+0x0000000000000100  ut:Transfer          
+0x0000000000000200  ut:ProcessIdHint     
+0x0000000000000400  ut:Endpoint          
+0x0000000000000800  ut:Rss               
+0x0000000000001000  ut:TcpipNdkpi        
+0x0000000000002000  ut:TcpipCsDiag       
+0x0000000000004000  ut:Teredo            
+0x0000000000008000  ut:AleRemoteEndpoint 
+0x0000000000010000  ut:AleMemory         
+0x0000000000020000  ut:AlePartition      
+0x0000000000040000  ut:Ledbat            
+0x0000000000080000  ut:Nrt               
+0x0000000000100000  ut:NsiNotification   
+0x0000000000200000  ut:TcpipRouter       
+0x0000000000400000  ut:Loopback          
+0x0000000000800000  ut:Flsnpi            
+0x0000000100000000  ut:SendPath          
+0x0000000200000000  ut:ReceivePath       
+0x0000000400000000  ut:ConnectPath       
+0x0000001000000000  ut:ClosePath         
+0x0000002000000000  ut:Authentication    
+0x0000004000000000  ut:Configuration     
+0x0000008000000000  ut:Global            
+0x0000010000000000  ut:Dropped           
+0x0000020000000000  ut:PiiPresent        
+0x0000040000000000  ut:Packet            
+0x0000080000000000  ut:Address           
+0x0000100000000000  ut:StdTemplateHint   
+0x0000200000000000  ut:Summary           
+0x0000400000000000  ut:TxIoInfo          
+0x8000000000000000  Microsoft-Windows-TCPIP/Diagnostic 
+0x4000000000000000  Microsoft-Windows-TCPIP/Operational Operational 
+
+Value               Level                Description
+-------------------------------------------------------------------------------
+0x01                win:Critical         Critical 
+0x02                win:Error            Error 
+0x03                win:Warning          Warning 
+0x04                win:Informational    Information 
+0x05                win:Verbose          Verbose 
+0x10                TcpSummary           
+0x11                TcpIpPerPacket       
+
+PID                 Image                
+-------------------------------------------------------------------------------
+0x00000000                               
+0x00000000                               
+
+
+The command completed successfully.

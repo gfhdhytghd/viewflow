@@ -10,8 +10,23 @@ Windows 锁屏输入由 `ViewflowInput` 系统服务提供。服务以 LocalSyst
 身份和会话，辅助进程确认客户端会话。锁屏和解锁时，输入线程重新绑定当前
 输入桌面，释放跨桌面遗留的按键状态，保持网络连接。
 
-本功能用于已经启动接收端的 Windows 会话锁屏后继续使用远程键鼠。
-它不负责在注销或首次登录前启动完整的网络接收端，也不修改 Linux 锁屏行为。
+桌面接收任务仍用于已登录会话。登录前键鼠可使用独立的 `viewflowd serve
+--input-backend native` 接收端，无需启动视频或代理窗口。2026-09-08 本机部署了
+`ViewflowInput-Prelogin` 用户 S4U 任务，开机在 session 0 启动，使用原配对证书。
+设置 `VIEWFLOW_WINDOWS_INPUT_SERVICE=1` 和 `VIEWFLOW_WINDOWS_CONSOLE_INPUT=1`，
+使 session 0 客户端连接当前控制台的输入工作进程。客户端仍验证服务端 SYSTEM
+身份和目标控制台会话；管道仍只接受配置的接收账户或 SYSTEM，拒绝网络客户端。
+工作进程接受同会话或 session 0 的这些已授权本地客户端。控制台改变时由现有
+服务生命周期关闭旧工作进程，客户端随后重连当前控制台。
+
+当前 Linux `viewflow-windows-input.service` 使用 `vf-cursor-peer` 连接 Windows
+44149 端口；Windows 防火墙该规则仅接受已配对 Linux 地址。Quickshell 的 Windows
+目标现在使用这条独立键鼠通道，HDMI 独立切换。桌面视频服务仍保留，但不随这个
+键鼠按钮启动。没有修改 Linux 锁屏行为。
+
+验证：Windows 原生构建通过，Windows 输入相关 26 项测试通过；session 0 的
+`probe` 返回 `secure-desktop-access=ok input-injected=false`；Linux 和 Windows
+双向 mTLS 连接及周期时钟探测通过。鼠标移动、密码输入和登录仍由用户操作验收。
 
 ## 安装与启动
 
@@ -95,3 +110,13 @@ journalctl --user -u viewflow-desktop.service
 新增纯结构测试验证负坐标、多显示器范围、像素往返、事件类型和标记；
 连同现有 Windows 输入测试共 26 项通过。没有自动发送输入来验收光标显示，
 最终显示结果由用户实际移动鼠标确认。
+
+## 接管时关闭光标抑制
+
+按用户要求，输入服务在每条连接的新鼠标 lease 首次收到 DesktopPointerPosition
+时，将 HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\EnableCursorSuppression
+写为 DWORD 0。相同 lease 后续移动不重复写入；ReleaseAll 或管道重连重置记忆。
+这是系统级持久设置，切回 Mac 时不恢复为 1。注册表写入失败仅记录
+`cursor suppression disable on handoff: win32_status=...`，不阻断正常输入。
+现有实际鼠标移动事件处理保留；写入成功不等同于已验证当前桌面的光标可见，
+实际切换后的显示仍由用户验收。诊断 probe 不触发此设置，也不发送输入。

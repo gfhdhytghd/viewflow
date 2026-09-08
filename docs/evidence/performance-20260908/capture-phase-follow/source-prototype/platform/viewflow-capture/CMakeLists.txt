@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-3.0-only
+cmake_minimum_required(VERSION 3.27)
+project(viewflow-capture VERSION 0.1.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include(CTest)
+find_package(Threads REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)
+pkg_check_modules(GLES REQUIRED IMPORTED_TARGET glesv2)
+pkg_check_modules(HYPRLAND REQUIRED IMPORTED_TARGET hyprland>=0.56)
+add_library(viewflow-capture-render STATIC src/window_renderer.cpp)
+set_target_properties(viewflow-capture-render PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(viewflow-capture-render PUBLIC viewflow-capture-core PkgConfig::HYPRLAND)
+target_compile_options(viewflow-capture-render PRIVATE -Wall -Wextra --no-gnu-unique)
+add_library(viewflow-capture SHARED src/main.cpp)
+target_link_libraries(viewflow-capture PRIVATE viewflow-capture-render)
+target_compile_options(viewflow-capture PRIVATE -Wall -Wextra --no-gnu-unique)
+# Resolve host symbols at plugin load, never terminate the compositor on a
+# later Lua invocation because of a lazily resolved missing symbol.
+target_link_options(viewflow-capture PRIVATE "LINKER:-z,now")
+set_target_properties(viewflow-capture PROPERTIES PREFIX "" OUTPUT_NAME "viewflow-capture")
+# Isolated runtime experiments can use their own plugin and Lua namespace.
+set(VIEWFLOW_CAPTURE_PLUGIN_NAME "viewflow-capture" CACHE STRING "Plugin output/name")
+set(VIEWFLOW_CAPTURE_LUA_NAMESPACE "viewflow_capture" CACHE STRING "Lua namespace")
+target_compile_definitions(viewflow-capture PRIVATE
+    VIEWFLOW_CAPTURE_PLUGIN_NAME="${VIEWFLOW_CAPTURE_PLUGIN_NAME}"
+    VIEWFLOW_CAPTURE_LUA_NAMESPACE="${VIEWFLOW_CAPTURE_LUA_NAMESPACE}")
+set_target_properties(viewflow-capture PROPERTIES OUTPUT_NAME "${VIEWFLOW_CAPTURE_PLUGIN_NAME}")
+add_library(viewflow-capture-core STATIC
+    src/window_gpu_wire.cpp src/window_gpu_input_wire.cpp src/window_gpu_sender.cpp src/window_gpu_export.cpp)
+set_target_properties(viewflow-capture-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_include_directories(viewflow-capture-core PUBLIC src)
+target_link_libraries(viewflow-capture-core PUBLIC Threads::Threads PkgConfig::EGL PkgConfig::GLES)
+target_compile_options(viewflow-capture-core PRIVATE -Wall -Wextra -Wpedantic -Werror)
+if(BUILD_TESTING)
+    add_test(NAME lua_c_linkage COMMAND ${CMAKE_COMMAND}
+        -DNM=${CMAKE_NM} -DPLUGIN=$<TARGET_FILE:viewflow-capture>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_lua_linkage.cmake)
+    foreach(name window_gpu_wire window_gpu_input_wire window_gpu_sender capture_cadence capture_commit_schedule capture_geometry_epoch ime_popup_scope)
+        add_executable(${name}_test tests/${name}_test.cpp)
+        target_link_libraries(${name}_test PRIVATE viewflow-capture-core)
+        target_compile_options(${name}_test PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+        add_test(NAME ${name} COMMAND ${name}_test)
+    endforeach()
+endif()

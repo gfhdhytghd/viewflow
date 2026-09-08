@@ -1,0 +1,37 @@
+from pathlib import Path
+import subprocess,base64,json,os,hashlib
+root=Path('/tmp/viewflow-windows-isolated-root.txt').read_text().strip();task='ViewflowPerf-RestoreEsrvPriority';state=Path('/tmp/viewflow-esrv-priority-state.json')
+def ps(code):
+ code="$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'; $OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); "+code
+ r=subprocess.run(['ssh','-o','BatchMode=yes','wilf@172.16.105.70','powershell','-NoProfile','-EncodedCommand',base64.b64encode(code.encode('utf-16le')).decode()],capture_output=True,timeout=40)
+ if r.returncode:raise RuntimeError(r.stdout.decode(errors='replace')+r.stderr.decode(errors='replace'))
+ return r.stdout.decode(errors='replace')
+initial=json.loads(ps("$p=Get-Process -Id 8108; $s=Get-CimInstance Win32_Service -Filter \"Name='ESRV_SVC_QUEENCREEK'\"; if($p.Path -ne 'C:\\Program Files\\Intel\\SUR\\QUEENCREEK\\x64\\esrv_svc.exe' -or $s.ProcessId -ne $p.Id -or $p.PriorityClass -ne 'High'){throw 'unexpected original process'}; if(Get-ScheduledTask -TaskName '"+task+"' -ErrorAction SilentlyContinue){throw 'restore task already exists'}; @{id=$p.Id;start_ticks=$p.StartTime.ToUniversalTime().Ticks.ToString();priority=$p.PriorityClass.ToString();path=$p.Path;service_state=$s.State;service_start=$s.StartMode} | ConvertTo-Json"))
+data={'initial':initial,'phases':[]};state.write_text(json.dumps(data,indent=2)+'\n')
+restore="""$ErrorActionPreference='Stop'
+$targetProcess=Get-Process -Id 8108 -ErrorAction SilentlyContinue
+if($targetProcess -and $targetProcess.StartTime.ToUniversalTime().Ticks.ToString() -eq 'TICKS') {
+ if($targetProcess.PriorityClass -eq 'Normal') { $targetProcess.PriorityClass='High'; $targetProcess.Refresh() }
+ @{id=$targetProcess.Id;priority=$targetProcess.PriorityClass.ToString();start_ticks=$targetProcess.StartTime.ToUniversalTime().Ticks.ToString();time=(Get-Date).ToString('o')} | ConvertTo-Json | Set-Content -Encoding UTF8 'ROOT\\esrv-priority-restored.json'
+}
+""".replace('TICKS',initial['start_ticks']).replace('ROOT',root)
+Path('/tmp/viewflow-restore-esrv-priority.ps1').write_text(restore)
+subprocess.run(['scp','-q','-o','BatchMode=yes','/tmp/viewflow-restore-esrv-priority.ps1','wilf@172.16.105.70:'+root.replace('\\','/')+'/restore-esrv-priority.ps1'],check=True)
+registered=False
+try:
+ ps("$a=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -NonInteractive -EncodedCommand "+base64.b64encode(restore.encode('utf-16le')).decode()+"'; $t=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(10); Register-ScheduledTask -TaskName '"+task+"' -Action $a -Trigger $t -User 'SYSTEM' -RunLevel Highest | Out-Null; (Get-ScheduledTask -TaskName '"+task+"').State");registered=True
+ paths=['target/release/vf-media-peer','crates/viewflowd/src/atlas_socket_trace.rs','platform/nvenc-encoder/gpu_dmabuf_encoder.cu'];Path('/tmp/viewflow-esrv-priority-trial-source-sha256.json').write_text(json.dumps({p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in paths},indent=2)+'\n')
+ for label,priority in [('4k-esrv-high-a1','High'),('4k-esrv-normal-b1','Normal'),('4k-esrv-normal-b2','Normal'),('4k-esrv-high-a2','High')]:
+  before=json.loads(ps("$p=Get-Process -Id 8108; if($p.StartTime.ToUniversalTime().Ticks.ToString() -ne '"+initial['start_ticks']+"'){throw 'process identity changed'}; $p.PriorityClass='"+priority+"'; $p.Refresh(); if($p.PriorityClass -ne '"+priority+"'){throw 'priority did not apply'}; @{id=$p.Id;priority=$p.PriorityClass.ToString();thread=(@($p.Threads | Where-Object Id -eq 10144 | Select-Object Id,BasePriority,CurrentPriority));time=(Get-Date).ToString('o')} | ConvertTo-Json -Depth 4"))
+  print('BEGIN',label,before,flush=True)
+  phase={'label':label,'before':before};data['phases'].append(phase);state.write_text(json.dumps(data,indent=2)+'\n')
+  env=dict(os.environ,VIEWFLOW_OBSERVE_FRAMES='0',VIEWFLOW_ALPHA_COPY_PROFILE='1',VIEWFLOW_ALPHA_OUTPUT_COPY='0',VIEWFLOW_TRIAL_GPU_TIMINGS='all',VIEWFLOW_GPU_TILE_COPY='0',VIEWFLOW_QUIC_POLL='0',VIEWFLOW_QUIC_SOCKET_TRACE='1');env.pop('VIEWFLOW_QUIC_BURST_PACKETS',None)
+  with open('/tmp/'+label+'.log','w') as log:r=subprocess.run(['python3','/tmp/viewflow-full-resolution-trial.py',label],env=env,stdout=log,stderr=subprocess.STDOUT)
+  after=json.loads(ps("$p=Get-Process -Id 8108; if($p.StartTime.ToUniversalTime().Ticks.ToString() -ne '"+initial['start_ticks']+"'){throw 'process identity changed'}; @{id=$p.Id;priority=$p.PriorityClass.ToString();time=(Get-Date).ToString('o')} | ConvertTo-Json"));phase.update(after=after,exit=r.returncode);state.write_text(json.dumps(data,indent=2)+'\n');print('END',label,'exit',r.returncode,after,flush=True)
+  assert after['priority']==priority,'priority changed during trial';assert r.returncode==0
+finally:
+ if registered:
+  # Keep the independent restore task registered if this direct restore fails.
+  result=ps(restore+"\nGet-Content '"+root+"\\esrv-priority-restored.json' -Raw")
+  data['restored']=json.loads(result);state.write_text(json.dumps(data,indent=2)+'\n');assert data['restored']['priority']==initial['priority']
+  ps("Unregister-ScheduledTask -TaskName '"+task+"' -Confirm:$false; if(Get-ScheduledTask -TaskName '"+task+"' -ErrorAction SilentlyContinue){throw 'restore task remains'}");data['restore_task_removed']=True;state.write_text(json.dumps(data,indent=2)+'\n')

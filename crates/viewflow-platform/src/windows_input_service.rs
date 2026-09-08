@@ -188,8 +188,17 @@ pub(crate) struct Client {
 impl Client {
     fn connect() -> io::Result<File> {
         unsafe {
+            // An explicitly configured input-only receiver can run before login
+            // in session 0 and route to the service's active console worker.
+            let target_session = if session()? == 0
+                && std::env::var_os("VIEWFLOW_WINDOWS_CONSOLE_INPUT").is_some_and(|v| v == "1")
+            {
+                let id = WTSGetActiveConsoleSessionId();
+                if id == u32::MAX { return Err(failed("no active console session")); }
+                id
+            } else { session()? };
             let h = CreateFileW(
-                pipe_name(session()?).as_ptr(),
+                pipe_name(target_session).as_ptr(),
                 GENERIC_READ | GENERIC_WRITE,
                 0,
                 null(),
@@ -203,7 +212,7 @@ impl Client {
             let server = Handle::new(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid))?;
             let mut server_session = 0;
             check(ProcessIdToSessionId(pid, &mut server_session))?;
-            if !is_system(server.0)? || server_session != session()? {
+            if !is_system(server.0)? || server_session != target_session {
                 return Err(failed("input broker identity/session mismatch"));
             }
             let mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
@@ -242,6 +251,20 @@ impl Client {
             }
         }
     }
+}
+
+// User-selected behavior: turn off Windows cursor suppression once when a
+// remote pointer lease takes over. Failure is diagnostic, not an input cutoff.
+fn disable_cursor_suppression() {
+    use windows_sys::Win32::System::Registry::{HKEY_LOCAL_MACHINE, REG_DWORD, RegSetKeyValueW};
+    let path = wide("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System");
+    let name = wide("EnableCursorSuppression");
+    let disabled = 0_u32;
+    let result = unsafe {
+        RegSetKeyValueW(HKEY_LOCAL_MACHINE, path.as_ptr(), name.as_ptr(), REG_DWORD,
+            (&disabled as *const u32).cast(), size_of::<u32>() as u32)
+    };
+    log(&format!("cursor suppression disable on handoff: win32_status={result}"));
 }
 
 fn probe_request() -> [u8; wire::REQUEST_SIZE] {
@@ -325,7 +348,10 @@ fn worker(sid: &str, stop_name: &str, parent_pid: u32) -> io::Result<()> {
             "input client connected session={client_session} worker_session={}",
             session()?
         ));
-        if client_session == session()? {
+        // The pipe DACL still admits only SYSTEM and the configured receiver
+        // account. Session 0 supports its paired, input-only pre-login receiver.
+        if client_session == session()? || client_session == 0 {
+            let mut cursor_lease = None;
             loop {
                 let mut request = [0; wire::REQUEST_SIZE];
                 if let Err(error) = read_poll(&mut pipe, &mut request, || should_stop()) {
@@ -339,6 +365,15 @@ fn worker(sid: &str, stop_name: &str, parent_pid: u32) -> io::Result<()> {
                     })
                 } else {
                     wire::decode(&request).and_then(|(event, display)| {
+                        if matches!(event.event, viewflow_protocol::InputEventKind::DesktopPointerPosition(_))
+                            && cursor_lease != Some(event.lease_generation)
+                        {
+                            disable_cursor_suppression();
+                            cursor_lease = Some(event.lease_generation);
+                        }
+                        if matches!(event.event, viewflow_protocol::InputEventKind::ReleaseAll) {
+                            cursor_lease = None;
+                        }
                         backend.clear_desktop_display();
                         if let Some(d) = display {
                             backend.set_desktop_display(d);

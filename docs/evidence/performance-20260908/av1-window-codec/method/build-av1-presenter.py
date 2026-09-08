@@ -1,0 +1,12 @@
+from pathlib import Path
+import subprocess,base64,json,tarfile,hashlib
+root=Path('/tmp/viewflow-windows-isolated-root.txt').read_text().strip()
+files=[]
+for directory in ['platform/windows-composition-preview','platform/windows-video-compositor']:
+ files += [p for p in Path(directory).iterdir() if p.is_file() and (p.suffix in ['.cpp','.h','.hpp'] or p.name=='CMakeLists.txt')]
+Path('/tmp/viewflow-av1-presenter-source-sha256.json').write_text(json.dumps({str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in files},indent=2)+'\n')
+with tarfile.open('/tmp/viewflow-av1-presenter-source.tar.gz','w:gz') as t:
+ for p in files:t.add(p,arcname=str(p))
+subprocess.run(['scp','-q','-o','BatchMode=yes','/tmp/viewflow-av1-presenter-source.tar.gz','wilf@172.16.105.70:'+root.replace(chr(92),'/')+'/av1-presenter-source.tar.gz'],check=True)
+s="$ErrorActionPreference='Stop';$r='"+root+"';Set-Location $r;$ffmpeg='C:\\Users\\wilf\\AppData\\Local\\Temp\\viewflow-codec-bench\\ffmpeg-n8.1-latest-win64-lgpl-shared-8.1';if(-not(Test-Path ($ffmpeg+'\\lib\\avcodec.lib'))){throw 'FFmpeg SDK absent'};if(@(Get-CimInstance Win32_Process | Where-Object {$_.ExecutablePath -and $_.ExecutablePath.StartsWith($r,[StringComparison]::OrdinalIgnoreCase)}).Count){throw 'isolated process running'};tar.exe -xf av1-presenter-source.tar.gz;if($LASTEXITCODE){exit $LASTEXITCODE};$cmake='C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe';& $cmake -S platform/windows-composition-preview -B native-av1-build -G 'Visual Studio 17 2022' -A x64 ('-DVIEWFLOW_FFMPEG_ROOT='+$ffmpeg) > av1-configure.log 2>&1;if($LASTEXITCODE){Get-Content av1-configure.log;exit $LASTEXITCODE};& $cmake --build native-av1-build --config Release --target viewflow_windows_composition_preview viewflow_atlas_growth_gpu_test viewflow_atlas_frame_bindings_test --parallel 2 > av1-build.log 2>&1;$code=$LASTEXITCODE;Get-Content av1-build.log -Tail 15;if($code){exit $code};& native-av1-build\\Release\\viewflow_atlas_frame_bindings_test.exe;exit $LASTEXITCODE"
+p=subprocess.run(['ssh','-o','BatchMode=yes','wilf@172.16.105.70','powershell','-NoProfile','-EncodedCommand',base64.b64encode(s.encode('utf-16le')).decode()],capture_output=True,timeout=360);Path('/tmp/viewflow-av1-presenter-build.log').write_bytes(p.stdout+p.stderr);print(p.returncode,p.stdout.decode(errors='replace'));p.check_returncode()

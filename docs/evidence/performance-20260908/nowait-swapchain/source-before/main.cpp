@@ -1,0 +1,3439 @@
+#include <windows.h>
+#include <windowsx.h>
+#include <wct.h>
+#include <imm.h>
+#include <mmsystem.h>
+#define INITGUID
+#include <DispatcherQueue.h>
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <charconv>
+#include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <d2d1_3.h>
+#include <d3d11.h>
+#include <dwmapi.h>
+#include <fstream>
+#include <iostream>
+#include <limits>
+#include <mfapi.h>
+#include <memory>
+#include <set>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <windows.graphics.effects.interop.h>
+#include <windows.ui.composition.interop.h>
+#include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.Graphics.DirectX.h>
+#include <winrt/Windows.Graphics.Effects.h>
+#include <winrt/Windows.System.h>
+#include <winrt/Windows.UI.Composition.Desktop.h>
+#include <winrt/Windows.UI.Composition.h>
+#include <winrt/base.h>
+
+#include "vfgp_parser.h"
+#include "video_compositor.h"
+#include "mta_video_compositor.h"
+#include "compressed_pipe_reader.h"
+#include "timer_resolution_guard.h"
+#include "vfgp_deadline_admission.h"
+#include "warmup_admission.h"
+#include "expired_frame_disposition.h"
+#include "pointer_motion.h"
+#include "atlas_pointer.h"
+#include "atlas_frame_bindings.h"
+#include "sparse_coalesce.h"
+#include "atlas_decode_identities.h"
+#include "remote_input_ime.h"
+#include "keyboard_clock_bounds.h"
+#include "desktop_layout.h"
+#include "desktop_move_gesture.h"
+#include "desktop_stacking.h"
+#include "frameless_window.h"
+#include "application_icon.h"
+#include <functional>
+#include <exception>
+
+using namespace winrt;
+using namespace winrt::Windows::Foundation;
+using namespace winrt::Windows::Graphics::Effects;
+using namespace winrt::Windows::UI::Composition;
+using namespace winrt::Windows::UI::Composition::Desktop;
+using viewflow::windows_preview::CompressedPipeReader;
+namespace {
+thread_local viewflow::windows_preview::KeyboardClockBounds atlas_keyboard_clock;
+thread_local uint64_t keyboard_observed_bounds{}, keyboard_coarse_bounds{}, keyboard_expired_bounds{};
+struct KeyboardClockReport {
+  explicit KeyboardClockReport(bool active) : active_(active) {
+    atlas_keyboard_clock.reset();
+    keyboard_observed_bounds = keyboard_coarse_bounds = keyboard_expired_bounds = 0;
+  }
+  ~KeyboardClockReport() {
+    if (!active_) return;
+    try {
+      std::cerr << "atlas-keyboard-clock observed=" << keyboard_observed_bounds
+                << " coarse=" << keyboard_coarse_bounds
+                << " expired=" << keyboard_expired_bounds << std::endl;
+    } catch (...) {}
+  }
+  bool active_;
+};
+void sample_keyboard_clock(uint64_t frequency) {
+  LARGE_INTEGER before{}, after{};
+  if (!QueryPerformanceCounter(&before) || before.QuadPart <= 1) {
+    atlas_keyboard_clock.reset(); return;
+  }
+  const auto tick = GetTickCount();
+  if (!QueryPerformanceCounter(&after) || after.QuadPart < before.QuadPart) {
+    atlas_keyboard_clock.reset(); return;
+  }
+  atlas_keyboard_clock.observe(uint64_t(before.QuadPart), tick, uint64_t(after.QuadPart), frequency);
+}
+enum class AtlasProgress : uint32_t { Idle, Messages, Dispatch, DefaultProc, Decode, Copy, Bind, Receipt };
+bool atlas_progress_enabled = false;
+std::atomic<uint64_t> atlas_progress_code{}, atlas_progress_tick{}, atlas_progress_sequence{};
+std::atomic<uint32_t> atlas_progress_detail{};
+void atlas_progress(AtlasProgress phase, uint32_t message = 0, uint32_t detail = 0) {
+  if (!atlas_progress_enabled) return;
+  atlas_progress_sequence.fetch_add(1, std::memory_order_acq_rel);
+  atlas_progress_code.store((uint64_t(phase) << 32) | message, std::memory_order_relaxed);
+  atlas_progress_detail.store(detail, std::memory_order_relaxed);
+  atlas_progress_tick.store(GetTickCount64(), std::memory_order_relaxed);
+  atlas_progress_sequence.fetch_add(1, std::memory_order_release);
+}
+class AtlasProgressWatchdog {
+ public:
+  explicit AtlasProgressWatchdog(bool enabled) {
+    atlas_progress_enabled = enabled;
+    if (!enabled) return;
+    atlas_progress(AtlasProgress::Idle);
+    const DWORD ui_thread = GetCurrentThreadId();
+    worker_ = std::jthread([ui_thread](std::stop_token stop) {
+      uint64_t reported_sequence = UINT64_MAX;
+      while (!stop.stop_requested()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        const auto sequence = atlas_progress_sequence.load(std::memory_order_acquire);
+        if (sequence & 1) continue;
+        const auto tick = atlas_progress_tick.load(std::memory_order_relaxed);
+        const auto code = atlas_progress_code.load(std::memory_order_relaxed);
+        const auto detail = atlas_progress_detail.load(std::memory_order_relaxed);
+        const auto now = GetTickCount64();
+        if (sequence != atlas_progress_sequence.load(std::memory_order_acquire) ||
+            (code >> 32) == 0 || now < tick || now - tick < 80 || sequence == reported_sequence) continue;
+        reported_sequence = sequence;
+        // Opt-in diagnostic only, emitted once per observed stalled phase.
+        auto line = "atlas-stall phase=" + std::to_string(code >> 32) +
+            " message=" + std::to_string(uint32_t(code)) +
+            " detail=" + std::to_string(detail) +
+            " observed_ms=" + std::to_string(now - tick) + "\n";
+        std::cerr << line;
+        // Read only the stalled UI thread's wait chain. Do not enable debug
+        // privileges, collect object names, or treat access denial as no wait.
+        const auto session = OpenThreadWaitChainSession(0, nullptr);
+        if (session) {
+          std::array<WAITCHAIN_NODE_INFO, WCT_MAX_NODE_COUNT> nodes{};
+          DWORD count = DWORD(nodes.size());
+          BOOL cycle{};
+          if (GetThreadWaitChain(session, 0, WCT_OUT_OF_PROC_FLAG, ui_thread, &count, nodes.data(), &cycle)) {
+            line = "atlas-wait-chain cycle=" + std::to_string(cycle) + " nodes=" + std::to_string(count);
+            for (DWORD i = 0; i < std::min(count, DWORD(nodes.size())); ++i) {
+              const auto& node = nodes[i];
+              line += " type=" + std::to_string(node.ObjectType) + " status=" + std::to_string(node.ObjectStatus);
+              if (node.ObjectType == WctThreadType)
+                line += " pid=" + std::to_string(node.ThreadObject.ProcessId) + " tid=" + std::to_string(node.ThreadObject.ThreadId);
+            }
+          } else line = "atlas-wait-chain error=" + std::to_string(GetLastError());
+          CloseThreadWaitChainSession(session);
+        } else line = "atlas-wait-chain session-error=" + std::to_string(GetLastError());
+        std::cerr << line + "\n";
+      }
+    });
+  }
+  ~AtlasProgressWatchdog() {
+    if (worker_.joinable()) { worker_.request_stop(); worker_.join(); }
+    atlas_progress_enabled = false;
+  }
+ private:
+  std::jthread worker_;
+};
+char const *stage = "startup";
+uint64_t native_failure_identity{};
+bool native_failure_reported{};
+void report_native_failure(hresult_error const& error) noexcept {
+  if (native_failure_reported) return;
+  try {
+    char code[11]{};
+    std::snprintf(code, sizeof(code), "0x%08x", static_cast<unsigned>(error.code().value));
+    const auto line = "native-failure stage=" + std::string(stage) +
+        " frame=" + std::to_string(native_failure_identity) + " HRESULT=" + code +
+        " message=" + to_string(error.message()) + "\n";
+    DWORD written{};
+    // One native write, before teardown, prevents another process's stderr
+    // record from splitting the HRESULT and its message. Terminal diagnostics
+    // cannot delay a successful disposition or extend a presentation deadline.
+    native_failure_reported = WriteFile(GetStdHandle(STD_ERROR_HANDLE), line.data(),
+        DWORD(line.size()), &written, nullptr) && written == line.size();
+  } catch (...) {}
+}
+void enter_stage(char const *name) {
+  stage = name;
+  std::cerr << "initializing stage=" << stage << std::endl;
+}
+constexpr size_t header_bytes = 20, default_max_frame_bytes = 16 * 1024 * 1024;
+// Include a short live burst after three warmups; never log an unbounded stream.
+constexpr uint32_t diagnostic_frame_limit = 32;
+struct BlurRect {
+  uint32_t x, y, w, h;
+};
+struct PixelRect {
+  uint32_t x, y, w, h;
+};
+struct Options {
+  std::wstring file;
+  bool stdin_frames = false;
+  bool stdin_compressed = false;
+  bool require_deadline_v4 = false;
+  bool recover_expired_v4 = false;
+  bool emit_pointer_motion = false;
+  bool emit_pointer_buttons = false;
+  uint32_t warmup_frames = 1;
+  size_t max_frame_bytes = default_max_frame_bytes;
+  double logical_w = 0, logical_h = 0;
+  BlurRect rect{};
+  float radius = 0;
+  uint32_t visible_ms = 30000;
+};
+struct Frame {
+  uint32_t w, h, stride;
+  std::vector<uint8_t> pixels;
+};
+[[noreturn]] void bad(char const *s) {
+  throw hresult_error(E_INVALIDARG, to_hstring(s));
+}
+uint32_t be(uint8_t const *p) {
+  return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) |
+         (uint32_t(p[2]) << 8) | p[3];
+}
+uint32_t number(std::wstring_view s, bool nonzero) {
+  wchar_t *end{};
+  const auto n = wcstoul(s.data(), &end, 10);
+  if (end != s.data() + s.size() || n > UINT32_MAX || (nonzero && !n))
+    bad("bad integer");
+  return uint32_t(n);
+}
+double positive(wchar_t const *s) {
+  wchar_t *end{};
+  double n = wcstod(s, &end);
+  if (end == s || *end || !std::isfinite(n) || n <= 0 || n > 100000)
+    bad("bad positive number");
+  return n;
+}
+BlurRect rectangle(wchar_t const *in) {
+  std::wstring_view s(in);
+  std::array<uint32_t, 4> a{};
+  size_t at = 0;
+  for (size_t i = 0; i < 4; ++i) {
+    size_t comma = s.find(L',', at);
+    if ((i < 3 && comma == s.npos) || (i == 3 && comma != s.npos))
+      bad("blur rect x,y,w,h");
+    auto part = s.substr(at, (comma == s.npos ? s.size() : comma) - at);
+    a[i] = number(part, i >= 2);
+    at = comma == s.npos ? s.size() : comma + 1;
+  }
+  return {a[0], a[1], a[2], a[3]};
+}
+Options options(int n, wchar_t **v) {
+  Options o;
+  for (int i = 1; i < n;) {
+    std::wstring_view k(v[i]);
+    if (k == L"--stdin-frames") {
+      o.stdin_frames = true;
+      ++i;
+      continue;
+    }
+    if (k == L"--stdin-compressed") {
+      o.stdin_compressed = true;
+      ++i;
+      continue;
+    }
+    if (k == L"--require-deadline-v4") {
+      o.require_deadline_v4 = true;
+      ++i;
+      continue;
+    }
+    if (k == L"--recover-expired-v4") {
+      o.recover_expired_v4 = true;
+      ++i;
+      continue;
+    }
+    if (k == L"--emit-pointer-motion") {
+      o.emit_pointer_motion = true;
+      ++i;
+      continue;
+    }
+    if (k == L"--emit-pointer-buttons") {
+      o.emit_pointer_buttons = true;
+      ++i;
+      continue;
+    }
+    if (++i == n)
+      bad("missing value");
+    if (k == L"--file")
+      o.file = v[i];
+    else if (k == L"--logical-width")
+      o.logical_w = positive(v[i]);
+    else if (k == L"--logical-height")
+      o.logical_h = positive(v[i]);
+    else if (k == L"--blur-rect")
+      o.rect = rectangle(v[i]);
+    else if (k == L"--radius")
+      o.radius = float(positive(v[i]));
+    else if (k == L"--max-frame-bytes")
+      o.max_frame_bytes = number(v[i], true);
+    else if (k == L"--warmup-frames") {
+      // Exact spelling avoids silent normalization of this negotiated contract.
+      if (std::wstring_view(v[i]) != L"1" && std::wstring_view(v[i]) != L"3")
+        bad("warmup-frames must be 1 or 3");
+      o.warmup_frames = number(v[i], true);
+    }
+    else if (k == L"--visible-ms") {
+      o.visible_ms = number(v[i], true);
+      if (o.visible_ms > 60000)
+        bad("visible-ms > 60000");
+    } else
+      bad("unknown option");
+    ++i;
+  }
+  if ((int(!o.file.empty()) + int(o.stdin_frames) + int(o.stdin_compressed) != 1) ||
+      !o.logical_w || !o.logical_h ||
+      !o.radius || !o.rect.w || !o.rect.h)
+    bad("require exactly one of file, stdin-frames, or stdin-compressed; logical "
+        "dimensions, blur rect, radius");
+  if (o.require_deadline_v4 && !o.stdin_compressed)
+    bad("require-deadline-v4 requires stdin-compressed");
+  if (o.recover_expired_v4 && !o.require_deadline_v4)
+    bad("recover-expired-v4 requires require-deadline-v4");
+  if (o.emit_pointer_motion && (!o.stdin_compressed || !o.require_deadline_v4))
+    bad("emit-pointer-motion requires stdin-compressed and require-deadline-v4");
+  if (o.emit_pointer_buttons && !o.emit_pointer_motion)
+    bad("emit-pointer-buttons requires emit-pointer-motion");
+  if (o.warmup_frames != 1 && !o.stdin_compressed)
+    bad("warmup-frames requires stdin-compressed");
+  return o;
+}
+Frame decode_vfbg(std::vector<uint8_t> b, size_t max_frame_bytes) {
+  if (b.size() < header_bytes || b.size() > max_frame_bytes + header_bytes ||
+      std::array<uint8_t, 8>{'V', 'F', 'B', 'G', 1, 1, 0, 0} !=
+          std::array<uint8_t, 8>{b[0], b[1], b[2], b[3], b[4], b[5], b[6],
+                                 b[7]})
+    bad("VFBG header");
+  Frame x{be(&b[8]), be(&b[12]), be(&b[16]), {}};
+  uint64_t bytes = uint64_t(x.stride) * x.h;
+  if (!x.w || !x.h || x.stride < uint64_t(x.w) * 4 || bytes > max_frame_bytes ||
+      bytes + 20 != b.size())
+    bad("VFBG layout");
+  x.pixels.assign(b.begin() + 20, b.end());
+  for (uint32_t y = 0; y < x.h; ++y)
+    for (uint32_t c = 0; c < x.w; ++c) {
+      auto *p = x.pixels.data() + size_t(y) * x.stride + c * 4;
+      if (p[0] > p[3] || p[1] > p[3] || p[2] > p[3])
+        bad("VFBG not premultiplied");
+    }
+  return x;
+}
+Frame vfbg(std::wstring const &path, size_t max_frame_bytes) {
+  std::ifstream f(path, std::ios::binary | std::ios::ate);
+  if (!f)
+    bad("open VFBG");
+  auto size = f.tellg();
+  if (size < 20 || size > std::streamoff(max_frame_bytes + 20))
+    bad("VFBG size");
+  std::vector<uint8_t> b(static_cast<size_t>(size));
+  f.seekg(0);
+  f.read(reinterpret_cast<char *>(b.data()), std::streamsize(b.size()));
+  if (!f)
+    bad("read VFBG");
+  return decode_vfbg(std::move(b), max_frame_bytes);
+}
+struct Blur final
+    : implements<Blur, IGraphicsEffect, IGraphicsEffectSource,
+                 ABI::Windows::Graphics::Effects::IGraphicsEffectD2D1Interop> {
+  hstring Name() const { return L"ViewflowBlur"; }
+  void Name(hstring const &) {}
+  IGraphicsEffectSource src{nullptr};
+  float sigma{};
+  IGraphicsEffectSource Source() const { return src; }
+  void Source(IGraphicsEffectSource const &v) { src = v; }
+  HRESULT __stdcall GetEffectId(CLSID *id) noexcept final {
+    if (!id)
+      return E_POINTER;
+    *id = CLSID_D2D1GaussianBlur;
+    return S_OK;
+  }
+  HRESULT __stdcall GetNamedPropertyMapping(
+      LPCWSTR p, UINT *i,
+      ABI::Windows::Graphics::Effects::GRAPHICS_EFFECT_PROPERTY_MAPPING
+          *m) noexcept final {
+    if (!p || !i || !m || wcscmp(p, L"Sigma"))
+      return E_INVALIDARG;
+    *i = D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION;
+    *m = ABI::Windows::Graphics::Effects::
+        GRAPHICS_EFFECT_PROPERTY_MAPPING_DIRECT;
+    return S_OK;
+  }
+  HRESULT __stdcall GetPropertyCount(UINT *n) noexcept final {
+    if (!n)
+      return E_POINTER;
+    *n = 3;
+    return S_OK;
+  }
+  HRESULT __stdcall
+  GetProperty(UINT i,
+              ABI::Windows::Foundation::IPropertyValue **v) noexcept final {
+    if (!v || i > D2D1_GAUSSIANBLUR_PROP_BORDER_MODE)
+      return E_INVALIDARG;
+    *v = nullptr;
+    try {
+      IPropertyValue value{nullptr};
+      if (i == D2D1_GAUSSIANBLUR_PROP_STANDARD_DEVIATION)
+        value = box_value(sigma).as<IPropertyValue>();
+      else if (i == D2D1_GAUSSIANBLUR_PROP_OPTIMIZATION)
+        value = box_value(uint32_t(D2D1_GAUSSIANBLUR_OPTIMIZATION_BALANCED))
+                    .as<IPropertyValue>();
+      else
+        value = box_value(uint32_t(D2D1_BORDER_MODE_HARD)).as<IPropertyValue>();
+      *v = static_cast<ABI::Windows::Foundation::IPropertyValue *>(
+          get_abi(value));
+      (*v)->AddRef();
+      return S_OK;
+    } catch (...) {
+      return to_hresult();
+    }
+  }
+  HRESULT __stdcall GetSourceCount(UINT *n) noexcept final {
+    if (!n)
+      return E_POINTER;
+    *n = 1;
+    return S_OK;
+  }
+  HRESULT __stdcall
+  GetSource(UINT i, ABI::Windows::Graphics::Effects::IGraphicsEffectSource *
+                        *v) noexcept final {
+    if (!v || i)
+      return E_INVALIDARG;
+    *v = nullptr;
+    if (src) {
+      *v =
+          static_cast<ABI::Windows::Graphics::Effects::IGraphicsEffectSource *>(
+              get_abi(src));
+      (*v)->AddRef();
+    }
+    return S_OK;
+  }
+};
+void retire_pointer_input(viewflow::windows_preview::PointerMotionState *state,
+                          const char *reason) {
+  state->retire();
+  // Preserve the native reason before notifying the stdout consumer: that
+  // notification may immediately tear down the pipe reader and this child.
+  std::cerr << "native-pointer-retired reason=" << reason << std::endl;
+  std::cout << "pointer-input-ended reason=" << reason << std::endl;
+}
+
+struct AtlasDesktopTarget {
+  bool enabled{};
+  viewflow::windows_preview::DesktopDisplay display;
+  uint64_t topology_generation{}, placement_generation{};
+  viewflow::vfgp::DesktopRect bounds;
+  bool movable{}, slice_valid{};
+  viewflow::windows_preview::DesktopSlice slice;
+  uint32_t tile_width{}, tile_height{};
+};
+
+void emit_pointer_motion(HWND h, WPARAM w,
+                         viewflow::windows_preview::PointerMotionState *state,
+                         viewflow::windows_preview::AtlasPointerState *atlas = nullptr,
+                         UINT wheel_message = 0, const AtlasDesktopTarget* desktop = nullptr,
+                         const POINTER_INFO* classified_click = nullptr) {
+  if (!state)
+    return;
+  POINTER_INFO info{};
+  LARGE_INTEGER now{}, frequency{};
+  const bool fetched = classified_click ? (info = *classified_click, true) : GetPointerInfo(GET_POINTERID_WPARAM(w), &info) != FALSE;
+  const bool sampled = QueryPerformanceCounter(&now) && QueryPerformanceFrequency(&frequency);
+  wchar_t diagnostic[2]{};
+  static unsigned diagnostic_count = 0;
+  if (GetEnvironmentVariableW(L"VIEWFLOW_POINTER_DIAGNOSTICS", diagnostic, 2) == 1 &&
+      diagnostic[0] == L'1' && diagnostic_count < 32) {
+    ++diagnostic_count;
+    std::cerr << "pointer-info fetched=" << fetched << " type=" << info.pointerType
+              << " target_matches=" << (info.hwndTarget == h)
+              << " event_qpc=" << info.PerformanceCount << " now_qpc=" << now.QuadPart
+              << " event_ms=" << info.dwTime << std::endl;
+  }
+  if (!fetched || info.pointerType != PT_MOUSE ||
+      info.hwndTarget != h || !info.PerformanceCount ||
+      !sampled || now.QuadPart <= 0 || frequency.QuadPart <= 0) {
+    if (state->buttons_enabled()) retire_pointer_input(state, "invalid-pointer-info");
+    return;
+  }
+  if (state->buttons_enabled() && (info.pointerFlags & POINTER_FLAG_CANCELED)) {
+    if (state->has_pressed_buttons()) retire_pointer_input(state, "pointer-canceled");
+    return;
+  }
+  const bool wheel = wheel_message == WM_POINTERWHEEL || wheel_message == WM_POINTERHWHEEL;
+  static_assert(MK_LBUTTON == 0x01 && MK_MBUTTON == 0x10 && MK_RBUTTON == 0x02 &&
+                MK_XBUTTON1 == 0x20 && MK_XBUTTON2 == 0x40);
+  const int32_t delta = wheel ? GET_WHEEL_DELTA_WPARAM(w) : 0;
+  if (wheel && atlas && atlas->suppress_pre_recovery_pointer(info.PerformanceCount, 0, 0)) return;
+  if (wheel && (!atlas || !atlas->wheel_enabled() || !delta ||
+      info.InputData != delta || info.historyCount != 1 ||
+      info.ButtonChangeType != POINTER_CHANGE_NONE || !state->wheel_key_state_matches(info.dwKeyStates))) {
+    std::cerr << "wheel-record-rejected delta120=" << delta << " input_data=" << info.InputData
+              << " history_count=" << info.historyCount << " button_change=" << info.ButtonChangeType
+              << " key_states=" << info.dwKeyStates << " capability=" << (atlas && atlas->wheel_enabled()) << std::endl;
+    retire_pointer_input(state, "wheel-capability-or-record-rejected");
+    return;
+  }
+  const int32_t vertical = wheel_message == WM_POINTERWHEEL ? delta : 0;
+  const int32_t horizontal = wheel_message == WM_POINTERHWHEEL ? delta : 0;
+  uint32_t button = 0, transition = 0;
+  if (state->buttons_enabled()) {
+    switch (info.ButtonChangeType) {
+    case POINTER_CHANGE_NONE: break;
+    case POINTER_CHANGE_FIRSTBUTTON_DOWN: button = 1; transition = 1; break;
+    case POINTER_CHANGE_FIRSTBUTTON_UP: button = 1; transition = 2; break;
+    case POINTER_CHANGE_SECONDBUTTON_DOWN: button = 3; transition = 1; break;
+    case POINTER_CHANGE_SECONDBUTTON_UP: button = 3; transition = 2; break;
+    case POINTER_CHANGE_THIRDBUTTON_DOWN: button = 2; transition = 1; break;
+    case POINTER_CHANGE_THIRDBUTTON_UP: button = 2; transition = 2; break;
+    case POINTER_CHANGE_FOURTHBUTTON_DOWN: button = 4; transition = 1; break;
+    case POINTER_CHANGE_FOURTHBUTTON_UP: button = 4; transition = 2; break;
+    case POINTER_CHANGE_FIFTHBUTTON_DOWN: button = 5; transition = 1; break;
+    case POINTER_CHANGE_FIFTHBUTTON_UP: button = 5; transition = 2; break;
+    default: retire_pointer_input(state, "unsupported-button-change"); return;
+    }
+  }
+  if (atlas && transition == 2 && !state->has_pressed_buttons()) return;
+  if (atlas && atlas->suppress_pre_recovery_pointer(info.PerformanceCount, button, transition)) return;
+  RECT client{};
+  POINT point = info.ptPixelLocation;
+  if (!GetClientRect(h, &client) || !ScreenToClient(h, &point)) {
+    if (state->buttons_enabled()) retire_pointer_input(state, "client-mapping-failed");
+    return;
+  }
+  int64_t source_x = point.x, source_y = point.y;
+  int32_t source_width = static_cast<int32_t>(client.right - client.left),
+          source_height = static_cast<int32_t>(client.bottom - client.top);
+  if (desktop && desktop->enabled && desktop->slice_valid) {
+    if (!desktop->tile_width || !desktop->tile_height || !desktop->slice.full_physical_width ||
+        !desktop->slice.full_physical_height || source_width <= 0 || source_height <= 0) return;
+    // Native captions/borders and pointer leave samples lie outside the client.
+    // They are ordinary WM traffic. An application drag keeps its releases by
+    // clamping to the captured client's edge; passive non-client input is local.
+    if (point.x < 0 || point.y < 0 || point.x >= source_width || point.y >= source_height) {
+      if (!state->has_pressed_buttons()) return;
+      point.x = std::clamp<LONG>(point.x, 0, source_width - 1);
+      point.y = std::clamp<LONG>(point.y, 0, source_height - 1);
+    }
+    const uint64_t full_x = uint64_t(point.x);
+    const uint64_t full_y = uint64_t(point.y);
+    source_x = int64_t(full_x * desktop->tile_width / desktop->slice.full_physical_width);
+    source_y = int64_t(full_y * desktop->tile_height / desktop->slice.full_physical_height);
+    source_width = int32_t(desktop->tile_width); source_height = int32_t(desktop->tile_height);
+    if (source_x < 0 || source_y < 0 || source_x >= source_width || source_y >= source_height) {
+      // A new native size can precede its source frame during Snap. Wait for
+      // that frame without invalidating the stream or retargeting the event.
+      return;
+    }
+  }
+  auto event = wheel ? state->timed_client_wheel(int32_t(source_x), int32_t(source_y), source_width, source_height,
+                                  info.PerformanceCount, static_cast<uint64_t>(now.QuadPart),
+                                  static_cast<uint64_t>(frequency.QuadPart), vertical, horizontal)
+                     : button ? state->timed_client_button(int32_t(source_x), int32_t(source_y), source_width, source_height,
+                                  info.PerformanceCount, static_cast<uint64_t>(now.QuadPart),
+                                  static_cast<uint64_t>(frequency.QuadPart), button, transition)
+                     : state->timed_client_move(int32_t(source_x), int32_t(source_y), source_width, source_height,
+                                  info.PerformanceCount, static_cast<uint64_t>(now.QuadPart),
+                                  static_cast<uint64_t>(frequency.QuadPart));
+  if (!event) {
+    if (wheel) {
+      retire_pointer_input(state, "wheel-position-or-timing-rejected");
+      return;
+    }
+    if (button) {
+      std::cerr << "pointer-button-rejected event_qpc=" << info.PerformanceCount
+                << " committed_qpc=" << state->committed_qpc()
+                << " now_qpc=" << now.QuadPart << " frequency=" << frequency.QuadPart
+                << " x=" << point.x << " y=" << point.y
+                << " width=" << client.right - client.left
+                << " height=" << client.bottom - client.top
+                << " button=" << button << " transition=" << transition
+                << " held=" << state->has_pressed_buttons() << std::endl;
+      retire_pointer_input(state, "button-state-or-timing-rejected");
+    }
+    return;
+  }
+  // Diagnostic stdout is synchronous and deliberately unqueued. A blocked
+  // stdout consumer can stall this UI thread; production input must not use it.
+  if (atlas) {
+    const auto* binding = atlas->find(event->frame_identity);
+    if (!binding || event->viewport_width != int64_t(binding->tile.width) ||
+        event->viewport_height != int64_t(binding->tile.height)) {
+      if (button || wheel) retire_pointer_input(state, "atlas-binding-missing-or-resized");
+      return;
+    }
+    std::cout << "atlas-pointer-v1 stream_hi=" << binding->stream.first
+              << " stream_lo=" << binding->stream.second
+              << " atlas_frame=" << binding->atlas_frame
+              << " atlas_epoch=" << binding->atlas_epoch
+              << " config_generation=" << binding->config_generation
+              << " layout_revision=" << binding->revision
+              << " window_hi=" << binding->tile.window.first
+              << " window_lo=" << binding->tile.window.second
+              << " placement_generation=" << binding->tile.placement_generation
+              << " source_epoch=" << binding->tile.geometry_epoch
+              << " source_frame=" << binding->tile.source_frame
+              << " kind=" << (wheel ? "wheel" : button ? "button" : "motion") << " frame_identity=";
+  } else {
+    std::cout << (button ? "pointer-button frame_identity=" : "pointer-motion frame_identity=");
+  }
+  std::cout << event->frame_identity
+            << " x_pixels=" << event->x_pixels << " y_pixels=" << event->y_pixels
+            << " viewport_width=" << event->viewport_width
+            << " viewport_height=" << event->viewport_height
+            << " not_after_qpc=" << event->not_after_qpc
+            << " qpc_frequency=" << event->qpc_frequency;
+  if (button) std::cout << " button=" << button << " state=" << transition;
+  if (wheel) std::cout << " wheel_vertical_120=" << vertical << " wheel_horizontal_120=" << horizontal;
+  std::cout << std::endl;
+}
+
+LRESULT CALLBACK proc(HWND h, UINT m, WPARAM w, LPARAM l) {
+  auto *pointer_motion = reinterpret_cast<viewflow::windows_preview::PointerMotionState *>(
+      GetWindowLongPtrW(h, GWLP_USERDATA));
+  if (pointer_motion && (m == WM_POINTERUPDATE || m == WM_MOUSEMOVE)) {
+    wchar_t diagnostic[2]{};
+    static unsigned diagnostic_count = 0;
+    if (GetEnvironmentVariableW(L"VIEWFLOW_POINTER_DIAGNOSTICS", diagnostic, 2) == 1 &&
+        diagnostic[0] == L'1' && diagnostic_count < 32) {
+      ++diagnostic_count;
+      std::cerr << "pointer-message kind=" << m << " mouse_in_pointer="
+                << IsMouseInPointerEnabled() << std::endl;
+    }
+  }
+  if (pointer_motion && pointer_motion->buttons_enabled() &&
+      (m == WM_KILLFOCUS || m == WM_POINTERCAPTURECHANGED ||
+       (m == WM_POINTERLEAVE && pointer_motion->has_pressed_buttons()))) {
+    retire_pointer_input(pointer_motion, m == WM_KILLFOCUS ? "focus-lost" :
+        m == WM_POINTERCAPTURECHANGED ? "capture-changed" : "leave-while-held");
+  }
+  if (pointer_motion && (m == WM_POINTERUPDATE ||
+      (pointer_motion->buttons_enabled() && (m == WM_POINTERDOWN || m == WM_POINTERUP)))) {
+    emit_pointer_motion(h, w, pointer_motion);
+    return 0;
+  }
+  if (m == WM_DESTROY) {
+    if (pointer_motion)
+      pointer_motion->clear();
+    SetWindowLongPtrW(h, GWLP_USERDATA, 0);
+    PostQuitMessage(0);
+    return 0;
+  }
+  return DefWindowProcW(h, m, w, l);
+}
+#include "sparse_shared_visuals.h"
+
+struct SparseVisual {
+  viewflow::vfgp::AtlasPatch patch;
+  SpriteVisual visual{nullptr};
+  CompositionSurfaceBrush brush{nullptr};
+  SpriteVisual backdrop{nullptr};
+  CompositionMaskBrush mask{nullptr};
+};
+struct Foreground {
+  com_ptr<ID3D11Device> d3d;
+  com_ptr<ID2D1Device> d2d;
+  CompositionGraphicsDevice graphics{nullptr};
+  CompositionDrawingSurface surface{nullptr};
+  CompositionSurfaceBrush gpu_brush{nullptr};
+  CompositionDrawingSurface spare_surface{nullptr};
+  CompositionSurfaceBrush spare_brush{nullptr};
+  SpriteVisual visual{nullptr};
+  ContainerVisual sparse_root{nullptr};
+  std::vector<SparseVisual> sparse_visuals; // Retained for the independent reference probe.
+  std::optional<SharedSparseScene> shared_sparse;
+  std::vector<viewflow::vfgp::AtlasPatch> shared_patches;
+  std::vector<uint8_t> shared_opaque;
+  float shared_blur_sigma{};
+  uint32_t width{}, height{};
+};
+
+Foreground foreground(Compositor const &compositor, float target_width,
+                      float target_height, ID3D11Device *shared_d3d = nullptr) {
+  stage = "foreground-device";
+  Foreground result;
+  if (shared_d3d) {
+    result.d3d.copy_from(shared_d3d);
+  } else {
+    check_hresult(D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+                                    D3D11_CREATE_DEVICE_BGRA_SUPPORT, nullptr, 0,
+                                    D3D11_SDK_VERSION, result.d3d.put(), nullptr,
+                                    nullptr));
+  }
+  auto dxgi = result.d3d.as<IDXGIDevice>();
+  check_hresult(D2D1CreateDevice(dxgi.get(), nullptr, result.d2d.put()));
+  auto interop =
+      compositor.as<ABI::Windows::UI::Composition::ICompositorInterop>();
+  check_hresult(interop->CreateGraphicsDevice(
+      result.d2d.get(),
+      reinterpret_cast<ABI::Windows::UI::Composition::ICompositionGraphicsDevice
+                           **>(put_abi(result.graphics))));
+  result.visual = compositor.CreateSpriteVisual();
+  result.visual.Size({target_width, target_height});
+  return result;
+}
+
+// A device-pair atlas uses one D2D/Composition graphics device. Each proxy
+// still owns an independent visual, surface and brush; only device factories
+// are shared, so updating one proxy cannot mutate another proxy's pixels.
+Foreground foreground_on_device(Foreground const& device_owner,
+                                 Compositor const& compositor,
+                                 float width, float height) {
+  Foreground result;
+  result.d3d = device_owner.d3d;
+  result.d2d = device_owner.d2d;
+  result.graphics = device_owner.graphics;
+  result.visual = compositor.CreateSpriteVisual();
+  result.visual.Size({width, height});
+  return result;
+}
+
+// Allocate without binding anything to the visual. Startup decode-only frames
+// may warm resources, but must never place their pixels in the composition tree.
+void prepare_gpu_surface(Foreground &result, Compositor const &compositor,
+                         uint32_t width, uint32_t height) {
+  if (!result.surface || result.width != width || result.height != height) {
+    result.surface = result.graphics.CreateDrawingSurface(
+        {float(width), float(height)},
+        winrt::Windows::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+        winrt::Windows::Graphics::DirectX::DirectXAlphaMode::Premultiplied);
+    result.gpu_brush = compositor.CreateSurfaceBrush(result.surface);
+    result.gpu_brush.Stretch(CompositionStretch::Fill);
+    result.width = width;
+    result.height = height;
+  }
+}
+
+struct GpuSurfaceCandidate {
+  CompositionDrawingSurface surface{nullptr};
+  CompositionSurfaceBrush brush{nullptr};
+  uint32_t width{}, height{};
+};
+
+GpuSurfaceCandidate make_gpu_surface(Foreground const &result,
+                                     Compositor const &compositor,
+                                     uint32_t width, uint32_t height) {
+  GpuSurfaceCandidate candidate;
+  candidate.surface = result.graphics.CreateDrawingSurface(
+      {float(width), float(height)},
+      winrt::Windows::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+      winrt::Windows::Graphics::DirectX::DirectXAlphaMode::Premultiplied);
+  candidate.brush = compositor.CreateSurfaceBrush(candidate.surface);
+  candidate.brush.Stretch(CompositionStretch::Fill);
+  candidate.width = width;
+  candidate.height = height;
+  return candidate;
+}
+
+// Opt-in completion bounds: polling never waits for GPU work and never changes
+// stream admission. QPC bounds describe our device queue, not DWM or photons.
+struct GpuCopyProbe {
+  com_ptr<ID3D11Query> query;
+  com_ptr<ID3D11DeviceContext> context;
+  uint64_t frame{}, submitted{}, last_pending{};
+};
+thread_local std::vector<GpuCopyProbe> gpu_copy_probes;
+thread_local std::vector<std::shared_ptr<viewflow::windows::GpuTimestampProbe>> gpu_timestamp_probes;
+bool gpu_copy_probe_enabled() {
+  static const bool enabled=[] {
+    wchar_t value[4]{};
+    return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_TIMINGS",value,4)==3 && wcscmp(value,L"all")==0;
+  }();
+  return enabled;
+}
+void poll_gpu_copy_probes(std::string& output) {
+  for(auto it=gpu_timestamp_probes.begin();it!=gpu_timestamp_probes.end();) {
+    if((*it)->Poll(output)) it=gpu_timestamp_probes.erase(it); else ++it;
+  }
+  for(auto it=gpu_copy_probes.begin();it!=gpu_copy_probes.end();) {
+    LARGE_INTEGER before{}, after{};
+    QueryPerformanceCounter(&before);
+    BOOL done=FALSE;
+    const auto hr=it->context->GetData(it->query.get(),&done,sizeof(done),D3D11_ASYNC_GETDATA_DONOTFLUSH);
+    QueryPerformanceCounter(&after);
+    if(hr==S_FALSE || (hr==S_OK && !done)) {
+      it->last_pending=uint64_t(before.QuadPart);
+      ++it;
+      continue;
+    }
+    output += "atlas-gpu-copy-completion frame="+std::to_string(it->frame)+
+        " submitted_qpc="+std::to_string(it->submitted)+
+        " lower_qpc="+std::to_string(it->last_pending)+
+        " upper_qpc="+std::to_string(after.QuadPart)+
+        " status="+std::to_string(hr)+"\n";
+    it=gpu_copy_probes.erase(it);
+  }
+}
+
+void copy_gpu_frame(Foreground &result, CompositionDrawingSurface const &surface,
+                    viewflow::windows::CompositedFrame const &frame) {
+  stage = "foreground-gpu-copy";
+  if (!frame.premultiplied_bgra)
+    bad("missing GPU frame texture");
+  auto drawing = surface.as<
+      ABI::Windows::UI::Composition::ICompositionDrawingSurfaceInterop>();
+  com_ptr<ID3D11Texture2D> destination;
+  POINT offset{};
+  check_hresult(drawing->BeginDraw(nullptr, __uuidof(ID3D11Texture2D),
+                                   destination.put_void(), &offset));
+  try {
+    if (offset.x < 0 || offset.y < 0)
+      bad("composition drawing offset");
+    com_ptr<ID3D11DeviceContext> context;
+    result.d3d->GetImmediateContext(context.put());
+    viewflow::windows::GpuTimestampScope gpu_time(result.d3d.get(),context.get(),frame.frame_identity,"surface_copy",frame.shader_gpu_timing?20:10);
+    check_hresult(viewflow::windows::CopyCompositedRegion(
+        context.get(), frame, destination.get(), UINT(offset.x), UINT(offset.y)));
+    if(auto probe=gpu_time.Finish(); probe && gpu_timestamp_probes.size()<128)
+      gpu_timestamp_probes.push_back(std::move(probe));
+  } catch (...) {
+    drawing->EndDraw();
+    throw;
+  }
+  check_hresult(drawing->EndDraw());
+  com_ptr<ID3D11DeviceContext> context;
+  result.d3d->GetImmediateContext(context.put());
+  if(gpu_copy_probe_enabled() && gpu_copy_probes.size()<64) {
+    D3D11_QUERY_DESC desc{D3D11_QUERY_EVENT,0};
+    GpuCopyProbe probe;
+    if(SUCCEEDED(result.d3d->CreateQuery(&desc,probe.query.put()))) {
+      probe.context=context;
+      probe.frame=frame.frame_identity;
+      LARGE_INTEGER now{};
+      QueryPerformanceCounter(&now);
+      probe.submitted=probe.last_pending=uint64_t(now.QuadPart);
+      context->End(probe.query.get());
+      gpu_copy_probes.push_back(std::move(probe));
+    }
+  }
+  context->Flush();
+  check_hresult(result.d3d->GetDeviceRemovedReason());
+}
+
+GpuSurfaceCandidate stage_gpu_surface(Foreground &result,
+                                      Compositor const &compositor,
+                                      viewflow::windows::CompositedFrame const &frame) {
+  // Keep the previous drawing surface as the next unbound back buffer.
+  // Composition retains resources while pending GPU work references them.
+  GpuSurfaceCandidate candidate;
+  if (result.spare_surface && result.spare_surface.Size().Width == float(frame.width) &&
+      result.spare_surface.Size().Height == float(frame.height)) {
+    candidate = {std::move(result.spare_surface), std::move(result.spare_brush), frame.width, frame.height};
+  } else {
+    result.spare_surface = nullptr;
+    result.spare_brush = nullptr;
+    candidate = make_gpu_surface(result, compositor, frame.width, frame.height);
+  }
+  copy_gpu_frame(result, candidate.surface, frame);
+  return candidate;
+}
+
+void commit_gpu_surface(Foreground &result, GpuSurfaceCandidate candidate) {
+  // The caller's final QPC check is immediately before this call. Make the
+  // visual swap the first operation, while `candidate` still owns the new
+  // surface and `result.gpu_brush` still keeps the old visible resource alive.
+  result.visual.Children().RemoveAll();
+  result.sparse_root=nullptr; result.sparse_visuals.clear();
+  result.shared_sparse.reset(); result.shared_patches.clear(); result.shared_opaque.clear();
+  result.visual.Brush(candidate.brush);
+  result.spare_surface = std::move(result.surface);
+  result.spare_brush = std::move(result.gpu_brush);
+  result.surface = std::move(candidate.surface);
+  result.gpu_brush = std::move(candidate.brush);
+  result.width = candidate.width;
+  result.height = candidate.height;
+}
+
+// One shared double-buffered atlas surface backs every sparse proxy. A window
+// owns only small visual/brush descriptors; hidden regions own no pixel surface.
+struct SparseGpuCandidate {
+  CompositionDrawingSurface surface{nullptr};
+  std::optional<SharedSparseScene> replacement;
+  std::optional<SharedSparsePlan> plan;
+  std::vector<viewflow::vfgp::AtlasPatch> patches;
+  std::vector<uint8_t> opaque;
+  uint32_t width{},height{};
+  float blur_sigma{};
+  bool reuse{};
+};
+viewflow::windows_preview::CoalescedSparsePatches coalesce_sparse_visual_patches(
+    std::span<const viewflow::vfgp::AtlasPatch> patches, std::span<const uint8_t> opaque) {
+  // Same-binary diagnostic baseline; default presentation uses the qualified union.
+  static const bool disabled=[] {
+    wchar_t value[2]{};
+    return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_DIAGNOSTIC_NO_COALESCE",value,2)==1 && value[0]==L'1';
+  }();
+  if(disabled)return {{patches.begin(),patches.end()},{opaque.begin(),opaque.end()}};
+  return viewflow::windows_preview::CoalesceSparsePatches(patches,opaque);
+}
+SparseGpuCandidate stage_sparse_visuals(Foreground const& foreground,
+    Compositor const& compositor, CompositionDrawingSurface const& surface,
+    std::span<const viewflow::vfgp::AtlasPatch> patches, uint32_t tile_index,
+    uint32_t width,uint32_t height,CompositionBrush const& raw_backdrop,
+    float blur_sigma=0, std::span<const uint8_t> opaque = {}) {
+  if (!opaque.empty() && opaque.size()!=patches.size()) bad("sparse opacity count");
+  const auto selected=viewflow::vfgp::PatchesForTile(patches,tile_index);
+  const auto selected_opaque = opaque.empty() || selected.empty() ? std::span<const uint8_t>{} :
+      opaque.subspan(size_t(selected.data()-patches.data()),selected.size());
+  SparseGpuCandidate next;
+  next.surface=surface;next.width=width;next.height=height;next.blur_sigma=blur_sigma;
+  const bool same_config=foreground.shared_sparse &&
+      foreground.shared_sparse->backdrop==raw_backdrop && foreground.shared_blur_sigma==blur_sigma;
+  if(same_config) {
+    const auto size=surface.Size();
+    const auto old_size=foreground.shared_sparse->atlas_size;
+    next.reuse=size.Width==old_size.Width && size.Height==old_size.Height &&
+        foreground.shared_patches.size()==selected.size() &&
+        std::equal(selected.begin(),selected.end(),foreground.shared_patches.begin()) &&
+        foreground.shared_opaque.size()==selected_opaque.size() &&
+        std::equal(selected_opaque.begin(),selected_opaque.end(),foreground.shared_opaque.begin());
+    if(next.reuse)return next;
+    const auto coalesced=coalesce_sparse_visual_patches(selected,selected_opaque);
+    next.plan=stage_shared_sparse_visuals(*foreground.shared_sparse,surface,coalesced.patches,coalesced.opaque);
+  } else {
+    const auto coalesced=coalesce_sparse_visual_patches(selected,selected_opaque);
+    next.replacement=make_shared_sparse_scene(compositor,surface,coalesced.patches,raw_backdrop,blur_sigma,coalesced.opaque);
+    next.replacement->root.Size({float(width),float(height)});
+  }
+  next.patches.assign(selected.begin(),selected.end());
+  next.opaque.assign(selected_opaque.begin(),selected_opaque.end());
+  return next;
+}
+void commit_sparse_visuals(Foreground& foreground,SparseGpuCandidate next,
+                          float target_width,float target_height) {
+  if(next.replacement) {
+    foreground.visual.Children().RemoveAll();
+    foreground.visual.Children().InsertAtTop(next.replacement->root);
+    foreground.shared_sparse=std::move(next.replacement);
+    foreground.sparse_root=foreground.shared_sparse->root;
+    foreground.sparse_visuals.clear();
+  } else if(next.plan) {
+    commit_shared_sparse_visuals(*foreground.shared_sparse,std::move(*next.plan));
+  } else {
+    foreground.shared_sparse->brush.Surface(next.surface);
+  }
+  if(!next.reuse) {
+    foreground.shared_patches=std::move(next.patches);
+    foreground.shared_opaque=std::move(next.opaque);
+  }
+  foreground.shared_blur_sigma=next.blur_sigma;
+  foreground.sparse_root.Size({float(next.width),float(next.height)});
+  foreground.sparse_root.Scale({target_width/float(next.width),target_height/float(next.height),1.0f});
+  foreground.visual.Brush(nullptr);
+  foreground.gpu_brush=nullptr; foreground.spare_brush=nullptr;
+  foreground.surface=nullptr; foreground.spare_surface=nullptr;
+  foreground.width=next.width; foreground.height=next.height;
+}
+
+void update_gpu(Foreground &result, Compositor const &compositor,
+                viewflow::windows::CompositedFrame const &frame,
+                bool bind_visual = true) {
+  // Decode-only startup may exercise the complete copy path, but never a
+  // surface already reachable from the visible composition tree.
+  if (!bind_visual && result.visual.Brush())
+    bad("decode-only GPU warmup requires an unbound visual");
+  prepare_gpu_surface(result, compositor, frame.width, frame.height);
+  copy_gpu_frame(result, result.surface, frame);
+  // Bind only after a live frame was copied successfully, never during warmup.
+  if (bind_visual)
+    result.visual.Brush(result.gpu_brush);
+}
+void update(Foreground &result, Compositor const &compositor,
+            Frame const &frame) {
+  stage = "foreground-upload";
+  if (!result.surface || result.width != frame.w || result.height != frame.h) {
+    result.surface = result.graphics.CreateDrawingSurface(
+        {float(frame.w), float(frame.h)},
+        winrt::Windows::Graphics::DirectX::DirectXPixelFormat::B8G8R8A8UIntNormalized,
+        winrt::Windows::Graphics::DirectX::DirectXAlphaMode::Premultiplied);
+    auto brush = compositor.CreateSurfaceBrush(result.surface);
+    brush.Stretch(CompositionStretch::Fill);
+    result.visual.Brush(brush);
+    result.width = frame.w;
+    result.height = frame.h;
+  }
+  auto drawing = result.surface.as<
+      ABI::Windows::UI::Composition::ICompositionDrawingSurfaceInterop>();
+  com_ptr<ID2D1DeviceContext> context;
+  POINT offset{};
+  check_hresult(drawing->BeginDraw(nullptr, __uuidof(ID2D1DeviceContext),
+                                   context.put_void(), &offset));
+  try {
+    context->SetDpi(96, 96);
+    context->SetTransform(
+        D2D1::Matrix3x2F::Translation(float(offset.x), float(offset.y)));
+    context->Clear(D2D1::ColorF(0, 0, 0, 0));
+    com_ptr<ID2D1Bitmap1> bitmap;
+    auto properties = D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_NONE,
+        D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM,
+                          D2D1_ALPHA_MODE_PREMULTIPLIED));
+    check_hresult(context->CreateBitmap(D2D1::SizeU(frame.w, frame.h),
+                                        frame.pixels.data(), frame.stride,
+                                        &properties, bitmap.put()));
+    context->DrawBitmap(bitmap.get(),
+                        D2D1::RectF(0, 0, float(frame.w), float(frame.h)), 1.0f,
+                        D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR);
+  } catch (...) {
+    drawing->EndDraw();
+    throw;
+  }
+  check_hresult(drawing->EndDraw());
+}
+
+struct StdinFrames {
+  HANDLE handle{};
+  size_t max_frame_bytes = default_max_frame_bytes;
+  std::vector<uint8_t> bytes;
+  size_t wanted = header_bytes;
+  bool eof = false;
+  // Reads only currently available anonymous-pipe data; one UI tick never
+  // blocks on the producer and is capped to keep message dispatch responsive.
+  bool tick(Frame &latest, bool &has_frame) {
+    if (eof)
+      return false;
+    bool read_any = false;
+    DWORD budget = DWORD((std::min)(max_frame_bytes + header_bytes,
+                                    size_t((std::numeric_limits<DWORD>::max)())));
+    const auto deadline = GetTickCount64() + 2;
+    while (budget && !eof && GetTickCount64() <= deadline) {
+      DWORD available{};
+      if (!PeekNamedPipe(handle, nullptr, 0, nullptr, &available, nullptr)) {
+        auto error = GetLastError();
+        if (error == ERROR_BROKEN_PIPE) {
+          eof = true;
+          if (!bytes.empty())
+            bad("partial VFBG at stdin EOF");
+          return read_any;
+        }
+        throw_last_error();
+      }
+      if (!available)
+        break;
+      std::array<uint8_t, 64 * 1024> chunk{};
+      DWORD read{};
+      auto take =
+          (std::min)((std::min)(budget, available), DWORD(chunk.size()));
+      if (!ReadFile(handle, chunk.data(), take, &read, nullptr)) {
+        if (GetLastError() == ERROR_BROKEN_PIPE) {
+          eof = true;
+          if (!bytes.empty())
+            bad("partial VFBG at stdin EOF");
+          break;
+        }
+        throw_last_error();
+      }
+      if (!read)
+        bad("zero-length stdin record");
+      read_any = true;
+      bytes.insert(bytes.end(), chunk.begin(), chunk.begin() + read);
+      budget -= read;
+      while (bytes.size() >= wanted) {
+        if (wanted == header_bytes) {
+          if (std::array<uint8_t, 8>{'V', 'F', 'B', 'G', 1, 1, 0, 0} !=
+              std::array<uint8_t, 8>{bytes[0], bytes[1], bytes[2], bytes[3],
+                                     bytes[4], bytes[5], bytes[6], bytes[7]})
+            bad("stdin VFBG header");
+          uint64_t payload =
+              uint64_t(be(bytes.data() + 16)) * be(bytes.data() + 12);
+          if (!be(bytes.data() + 8) || !be(bytes.data() + 12) ||
+              be(bytes.data() + 16) < uint64_t(be(bytes.data() + 8)) * 4 ||
+              payload > max_frame_bytes)
+            bad("stdin VFBG layout");
+          wanted = header_bytes + size_t(payload);
+          if (wanted == header_bytes)
+            bad("zero-length stdin record");
+        }
+        if (bytes.size() < wanted)
+          break;
+        std::vector<uint8_t> record(bytes.begin(), bytes.begin() + wanted);
+        bytes.erase(bytes.begin(), bytes.begin() + wanted);
+        wanted = header_bytes;
+        // A slow compositor never creates an unbounded queue: a newer complete
+        // staged frame replaces the older one before the next UI submission.
+        latest = decode_vfbg(std::move(record), max_frame_bytes);
+        has_frame = true;
+      }
+    }
+    return read_any;
+  }
+};
+
+struct StdinCompressed {
+  static constexpr size_t max_live_deadlines = 8;
+  viewflow::vfgp::Parser parser;
+  bool require_deadline_v4 = false;
+  bool recover_expired_v4 = false;
+  uint64_t qpc_frequency = 0;
+  bool finished = false;
+  viewflow::windows_preview::WarmupAdmission warmup;
+  std::unordered_set<uint64_t> decode_only_identities;
+  struct Timing {
+    std::chrono::steady_clock::time_point decode_started;
+    int64_t parser_us;
+  };
+  std::unordered_map<uint64_t, Timing> decode_started;
+  // A decoded output can be delayed/reordered by MF, so retain the immutable
+  // v4 deadline by source identity until the corresponding surface commits.
+  std::unordered_map<uint64_t, viewflow::vfgp::DeadlineQpc> live_deadlines;
+  uint32_t timed_decode_submissions = 0;
+  uint32_t logged_expired_dispositions = 0;
+
+  explicit StdinCompressed(size_t max_frame_bytes, bool require_deadline_v4,
+                           uint32_t warmup_frames, bool recover_expired_v4)
+      : parser(max_frame_bytes, require_deadline_v4),
+        require_deadline_v4(require_deadline_v4),
+        recover_expired_v4(recover_expired_v4), warmup(warmup_frames) {
+    if (require_deadline_v4) {
+      LARGE_INTEGER frequency{};
+      if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0)
+        bad("QueryPerformanceFrequency for VFGP v4");
+      qpc_frequency = static_cast<uint64_t>(frequency.QuadPart);
+    }
+  }
+
+  [[noreturn]] static void deadline_error(
+      viewflow::windows_preview::vfgp_deadline::Status status) {
+    using viewflow::windows_preview::vfgp_deadline::Status;
+    switch (status) {
+      case Status::Missing:
+        bad("VFGP v4 required for live frame");
+      case Status::InvalidLocalFrequency:
+        bad("VFGP v4 local QPC frequency invalid");
+      case Status::FrequencyMismatch:
+        bad("VFGP v4 QPC frequency mismatch");
+      case Status::Expired:
+        bad("VFGP v4 deadline expired");
+      case Status::Ok:
+        break;
+    }
+    bad("unreachable VFGP v4 deadline status");
+  }
+
+  uint64_t now_qpc() const {
+    LARGE_INTEGER now{};
+    if (!QueryPerformanceCounter(&now) || now.QuadPart < 0)
+      bad("QueryPerformanceCounter for VFGP v4");
+    return static_cast<uint64_t>(now.QuadPart);
+  }
+
+  void report_expired(uint64_t identity, char const *phase) {
+    // This is not a presentation ACK. Call only on a path that never bound
+    // this identity to the visual; partial/unknown outcomes remain terminal.
+    std::cout << "rejected frame_identity=" << identity << " reason=expired"
+              << std::endl;
+    // Bounded evidence only; stdout disposition is unchanged and flushed first.
+    if (logged_expired_dispositions < diagnostic_frame_limit) {
+      ++logged_expired_dispositions;
+      std::cerr << "expired disposition frame=" << identity << " phase=" << phase
+                << std::endl;
+    }
+  }
+
+  bool admit_before_decode(viewflow::vfgp::Frame const &frame) {
+    using viewflow::windows_preview::vfgp_deadline::admit_live;
+    const auto status = admit_live(require_deadline_v4, frame.decode_only,
+                                   frame.deadline_qpc, qpc_frequency,
+                                   require_deadline_v4 ? now_qpc() : 0);
+    const auto decision = viewflow::windows_preview::expired_frame_disposition(
+        status, recover_expired_v4);
+    if (decision == viewflow::windows_preview::ExpiredFrameDisposition::RejectExpired) {
+      report_expired(frame.identity, "before-decode");
+      return false;
+    }
+    if (decision == viewflow::windows_preview::ExpiredFrameDisposition::Fail)
+      deadline_error(status);
+    if (!require_deadline_v4 || frame.decode_only)
+      return true;
+    if (live_deadlines.size() >= max_live_deadlines)
+      bad("VFGP v4 pending deadline bound exceeded");
+    if (!live_deadlines.emplace(frame.identity, *frame.deadline_qpc).second)
+      bad("duplicate VFGP v4 live identity");
+    return true;
+  }
+
+  bool admit_before_presentation(uint64_t identity, char const *phase) {
+    if (!require_deadline_v4)
+      return true;
+    const auto it = live_deadlines.find(identity);
+    if (it == live_deadlines.end())
+      bad("VFGP v4 deadline missing for decoded live identity");
+    const auto status = viewflow::windows_preview::vfgp_deadline::admit_live(
+        true, false, it->second, qpc_frequency, now_qpc());
+    const auto decision = viewflow::windows_preview::expired_frame_disposition(
+        status, recover_expired_v4);
+    if (decision == viewflow::windows_preview::ExpiredFrameDisposition::RejectExpired) {
+      live_deadlines.erase(it);
+      report_expired(identity, phase);
+      return false;
+    }
+    if (decision == viewflow::windows_preview::ExpiredFrameDisposition::Fail)
+      deadline_error(status);
+    return true;
+  }
+
+  void commit_live_presentation(uint64_t identity) {
+    if (require_deadline_v4 && live_deadlines.erase(identity) != 1)
+      bad("VFGP v4 deadline missing at presentation commit");
+  }
+
+  // Parsing remains on the UI thread; decoder work is synchronously handed
+  // to its MTA owner without renewing the frame deadline.
+  void push(uint8_t const *bytes, DWORD count,
+            viewflow::windows_preview::MtaVideoCompositor &decoder,
+            std::vector<viewflow::windows::CompositedFrame> *completed) {
+    std::vector<viewflow::vfgp::Frame> frames;
+    auto parser_started = std::chrono::steady_clock::now();
+    if (!parser.Push({bytes, count}, &frames))
+      bad(parser.error() ? parser.error() : "VFGP parse");
+    auto parser_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - parser_started).count();
+    for (auto &frame : frames) {
+      if (!warmup.admit(frame.decode_only, frame.identity))
+        bad("decode-only warmup count/order violation");
+      if (frame.decode_only) {
+        if (!decode_only_identities.insert(frame.identity).second)
+          bad("multiple decode-only VFGP records");
+      }
+      // This is the pre-decode QPC admission. V4 live records cannot fall
+      // back to v2, and a deadline is retained by identity for later output.
+      if (!admit_before_decode(frame)) {
+        parser.RecycleAlpha(std::move(frame.alpha));
+        continue;
+      }
+      viewflow::windows::RawGray8Alpha alpha{
+          frame.identity, frame.width, frame.height, frame.alpha};
+      if (timed_decode_submissions++ < diagnostic_frame_limit)
+        decode_started.emplace(frame.identity, Timing{
+            std::chrono::steady_clock::now(), parser_us});
+      const auto completed_before = completed->size();
+      if (timed_decode_submissions <= diagnostic_frame_limit)
+        std::cerr << "native submit begin frame=" << frame.identity
+                  << " decode_only=" << frame.decode_only << std::endl;
+      const HRESULT submitted = decoder.Submit(frame.identity, frame.color_au, alpha,
+                                                completed);
+      if (timed_decode_submissions <= diagnostic_frame_limit) {
+        const auto timing = decoder.last_submit_host_durations();
+        std::cerr << "native host stage_us frame=" << timing.frame_identity
+                  << " hr=" << static_cast<int64_t>(submitted)
+                  << " completed_delta=" << (completed->size() - completed_before)
+                  << " alpha_upload=" << timing.alpha_texture_create_us
+                  << " alpha_reused=" << timing.alpha_texture_reused
+                  << " sample_copy=" << timing.mf_sample_copy_us
+                  << " mf_input=" << timing.mf_process_input_us
+                  << " mf_output=" << timing.mf_process_output_us
+                  << " resources=" << timing.composite_gpu_resource_alloc_us
+                  << " video_processor=" << timing.composite_video_processor_us
+                  << " shader=" << timing.composite_shader_us
+                  << " total=" << timing.total_submit_us << std::endl;
+      }
+      check_hresult(submitted);
+      // Submit has uploaded alpha into an owned GPU texture; no CPU span is
+      // retained by the decoder. Reuse the allocation on the next pipe record.
+      parser.RecycleAlpha(std::move(frame.alpha));
+    }
+  }
+
+  void log_decode_duration(uint64_t identity) {
+    auto it = decode_started.find(identity);
+    if (it == decode_started.end())
+      return;
+    auto decode_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - it->second.decode_started).count();
+    std::cerr << "compressed parser_us=" << it->second.parser_us
+              << " decode_pipeline_us=" << decode_us
+              << " frame_identity=" << identity << std::endl;
+    decode_started.erase(it);
+  }
+
+  void finish(viewflow::windows_preview::MtaVideoCompositor &decoder,
+              std::vector<viewflow::windows::CompositedFrame> *completed) {
+    if (finished)
+      return;
+    if (!parser.Finish())
+      bad("partial VFGP at stdin EOF");
+    stage = "compressed-decoder-drain";
+    check_hresult(decoder.Finish(completed));
+    finished = true;
+  }
+};
+
+HWND window(uint32_t w, uint32_t h) {
+  WNDCLASSW c{};
+  c.hInstance = GetModuleHandleW(nullptr);
+  c.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+  c.lpszClassName = L"VFCompositionPreview";
+  c.lpfnWndProc = proc;
+  if (!RegisterClassW(&c) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS)
+    throw_last_error();
+  HWND out = CreateWindowExW(
+      WS_EX_NOREDIRECTIONBITMAP | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+      c.lpszClassName, L"Viewflow blur diagnostic", WS_POPUP, 80, 80, int(w),
+      int(h), nullptr, nullptr, c.hInstance, nullptr);
+  if (!out)
+    throw_last_error();
+  return out;
+}
+struct WindowOwner {
+  HWND value;
+  ~WindowOwner() {
+    if (IsWindow(value))
+      DestroyWindow(value);
+  }
+};
+
+struct PointerMotionWindowBinding {
+  HWND hwnd{};
+  viewflow::windows_preview::PointerMotionState *state{};
+  PointerMotionWindowBinding(HWND window,
+                             viewflow::windows_preview::PointerMotionState *pointer_state)
+      : hwnd(window), state(pointer_state) {
+    if (state) {
+      SetLastError(ERROR_SUCCESS);
+      if (!SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(state)) &&
+          GetLastError() != ERROR_SUCCESS)
+        throw_last_error();
+    }
+  }
+  ~PointerMotionWindowBinding() {
+    // This object dies before the WindowOwner and state, so WndProc never sees
+    // a stale state pointer during normal teardown.
+    if (state && IsWindow(hwnd) &&
+        GetWindowLongPtrW(hwnd, GWLP_USERDATA) == reinterpret_cast<LONG_PTR>(state))
+      SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+  }
+  PointerMotionWindowBinding(PointerMotionWindowBinding const &) = delete;
+  PointerMotionWindowBinding &operator=(PointerMotionWindowBinding const &) = delete;
+};
+
+uint32_t scaled_pixel(double logical, double scale) {
+  double value = std::round(logical * scale);
+  if (!std::isfinite(value) || value < 0 || value > INT_MAX)
+    bad("scaled geometry out of range");
+  return static_cast<uint32_t>(value);
+}
+
+void emit_atlas_keyboard(HWND hwnd, UINT message, WPARAM w, LPARAM l,
+                         viewflow::windows_preview::AtlasPointerState& input,
+                         std::optional<uint32_t> original_message_tick = {},
+                         std::optional<uint8_t> source_win_modifiers = {},
+                         std::optional<uint64_t> original_qpc = {}, bool owns_modifiers = false) {
+  if (!input.keyboard_enabled()) return;
+  const auto message_tick = original_message_tick.value_or(uint32_t(GetMessageTime()));
+  const bool released = message == WM_KEYUP || message == WM_SYSKEYUP;
+  // No text/VK conversion: reject E1 Pause before scan 0x45 could be mistaken
+  // for NumLock. WM_CHAR/IME output is never serialized into this route.
+  auto key = w == VK_PAUSE ? std::nullopt
+      : viewflow::windows_preview::physical_key(uint32_t(l), released);
+  if (key && (key->released || key->repeat) && !input.holds_key(key->usage)) return;
+  if (key && input.suppress_pre_recovery_key(*key, message_tick)) return;
+  LARGE_INTEGER before{}, now{}, frequency{};
+  DWORD adjustment{}, increment{}; BOOL disabled{};
+  const bool sampled = QueryPerformanceCounter(&before) != FALSE;
+  const DWORD tick_now = GetTickCount();
+  if (!sampled || !QueryPerformanceCounter(&now) || !QueryPerformanceFrequency(&frequency) ||
+      before.QuadPart <= 0 || frequency.QuadPart <= 0 ||
+      !GetSystemTimeAdjustment(&adjustment, &increment, &disabled) || !increment || increment > 200'000 ||
+      !key || GetFocus() != hwnd || GetForegroundWindow() != hwnd || !IsWindowVisible(hwnd)) {
+    retire_pointer_input(&input.pointer, "keyboard-context-or-scan-rejected"); return;
+  }
+  // Supported system tick quantum is at most 20 ms (nominal increment checked
+  // above). Charge that entire uncertainty in addition to queued-message age.
+  auto deadline = viewflow::windows_preview::keyboard_deadline(message_tick, tick_now,
+      uint64_t(before.QuadPart), uint64_t(now.QuadPart), uint64_t(frequency.QuadPart), 20);
+  atlas_keyboard_clock.observe(uint64_t(before.QuadPart), tick_now,
+      uint64_t(now.QuadPart), uint64_t(frequency.QuadPart));
+  const auto observed = atlas_keyboard_clock.deadline(message_tick, tick_now,
+      uint64_t(now.QuadPart), uint64_t(frequency.QuadPart));
+  // Both candidates are lower bounds on the ORIGINAL event's deadline. Using
+  // the tighter observed bound does not restart a budget at message dispatch.
+  if (observed && (!deadline || *observed > *deadline)) {
+    deadline = observed;
+    ++keyboard_observed_bounds;
+  } else if (deadline) ++keyboard_coarse_bounds;
+  else ++keyboard_expired_bounds;
+  if (original_qpc) {
+    // A mode-transition release is a new cleanup event at the mouse-down's
+    // original timestamp, never a retimestamped old physical Win-down.
+    const auto exact = viewflow::windows_preview::qpc_deadline::deadline_from_sender_remaining(
+        *original_qpc, uint64_t(now.QuadPart), uint64_t(frequency.QuadPart), 5'000'000'000);
+    if (exact.status == viewflow::windows_preview::qpc_deadline::Status::Ok) deadline = exact.deadline_ticks;
+    else deadline.reset();
+  }
+  const auto* binding = input.current_keyboard_binding();
+  constexpr std::array<int,8> modifiers{VK_LCONTROL,VK_LSHIFT,VK_LMENU,VK_LWIN,VK_RCONTROL,VK_RSHIFT,VK_RMENU,VK_RWIN};
+  uint8_t mask{};
+  for (unsigned i=0; i<modifiers.size(); ++i) if (GetKeyState(modifiers[i]) & 0x8000) mask |= uint8_t(1u << i);
+  if (source_win_modifiers) mask = owns_modifiers ? *source_win_modifiers :
+      uint8_t((mask & ~0x88u) | (*source_win_modifiers & 0x88u));
+  if (!deadline) {
+    // Clock-only diagnostics: never log the typed key or composed text.
+    std::cerr << "keyboard-deadline-rejected message_ms=" << message_tick
+              << " tick_now_ms=" << tick_now
+              << " unsigned_age_ms=" << uint32_t(tick_now - message_tick)
+              << " qpc_sample_ticks=" << now.QuadPart - before.QuadPart
+              << " qpc_frequency=" << frequency.QuadPart << std::endl;
+    retire_pointer_input(&input.pointer, "keyboard-original-deadline-rejected"); return;
+  }
+  if (!binding) {
+    retire_pointer_input(&input.pointer, "keyboard-committed-binding-unavailable"); return;
+  }
+  if (!input.keyboard.admit(*key, mask)) {
+    retire_pointer_input(&input.pointer, "keyboard-held-state-mismatch"); return;
+  }
+  // Unlike pointer coordinates, a physical key samples the currently committed
+  // target at UI delivery. Its coarse OS timestamp still supplies the original
+  // conservative deadline; no dequeue-time deadline refresh or text is allowed.
+  std::cout << "atlas-keyboard-v1 stream_hi=" << binding->stream.first
+            << " stream_lo=" << binding->stream.second
+            << " atlas_frame=" << binding->atlas_frame
+            << " atlas_epoch=" << binding->atlas_epoch
+            << " config_generation=" << binding->config_generation
+            << " layout_revision=" << binding->revision
+            << " window_hi=" << binding->tile.window.first
+            << " window_lo=" << binding->tile.window.second
+            << " placement_generation=" << binding->tile.placement_generation
+            << " source_epoch=" << binding->tile.geometry_epoch
+            << " source_frame=" << binding->tile.source_frame
+            << " frame_identity=" << binding->atlas_frame
+            << " not_after_qpc=" << *deadline
+            << " qpc_frequency=" << frequency.QuadPart
+            << " usage_page=" << key->page << " usage_id=" << key->usage
+            << " state=" << (key->released ? 2 : 1) << " repeat=" << (key->repeat ? 1 : 0) << std::endl;
+}
+
+void release_atlas_focus(viewflow::windows_preview::AtlasPointerState& input) {
+  const auto* binding = input.current_binding();
+  if (!binding) return;
+  LARGE_INTEGER now{}, frequency{};
+  if (!QueryPerformanceCounter(&now) || !QueryPerformanceFrequency(&frequency)) return;
+  std::cout << "atlas-pointer-v1 stream_hi=" << binding->stream.first
+    << " stream_lo=" << binding->stream.second << " atlas_frame=" << binding->atlas_frame
+    << " atlas_epoch=" << binding->atlas_epoch << " config_generation=" << binding->config_generation
+    << " layout_revision=" << binding->revision << " window_hi=" << binding->tile.window.first
+    << " window_lo=" << binding->tile.window.second << " placement_generation=" << binding->tile.placement_generation
+    << " source_epoch=" << binding->tile.geometry_epoch << " source_frame=" << binding->tile.source_frame
+    << " kind=release frame_identity=" << binding->atlas_frame << " x_pixels=0 y_pixels=0"
+    << " viewport_width=" << binding->tile.width << " viewport_height=" << binding->tile.height
+    << " not_after_qpc=" << now.QuadPart + frequency.QuadPart * 5
+    << " qpc_frequency=" << frequency.QuadPart << std::endl;
+  input.release_for_focus(uint64_t(now.QuadPart), GetTickCount());
+  std::cerr << "atlas-focus-input-released\n";
+}
+
+void emit_atlas_recovery_notices(viewflow::windows_preview::AtlasPointerState& input) {
+  while (const auto notice = input.take_recovery_notice()) {
+    LARGE_INTEGER now{}, frequency{};
+    if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0 ||
+        !QueryPerformanceCounter(&now) || now.QuadPart <= 0) bad("atlas recovery notice clock unavailable");
+    const auto& old = notice->previous;
+    const auto& current = notice->current;
+    std::cout << (notice->cancel_sequence ? "atlas-input-suspended-v2 phase=" : "atlas-input-suspended-v1 phase=") << (notice->physical_drained ? "drained" : "cancelled")
+              << " stream_hi=" << current.stream.first << " stream_lo=" << current.stream.second
+              << " window_hi=" << current.tile.window.first << " window_lo=" << current.tile.window.second
+              << " atlas_epoch=" << current.atlas_epoch << " config_generation=" << current.config_generation
+              << " layout_revision=" << current.revision << " previous_epoch=" << old.tile.geometry_epoch
+              << " previous_atlas_frame=" << old.atlas_frame << " previous_source_frame=" << old.tile.source_frame
+              << " geometry_epoch=" << current.tile.geometry_epoch << " atlas_frame=" << current.atlas_frame
+              << " source_frame=" << current.tile.source_frame << " placement_generation=" << current.tile.placement_generation
+              << " observed_qpc=" << now.QuadPart << " frequency=" << frequency.QuadPart;
+    if (notice->cancel_sequence) std::cout << " cause=rejected cancel_sequence=" << notice->cancel_sequence;
+    std::cout << std::endl;
+  }
+}
+
+struct AtlasInputContext {
+  viewflow::windows_preview::AtlasPointerState input{false};
+  viewflow::windows_preview::DesktopMoveGesture desktop_move;
+  AtlasDesktopTarget desktop;
+  uint64_t next_drag_id{};
+  bool desktop_clipped{};
+  bool wm_moving{}, applying_source_placement{};
+  uint64_t wm_drag_id{}, wm_sequence{}, wm_pending_until{};
+  RECT wm_requested{};
+  RECT viewport_region{};
+  bool viewport_region_valid{};
+  bool chrome_pending{}, wm_drain_left{};
+  POINT chrome_down{};
+  std::function<void(float, float)> resize_preview;
+};
+
+bool update_desktop_clip(HWND hwnd, AtlasInputContext* context) {
+  if (!context || !context->desktop.enabled || !viewflow::windows_preview::ValidDisplay(context->desktop.display)) return true;
+  RECT outer{};
+  if (!GetWindowRect(hwnd, &outer)) return false;
+  const auto clip = viewflow::windows_preview::ClipPhysicalWindow(
+      {outer.left, outer.top, uint32_t(outer.right-outer.left), uint32_t(outer.bottom-outer.top)}, context->desktop.display);
+  const RECT region{clip.x, clip.y, clip.x + LONG(clip.width), clip.y + LONG(clip.height)};
+  if (context->viewport_region_valid && EqualRect(&region, &context->viewport_region)) return true;
+  const HRGN native_region = CreateRectRgn(region.left, region.top, region.right, region.bottom);
+  if (!native_region) return false;
+  context->viewport_region = region;
+  context->viewport_region_valid = true; // SetWindowRgn can re-enter WINDOWPOSCHANGED.
+  if (!SetWindowRgn(hwnd, native_region, TRUE)) {
+    DeleteObject(native_region);
+    context->viewport_region_valid = false;
+    return false;
+  }
+  return true; // The OS owns the region after success.
+}
+
+// The hook runs on the atlas UI thread. Focused proxies own keyboard delivery;
+// unfocused movable proxies reserve only a hovered Win gesture.
+constexpr UINT_PTR atlas_modal_timer = 0x5646;
+thread_local std::function<void()> atlas_modal_pump;
+thread_local std::exception_ptr atlas_modal_error;
+thread_local bool atlas_modal_pumping{};
+constexpr UINT atlas_move_key_released = WM_APP + 71;
+constexpr UINT atlas_source_win_message = WM_APP + 72;
+constexpr ULONG_PTR atlas_move_replay_tag = 0x56464d57;
+thread_local HWND atlas_move_key_owner{};
+thread_local viewflow::windows_preview::DesktopMoveKeyReservation atlas_move_key;
+thread_local viewflow::windows_preview::DesktopSourceWinKeys atlas_source_win;
+thread_local HWND atlas_source_win_owner{};
+struct SourceWinMessage {
+  HWND owner{};
+  uint64_t ordinal{};
+  uint32_t key{}, scan{}, tick{};
+  bool down{}, repeat{}, extended{};
+};
+thread_local std::array<bool,256> atlas_source_keys{}, atlas_source_consumed{};
+thread_local std::array<bool,256> atlas_reserved_shift{};
+thread_local std::deque<SourceWinMessage> atlas_source_win_queue;
+thread_local uint64_t atlas_source_win_ordinal{};
+HWND atlas_local_raise = nullptr;
+LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l);
+
+AtlasInputContext* desktop_hook_context(HWND hwnd) {
+
+  DWORD process{};
+  if (!hwnd || !IsWindowVisible(hwnd) ||
+      GetWindowThreadProcessId(hwnd, &process) != GetCurrentThreadId() ||
+      process != GetCurrentProcessId() ||
+      GetClassLongPtrW(hwnd, GCLP_WNDPROC) != reinterpret_cast<LONG_PTR>(atlas_proc)) return nullptr;
+  auto* context = reinterpret_cast<AtlasInputContext*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+  return context && context->desktop.enabled && !context->desktop_clipped ? context : nullptr;
+}
+
+void deliver_source_win(HWND hwnd, AtlasInputContext* context,
+                        std::optional<uint32_t> through_tick = {}) {
+  if (!context) return;
+  for (auto it = atlas_source_win_queue.begin(); it != atlas_source_win_queue.end();) {
+    if (it->owner != hwnd) { ++it; continue; }
+    // A pointer message must not borrow a chord from later keyboard input
+    // whose hook notification happened to overtake that pointer message.
+    if (through_tick && int32_t(it->tick - *through_tick) > 0) break;
+    const auto queued = *it;
+    it = atlas_source_win_queue.erase(it);
+    const auto flags = LPARAM(1u | ((queued.scan & 0xffu) << 16) | (queued.extended ? 0x01000000u : 0u) |
+        ((queued.repeat || !queued.down) ? 0x40000000u : 0u) | (!queued.down ? 0x80000000u : 0u));
+    const auto key = queued.key == VK_PAUSE ? std::nullopt :
+        viewflow::windows_preview::physical_key(uint32_t(flags), !queued.down);
+    if (context->desktop_move.input_suppressed() || context->wm_moving) {
+      if (queued.down && atlas_source_keys[queued.key]) atlas_source_consumed[queued.key] = true;
+      continue;
+    }
+    auto mask = context->input.keyboard.physical_modifiers();
+    if (key && key->usage >= 0xe0 && key->usage <= 0xe7) {
+      const auto bit = uint8_t(1u << (key->usage - 0xe0));
+      mask = queued.down ? uint8_t(mask | bit) : uint8_t(mask & ~bit);
+    }
+    if (context->input.keyboard.cancelled()) {
+      if (!key || GetFocus() != hwnd || GetForegroundWindow() != hwnd ||
+          !context->input.observe_cancelled_keyboard(*key, mask)) {
+        context->input.keyboard.invalidate_cancelled();
+        retire_pointer_input(&context->input.pointer, "cancelled-hook-keyboard-drain-invalid");
+      }
+      emit_atlas_recovery_notices(context->input);
+      continue;
+    }
+    emit_atlas_keyboard(hwnd, queued.down ? WM_KEYDOWN : WM_KEYUP, queued.key, flags,
+        context->input, queued.tick, mask, {}, true);
+  }
+}
+
+bool queue_source_win(HWND owner, const KBDLLHOOKSTRUCT& key, bool down, bool repeat) {
+  if (atlas_source_win_queue.size() >= 64 || ++atlas_source_win_ordinal == 0) {
+    PostQuitMessage(1); // Fail closed; source END owns any already-forwarded keys.
+    return false;
+  }
+  atlas_source_win_queue.push_back({owner, atlas_source_win_ordinal, key.vkCode, key.scanCode, key.time, down, repeat, bool(key.flags & LLKHF_EXTENDED)});
+  if (!PostMessageW(owner, atlas_source_win_message, 0, 0)) {
+    atlas_source_win_queue.pop_back();
+    PostQuitMessage(1);
+    return false;
+  }
+  return true;
+}
+
+LRESULT CALLBACK desktop_move_keyboard_hook(int code, WPARAM w, LPARAM l) {
+  if (code != HC_ACTION) return CallNextHookEx(nullptr, code, w, l);
+  const auto& key = *reinterpret_cast<const KBDLLHOOKSTRUCT*>(l);
+  if (key.dwExtraInfo == atlas_move_replay_tag) return CallNextHookEx(nullptr, code, w, l);
+  const bool down = w == WM_KEYDOWN || w == WM_SYSKEYDOWN;
+  const bool up = w == WM_KEYUP || w == WM_SYSKEYUP;
+  if (!down && !up) return CallNextHookEx(nullptr, code, w, l);
+  const bool win = key.vkCode == VK_LWIN || key.vkCode == VK_RWIN;
+  if (key.vkCode < atlas_source_keys.size()) {
+    auto* source = desktop_hook_context(atlas_source_win_owner);
+    if (atlas_source_win_owner && (!source || GetFocus() != atlas_source_win_owner ||
+        GetForegroundWindow() != atlas_source_win_owner)) {
+      atlas_source_win.consume_for_move_or_owner_loss();
+      for (size_t i = 0; i < atlas_source_keys.size(); ++i)
+        if (atlas_source_keys[i]) atlas_source_consumed[i] = true;
+      atlas_source_win_owner = nullptr;
+      source = nullptr;
+    }
+    const bool any_owned = std::ranges::any_of(atlas_source_keys, [](bool held) { return held; });
+    if (!atlas_source_win_owner && !any_owned && !atlas_move_key.key()) {
+      const HWND focused = GetForegroundWindow();
+      source = GetFocus() == focused ? desktop_hook_context(focused) : nullptr;
+      if (source && (source->input.keyboard_enabled() || source->input.keyboard.cancelled()))
+        atlas_source_win_owner = focused;
+      else source = nullptr;
+    }
+    const HWND owner = atlas_source_win_owner;
+    const bool owned = atlas_source_keys[key.vkCode];
+    if (source || owned) {
+      const bool repeat = down && owned;
+      bool consumed = atlas_source_consumed[key.vkCode];
+      // Drain only input already acquired by this proxy; a key pressed before
+      // entering it cannot manufacture an orphan source release.
+      if (!down && !owned) return CallNextHookEx(nullptr, code, w, l);
+      atlas_source_keys[key.vkCode] = down;
+      if (win) {
+        const uint8_t bit = key.vkCode == VK_LWIN ? 8 : 128;
+        const auto action = atlas_source_win.event(bit, down, source != nullptr);
+        consumed = consumed || action != viewflow::windows_preview::DesktopSourceWinKeys::Action::Forward;
+        if (down && source && source->desktop.movable && !source->input.keyboard.cancelled() && !consumed)
+          source->desktop_move.win_down();
+      }
+      if (source && (source->desktop_move.input_suppressed() || source->wm_moving)) consumed = true;
+      if (down) atlas_source_consumed[key.vkCode] = consumed;
+      else atlas_source_consumed[key.vkCode] = false;
+      if (source && owner && !consumed) queue_source_win(owner, key, down, repeat);
+      if (win && !atlas_source_win.physical() && source) {
+        source->desktop_move.win_up();
+        PostMessageW(owner, atlas_move_key_released, WPARAM(source->next_drag_id), 0);
+      }
+      if (!std::ranges::any_of(atlas_source_keys, [](bool held) { return held; })) atlas_source_win_owner = nullptr;
+      return 1; // All proxy keys share one FIFO; no local shell/IME chord runs.
+    }
+  }
+  const bool shift = key.vkCode == VK_LSHIFT || key.vkCode == VK_RSHIFT;
+  if (shift && (atlas_move_key.key() || atlas_reserved_shift[key.vkCode])) {
+    atlas_reserved_shift[key.vkCode] = down;
+    return 1;
+  }
+  if (!atlas_move_key.key() && down && win) {
+    POINT point{};
+    auto* context = GetCursorPos(&point) ? desktop_hook_context(WindowFromPoint(point)) : nullptr;
+    // Query other modifiers only: the asynchronous state of the current hook
+    // event has not been updated yet. Do not commandeer an existing chord.
+    if (context && context->desktop.movable && !context->input.keyboard.any() && !context->input.keyboard.cancelled() &&
+        !context->input.pointer.has_pressed_buttons() &&
+        !(GetAsyncKeyState(VK_CONTROL) & 0x8000) && !(GetAsyncKeyState(VK_MENU) & 0x8000) &&
+        !(GetAsyncKeyState(key.vkCode == VK_LWIN ? VK_RWIN : VK_LWIN) & 0x8000) &&
+        context->desktop_move.win_down()) {
+      atlas_move_key_owner = WindowFromPoint(point);
+      atlas_move_key.reserve(key.vkCode);
+      return 1;
+    }
+  } else if (atlas_move_key.key()) {
+    using Action = viewflow::windows_preview::DesktopMoveKeyReservation::Action;
+    if (atlas_move_key_owner && !desktop_hook_context(atlas_move_key_owner)) {
+      atlas_move_key.owner_lost();
+      atlas_move_key_owner = nullptr;
+    }
+    const auto decision = atlas_move_key.event(key.vkCode, down);
+    if (decision.cancel_owner && atlas_move_key_owner) {
+      const HWND owner = atlas_move_key_owner;
+      if (auto* context = desktop_hook_context(owner)) {
+        context->desktop_move.win_up();
+        // Avoid source I/O inside the hook; the UI queue owns cancellation.
+        // The drag id prevents this delayed notice from cancelling a new drag.
+        if (!PostMessageW(owner, atlas_move_key_released, WPARAM(context->next_drag_id), 0) &&
+            GetCapture() == owner) {
+          // A failed queue operation must not strand capture. The synchronous
+          // capture-loss handler performs the same cancellation in this case.
+          ReleaseCapture();
+        }
+      }
+      atlas_move_key_owner = nullptr;
+    }
+    if (decision.action == Action::Suppress) return 1;
+    if (decision.action == Action::Replay) {
+      // Only an unused Win press may become a shell tap/shortcut. Once used
+      // for a drag (or its HWND retired), swallow its remaining repeat/up even
+      // when another key arrives. That key can pass without a synthetic Win.
+      INPUT replay[2]{};
+      replay[0].type = replay[1].type = INPUT_KEYBOARD;
+      replay[0].ki.wVk = WORD(decision.replay_key);
+      replay[0].ki.dwFlags = KEYEVENTF_EXTENDEDKEY;
+      replay[1].ki.wVk = WORD(key.vkCode);
+      replay[1].ki.wScan = WORD(key.scanCode);
+      replay[1].ki.dwFlags = (up ? KEYEVENTF_KEYUP : 0) |
+          ((key.flags & LLKHF_EXTENDED) ? KEYEVENTF_EXTENDEDKEY : 0);
+      replay[0].ki.dwExtraInfo = replay[1].ki.dwExtraInfo = atlas_move_replay_tag;
+      if (SendInput(2, replay, sizeof(INPUT)) != 2) {
+        replay[0].ki.dwFlags |= KEYEVENTF_KEYUP;
+        SendInput(1, replay, sizeof(INPUT));
+      }
+      return 1;
+    }
+  }
+  return CallNextHookEx(nullptr, code, w, l);
+}
+
+class DesktopMoveKeyboardHook {
+ public:
+  explicit DesktopMoveKeyboardHook(bool enabled) {
+    if (enabled) {
+      hook_ = SetWindowsHookExW(WH_KEYBOARD_LL, desktop_move_keyboard_hook, GetModuleHandleW(nullptr), 0);
+      if (!hook_) throw_last_error();
+    }
+  }
+  ~DesktopMoveKeyboardHook() {
+    if (hook_) UnhookWindowsHookEx(hook_);
+    atlas_move_key_owner = nullptr;
+    atlas_move_key = {};
+    atlas_source_win = {};
+    atlas_source_win_owner = nullptr;
+    atlas_source_win_queue.clear();
+    atlas_source_keys.fill(false);
+    atlas_source_consumed.fill(false);
+  }
+  DesktopMoveKeyboardHook(const DesktopMoveKeyboardHook&) = delete;
+  DesktopMoveKeyboardHook& operator=(const DesktopMoveKeyboardHook&) = delete;
+ private:
+  HHOOK hook_{};
+};
+
+const char* desktop_move_phase(viewflow::windows_preview::DesktopMovePhase phase) {
+  using Phase = viewflow::windows_preview::DesktopMovePhase;
+  switch (phase) {
+    case Phase::Begin: return "begin";
+    case Phase::Update: return "update";
+    case Phase::End: return "end";
+    case Phase::Cancel: return "cancel";
+  }
+  return "invalid";
+}
+
+void emit_desktop_move(const AtlasInputContext& context,
+                       const viewflow::windows_preview::DesktopMoveEvent& event) {
+  const auto* binding = context.input.current_binding();
+  if (!binding || !context.desktop.topology_generation) return;
+  // This record is a receiver geometry intent. The source validates the
+  // committed binding at Begin and retains that anchor for the gesture.
+  std::cout << "desktop-move-v1 stream_hi=" << binding->stream.first
+            << " stream_lo=" << binding->stream.second
+            << " atlas_frame=" << binding->atlas_frame
+            << " atlas_epoch=" << binding->atlas_epoch
+            << " config_generation=" << binding->config_generation
+            << " layout_revision=" << binding->revision
+            << " window_hi=" << binding->tile.window.first
+            << " window_lo=" << binding->tile.window.second
+            << " placement_generation=" << binding->tile.placement_generation
+            << " source_epoch=" << binding->tile.geometry_epoch
+            << " source_frame=" << binding->tile.source_frame
+            << " topology_generation=" << context.desktop.topology_generation
+            << " drag_id=" << event.drag_id << " sequence=" << event.sequence
+            << " phase=" << desktop_move_phase(event.phase)
+            << " deadline_qpc=" << event.deadline_qpc
+            << " qpc_frequency=" << event.qpc_frequency
+            << " x_millidip=" << event.bounds.x_millidip
+            << " y_millidip=" << event.bounds.y_millidip
+            << " width_millidip=" << event.bounds.width_millidip
+            << " height_millidip=" << event.bounds.height_millidip << std::endl;
+}
+
+// Native non-client dragging/Snap owns the HWND immediately; stream geometry
+// follows through the same ordered source move protocol, including client size.
+void emit_native_geometry(HWND hwnd, AtlasInputContext* context,
+                          viewflow::windows_preview::DesktopMovePhase phase) {
+  using Phase = viewflow::windows_preview::DesktopMovePhase;
+  if (!context || !context->desktop.enabled || !context->desktop.movable ||
+      !context->input.current_binding() || context->applying_source_placement || IsIconic(hwnd)) return;
+  RECT client{};
+  POINT origin{};
+  LARGE_INTEGER now{}, rate{};
+  if (!GetClientRect(hwnd, &client) || !ClientToScreen(hwnd, &origin) ||
+      !QueryPerformanceCounter(&now) || !QueryPerformanceFrequency(&rate) || rate.QuadPart <= 0 ||
+      client.right <= 0 || client.bottom <= 0) return;
+  const auto& d = context->desktop.display;
+  if (!d.scale_milli) return;
+  if (phase == Phase::Begin) {
+    context->wm_drag_id = ++context->next_drag_id;
+    context->wm_sequence = 0;
+  }
+  if (!context->wm_drag_id) return;
+  viewflow::vfgp::DesktopRect bounds{
+      d.global_x_millidip + (int64_t(origin.x) - d.physical_x) * 1'000'000 / int64_t(d.scale_milli),
+      d.global_y_millidip + (int64_t(origin.y) - d.physical_y) * 1'000'000 / int64_t(d.scale_milli),
+      uint64_t(client.right) * 1'000'000 / d.scale_milli,
+      uint64_t(client.bottom) * 1'000'000 / d.scale_milli};
+  // Begin names the currently committed source geometry; subsequent records
+  // carry the native WM result, including a one-shot maximize/restore or Snap.
+  if (phase == Phase::Begin) bounds = context->desktop.bounds;
+  emit_desktop_move(*context, {phase, context->wm_drag_id, ++context->wm_sequence,
+      uint64_t(now.QuadPart) + uint64_t(rate.QuadPart) * 5, uint64_t(rate.QuadPart), bounds});
+  if (phase != Phase::Begin) {
+    context->wm_requested = {origin.x, origin.y, origin.x + client.right, origin.y + client.bottom};
+    context->wm_pending_until = GetTickCount64() + 2000;
+  }
+  if (phase == Phase::End || phase == Phase::Cancel) context->wm_drag_id = 0;
+}
+
+bool desktop_pointer_sample(WPARAM w, POINT* screen, uint64_t* qpc, uint64_t* frequency,
+                            UINT32* pointer_id, POINTER_INFO* pointer) {
+  if (!screen || !qpc || !frequency || !pointer_id || !pointer) return false;
+  *pointer_id = GET_POINTERID_WPARAM(w);
+  LARGE_INTEGER now{}, rate{};
+  if (!GetPointerInfo(*pointer_id, pointer) || pointer->pointerType != PT_MOUSE ||
+      !pointer->PerformanceCount || !QueryPerformanceCounter(&now) || !QueryPerformanceFrequency(&rate) ||
+      now.QuadPart <= 0 || rate.QuadPart <= 0 || pointer->PerformanceCount > now.QuadPart) return false;
+  *screen = pointer->ptPixelLocation; *qpc = uint64_t(now.QuadPart); *frequency = uint64_t(rate.QuadPart);
+  return true;
+}
+
+bool stamp_desktop_move_deadline(viewflow::windows_preview::DesktopMoveEvent* event,
+                                 uint64_t event_qpc, uint64_t now_qpc, uint64_t frequency) {
+  if (!event) return false;
+  // Cancellation is ordered gesture cleanup, so use the operation watchdog.
+  // Frame latency is measured independently and must not discard cleanup.
+  const auto deadline = viewflow::windows_preview::qpc_deadline::deadline_from_sender_remaining(
+      event_qpc, now_qpc, frequency, 5'000'000'000);
+  if (deadline.status != viewflow::windows_preview::qpc_deadline::Status::Ok) return false;
+  event->deadline_qpc = deadline.deadline_ticks;
+  event->qpc_frequency = frequency;
+  return true;
+}
+
+void release_move_modifiers(HWND hwnd, AtlasInputContext* context, const POINTER_INFO& pointer) {
+  if (!context->input.keyboard.only_move_modifiers()) return;
+  struct Modifier { uint32_t vk, scan; uint8_t bit; bool extended; };
+  for (const auto key : {Modifier{VK_LSHIFT,0x2a,2,false}, Modifier{VK_RSHIFT,0x36,32,false},
+                         Modifier{VK_LWIN,0x5b,8,true}, Modifier{VK_RWIN,0x5c,128,true}}) {
+    if (!(context->input.keyboard.modifiers() & key.bit)) continue;
+    const auto flags = LPARAM(1u | (key.scan << 16) | 0xc0000000u | (key.extended ? 0x01000000u : 0));
+    const auto mask = uint8_t(context->input.keyboard.modifiers() & ~key.bit);
+    emit_atlas_keyboard(hwnd, WM_KEYUP, key.vk, flags, context->input,
+                        pointer.dwTime, mask, pointer.PerformanceCount, true);
+    if (atlas_source_keys[key.vk]) atlas_source_consumed[key.vk] = true;
+  }
+  atlas_source_win.consume_for_move_or_owner_loss();
+}
+
+void begin_native_drag(HWND hwnd, AtlasInputContext* context, const POINTER_INFO& pointer, int hit) {
+  deliver_source_win(hwnd, context, pointer.dwTime);
+  release_move_modifiers(hwnd, context, pointer);
+  if (context->input.keyboard.any() || context->input.pointer.has_pressed_buttons()) {
+    std::cerr << "desktop-wm gesture-deferred held-input\n";
+    return;
+  }
+  std::cerr << "desktop-wm gesture-begin hit=" << hit << "\n";
+  context->chrome_pending = false;
+  context->wm_drain_left = true;
+  context->desktop_move.win_up();
+  atlas_move_key.mark_used();
+  if (GetCapture() == hwnd) ReleaseCapture();
+  // A real pointer gesture enters the normal Windows move/size loop. Keeping
+  // caption/thick-frame style bits enables shell Snap; NCCALCSIZE hides chrome.
+  // The custom client frame reports HTCLIENT for its content, so replaying
+  // NCLBUTTONDOWN can be reclassified by the default handler and never enter
+  // the shell loop. Dispatch the move/size system command chosen above.
+  const WPARAM command = hit == HTCAPTION ? WPARAM(SC_MOVE | 2) :
+      WPARAM(SC_SIZE | (hit - HTLEFT + 1));
+  SendMessageW(hwnd, WM_SYSCOMMAND, command,
+               MAKELPARAM(pointer.ptPixelLocation.x, pointer.ptPixelLocation.y));
+  std::cerr << "desktop-wm gesture-return left-held="
+            << bool(GetAsyncKeyState(VK_LBUTTON) & 0x8000) << "\n";
+}
+
+bool handle_desktop_move_pointer(HWND hwnd, UINT message, WPARAM w, AtlasInputContext* context) {
+  if (!context || !context->desktop.enabled || !context->desktop.movable) return false;
+  POINTER_INFO pointer{};
+  if (!GetPointerInfo(GET_POINTERID_WPARAM(w), &pointer) || pointer.pointerType != PT_MOUSE) return false;
+  if (context->wm_drain_left) {
+    if (message == WM_POINTERDOWN && pointer.ButtonChangeType == POINTER_CHANGE_FIRSTBUTTON_DOWN)
+      context->wm_drain_left = false;
+    else {
+      if (pointer.ButtonChangeType == POINTER_CHANGE_FIRSTBUTTON_UP || !(pointer.pointerFlags & POINTER_FLAG_FIRSTBUTTON))
+        context->wm_drain_left = false;
+      return true;
+    }
+  }
+  if (context->chrome_pending) {
+    const bool dragged = std::abs(pointer.ptPixelLocation.x - context->chrome_down.x) >= GetSystemMetrics(SM_CXDRAG) ||
+                         std::abs(pointer.ptPixelLocation.y - context->chrome_down.y) >= GetSystemMetrics(SM_CYDRAG);
+    if (message == WM_POINTERUPDATE && dragged && (pointer.pointerFlags & POINTER_FLAG_FIRSTBUTTON)) {
+      begin_native_drag(hwnd, context, pointer, HTCAPTION);
+    } else if (message == WM_POINTERUP && pointer.ButtonChangeType == POINTER_CHANGE_FIRSTBUTTON_UP) {
+      context->chrome_pending = false;
+      if (GetCapture() == hwnd) ReleaseCapture();
+      if (!dragged) {
+        // The click action is classified at physical release. No application
+        // down was sent while deciding between click and a window gesture.
+        auto click = pointer;
+        click.ptPixelLocation = context->chrome_down;
+        click.ButtonChangeType = POINTER_CHANGE_FIRSTBUTTON_DOWN;
+        click.pointerFlags = POINTER_FLAG_DOWN | POINTER_FLAG_FIRSTBUTTON;
+        emit_pointer_motion(hwnd, w, &context->input.pointer, &context->input, 0, &context->desktop, &click);
+        click.ButtonChangeType = POINTER_CHANGE_FIRSTBUTTON_UP;
+        click.pointerFlags = POINTER_FLAG_UP;
+        emit_pointer_motion(hwnd, w, &context->input.pointer, &context->input, 0, &context->desktop, &click);
+      }
+    } else if (pointer.pointerFlags & POINTER_FLAG_CANCELED) context->chrome_pending = false;
+    return true;
+  }
+  if (message != WM_POINTERDOWN || pointer.ButtonChangeType != POINTER_CHANGE_FIRSTBUTTON_DOWN ||
+      context->input.pointer.has_pressed_buttons()) return false;
+  POINT client = pointer.ptPixelLocation;
+  RECT rect{};
+  if (!ScreenToClient(hwnd, &client) || !GetClientRect(hwnd, &rect)) return false;
+  // The Win key can precede focus entering this HWND. The physical ledger and
+  // OS state preserve that chord even when the focus-scoped hook did not arm it.
+  if (context->desktop_move.armed() || atlas_source_win.physical() || atlas_move_key.key() ||
+      (GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000)) {
+    const bool resize = atlas_source_keys[VK_LSHIFT] || atlas_source_keys[VK_RSHIFT] ||
+        atlas_reserved_shift[VK_LSHIFT] || atlas_reserved_shift[VK_RSHIFT] || (GetAsyncKeyState(VK_SHIFT) & 0x8000);
+    const int hit = resize ? (client.y < rect.bottom / 2 ?
+        (client.x < rect.right / 2 ? HTTOPLEFT : HTTOPRIGHT) :
+        (client.x < rect.right / 2 ? HTBOTTOMLEFT : HTBOTTOMRIGHT)) : HTCAPTION;
+    begin_native_drag(hwnd, context, pointer, hit);
+    return true;
+  }
+  if (client.x >= 0 && client.x < rect.right && client.y >= 0 && client.y < 30) {
+    context->chrome_pending = true;
+    context->chrome_down = pointer.ptPixelLocation;
+    SetCapture(hwnd);
+    return true;
+  }
+  return false;
+}
+
+void cancel_desktop_move(WPARAM w, AtlasInputContext* context, const char* reason) {
+  if (!context || !context->desktop_move.active()) return;
+  LARGE_INTEGER now{}, frequency{};
+  if (QueryPerformanceCounter(&now) && QueryPerformanceFrequency(&frequency) && now.QuadPart > 0 && frequency.QuadPart > 0) {
+    if (auto event = context->desktop_move.end(uint64_t(now.QuadPart), uint64_t(frequency.QuadPart), 0, 0, true);
+        event && stamp_desktop_move_deadline(&*event, uint64_t(now.QuadPart), uint64_t(now.QuadPart), uint64_t(frequency.QuadPart)))
+      emit_desktop_move(*context, *event);
+  }
+  std::cerr << "desktop-move-ended reason=" << reason << std::endl;
+}
+
+// Called while the HWND/context are still valid, including before hide or
+// destruction. Only already-owned physical key tails survive; no HWND is retained.
+void retire_desktop_move_owner(HWND hwnd, AtlasInputContext* context, const char* reason) {
+  if (!context) return;
+  std::erase_if(atlas_source_win_queue, [hwnd](const auto& queued) { return queued.owner == hwnd; });
+  if (atlas_source_win_owner == hwnd) {
+    atlas_source_win.consume_for_move_or_owner_loss();
+    for (size_t i = 0; i < atlas_source_keys.size(); ++i)
+      if (atlas_source_keys[i]) atlas_source_consumed[i] = true;
+    atlas_source_win_owner = nullptr;
+  }
+  const bool owned = atlas_move_key_owner == hwnd;
+  const bool moving = context->desktop_move.active() || context->desktop_move.armed();
+  if (!owned && !moving) return;
+  if (owned) {
+    atlas_move_key.owner_lost();
+    atlas_move_key_owner = nullptr;
+  }
+  context->desktop_move.win_up();
+  cancel_desktop_move(0, context, reason);
+  if (GetCapture() == hwnd) ReleaseCapture();
+}
+
+LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
+  if (message == WM_ACTIVATE && LOWORD(w) != WA_INACTIVE) atlas_local_raise = hwnd;
+  if (message == WM_NCDESTROY && atlas_local_raise == hwnd) atlas_local_raise = nullptr;
+  atlas_progress(AtlasProgress::Dispatch, message, message == WM_ACTIVATE ? uint32_t(w) : 0);
+  auto* context = reinterpret_cast<AtlasInputContext*>(
+      GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+  auto* input = context ? &context->input : nullptr;
+  // Full-client custom frame: retain OS move/resize/Snap semantics without
+  // adding Windows pixels, caption buttons or an extra title bar.
+  if (auto result = viewflow::windows_preview::FramelessMessage(hwnd, message, w, l)) return *result;
+  if (context && context->desktop.enabled && message == WM_NCHITTEST) {
+    RECT rect{};
+    if (!GetWindowRect(hwnd, &rect)) return HTCLIENT;
+    const int x = GET_X_LPARAM(l), y = GET_Y_LPARAM(l);
+    const bool move_chord = context->desktop_move.armed() || atlas_source_win.physical() || atlas_move_key.key() ||
+        (GetAsyncKeyState(VK_LWIN) & 0x8000) || (GetAsyncKeyState(VK_RWIN) & 0x8000);
+    const bool resize_chord = atlas_source_keys[VK_LSHIFT] || atlas_source_keys[VK_RSHIFT] ||
+        atlas_reserved_shift[VK_LSHIFT] || atlas_reserved_shift[VK_RSHIFT] || (GetAsyncKeyState(VK_SHIFT) & 0x8000);
+    if (context->desktop.movable && move_chord) {
+      if (!resize_chord) return HTCAPTION;
+      return y < (rect.top + rect.bottom) / 2 ?
+          (x < (rect.left + rect.right) / 2 ? HTTOPLEFT : HTTOPRIGHT) :
+          (x < (rect.left + rect.right) / 2 ? HTBOTTOMLEFT : HTBOTTOMRIGHT);
+    }
+    const int hit = viewflow::windows_preview::FramelessHit(rect, x, y, IsZoomed(hwnd));
+    if (context->desktop.movable && hit == HTCLIENT && y >= rect.top && y < rect.top + 30)
+      return HTCAPTION;
+    return hit;
+  }
+  if (message == WM_WINDOWPOSCHANGED && !update_desktop_clip(hwnd, context)) {
+    std::cerr << "desktop-wm viewport-clip-failed\n";
+    // A transient placement/clip failure is retried by the next layout.
+  }
+  if (context && context->wm_moving && message == WM_SIZE && context->resize_preview) {
+    RECT client{};
+    if (GetClientRect(hwnd, &client)) context->resize_preview(float(client.right), float(client.bottom));
+  }
+  if (context && context->wm_moving &&
+      (message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP))
+    return DefWindowProcW(hwnd, message, w, l);
+  if (context && context->desktop.enabled && !context->applying_source_placement) {
+    using Phase = viewflow::windows_preview::DesktopMovePhase;
+    if (message == WM_ENTERSIZEMOVE) {
+      std::cerr << "desktop-wm entered\n";
+      POINTER_INFO cleanup{};
+      LARGE_INTEGER qpc{};
+      cleanup.dwTime = uint32_t(GetMessageTime());
+      if (QueryPerformanceCounter(&qpc)) cleanup.PerformanceCount = uint64_t(qpc.QuadPart);
+      deliver_source_win(hwnd, context, cleanup.dwTime);
+      release_move_modifiers(hwnd, context, cleanup);
+      context->wm_drain_left = true;
+      context->wm_moving = true;
+      SetTimer(hwnd, atlas_modal_timer, 10, nullptr);
+      emit_native_geometry(hwnd, context, Phase::Begin);
+    } else if (message == WM_EXITSIZEMOVE) {
+      std::cerr << "desktop-wm ended\n";
+      emit_native_geometry(hwnd, context, Phase::End);
+      context->wm_moving = false;
+      // The shell consumed the release in its modal loop. Reconcile the
+      // cancelled application ledger with that observed physical release.
+      if (context->input.rejected_recovery_pending()) {
+        context->input.observe_shell_left_button(bool(GetAsyncKeyState(VK_LBUTTON) & 0x8000));
+        emit_atlas_recovery_notices(context->input);
+      }
+      KillTimer(hwnd, atlas_modal_timer);
+    } else if (message == WM_WINDOWPOSCHANGED && context->desktop.slice_valid && IsWindowVisible(hwnd)) {
+      const auto* position = reinterpret_cast<const WINDOWPOS*>(l);
+      if (position && (!(position->flags & SWP_NOMOVE) || !(position->flags & SWP_NOSIZE)) && !IsIconic(hwnd)) {
+        if (context->wm_moving) emit_native_geometry(hwnd, context, Phase::Update);
+        else {
+          emit_native_geometry(hwnd, context, Phase::Begin);
+          emit_native_geometry(hwnd, context, Phase::End);
+        }
+      }
+    }
+  }
+  if (message == WM_TIMER && w == atlas_modal_timer && atlas_modal_pump && !atlas_modal_pumping) {
+    atlas_modal_pumping = true;
+    try { atlas_modal_pump(); }
+    catch (...) { atlas_modal_error = std::current_exception(); PostQuitMessage(2); }
+    atlas_modal_pumping = false;
+    return 0;
+  }
+  if (message == atlas_source_win_message) {
+    deliver_source_win(hwnd, context);
+    return 0;
+  }
+  // A source-owned window outside this viewport keeps its reserved HWND, but
+  // queued input must not acquire authority while the HWND is hidden.
+  if (context && context->desktop_clipped &&
+      (message == WM_KEYDOWN || message == WM_KEYUP || message == WM_SYSKEYDOWN || message == WM_SYSKEYUP ||
+       message == WM_CHAR || message == WM_SYSCHAR || message == WM_DEADCHAR || message == WM_SYSDEADCHAR ||
+       message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP ||
+       message == WM_POINTERWHEEL || message == WM_POINTERHWHEEL)) return 0;
+  if (message == atlas_move_key_released && context) {
+    if (uint64_t(w) == context->next_drag_id && context->desktop_move.active()) {
+      cancel_desktop_move(w, context, "move-mode-released");
+      if (GetCapture() == hwnd) ReleaseCapture();
+    }
+    return 0;
+  }
+  if (context && context->desktop.enabled && (message == WM_KEYDOWN || message == WM_KEYUP ||
+      message == WM_SYSKEYDOWN || message == WM_SYSKEYUP) && (w == VK_LWIN || w == VK_RWIN)) {
+    // Only the scoped low-level hook arms a move. Replayed shell modifiers and
+    // injected Win messages must never acquire source keyboard authority.
+    return 0;
+  }
+  if (context && context->desktop.enabled &&
+      (message == WM_KILLFOCUS || message == WM_NCDESTROY ||
+       (message == WM_SHOWWINDOW && !w) || message == WM_CANCELMODE ||
+       (context->desktop_move.active() &&
+        (message == WM_POINTERCAPTURECHANGED || message == WM_CAPTURECHANGED)))) {
+    const bool was_active = context->desktop_move.active();
+    retire_desktop_move_owner(hwnd, context, message == WM_KILLFOCUS ? "focus-lost" :
+        message == WM_NCDESTROY ? "window-destroyed" : message == WM_SHOWWINDOW ? "window-hidden" :
+        message == WM_POINTERCAPTURECHANGED || message == WM_CAPTURECHANGED ? "capture-lost" : "cancel-mode");
+    if (was_active && message != WM_NCDESTROY && message != WM_SHOWWINDOW) return 0;
+  }
+  if (context && context->desktop_move.draining_pointer() &&
+      (message == WM_POINTERCAPTURECHANGED || message == WM_CAPTURECHANGED)) return 0;
+  if (context && context->desktop_move.draining_pointer() &&
+      (message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP ||
+       message == WM_POINTERWHEEL || message == WM_POINTERHWHEEL)) {
+    POINTER_INFO tail{};
+    if (!GetPointerInfo(GET_POINTERID_WPARAM(w), &tail) || tail.pointerType != PT_MOUSE) return 0;
+    if (context->desktop_move.drain_pointer(
+          message == WM_POINTERDOWN && tail.ButtonChangeType == POINTER_CHANGE_FIRSTBUTTON_DOWN,
+          message == WM_POINTERUP && tail.ButtonChangeType == POINTER_CHANGE_FIRSTBUTTON_UP,
+          bool(tail.pointerFlags & POINTER_FLAG_FIRSTBUTTON))) return 0;
+  }
+  if (input && input->rejected_recovery_pending() &&
+      (message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP ||
+       message == WM_POINTERWHEEL || message == WM_POINTERHWHEEL)) {
+    POINTER_INFO info{};
+    uint32_t button{}, transition{};
+    bool valid = GetPointerInfo(GET_POINTERID_WPARAM(w), &info) && info.pointerType == PT_MOUSE &&
+        info.hwndTarget == hwnd && !(info.pointerFlags & POINTER_FLAG_CANCELED);
+    if (valid) {
+      switch (info.ButtonChangeType) {
+        case POINTER_CHANGE_NONE: break;
+        case POINTER_CHANGE_FIRSTBUTTON_DOWN: button = 1; transition = 1; break;
+        case POINTER_CHANGE_FIRSTBUTTON_UP: button = 1; transition = 2; break;
+        case POINTER_CHANGE_SECONDBUTTON_DOWN: button = 3; transition = 1; break;
+        case POINTER_CHANGE_SECONDBUTTON_UP: button = 3; transition = 2; break;
+        case POINTER_CHANGE_THIRDBUTTON_DOWN: button = 2; transition = 1; break;
+        case POINTER_CHANGE_THIRDBUTTON_UP: button = 2; transition = 2; break;
+        case POINTER_CHANGE_FOURTHBUTTON_DOWN: button = 4; transition = 1; break;
+        case POINTER_CHANGE_FOURTHBUTTON_UP: button = 4; transition = 2; break;
+        case POINTER_CHANGE_FIFTHBUTTON_DOWN: button = 5; transition = 1; break;
+        case POINTER_CHANGE_FIFTHBUTTON_UP: button = 5; transition = 2; break;
+        default: valid = false;
+      }
+    }
+    if (!valid || !input->observe_rejected_pointer(button, transition)) {
+      input->keyboard.invalidate_cancelled();
+      retire_pointer_input(&input->pointer, "rejected-pointer-drain-invalid");
+    }
+    emit_atlas_recovery_notices(*input);
+    return 0;
+  }
+  if (context && context->desktop.enabled &&
+      (message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP) &&
+      handle_desktop_move_pointer(hwnd, message, w, context)) return 0;
+  if (context && context->desktop.enabled && context->desktop_move.input_suppressed() &&
+      (message == WM_KEYDOWN || message == WM_KEYUP || message == WM_SYSKEYDOWN || message == WM_SYSKEYUP ||
+       message == WM_CHAR || message == WM_SYSCHAR || message == WM_DEADCHAR || message == WM_SYSDEADCHAR ||
+       message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP ||
+       message == WM_POINTERWHEEL || message == WM_POINTERHWHEEL)) return 0;
+  if (input && input->keyboard.cancelled() && (message == WM_KEYDOWN || message == WM_KEYUP ||
+      message == WM_SYSKEYDOWN || message == WM_SYSKEYUP)) {
+    const auto key = viewflow::windows_preview::physical_key(uint32_t(l),
+        message == WM_KEYUP || message == WM_SYSKEYUP);
+    constexpr std::array<int,8> modifiers{VK_LCONTROL,VK_LSHIFT,VK_LMENU,VK_LWIN,VK_RCONTROL,VK_RSHIFT,VK_RMENU,VK_RWIN};
+    uint8_t mask{};
+    for (unsigned i = 0; i < modifiers.size(); ++i)
+      if (GetKeyState(modifiers[i]) & 0x8000) mask |= uint8_t(1u << i);
+    if (!key || GetFocus() != hwnd || GetForegroundWindow() != hwnd || !IsWindowVisible(hwnd) ||
+        !input->observe_cancelled_keyboard(*key, mask)) {
+      input->keyboard.invalidate_cancelled();
+      retire_pointer_input(&input->pointer, "cancelled-keyboard-drain-invalid");
+    }
+    emit_atlas_recovery_notices(*input);
+    // A physical release is not a source release ACK. Do not emit a keyboard
+    // event, authorize input, or let the proxy run a competing local action.
+    return 0;
+  }
+  if (input && input->keyboard.cancelled() && (message == WM_CHAR || message == WM_SYSCHAR ||
+      message == WM_DEADCHAR || message == WM_SYSDEADCHAR)) return 0;
+  if (input && input->keyboard_enabled() && (message == WM_KEYDOWN || message == WM_KEYUP ||
+      message == WM_SYSKEYDOWN || message == WM_SYSKEYUP)) {
+    if (context && context->desktop.enabled) {
+      deliver_source_win(hwnd, context);
+      return 0; // Hook owns physical events; never duplicate WM_KEY delivery.
+    }
+    emit_atlas_keyboard(hwnd, message, w, l, *input);
+    return 0;
+  }
+  if (input && input->keyboard_enabled() && (message == WM_CHAR || message == WM_SYSCHAR ||
+      message == WM_DEADCHAR || message == WM_SYSDEADCHAR)) return 0;
+  bool internal_focus_transfer = false;
+  if (input && message == WM_KILLFOCUS && w) {
+    auto target = reinterpret_cast<HWND>(w);
+    DWORD pid{};
+    const DWORD thread = GetWindowThreadProcessId(target, &pid);
+    // Do not interpret another window's userdata. Only our exact WndProc on
+    // this UI thread can own an AtlasPointerState, and hidden reserves cannot
+    // become input targets. This does not grant or retag any source input.
+    if (target != hwnd && pid == GetCurrentProcessId() &&
+        thread == GetCurrentThreadId() && IsWindowVisible(target) &&
+        GetClassLongPtrW(target, GCLP_WNDPROC) == reinterpret_cast<LONG_PTR>(atlas_proc)) {
+      auto* next_context = reinterpret_cast<AtlasInputContext*>(
+          GetWindowLongPtrW(target, GWLP_USERDATA));
+      internal_focus_transfer = next_context && input->permits_focus_transfer_to(next_context->input);
+    }
+  }
+  if (input && ((message == WM_KILLFOCUS && !internal_focus_transfer && !(context && context->desktop_clipped) &&
+          (input->pointer.has_pressed_buttons() || input->keyboard.any())) ||
+      (message == WM_POINTERCAPTURECHANGED && input->pointer.has_pressed_buttons() && !input->rejected_pointer_drained())))
+    release_atlas_focus(*input);
+  if (input && input->wheel_enabled() && (message == WM_POINTERWHEEL || message == WM_POINTERHWHEEL)) {
+    emit_pointer_motion(hwnd, w, &input->pointer, input, message, context ? &context->desktop : nullptr);
+    return 0;
+  }
+  if (input && (message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP)) {
+    emit_pointer_motion(hwnd, w, &input->pointer, input, 0, context ? &context->desktop : nullptr);
+    return 0;
+  }
+  if (message == WM_NCDESTROY) SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+  if (message == WM_CLOSE) {
+    // Desktop HWNDs share one stream; a per-window shell close must never
+    // terminate all other proxies. Source application close remains available.
+    if (!context || !context->desktop.enabled) PostQuitMessage(0);
+    return 0;
+  }
+  if (message == WM_ERASEBKGND) return 1;
+  atlas_progress(AtlasProgress::DefaultProc, message, message == WM_ACTIVATE ? uint32_t(w) : 0);
+  const auto result = DefWindowProcW(hwnd, message, w, l);
+  atlas_progress(AtlasProgress::Dispatch, message, message == WM_ACTIVATE ? uint32_t(w) : 0);
+  return result;
+}
+
+// The opt-in atlas path owns independent HWND/visuals but one decoder. This
+// Input events are opt-in; neither mode claims physical present receipts.
+bool native_alpha_reuse_enabled() {
+  wchar_t value[8]{};
+  const auto length = GetEnvironmentVariableW(L"VIEWFLOW_NATIVE_ALPHA_REUSE", value, 8);
+  return !(length == 1 && value[0] == L'0');
+}
+
+class AtlasNativePresenter {
+  struct BudgetTrace { uint64_t identity{}; const char* phase{}; int64_t remaining_us{}; };
+  struct Proxy {
+    AtlasInputContext input;
+    viewflow::windows_preview::ApplicationIcon application_icon;
+    WindowOwner window{nullptr}; // Destroy HWND before its application icon.
+    DesktopWindowTarget target{nullptr};
+    ContainerVisual root{nullptr};
+    Foreground foreground;
+    SpriteVisual backdrop{nullptr};
+    CompositionMaskBrush backdrop_mask{nullptr};
+    CompositionBrush raw_backdrop{nullptr};
+    bool layout_absent{};
+  };
+ public:
+  ~AtlasNativePresenter() {
+    // Never issue synchronous stderr writes inside a live frame's deadline.
+    // std::cerr is unit-buffered: chained insertions otherwise become many
+    // cross-process writes and measurably consume the presentation budget.
+    try {
+      std::string text;
+      text.reserve(trace_count_ * 112);
+      for (size_t i = 0; i < trace_count_; ++i) {
+        const auto& t = traces_[i];
+        text += "atlas-budget frame=" + std::to_string(t.identity) + " phase=" + t.phase
+             + " remaining_us=" + std::to_string(t.remaining_us) + "\n";
+      }
+      text += "atlas-window-updates resize=" + std::to_string(window_resizes_)
+           + " show=" + std::to_string(window_shows_) + "\n";
+      if (!text.empty()) std::cerr << text;
+    } catch (...) {} // Diagnostics cannot throw during native resource cleanup.
+  }
+  AtlasNativePresenter(Compositor compositor,
+      viewflow::windows_preview::MtaVideoCompositor& decoder, size_t max_frame_bytes, uint32_t proxy_capacity,
+      bool dispositions = false, bool pointer_events = false, bool wheel_events = false, bool keyboard_events = false,
+      bool input_recovery = false, std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {})
+      : compositor_(compositor), decoder_(decoder), parser_(max_frame_bytes, true, true, input_recovery, desktop_display.has_value(), native_alpha_reuse_enabled()), proxy_capacity_(proxy_capacity),
+        dispositions_(dispositions), pointer_events_(pointer_events), wheel_events_(wheel_events), keyboard_events_(keyboard_events),
+        input_recovery_(input_recovery), desktop_display_(desktop_display) {
+    std::cerr << "atlas-alpha-storage mode=" << (native_alpha_reuse_enabled() ? "shared-reuse" : "expanded-copy") << "\n";
+    // Local fallback until the atlas protocol carries source blur regions.
+    // Read once, before live admission; zero explicitly retains alpha-only.
+    wchar_t sigma_text[32]{};
+    const auto sigma_length = GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_BLUR_SIGMA", sigma_text, 32);
+    if (sigma_length) {
+      if (sigma_length >= 32) bad("atlas blur sigma too long");
+      wchar_t* end{};
+      const double sigma = wcstod(sigma_text, &end);
+      if (end == sigma_text || *end || !std::isfinite(sigma) || sigma < 0 || sigma > 64)
+        bad("atlas blur sigma must be between 0 and 64 physical pixels");
+      backdrop_sigma_ = float(sigma);
+    }
+    LARGE_INTEGER frequency{};
+    if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0) bad("atlas QPC frequency");
+    frequency_ = uint64_t(frequency.QuadPart);
+    WNDCLASSW cls{};
+    cls.hInstance = GetModuleHandleW(nullptr); cls.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    cls.lpszClassName = L"ViewflowAtlasProxy"; cls.lpfnWndProc = atlas_proc;
+    if (!RegisterClassW(&cls) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) throw_last_error();
+  }
+  void Push(std::span<const uint8_t> chunk) try {
+    stage = "atlas-pipe-parse";
+    if (WorkPending()) bad("atlas pipe consumed while decode pending");
+    parsed_frames_.clear();
+    next_parsed_ = 0;
+    if (!parser_.Push(chunk, &parsed_frames_)) bad(parser_.error());
+  } catch (hresult_error const& error) {
+    report_native_failure(error);
+    throw;
+  }
+  bool WorkPending() const {
+    return decoder_.submit_ready_event() || next_parsed_ < parsed_frames_.size();
+  }
+  HANDLE DecodeReadyEvent() const { return decoder_.submit_ready_event(); }
+  // Do one bounded handoff/completion, then return to the outer message loop.
+  // Keep only this pipe chunk's parsed records; never read ahead during decode.
+  bool Advance() try {
+    poll_gpu_copy_probes(sampled_timings_);
+    if (decoder_.submit_ready_event()) {
+      if (!decoder_.submit_ready()) return false;
+      stage = "atlas-decode-completion";
+      auto result = decoder_.TakeSubmit();
+      if (gpu_copy_probe_enabled()) {
+        const auto& t = result.host_durations;
+        sampled_timings_ += "atlas-native-host-us frame=" + std::to_string(t.frame_identity) +
+            " status=" + std::to_string(result.status) +
+            " completed=" + std::to_string(result.frames.size()) +
+            " alpha=" + std::to_string(t.alpha_texture_create_us) +
+            " alpha_reused=" + std::to_string(t.alpha_texture_reused) +
+            " sample=" + std::to_string(t.mf_sample_copy_us) +
+            " input=" + std::to_string(t.mf_process_input_us) +
+            " output=" + std::to_string(t.mf_process_output_us) +
+            " resources=" + std::to_string(t.composite_gpu_resource_alloc_us) +
+            " video_processor=" + std::to_string(t.composite_video_processor_us) +
+            " shader=" + std::to_string(t.composite_shader_us) +
+            " total=" + std::to_string(t.total_submit_us) + "\n";
+      }
+      check_hresult(result.status);
+      for (const auto& decoded : result.frames) {
+        if(decoded.shader_gpu_timing && gpu_timestamp_probes.size()<128)
+          gpu_timestamp_probes.push_back(decoded.shader_gpu_timing);
+        Complete(decoded);
+      }
+      return true;
+    }
+    if (next_parsed_ < parsed_frames_.size()) {
+      auto frame = std::move(parsed_frames_[next_parsed_++]);
+      native_failure_identity = frame.identity;
+      stage = "atlas-frame-admission";
+      if (frame.input_recovery) {
+        RecoverInput(*frame.input_recovery);
+        return true;
+      }
+      if (frame.decode_only) {
+        if (live_started_ || frame.atlas || !warmup_.admit(true, frame.identity)) bad("atlas startup-only warmup contract");
+        warmup_started_ = true;
+      } else {
+        if (!frame.atlas || !frame.deadline_qpc) bad("atlas live mode requires VFGP v5");
+        if (warmup_started_ && !warmup_.admit(false, frame.identity)) bad("atlas warmup incomplete");
+        live_started_ = true;
+        TraceBudget(frame.identity, "pipe-admission", *frame.deadline_qpc);
+        if (gpu_copy_probe_enabled() || frame.identity % 60 == 0)
+          sampled_timings_ += "atlas-native-alpha frame=" + std::to_string(frame.identity) +
+              " reused=" + std::to_string(frame.alpha_reused) + " bytes=" + std::to_string(frame.Alpha().size()) + "\n";
+        if (!dispositions_) CheckDeadline(*frame.deadline_qpc);
+        if (!bindings_.Stage(frame)) bad("atlas decoder binding or lineage");
+        ObservePresentationTarget(frame.identity, frame.width, frame.height);
+        // Disposition admission already sampled QPC and can prove unbound
+        // expiry. A second sample crossing the boundary must not turn that
+        // recoverable state into a terminal exception before any visual bind.
+        if (!dispositions_) CheckDeadline(*frame.deadline_qpc);
+      }
+      const auto local = decode_identities_.Stage(frame.identity, frame.width, frame.height, frame.decode_only);
+      if (!local) bad("atlas decoder local identity or shape");
+      atlas_progress(AtlasProgress::Decode);
+      stage = "atlas-decode-submit";
+      decoder_.BeginSubmit(*local, frame.width, frame.height,
+          std::move(frame.color_au), std::move(frame.alpha), std::move(frame.shared_alpha));
+      return true;
+    }
+    return false;
+  } catch (hresult_error const& error) {
+    // Report while decoder and proxies are still alive: asynchronous teardown
+    // can outlast the parent's receipt timeout and subsequent child kill.
+    report_native_failure(error);
+    throw;
+  }
+  void Finish() {
+    if (WorkPending()) bad("atlas EOF while decode pending");
+    if (!parser_.Finish()) bad("incomplete atlas pipe record");
+    std::vector<viewflow::windows::CompositedFrame> completed;
+    check_hresult(decoder_.Finish(&completed));
+    for (const auto& decoded : completed) Complete(decoded);
+    if (!bindings_.Empty() || !decode_identities_.Empty() || (warmup_started_ && !warmup_.finish()))
+      bad("atlas decoder did not return all submitted identities");
+  }
+ private:
+  void RecoverInput(const viewflow::vfgp::InputRecoveryConfirmation& c) {
+    if (!input_recovery_ || !live_started_) bad("atlas input recovery not negotiated or not live");
+    const auto found = proxies_.find(c.window);
+    if (found == proxies_.end()) bad("atlas recovery target unavailable");
+    auto& proxy = *found->second;
+    const HWND hwnd = proxy.window.value;
+    const bool cancel = c.rejection_kind == 1;
+    const bool superseded = proxy.input.input.recovery_superseded_by_focus(c);
+    if (!superseded && !cancel && !proxy.input.input.recovery_recipient_allowed(c.rejection_kind,
+          IsWindowVisible(hwnd) != FALSE, GetFocus() == hwnd && GetForegroundWindow() == hwnd))
+      bad("atlas recovery target lacks foreground focus");
+    // Observe the physical high bit only, not toggle states. This includes
+    // mouse buttons and prevents a queued new key-down from evading the drain.
+    if (!superseded && !cancel) for (int key = 1; key < 256; ++key)
+      if (GetAsyncKeyState(key) & 0x8000) bad("atlas recovery requires physical release");
+    const uint64_t now = Clock({c.deadline_qpc, c.frequency});
+    if (!superseded && cancel) {
+      if (proxy.input.desktop_move.active() || !proxy.input.input.cancel_rejected_input(c, now, frequency_))
+        bad("atlas rejected-input cancellation rejected");
+      emit_atlas_recovery_notices(proxy.input.input);
+    }
+    if (!superseded && !cancel && !proxy.input.input.confirm_geometry_recovery(c, now, frequency_, GetTickCount()))
+      bad("atlas recovery confirmation rejected");
+    std::cout << (cancel ? "atlas-input-cancelled-v2 sequence=" : c.rejection_kind == 2 ?
+        "atlas-input-recovered-v2 sequence=" : "atlas-input-recovered-v1 sequence=") << c.sequence
+              << " stream_hi=" << c.stream.first << " stream_lo=" << c.stream.second
+              << " window_hi=" << c.window.first << " window_lo=" << c.window.second
+              << " atlas_epoch=" << c.atlas_epoch << " config_generation=" << c.config_generation
+              << " previous_epoch=" << c.previous_epoch << " geometry_epoch=" << c.geometry_epoch
+              << " grant_generation=" << c.grant_generation << " atlas_frame=" << c.atlas_frame
+              << " source_frame=" << c.source_frame << " placement_generation=" << c.placement_generation
+              << " deadline_qpc=" << c.deadline_qpc << " frequency=" << c.frequency
+              << " recovered_qpc=" << now;
+    if (c.rejection_kind) std::cout << " cause=rejected cancel_sequence=" << c.cancel_sequence;
+    std::cout << std::endl;
+  }
+  void Complete(const viewflow::windows::CompositedFrame& decoded) {
+    const auto identity = decode_identities_.Take(decoded.frame_identity, decoded.width, decoded.height);
+    if (!identity) bad("atlas decoder output identity mapping");
+    if (identity->warmup) {
+      if (!warmup_foreground_) warmup_foreground_ = foreground(compositor_, float(decoded.width), float(decoded.height), decoder_.device());
+      auto candidate = stage_gpu_surface(*warmup_foreground_, compositor_, decoded);
+      PrepareProxies(decoded.width, decoded.height);
+      if (warmup_foreground_->visual.Brush() || !warmup_.complete(identity->source_identity)) bad("atlas warmup bound pixels or identity mismatch");
+      std::cout << "atlas-warmup-completed identity=" << identity->source_identity
+                << " width=" << decoded.width << " height=" << decoded.height << std::endl;
+      return; // Hidden HWNDs only; no visible brush, live binding or receipt.
+    }
+    auto frame = decoded;
+    frame.frame_identity = identity->source_identity;
+    if(frame.shader_gpu_timing) frame.shader_gpu_timing->frame=identity->source_identity;
+    Present(frame);
+  }
+  uint64_t Clock(viewflow::vfgp::DeadlineQpc deadline) const {
+    LARGE_INTEGER now{};
+    if (deadline.frequency != frequency_ || !QueryPerformanceCounter(&now) || now.QuadPart < 0 ||
+        !deadline.deadline) bad("atlas native clock failure or frequency mismatch");
+    return uint64_t(now.QuadPart);
+  }
+  void CheckDeadline(viewflow::vfgp::DeadlineQpc deadline,
+                     const char* phase = "atlas-admission") const {
+    if (Clock(deadline) >= deadline.deadline) {
+      stage = phase;
+      // Finish the current admitted frame and report its actual commit time.
+      // This target is independent of the stalled-operation watchdog.
+    }
+  }
+  void EmitDisposition(uint64_t identity, size_t count, viewflow::vfgp::DeadlineQpc deadline,
+                       const char* outcome, uint64_t commit_ticks) {
+    std::cout << "atlas-disposition-v1 frame_identity=" << identity << " tile_count=" << count
+              << " outcome=" << outcome << " deadline_ticks=" << deadline.deadline
+              << " frequency=" << deadline.frequency << " commit_ticks=" << commit_ticks
+              << " physical_present_receipt=false" << std::endl;
+    if (!sampled_timings_.empty()) {
+      std::cerr.write(sampled_timings_.data(), std::streamsize(sampled_timings_.size()));
+      sampled_timings_.clear();
+    }
+  }
+  // The sender waits for this frame's disposition before delivering another.
+  // Missing the 33ms target cannot make this sole admitted frame obsolete:
+  // dropping it here starves presentation and repeats the same stall forever.
+  // Finish its decode/copy/bind under the parent's operation watchdog instead.
+  void ObservePresentationTarget(uint64_t identity, uint32_t width, uint32_t height) {
+    if (!dispositions_) return;
+    const auto* binding = bindings_.Find(identity, width, height);
+    if (!binding) bad("atlas disposition missing binding");
+    CheckDeadline(binding->deadline, "atlas-performance-target");
+  }
+  void TraceBudget(uint64_t identity, const char* phase, viewflow::vfgp::DeadlineQpc deadline) {
+    stage = phase;
+    native_failure_identity = identity;
+    const bool sampled = gpu_copy_probe_enabled() || identity % 60 == 0;
+    if (!sampled && (identity > 6 || trace_count_ == traces_.size())) return;
+    LARGE_INTEGER now{};
+    if (!QueryPerformanceCounter(&now) || now.QuadPart < 0) return;
+    const auto remaining = (static_cast<long double>(deadline.deadline) - now.QuadPart) * 1000000.0L / frequency_;
+    if (sampled) {
+      sampled_timings_ += "atlas-native-timing frame=" + std::to_string(identity) + " phase=" + phase + " qpc=" + std::to_string(now.QuadPart) + " frequency=" + std::to_string(frequency_) + " remaining_us=" + std::to_string(static_cast<int64_t>(remaining)) + "\n";
+    } else {
+      traces_[trace_count_++] = {identity, phase, static_cast<int64_t>(remaining)};
+    }
+  }
+  Proxy& EnsureProxy(viewflow::vfgp::AtlasId id, uint32_t width, uint32_t height,
+                     uint64_t identity, viewflow::vfgp::DeadlineQpc deadline) {
+    if (const auto found = proxies_.find(id); found != proxies_.end()) {
+      found->second->application_icon.Apply(found->second->window.value, id.first, id.second);
+      return *found->second;
+    }
+    if (!width || !height || width > INT_MAX || height > INT_MAX) bad("atlas proxy dimensions");
+    const auto title = L"Viewflow atlas " + std::to_wstring(id.first) + L":" + std::to_wstring(id.second);
+    std::unique_ptr<Proxy> proxy;
+    if (proxy_capacity_) {
+      if (!proxies_prepared_ || reserved_proxies_.empty()) bad("atlas prepared proxy capacity exhausted");
+      proxy = std::move(reserved_proxies_.back());
+      reserved_proxies_.pop_back();
+      if (!SetWindowTextW(proxy->window.value, title.c_str())) throw_last_error();
+    } else {
+      proxy = CreateProxy(title, width, height, proxies_.size());
+    }
+    TraceBudget(identity, "prepared-proxy-acquired", deadline);
+    proxy->application_icon.Apply(proxy->window.value, id.first, id.second);
+    auto& result = *proxy;
+    proxies_.emplace(id, std::move(proxy));
+    return result;
+  }
+  std::unique_ptr<Proxy> CreateProxy(const std::wstring& title, uint32_t width,
+                                    uint32_t height, size_t index) {
+    if (!width || !height || width > INT_MAX || height > INT_MAX) bad("atlas proxy dimensions");
+    auto proxy = std::make_unique<Proxy>();
+    const int initial_offset = int(index % 8) * 32;
+    proxy->window.value = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | (desktop_display_ ? WS_EX_APPWINDOW : WS_EX_TOOLWINDOW) | (keyboard_events_ ? 0 : WS_EX_NOACTIVATE),
+        L"ViewflowAtlasProxy", title.c_str(), desktop_display_ ? WS_OVERLAPPEDWINDOW : WS_POPUP, 80 + initial_offset, 80 + initial_offset, int(width), int(height),
+        nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+    if (!proxy->window.value) throw_last_error();
+    // A proxy reveals an existing remote window; suppress the local DWM
+    // opening/closing transition before its first show, including pooled proxies.
+    const BOOL disable_transitions = TRUE;
+    if (FAILED(DwmSetWindowAttribute(proxy->window.value, DWMWA_TRANSITIONS_FORCEDISABLED,
+                                    &disable_transitions, sizeof(disable_transitions)))) {
+      OutputDebugStringW(L"Viewflow: could not disable proxy window transitions.\n");
+    }
+    if (desktop_display_) {
+      EnableMenuItem(GetSystemMenu(proxy->window.value, FALSE), SC_CLOSE, MF_BYCOMMAND | MF_GRAYED);
+      const DWMNCRENDERINGPOLICY policy = DWMNCRP_DISABLED;
+      DwmSetWindowAttribute(proxy->window.value, DWMWA_NCRENDERING_POLICY, &policy, sizeof(policy));
+    }
+    if (backdrop_sigma_ > 0) {
+      BOOL enabled = TRUE;
+      check_hresult(DwmSetWindowAttribute(proxy->window.value, DWMWA_USE_HOSTBACKDROPBRUSH,
+                                          &enabled, sizeof(enabled)));
+    }
+    if (pointer_events_) {
+      proxy->input.input = viewflow::windows_preview::AtlasPointerState(true, wheel_events_, keyboard_events_, input_recovery_);
+      if (desktop_display_) {
+        proxy->input.desktop.enabled = true;
+        proxy->input.desktop.display = *desktop_display_;
+      }
+      SetLastError(ERROR_SUCCESS);
+      if (!SetWindowLongPtrW(proxy->window.value, GWLP_USERDATA,
+                            reinterpret_cast<LONG_PTR>(&proxy->input)) && GetLastError() != ERROR_SUCCESS)
+        throw_last_error();
+    }
+    auto desktop = compositor_.as<ABI::Windows::UI::Composition::Desktop::ICompositorDesktopInterop>();
+    check_hresult(desktop->CreateDesktopWindowTarget(proxy->window.value, true,
+        reinterpret_cast<ABI::Windows::UI::Composition::Desktop::IDesktopWindowTarget**>(put_abi(proxy->target))));
+    proxy->foreground = warmup_foreground_
+        ? foreground_on_device(*warmup_foreground_, compositor_, float(width), float(height))
+        : foreground(compositor_, float(width), float(height), decoder_.device());
+    proxy->root = compositor_.CreateContainerVisual();
+    if (backdrop_sigma_ > 0) {
+      Blur effect;
+      effect.sigma = backdrop_sigma_;
+      effect.Source(CompositionEffectSourceParameter(L"backdrop"));
+      auto brush = compositor_.CreateEffectFactory(effect).CreateBrush();
+      proxy->raw_backdrop=compositor_.CreateHostBackdropBrush();
+      brush.SetSourceParameter(L"backdrop", proxy->raw_backdrop);
+      proxy->backdrop_mask = compositor_.CreateMaskBrush();
+      proxy->backdrop_mask.Source(brush);
+      proxy->backdrop = compositor_.CreateSpriteVisual();
+      proxy->backdrop.Size({float(width), float(height)});
+      // Both Mask and visual Brush stay null through startup. The effect
+      // factory is prepared here, but no warmup pixels or backdrop are exposed.
+      proxy->root.Children().InsertAtBottom(proxy->backdrop);
+    }
+    proxy->root.Children().InsertAtTop(proxy->foreground.visual);
+    proxy->target.Root(proxy->root);
+    proxy->input.resize_preview = [state = &proxy->foreground, visual = proxy->foreground.visual, backdrop = proxy->backdrop](float w, float h) {
+      visual.Size({w, h});
+      if(state->sparse_root && state->width && state->height)
+        state->sparse_root.Scale({w/float(state->width),h/float(state->height),1.0f});
+      if (backdrop) backdrop.Size({w, h});
+    };
+    if (IsWindowVisible(proxy->window.value) || proxy->foreground.visual.Brush() ||
+        (proxy->backdrop && (proxy->backdrop.Brush() || proxy->backdrop_mask.Mask())))
+      bad("atlas prepared proxy exposed startup pixels");
+    return proxy;
+  }
+  void PrepareProxies(uint32_t width, uint32_t height) {
+    if (proxies_prepared_ || !proxy_capacity_) return;
+    if (!warmup_foreground_ || live_started_) bad("atlas proxy preparation outside warmup");
+    reserved_proxies_.reserve(proxy_capacity_);
+    for (uint32_t i = 0; i < proxy_capacity_; ++i)
+      reserved_proxies_.push_back(CreateProxy(L"Viewflow atlas reserved", width, height, i));
+    proxies_prepared_ = true;
+    std::cerr << "atlas-proxies-prepared hidden_count=" << reserved_proxies_.size()
+              << " bound_pixels=false" << std::endl;
+  }
+  void Present(const viewflow::windows::CompositedFrame& frame) {
+    const auto* binding = bindings_.Find(frame.frame_identity, frame.width, frame.height);
+    if (!binding) bad("atlas decoded frame has no matching immutable layout");
+    TraceBudget(frame.frame_identity, "decoded", binding->deadline);
+    if (frame.frame_identity % 60 == 0 && binding->layout.patches) {
+      size_t hidden = 0;
+      uint64_t backdrop_pixels = 0, total_pixels = 0;
+      const auto& patches = *binding->layout.patches;
+      for (size_t index = 0; index < patches.size(); ++index) {
+        const auto area = uint64_t(patches[index].width) * patches[index].height;
+        total_pixels += area;
+        if (index < binding->opaque_patches.size() && binding->opaque_patches[index]) ++hidden;
+        else backdrop_pixels += area;
+      }
+      sampled_timings_ += "atlas-sparse-opacity frame=" + std::to_string(frame.frame_identity) +
+          " patches=" + std::to_string(patches.size()) + " hidden_backdrops=" + std::to_string(hidden) +
+          " backdrop_pixels=" + std::to_string(backdrop_pixels) + " total_pixels=" + std::to_string(total_pixels) + "\n";
+    }
+    ObservePresentationTarget(frame.frame_identity, frame.width, frame.height);
+    // Recovery mode sampled this same deadline immediately above. Rechecking
+    // it as a terminal error creates an expiry race before any visual mutation.
+    if (!dispositions_) CheckDeadline(binding->deadline, "atlas-decoded-admission");
+    struct Candidate {
+      viewflow::vfgp::AtlasId window;
+      GpuSurfaceCandidate surface;
+      std::optional<viewflow::windows_preview::DesktopSlice> desktop_slice;
+      std::optional<SparseGpuCandidate> sparse;
+    };
+    std::optional<GpuSurfaceCandidate> shared_candidate;
+    if(binding->layout.patches) {
+      if(!sparse_atlas_) sparse_atlas_=foreground_on_device(*warmup_foreground_,compositor_,float(frame.width),float(frame.height));
+      shared_candidate=stage_gpu_surface(*sparse_atlas_,compositor_,frame);
+    }
+    std::vector<Candidate> candidates;
+    std::set<viewflow::vfgp::AtlasId> retained;
+    std::set<viewflow::vfgp::AtlasId> clipped;
+    if (desktop_display_ && !binding->layout.desktop) bad("atlas desktop mode requires VFGP v7 placement");
+    std::optional<viewflow::windows_preview::DesktopDisplay> mapped_display;
+    if (desktop_display_) {
+      mapped_display = *desktop_display_;
+      const auto& viewport = binding->layout.desktop->viewport;
+      // Both sides derive the same viewport from resolution / configured
+      // scale. Keep 1.5x exact instead of rounding its inverse to 667.
+      const auto expected = viewflow::windows_preview::DisplayGlobalRect(*mapped_display);
+      if (!expected || viewport.x_millidip != expected->x_millidip ||
+          viewport.y_millidip != expected->y_millidip ||
+          viewport.width_millidip != expected->width_millidip ||
+          viewport.height_millidip != expected->height_millidip)
+        bad("atlas desktop viewport/display mismatch");
+    }
+    for (size_t index = 0; index < binding->layout.tiles.size(); ++index) {
+      const auto& tile = binding->layout.tiles[index];
+      retained.insert(tile.window);
+      std::optional<viewflow::windows_preview::DesktopSlice> desktop_slice;
+      if (desktop_display_) {
+        desktop_slice = viewflow::windows_preview::SliceForDisplay(
+            binding->layout.desktop->windows[index].bounds, *mapped_display);
+        // Off-viewport is visibility, not membership removal. Preserve an
+        // existing HWND so repeated round trips cannot consume reserve slots.
+        if (!desktop_slice) { clipped.insert(tile.window); continue; }
+      }
+      auto& proxy = EnsureProxy(tile.window, tile.width, tile.height, frame.frame_identity, binding->deadline);
+      TraceBudget(frame.frame_identity, "proxy-ready", binding->deadline);
+      if(binding->layout.patches) {
+        auto sparse=stage_sparse_visuals(proxy.foreground,compositor_,shared_candidate->surface,
+            *binding->layout.patches,uint32_t(index),tile.width,tile.height,proxy.raw_backdrop,backdrop_sigma_,binding->opaque_patches);
+        candidates.push_back({tile.window,{nullptr,nullptr,tile.width,tile.height},desktop_slice,std::move(sparse)});
+      } else {
+        viewflow::windows::CompositedFrame view;
+        check_hresult(viewflow::windows::MakeCompositedRegion(frame,
+            {tile.x, tile.y, tile.width, tile.height}, &view));
+        candidates.push_back({tile.window,stage_gpu_surface(proxy.foreground,compositor_,view),desktop_slice,std::nullopt});
+      }
+      atlas_progress(AtlasProgress::Copy);
+      TraceBudget(frame.frame_identity, "copy-ready", binding->deadline);
+      ObservePresentationTarget(frame.frame_identity, frame.width, frame.height);
+      if (!dispositions_) CheckDeadline(binding->deadline, "atlas-unbound-copy-complete");
+    }
+    // All pixel copies stayed unbound. On any failure during visual mutation,
+    // unwind closes every proxy and no successful submission message is emitted.
+    ObservePresentationTarget(frame.frame_identity, frame.width, frame.height);
+    bool visual_mutated = false;
+    for (auto& candidate : candidates) {
+      auto& proxy = *proxies_.at(candidate.window);
+      const auto width = candidate.desktop_slice ? candidate.desktop_slice->full_physical_width : candidate.surface.width;
+      const auto height = candidate.desktop_slice ? candidate.desktop_slice->full_physical_height : candidate.surface.height;
+      const bool visual_resize = proxy.foreground.width != width || proxy.foreground.height != height;
+      RECT client{};
+      if (!GetClientRect(proxy.window.value, &client)) throw_last_error();
+      const auto full_rect = candidate.desktop_slice ? viewflow::windows_preview::FullWindowForSlice(*candidate.desktop_slice) : std::nullopt;
+      if (candidate.desktop_slice && !full_rect) bad("atlas full window placement overflow");
+      const auto window_width = width;
+      const auto window_height = height;
+      const bool window_resize = client.right - client.left != int(window_width) || client.bottom - client.top != int(window_height);
+      POINT origin{};
+      if (candidate.desktop_slice && !ClientToScreen(proxy.window.value, &origin)) throw_last_error();
+      const bool window_move = candidate.desktop_slice &&
+          (origin.x != full_rect->x || origin.y != full_rect->y);
+      if (!visual_mutated) ObservePresentationTarget(frame.frame_identity, frame.width, frame.height);
+      if (visual_mutated || !dispositions_)
+        CheckDeadline(binding->deadline, visual_mutated ? "atlas-partial-visual-mutation" : "atlas-before-first-visual-mutation");
+      atlas_progress(AtlasProgress::Bind);
+      stage = "atlas-foreground-bind";
+      if(candidate.sparse) {
+        const bool native_preview=proxy.input.wm_moving || GetTickCount64()<proxy.input.wm_pending_until;
+        commit_sparse_visuals(proxy.foreground,std::move(*candidate.sparse),
+            native_preview ? float(client.right):float(width),native_preview ? float(client.bottom):float(height));
+        if(frame.frame_identity % 60 == 0 && proxy.foreground.shared_sparse) {
+          size_t backgrounds=0;
+          for(const auto& [key,node]:proxy.foreground.shared_sparse->nodes)if(node.background)++backgrounds;
+          sampled_timings_ += "atlas-sparse-nodes frame=" + std::to_string(frame.frame_identity) +
+              " nodes=" + std::to_string(proxy.foreground.shared_sparse->nodes.size()) +
+              " backgrounds=" + std::to_string(backgrounds) + "\n";
+        }
+        if(proxy.backdrop) { proxy.backdrop.Brush(nullptr); proxy.backdrop_mask.Mask(nullptr); }
+      } else {
+        commit_gpu_surface(proxy.foreground, std::move(candidate.surface));
+      }
+      visual_mutated = true;
+      proxy.layout_absent = false;
+      proxy.input.desktop_clipped = false;
+      // While the shell owns resize, stretch the latest received texture to
+      // its current client size. Delayed source frames must not shrink it back.
+      const bool preview_native_size = proxy.input.wm_moving || GetTickCount64() < proxy.input.wm_pending_until;
+      if (visual_resize || preview_native_size)
+        proxy.foreground.visual.Size(preview_native_size ?
+            winrt::Windows::Foundation::Numerics::float2{float(client.right), float(client.bottom)} : winrt::Windows::Foundation::Numerics::float2{float(width), float(height)});
+      proxy.foreground.visual.Offset({0.0f, 0.0f, 0.0f});
+      if (proxy.backdrop && !candidate.sparse) {
+        CheckDeadline(binding->deadline, "atlas-partial-visual-mutation");
+        stage = "atlas-backdrop-bind";
+        // Reuse this exact frame's GPU brush as opacity mask: no readback,
+        // second upload, mask blur, or stale mask from the preceding frame.
+        // Only the host background is blurred; source text stays untouched.
+        // Alpha zero contributes no backdrop, including transparent corners.
+        proxy.backdrop_mask.Mask(proxy.foreground.gpu_brush);
+        proxy.backdrop.Size(proxy.foreground.visual.Size());
+        proxy.backdrop.Offset(proxy.foreground.visual.Offset());
+        if (!proxy.backdrop.Brush()) proxy.backdrop.Brush(proxy.backdrop_mask);
+      }
+      CheckDeadline(binding->deadline, "atlas-partial-visual-mutation");
+      const RECT desired_client{full_rect ? full_rect->x : 0,
+          full_rect ? full_rect->y : 0,
+          (full_rect ? full_rect->x : 0) + int(window_width),
+          (full_rect ? full_rect->y : 0) + int(window_height)};
+      if (proxy.input.wm_pending_until && EqualRect(&desired_client, &proxy.input.wm_requested))
+        proxy.input.wm_pending_until = 0;
+      const bool native_owns_geometry = proxy.input.wm_moving || IsIconic(proxy.window.value) ||
+          GetTickCount64() < proxy.input.wm_pending_until;
+      if ((window_resize || window_move) && !native_owns_geometry) {
+        stage = "atlas-window-placement";
+        const int x = full_rect ? full_rect->x : 0;
+        const int y = full_rect ? full_rect->y : 0;
+        RECT outer{x, y, x + int(window_width), y + int(window_height)};
+        if (!desktop_display_ && !AdjustWindowRectExForDpi(&outer, DWORD(GetWindowLongPtrW(proxy.window.value, GWL_STYLE)),
+              FALSE, DWORD(GetWindowLongPtrW(proxy.window.value, GWL_EXSTYLE)), GetDpiForWindow(proxy.window.value))) throw_last_error();
+        proxy.input.applying_source_placement = true;
+        const BOOL placed = SetWindowPos(proxy.window.value, nullptr, outer.left, outer.top,
+              outer.right - outer.left, outer.bottom - outer.top, SWP_NOACTIVATE | SWP_NOZORDER |
+              (window_resize ? 0 : SWP_NOSIZE) | (window_move ? 0 : SWP_NOMOVE));
+        proxy.input.applying_source_placement = false;
+        if (!placed) throw_last_error();
+        ++window_resizes_;
+      }
+      if (!IsWindowVisible(proxy.window.value)) {
+        stage = "atlas-window-show";
+        ShowWindow(proxy.window.value, SW_SHOWNOACTIVATE);
+        ++window_shows_;
+      }
+    }
+    if(shared_candidate) {
+      sparse_atlas_->spare_surface=std::move(sparse_atlas_->surface);
+      sparse_atlas_->spare_brush=std::move(sparse_atlas_->gpu_brush);
+      sparse_atlas_->surface=std::move(shared_candidate->surface);
+      sparse_atlas_->gpu_brush=std::move(shared_candidate->brush);
+      sparse_atlas_->width=shared_candidate->width;
+      sparse_atlas_->height=shared_candidate->height;
+    }
+    for (const auto id : clipped) {
+      const auto found = proxies_.find(id);
+      if (found == proxies_.end()) continue;
+      auto& proxy = *found->second;
+      if (proxy.input.input.pointer.has_pressed_buttons() || proxy.input.input.keyboard.any())
+        bad("atlas clipped proxy still owns application input");
+      CheckDeadline(binding->deadline, "atlas-before-proxy-hide");
+      if (proxy.input.wm_moving) {
+        if (!update_desktop_clip(proxy.window.value, &proxy.input)) throw_last_error();
+        continue; // Keep the shell's drag alive when the whole window crosses the seam.
+      }
+      retire_desktop_move_owner(proxy.window.value, &proxy.input, "proxy-clipped");
+      proxy.input.desktop_clipped = true;
+      if (IsWindowVisible(proxy.window.value)) {
+        ShowWindow(proxy.window.value, SW_HIDE);
+        visual_mutated = true;
+      }
+    }
+    for (auto& [id, owned] : proxies_) {
+      auto& proxy = *owned;
+      if (retained.contains(id) || proxy.layout_absent) continue;
+      // Membership suspension keeps this admitted identity's HWND reserved.
+      // Never erase held input to make a removal appear successful: the source
+      // must already have invalidated its authority and drained application input.
+      if (proxy.input.desktop_move.active() || GetCapture() == proxy.window.value ||
+          !proxy.input.input.suspend_absent())
+        bad("atlas removed proxy still owns application input or recovery");
+      CheckDeadline(binding->deadline, "atlas-before-proxy-suspend");
+      retire_desktop_move_owner(proxy.window.value, &proxy.input, "proxy-removed");
+      proxy.input.desktop_clipped = true;
+      proxy.input.desktop.slice_valid = false;
+      proxy.input.desktop_move.win_up();
+      ShowWindow(proxy.window.value, SW_HIDE);
+      visual_mutated = true;
+      proxy.foreground.visual.Brush(nullptr);
+      if (proxy.backdrop) {
+        proxy.backdrop.Brush(nullptr);
+        proxy.backdrop_mask.Mask(nullptr);
+      }
+      proxy.foreground.gpu_brush = nullptr;
+      proxy.foreground.surface = nullptr;
+      proxy.layout_absent = true;
+    }
+    if (binding->layout.desktop) {
+      std::vector<std::pair<uint32_t, HWND>> stacking;
+      for (const auto& placement : binding->layout.desktop->windows) {
+        const auto found = proxies_.find(placement.window);
+        if (placement.z_order && found != proxies_.end() && IsWindowVisible(found->second->window.value))
+          stacking.emplace_back(placement.z_order, found->second->window.value);
+      }
+      std::stable_sort(stacking.begin(), stacking.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+      std::vector<HWND> desired;
+      for (const auto& item : stacking) desired.push_back(item.second);
+      HWND source_active = nullptr;
+      uint32_t raise_serial = 0;
+      for (const auto& placement : binding->layout.desktop->windows) {
+        if (!placement.raise_serial) continue;
+        const auto found = proxies_.find(placement.window);
+        if (found != proxies_.end() && IsWindowVisible(found->second->window.value)) { source_active = found->second->window.value; raise_serial = placement.raise_serial; }
+      }
+      // A shell/UIPI refusal to reorder windows must not retire their visuals
+      // or the shared session. Retry from the actual desktop order next frame.
+      const auto reorder = [](HWND window, HWND above) {
+        if (SetWindowPos(window, above, 0, 0, 0, 0,
+              SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE | SWP_NOOWNERZORDER)) return true;
+        const auto error = GetLastError();
+        static DWORD reported_error = ERROR_SUCCESS;
+        if (error != reported_error) {
+          std::cerr << "atlas-window-order-deferred error=" << error << std::endl;
+          reported_error = error;
+        }
+        return false;
+      };
+      if (source_active && raise_serial != last_source_raise_serial_ && reorder(source_active, HWND_TOP))
+        last_source_raise_serial_ = raise_serial;
+      // A local Windows activation owns immediate stacking. Keep it until
+      // the asynchronous source order acknowledges that same foreground window.
+      if (atlas_local_raise) {
+        auto selected = std::find(desired.begin(), desired.end(), atlas_local_raise);
+        if (selected == desired.begin() && selected != desired.end()) atlas_local_raise = nullptr;
+        else if (selected != desired.end()) {
+          const auto hwnd = *selected;
+          desired.erase(selected);
+          desired.insert(desired.begin(), hwnd);
+        }
+      }
+      std::vector<HWND> relative;
+      for (HWND hwnd = GetTopWindow(nullptr); hwnd; hwnd = GetWindow(hwnd, GW_HWNDNEXT))
+        if (std::find(desired.begin(), desired.end(), hwnd) != desired.end()) relative.push_back(hwnd);
+      // Enforce only remote relative order, retaining every local window slot.
+      if (relative != desired) {
+        std::vector<HWND> actual;
+        for (HWND hwnd = GetTopWindow(nullptr); hwnd; hwnd = GetWindow(hwnd, GW_HWNDNEXT))
+          if (IsWindowVisible(hwnd) && !(GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST))
+            actual.push_back(hwnd);
+        actual = viewflow::windows_preview::InterleaveDesktopOrder(std::move(actual), desired);
+        HWND above = HWND_TOP;
+        for (const HWND hwnd : actual) {
+          if (std::find(desired.begin(), desired.end(), hwnd) != desired.end())
+            reorder(hwnd, above);
+          above = hwnd;
+        }
+      }
+    }
+    stage = "atlas-final-commit-check";
+    const auto commit_ticks = Clock(binding->deadline);
+    if (commit_ticks >= binding->deadline.deadline) ++late_commits_;
+    TraceBudget(frame.frame_identity, "committed", binding->deadline);
+    static const bool trace_all_mutations=[] {
+      wchar_t value[4]{};
+      return GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_TIMINGS",value,4)==3 && wcscmp(value,L"all")==0;
+    }();
+    if(trace_all_mutations)
+      sampled_timings_ += "atlas-native-mutation frame=" + std::to_string(frame.frame_identity) +
+          " qpc=" + std::to_string(commit_ticks) + " frequency=" + std::to_string(frequency_) + "\n";
+    const auto count = binding->layout.tiles.size();
+    const auto deadline = binding->deadline;
+    if (pointer_events_) {
+      for (size_t index = 0; index < binding->layout.tiles.size(); ++index) {
+        const auto& tile = binding->layout.tiles[index];
+        if (!proxies_.contains(tile.window)) continue;
+        // A retained but off-viewport identity may still have no live surface
+        // after suspension. Do not grant input until an actual candidate binds.
+        if (proxies_.at(tile.window)->layout_absent) continue;
+        auto& input = proxies_.at(tile.window)->input;
+        input.input.commit(frame.frame_identity, commit_ticks, binding->layout, tile);
+        if (binding->layout.desktop) {
+          const auto& placement = binding->layout.desktop->windows[index];
+          input.desktop.topology_generation = binding->layout.desktop->topology_generation;
+          input.desktop.placement_generation = tile.placement_generation;
+          input.desktop.bounds = placement.bounds;
+          input.desktop.movable = placement.movable;
+          input.desktop.display = *mapped_display;
+          if (!update_desktop_clip(proxies_.at(tile.window)->window.value, &input)) throw_last_error();
+          const auto slice = viewflow::windows_preview::SliceForDisplay(placement.bounds, *mapped_display);
+          input.desktop.slice_valid = slice.has_value();
+          input.desktop_clipped = !slice.has_value();
+          if (slice) {
+            input.desktop.slice = *slice;
+            input.desktop.tile_width = tile.width;
+            input.desktop.tile_height = tile.height;
+          }
+          input.desktop_move.authoritative_placement(tile.placement_generation, placement.bounds);
+        }
+        emit_atlas_recovery_notices(input.input);
+        if (keyboard_events_ && !input.input.keyboard_enabled() &&
+            !(input_recovery_ && input.input.geometry_recovery_pending()))
+          retire_pointer_input(&input.input.pointer, "keyboard-binding-changed-while-held");
+      }
+    }
+    if (!bindings_.Commit(frame.frame_identity)) bad("atlas commit identity");
+    if (dispositions_) {
+      atlas_progress(AtlasProgress::Receipt);
+      EmitDisposition(frame.frame_identity, count, deadline, "committed", commit_ticks);
+      return;
+    }
+    std::cout << "atlas-submitted frame_identity=" << frame.frame_identity
+              << " tile_count=" << count << " physical_present_receipt=false" << std::endl;
+  }
+  Compositor compositor_;
+  viewflow::windows_preview::MtaVideoCompositor& decoder_;
+  viewflow::vfgp::Parser parser_;
+  std::vector<viewflow::vfgp::Frame> parsed_frames_;
+  size_t next_parsed_{};
+  viewflow::windows_preview::AtlasFrameBindings bindings_;
+  viewflow::windows_preview::AtlasDecodeIdentities decode_identities_;
+  viewflow::windows_preview::WarmupAdmission warmup_{3};
+  std::optional<Foreground> warmup_foreground_;
+  std::optional<Foreground> sparse_atlas_;
+  bool warmup_started_{}, live_started_{};
+  std::map<viewflow::vfgp::AtlasId, std::unique_ptr<Proxy>> proxies_;
+  std::vector<std::unique_ptr<Proxy>> reserved_proxies_;
+  uint32_t last_source_raise_serial_{};
+  uint32_t proxy_capacity_{};
+  float backdrop_sigma_ = 12.0f;
+  bool dispositions_{};
+  bool pointer_events_{};
+  bool wheel_events_{};
+  bool keyboard_events_{};
+  bool input_recovery_{};
+  std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display_;
+  bool proxies_prepared_{};
+  uint64_t window_resizes_{}, window_shows_{}, late_commits_{};
+  std::string sampled_timings_;
+  std::array<BudgetTrace, 128> traces_{};
+  size_t trace_count_{};
+  uint64_t frequency_{};
+};
+
+uint32_t atlas_byte_limit(std::wstring_view text) {
+  if (text.empty()) bad("empty atlas byte limit");
+  uint32_t value = 0;
+  for (const wchar_t c : text) {
+    if (c < L'0' || c > L'9') bad("invalid atlas byte limit");
+    const auto digit = uint32_t(c - L'0');
+    if (value > (UINT32_MAX - digit) / 10) bad("atlas byte limit overflow");
+    value = value * 10 + digit;
+  }
+  return value;
+}
+int64_t atlas_signed_value(std::wstring_view text) {
+  if (text.empty()) bad("empty atlas signed value");
+  bool negative = text.front() == L'-';
+  if (negative) text.remove_prefix(1);
+  if (text.empty()) bad("invalid atlas signed value");
+  uint64_t value = 0;
+  for (const wchar_t c : text) {
+    if (c < L'0' || c > L'9') bad("invalid atlas signed value");
+    const auto digit = uint64_t(c - L'0');
+    if (value > (uint64_t(INT64_MAX) + uint64_t(negative) - digit) / 10) bad("atlas signed value overflow");
+    value = value * 10 + digit;
+  }
+  if (!negative) return int64_t(value);
+  if (value == uint64_t(INT64_MAX) + 1) return INT64_MIN;
+  return -int64_t(value);
+}
+std::optional<viewflow::windows_preview::DesktopDisplay> atlas_desktop_display(int argc, wchar_t** argv, size_t* at) {
+  if (!at || *at >= size_t(argc) || std::wstring_view(argv[*at]) != L"--atlas-desktop-v1") return {};
+  ++*at;
+  auto need = [&](std::wstring_view name) {
+    if (*at >= size_t(argc) || std::wstring_view(argv[*at]) != name) bad("atlas desktop argument order");
+    ++*at;
+  };
+  auto value = [&]() -> std::wstring_view {
+    if (*at >= size_t(argc)) bad("atlas desktop argument missing");
+    return argv[(*at)++];
+  };
+  need(L"--atlas-desktop-global-origin");
+  const auto global_x = atlas_signed_value(value()), global_y = atlas_signed_value(value());
+  need(L"--atlas-desktop-physical-rect");
+  const auto physical_x = atlas_signed_value(value()), physical_y = atlas_signed_value(value());
+  const auto physical_width = atlas_byte_limit(value()), physical_height = atlas_byte_limit(value());
+  need(L"--atlas-desktop-scale-milli");
+  const auto scale = atlas_byte_limit(value());
+  if (physical_x < INT32_MIN || physical_x > INT32_MAX || physical_y < INT32_MIN || physical_y > INT32_MAX ||
+      !physical_width || !physical_height || physical_width > INT_MAX || physical_height > INT_MAX || !scale)
+    bad("atlas desktop display range");
+  viewflow::windows_preview::DesktopDisplay display{global_x, global_y, int32_t(physical_x), int32_t(physical_y),
+      physical_width, physical_height, scale};
+  if (!viewflow::windows_preview::ValidDisplay(display)) bad("atlas desktop display invalid");
+  return display;
+}
+int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t proxy_capacity = 0,
+                      bool dispositions = false, bool pointer_events = false, bool wheel_events = false, bool keyboard_events = false,
+                      bool input_recovery = false,
+                      std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {}, uint32_t color_codec = 2) {
+  KeyboardClockReport clock_report(keyboard_events);
+  LARGE_INTEGER keyboard_frequency{};
+  if (keyboard_events && (!QueryPerformanceFrequency(&keyboard_frequency) || keyboard_frequency.QuadPart <= 0))
+    bad("keyboard clock frequency unavailable");
+  if (keyboard_events && !wheel_events) bad("atlas keyboard requires wheel capability");
+  if (input_recovery && (!keyboard_events || max_frame_bytes < viewflow::vfgp::input_recovery_bytes))
+    bad("atlas input recovery requires keyboard capability and control-record capacity");
+  if (desktop_display && (!dispositions || !pointer_events || !wheel_events || !keyboard_events || !input_recovery))
+    bad("atlas desktop requires disposition pointer wheel keyboard and recovery capabilities");
+  if (wheel_events && (!pointer_events || !dispositions)) bad("atlas wheel requires pointer dispositions");
+  wchar_t ime_flag[2]{};
+  const DWORD ime_length = GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_DIAGNOSTIC_NO_IME", ime_flag, 2);
+  if (ime_length && (ime_length != 1 || ime_flag[0] != L'1')) bad("invalid atlas IME diagnostic flag");
+  if (pointer_events || ime_length) {
+    // This process owns render/input proxies, not local text editors. Physical
+    // keyboard composition belongs to the source application/IME. Initialize
+    // before COM or proxy startup can create top-level windows on this thread.
+    if (!viewflow::windows_preview::configure_remote_input_ime(true))
+      bad("atlas remote-input IME policy initialization failed");
+    std::cerr << "atlas-input-ime disabled=true scope=ui-thread policy=source-composition\n";
+  }
+  wchar_t progress_flag[2]{};
+  const DWORD progress_length = GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_PROGRESS_DIAGNOSTICS", progress_flag, 2);
+  if (progress_length && (progress_length != 1 || progress_flag[0] != L'1')) bad("invalid atlas progress diagnostic flag");
+  AtlasProgressWatchdog progress_watchdog(progress_length == 1);
+  if (pointer_events && (!EnableMouseInPointer(TRUE) || !IsMouseInPointerEnabled()))
+    bad("high-resolution atlas pointer input unavailable");
+  if (max_frame_bytes < 112) bad("atlas frame byte limit too small");
+  if (proxy_capacity > 4096) bad("atlas proxy capacity too large");
+  enter_stage("atlas-video-decoder");
+  viewflow::windows_preview::MtaVideoCompositor decoder;
+  check_hresult(decoder.Initialize(color_codec));
+  enter_stage("atlas-sta-apartment");
+  init_apartment(apartment_type::single_threaded);
+  enter_stage("atlas-dispatcher-queue");
+  DispatcherQueueOptions options{sizeof(options), DQTYPE_THREAD_CURRENT, DQTAT_COM_STA};
+  com_ptr<ABI::Windows::System::IDispatcherQueueController> queue;
+  check_hresult(CreateDispatcherQueueController(options, queue.put()));
+  enter_stage("atlas-dpi-context");
+  if (!SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) throw_last_error();
+  enter_stage("atlas-compositor");
+  Compositor compositor;
+  enter_stage("atlas-presenter");
+  AtlasNativePresenter presenter(compositor, decoder, max_frame_bytes, proxy_capacity, dispositions, pointer_events, wheel_events, keyboard_events, input_recovery, desktop_display);
+  DesktopMoveKeyboardHook move_keyboard_hook(desktop_display.has_value());
+  enter_stage("atlas-pipe");
+  HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+  if (!input || input == INVALID_HANDLE_VALUE || GetFileType(input) != FILE_TYPE_PIPE) bad("atlas mode requires stdin pipe");
+  CompressedPipeReader reader(input);
+  // Windows runs a nested message loop during native move/size and Snap.
+  // Continue nonblocking decode/pipe work there so a long drag cannot starve
+  // frame receipts or stall the whole stream behind DefWindowProc.
+  atlas_modal_pump = [&] {
+    for (unsigned batch = 0; batch < 32; ++batch) {
+      if (presenter.WorkPending()) {
+        if (!presenter.Advance()) return;
+        continue;
+      }
+      std::array<uint8_t, CompressedPipeReader::chunk_bytes> chunk{};
+      DWORD count{};
+      if (reader.take(&chunk, &count)) { presenter.Push({chunk.data(), count}); continue; }
+      DWORD error{};
+      if (reader.terminal(&error)) {
+        if (error != ERROR_SUCCESS) check_hresult(HRESULT_FROM_WIN32(error));
+        presenter.Finish(); PostQuitMessage(0);
+      }
+      return;
+    }
+  };
+  struct ModalPumpLifetime { ~ModalPumpLifetime() { atlas_modal_pump = {}; } } modal_pump_lifetime;
+  std::cout << (desktop_display ? "atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1 desktop=v1 move_mode=win"
+              : input_recovery ? "atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1"
+              : keyboard_events ? "atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1"
+              : wheel_events ? "atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1"
+              : pointer_events ? "atlas-native-ready disposition=v1 input_enabled=true pointer=v1"
+              : dispositions ? "atlas-native-ready disposition=v1 input_enabled=false"
+                            : "atlas-native-ready input_enabled=false") << std::endl;
+  for (;;) {
+    atlas_progress(AtlasProgress::Messages);
+    MSG message{};
+    for (;;) {
+      atlas_progress(AtlasProgress::Messages);
+      if (keyboard_events) sample_keyboard_clock(uint64_t(keyboard_frequency.QuadPart));
+      if (!PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) break;
+      if (message.message == WM_QUIT) {
+        if (atlas_modal_error) std::rethrow_exception(atlas_modal_error);
+        return 0;
+      }
+      TranslateMessage(&message); DispatchMessageW(&message);
+    }
+    if (presenter.WorkPending()) {
+      if (presenter.Advance()) continue;
+      HANDLE decoded = presenter.DecodeReadyEvent();
+      if (!decoded) bad("atlas pending work has no completion event");
+      // The MTA owns input bytes until completion. Keep servicing native input
+      // without nested dispatch inside a decode/copy/visual mutation operation.
+      if (MsgWaitForMultipleObjectsEx(1, &decoded, INFINITE, QS_ALLINPUT,
+                                      MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
+      continue;
+    }
+    std::array<uint8_t, CompressedPipeReader::chunk_bytes> chunk{};
+    DWORD count{};
+    if (reader.take(&chunk, &count)) { presenter.Push({chunk.data(), count}); continue; }
+    DWORD error{};
+    if (reader.terminal(&error)) {
+      if (error != ERROR_SUCCESS) check_hresult(HRESULT_FROM_WIN32(error));
+      presenter.Finish(); return 0;
+    }
+    HANDLE ready = reader.ready_event();
+    atlas_progress(AtlasProgress::Idle);
+    if (MsgWaitForMultipleObjectsEx(1, &ready, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
+  }
+}
+} // namespace
+int wmain(int argc, wchar_t **argv) try {
+  enter_stage("timer-resolution");
+  viewflow::windows_preview::TimerResolutionGuard timer_resolution;
+  if (!timer_resolution.active()) {
+    std::cerr << "timeBeginPeriod(1) failed: " << timer_resolution.result()
+              << std::endl;
+    return 2;
+  }
+  enter_stage("arguments");
+  if (argc >= 2 && std::wstring_view(argv[1]) == L"--stdin-atlas-v5") {
+    // Keep every v5/v6 invocation byte-for-byte compatible, while making the
+    // V7 desktop tail explicit and strictly ordered after all old flags.
+    size_t at = 2; size_t max = default_max_frame_bytes; uint32_t capacity = 0;
+    bool dispositions = false, pointer = false, wheel = false, keyboard = false, recovery = false;
+    // Explicit launch capability: an older presenter rejects this before any live stream starts.
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-sparse-v1") ++at;
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--max-frame-bytes") {
+      if (at + 1 >= size_t(argc)) bad("atlas max frame value missing");
+      max = atlas_byte_limit(argv[at + 1]); at += 2;
+    }
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-proxy-capacity") {
+      if (at + 1 >= size_t(argc)) bad("atlas proxy capacity missing");
+      capacity = atlas_byte_limit(argv[at + 1]); at += 2;
+      if (!capacity || capacity > 4096) bad("atlas proxy capacity out of range");
+    }
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-disposition-v1") { dispositions = true; ++at; }
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-pointer-v1") { pointer = true; ++at; }
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-wheel-v1") { wheel = true; ++at; }
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-keyboard-v1") { keyboard = true; ++at; }
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-input-recovery-v1") { recovery = true; ++at; }
+    auto desktop = atlas_desktop_display(argc, argv, &at);
+    uint32_t color_codec = 2;
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-color-codec") {
+      if (at + 1 >= size_t(argc)) bad("atlas codec missing");
+      const std::wstring_view codec(argv[at + 1]);
+      if (codec == L"av1") color_codec = 4;
+      else if (codec != L"h264") bad("unsupported atlas codec");
+      at += 2;
+    }
+    if (at != size_t(argc) || (pointer && !dispositions) || (wheel && !pointer) ||
+        (keyboard && !wheel) || (recovery && !keyboard)) bad("atlas option order or dependency");
+    return run_atlas_preview(max, capacity, dispositions, pointer, wheel, keyboard, recovery, desktop, color_codec);
+  }
+  auto o = options(argc, argv);
+  if (o.emit_pointer_motion && (!EnableMouseInPointer(TRUE) || !IsMouseInPointerEnabled()))
+    bad("high-resolution mouse pointer input unavailable");
+  Frame initial;
+  bool have_initial = !o.stdin_frames && !o.stdin_compressed;
+  if (have_initial)
+    initial = vfbg(o.file, o.max_frame_bytes);
+  enter_stage("media-foundation");
+  // The decoder worker owns both MF startup and shutdown on its MTA.
+  viewflow::windows_preview::MtaVideoCompositor gpu_compositor;
+  if (o.stdin_compressed) {
+    enter_stage("compressed-gpu-compositor");
+    check_hresult(gpu_compositor.Initialize());
+  }
+  enter_stage("apartment");
+  init_apartment(apartment_type::single_threaded);
+  enter_stage("dispatcher");
+  DispatcherQueueOptions dq{sizeof(dq), DQTYPE_THREAD_CURRENT, DQTAT_COM_STA};
+  com_ptr<ABI::Windows::System::IDispatcherQueueController> queue;
+  check_hresult(CreateDispatcherQueueController(dq, queue.put()));
+  if (!SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
+    throw_last_error();
+  enter_stage("create-window");
+  HWND hwnd = window(1, 1);
+  stage = "window-geometry";
+  WindowOwner window_owner{hwnd};
+  viewflow::windows_preview::PointerMotionState pointer_motion(o.emit_pointer_motion, o.emit_pointer_buttons);
+  PointerMotionWindowBinding pointer_motion_binding(
+      hwnd, o.emit_pointer_motion ? &pointer_motion : nullptr);
+  enter_stage("enable-host-backdrop");
+  BOOL host_backdrop = TRUE;
+  check_hresult(DwmSetWindowAttribute(hwnd, DWMWA_USE_HOSTBACKDROPBRUSH,
+                                      &host_backdrop, sizeof(host_backdrop)));
+  uint32_t dpi = GetDpiForWindow(hwnd);
+  float scale = float(dpi) / 96;
+  auto target_width = scaled_pixel(o.logical_w, scale);
+  auto target_height = scaled_pixel(o.logical_h, scale);
+  PixelRect r{scaled_pixel(o.rect.x, scale), scaled_pixel(o.rect.y, scale),
+              scaled_pixel(o.rect.w, scale), scaled_pixel(o.rect.h, scale)};
+  if (!target_width || !target_height || !r.w || !r.h ||
+      uint64_t(r.x) + r.w > target_width || uint64_t(r.y) + r.h > target_height)
+    bad("logical blur rectangle outside VFBG");
+  if (!SetWindowPos(hwnd, nullptr, 80, 80, int(target_width),
+                    int(target_height), SWP_NOACTIVATE | SWP_NOZORDER))
+    throw_last_error();
+  enter_stage("composition-device");
+  auto compositor = Compositor();
+  enter_stage("desktop-target");
+  auto desktop = compositor.as<
+      ABI::Windows::UI::Composition::Desktop::ICompositorDesktopInterop>();
+  void *target_ptr{};
+  check_hresult(desktop->CreateDesktopWindowTarget(
+      hwnd, true,
+      reinterpret_cast<
+          ABI::Windows::UI::Composition::Desktop::IDesktopWindowTarget **>(
+          &target_ptr)));
+  auto target = DesktopWindowTarget{target_ptr, take_ownership_from_abi};
+  Blur effect;
+  enter_stage("blur-factory");
+  effect.sigma = o.radius * scale;
+  effect.Source(CompositionEffectSourceParameter(L"backdrop"));
+  auto properties = single_threaded_vector<hstring>();
+  properties.Append(L"ViewflowBlur.Sigma");
+  auto blur_brush =
+      compositor.CreateEffectFactory(effect, properties).CreateBrush();
+  blur_brush.SetSourceParameter(L"backdrop",
+                                compositor.CreateHostBackdropBrush());
+  auto root = compositor.CreateContainerVisual();
+  auto blur = compositor.CreateSpriteVisual();
+  blur.Brush(blur_brush);
+  blur.Offset({float(r.x), float(r.y), 0});
+  blur.Size({float(r.w), float(r.h)});
+  root.Children().InsertAtBottom(blur);
+  enter_stage("foreground");
+  auto foreground_state =
+      foreground(compositor, float(target_width), float(target_height),
+                 o.stdin_compressed ? gpu_compositor.device() : nullptr);
+  uint64_t submitted = 0;
+  if (have_initial) {
+    update(foreground_state, compositor, initial);
+    ++submitted;
+  }
+  root.Children().InsertAtTop(foreground_state.visual);
+  target.Root(root);
+  enter_stage("show-window");
+  ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+  std::cout << "composition preview ready; submitted_frames=" << submitted
+            << "; rectangular host-backdrop blur remains diagnostic only"
+            << std::endl;
+  StdinFrames stdin_frames{};
+  if (o.stdin_frames) {
+    stdin_frames.handle = GetStdHandle(STD_INPUT_HANDLE);
+    stdin_frames.max_frame_bytes = o.max_frame_bytes;
+    if (!stdin_frames.handle || stdin_frames.handle == INVALID_HANDLE_VALUE ||
+        GetFileType(stdin_frames.handle) != FILE_TYPE_PIPE)
+      bad("stdin-frames requires an anonymous pipe");
+  }
+  StdinCompressed stdin_compressed{o.max_frame_bytes, o.require_deadline_v4,
+                                  o.warmup_frames, o.recover_expired_v4};
+  std::unique_ptr<CompressedPipeReader> compressed_reader;
+  if (o.stdin_compressed) {
+    HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+    if (!input || input == INVALID_HANDLE_VALUE ||
+        GetFileType(input) != FILE_TYPE_PIPE)
+      bad("stdin-compressed requires an anonymous pipe");
+    compressed_reader = std::make_unique<CompressedPipeReader>(input);
+  }
+  auto until = GetTickCount64() + o.visible_ms;
+  MSG msg{};
+  uint32_t timed_compressed_presentations = 0;
+  while (GetTickCount64() < until) {
+    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+      if (msg.message == WM_QUIT) {
+        return 0;
+      }
+      TranslateMessage(&msg);
+      DispatchMessageW(&msg);
+    }
+    if (o.stdin_compressed) {
+      // One 64 KiB pipe read wakes this STA immediately, while UI messages use
+      // the same wait.  There is intentionally no polling or timer here.
+      std::array<uint8_t, CompressedPipeReader::chunk_bytes> chunk{};
+      DWORD count{};
+      uint64_t read_completed_qpc{};
+      if (compressed_reader->take(&chunk, &count, &read_completed_qpc)) {
+        LARGE_INTEGER chunk_taken{};
+        QueryPerformanceCounter(&chunk_taken);
+        std::vector<viewflow::windows::CompositedFrame> completed;
+        stage = "compressed-input";
+        stdin_compressed.push(chunk.data(), count, gpu_compositor, &completed);
+        for (auto const &frame : completed) {
+          auto presentation_started = std::chrono::steady_clock::now();
+          stdin_compressed.log_decode_duration(frame.frame_identity);
+          if (stdin_compressed.decode_only_identities.erase(frame.frame_identity)) {
+            // A startup warmup is submitted to MF/D3D with the real codec and
+            // dimensions, then deliberately discarded. It must never alter the
+            // composition tree or look like a presenter acknowledgement.
+            update_gpu(foreground_state, compositor, frame, false);
+            if (foreground_state.visual.Brush())
+              bad("decode-only warmup bound foreground");
+            if (!stdin_compressed.warmup.complete(frame.frame_identity))
+              bad("decode-only warmup completion mismatch");
+            std::cout << "decode-only completed frame_identity=" << frame.frame_identity
+                      << " width=" << frame.width << " height=" << frame.height << std::endl;
+            std::cout.flush();
+            continue;
+          }
+          if (o.require_deadline_v4) {
+            if (timed_compressed_presentations < diagnostic_frame_limit)
+              std::cerr << "composition stage begin frame=" << frame.frame_identity
+                        << std::endl;
+            // The candidate is unbound while the entire GPU copy runs. A
+            // second QPC check immediately before the visual swap ensures an
+            // expired frame cannot overwrite the already-visible surface.
+            if (!stdin_compressed.admit_before_presentation(frame.frame_identity, "before-copy"))
+              continue;
+            auto candidate = stage_gpu_surface(foreground_state, compositor, frame);
+            if (!stdin_compressed.admit_before_presentation(frame.frame_identity, "after-copy"))
+              continue; // candidate stayed unbound and is destroyed here.
+            commit_gpu_surface(foreground_state, std::move(candidate));
+            stdin_compressed.commit_live_presentation(frame.frame_identity);
+          } else {
+            update_gpu(foreground_state, compositor, frame);
+          }
+          ++submitted;
+          if (o.emit_pointer_motion) {
+            LARGE_INTEGER committed{};
+            if (!QueryPerformanceCounter(&committed) || committed.QuadPart <= 0)
+              bad("pointer visual commit clock unavailable");
+            pointer_motion.commit_presented(frame.frame_identity, static_cast<uint64_t>(committed.QuadPart));
+          }
+          std::cout << "submitted frame_identity=" << frame.frame_identity
+                    << " submitted_frames=" << submitted << " width="
+                    << frame.width << " height=" << frame.height << std::endl;
+          std::cout.flush();
+          if (timed_compressed_presentations++ < diagnostic_frame_limit) {
+            const auto presentation_elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - presentation_started).count();
+            LARGE_INTEGER ack_flushed{}, diagnostic_frequency{};
+            QueryPerformanceCounter(&ack_flushed);
+            QueryPerformanceFrequency(&diagnostic_frequency);
+            std::cerr << "native delivery timing frame=" << frame.frame_identity
+                      << " last_chunk_read_qpc=" << read_completed_qpc
+                      << " last_chunk_take_qpc=" << chunk_taken.QuadPart
+                      << " ack_flushed_qpc=" << ack_flushed.QuadPart
+                      << " qpc_frequency=" << diagnostic_frequency.QuadPart << std::endl;
+            std::cerr << "compressed composition_submit_us="
+                      << presentation_elapsed
+                      << " frame_identity=" << frame.frame_identity << std::endl;
+          }
+        }
+      }
+      DWORD pipe_error{};
+      if (compressed_reader->terminal(&pipe_error)) {
+        if (pipe_error != ERROR_SUCCESS)
+          throw hresult_error(HRESULT_FROM_WIN32(pipe_error));
+        std::vector<viewflow::windows::CompositedFrame> completed;
+        stage = "compressed-eof";
+        stdin_compressed.finish(gpu_compositor, &completed);
+        for (auto const &frame : completed) {
+          stdin_compressed.log_decode_duration(frame.frame_identity);
+          if (stdin_compressed.decode_only_identities.erase(frame.frame_identity)) {
+            update_gpu(foreground_state, compositor, frame, false);
+            if (foreground_state.visual.Brush())
+              bad("decode-only warmup bound foreground");
+            if (!stdin_compressed.warmup.complete(frame.frame_identity))
+              bad("decode-only warmup completion mismatch");
+            std::cout << "decode-only completed frame_identity=" << frame.frame_identity
+                      << " width=" << frame.width << " height=" << frame.height << std::endl;
+            continue;
+          }
+          if (o.require_deadline_v4) {
+            if (!stdin_compressed.admit_before_presentation(frame.frame_identity, "before-copy"))
+              continue;
+            auto candidate = stage_gpu_surface(foreground_state, compositor, frame);
+            if (!stdin_compressed.admit_before_presentation(frame.frame_identity, "after-copy"))
+              continue;
+            commit_gpu_surface(foreground_state, std::move(candidate));
+            stdin_compressed.commit_live_presentation(frame.frame_identity);
+          } else {
+            update_gpu(foreground_state, compositor, frame);
+          }
+          ++submitted;
+          if (o.emit_pointer_motion) {
+            LARGE_INTEGER committed{};
+            if (!QueryPerformanceCounter(&committed) || committed.QuadPart <= 0)
+              bad("pointer visual commit clock unavailable");
+            pointer_motion.commit_presented(frame.frame_identity, static_cast<uint64_t>(committed.QuadPart));
+          }
+          std::cout << "submitted frame_identity=" << frame.frame_identity
+                    << " submitted_frames=" << submitted << " width="
+                    << frame.width << " height=" << frame.height << std::endl;
+        }
+        if (!stdin_compressed.warmup.finish())
+          bad("incomplete decode-only warmup at EOF");
+        return 0;
+      }
+      auto now = GetTickCount64();
+      DWORD wait_ms = now >= until ? 0 : DWORD((std::min)(until - now,
+          uint64_t((std::numeric_limits<DWORD>::max)())));
+      HANDLE event = compressed_reader->ready_event();
+      DWORD wait = MsgWaitForMultipleObjectsEx(1, &event, wait_ms, QS_ALLINPUT,
+                                                MWMO_INPUTAVAILABLE);
+      if (wait == WAIT_FAILED)
+        throw_last_error();
+      continue;
+    }
+    bool read_progress = false;
+    if (o.stdin_frames) {
+      Frame latest;
+      bool have_latest = false;
+      read_progress = stdin_frames.tick(latest, have_latest);
+      if (have_latest) {
+        update(foreground_state, compositor, latest);
+        ++submitted;
+        std::cout << "submitted_frames=" << submitted << " width=" << latest.w
+                  << " height=" << latest.h << std::endl;
+      }
+      if (stdin_frames.eof)
+        return 0;
+    }
+    if (!read_progress)
+      Sleep(o.stdin_frames ? 1 : 8);
+  }
+  return 0;
+} catch (hresult_error const &e) {
+  report_native_failure(e);
+  return 2;
+}
