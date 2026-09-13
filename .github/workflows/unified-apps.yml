@@ -30,6 +30,7 @@ jobs:
         run: |
           $env:PATH = "${env:ProgramFiles(x86)}\Inno Setup 6;" + $env:PATH
           python tools/build-desktop-app.py --output dist/Viewflow
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python tools/package-windows-msi.py --app dist/Viewflow --output dist/Viewflow-0.1.0-x64.msi
       - name: Verify MSI extraction and packaged file hashes
         shell: pwsh

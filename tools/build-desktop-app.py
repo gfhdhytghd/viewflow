@@ -156,7 +156,7 @@ def package(args):
     target = 'windows' if sys.platform == 'win32' else 'linux' if sys.platform == 'linux' else None
     if target is None: raise ValueError('use build-macos-app.py for macOS')
     if platform.machine().lower() not in ('x86_64', 'amd64'): raise ValueError('current Windows/Linux native builds target x86_64')
-    source = source_metadata()
+    build_source = source_metadata()
     destination = args.output.resolve()
     if destination.exists(): raise ValueError('output must be a new directory; installed apps are not overwritten')
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -205,7 +205,7 @@ def package(args):
         manifest = {'schema_version': 1, 'platform': target, 'architecture': 'x86_64',
                     'build_system': platform.platform(), 'libc': platform.libc_ver() if target == 'linux' else None,
                     'programs': {x: 'bin/' + x + extension for x in PROGRAMS[target]},
-                    'build': dict(source, desktop_input_verified=False),
+                    'build': dict(build_source, desktop_input_verified=False),
                     'scripts': ['desktop-autostart-linux', 'native-trackpad-forward'] if target == 'linux' else [],
                     'hid': 'windows-system-input-api' if target == 'windows' else 'hyprland-and-evdev',
                     'libraries': extra_libraries}
