@@ -46,9 +46,10 @@ jobs:
             $path = Join-Path $manifest.DirectoryName $file.Name
             if ((Get-FileHash $path -Algorithm SHA256).Hash.ToLower() -ne $file.Value) { throw "Hash mismatch: $($file.Name)" }
           }
-          & (Join-Path $manifest.DirectoryName 'Viewflow.exe') --check-bundle
-          if ($LASTEXITCODE -ne 0) { throw 'Extracted bundle validation failed' }
+          $check = Start-Process (Join-Path $manifest.DirectoryName 'Viewflow.exe') -ArgumentList '--check-bundle' -Wait -PassThru
+          if ($check.ExitCode -ne 0) { throw "Extracted bundle validation failed: $($check.ExitCode)" }
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Viewflow-Windows-Installer-Unvalidated-Input
           path: |
