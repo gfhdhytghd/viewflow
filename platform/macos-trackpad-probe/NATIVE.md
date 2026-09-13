@@ -73,6 +73,27 @@ Apple Size or anatomical finger identity through these evdev fields: Size uses
 mean contact diameter and classification uses ordinary finger (2). These are
 explicit approximations to evaluate in physical acceptance, not raw-HID parity.
 
+### Shared receiver clock (2026-09-12)
+
+`TrackpadBridge.receiveStream` replaces incoming scan ticks with the Mac
+receiver's monotonic clock before submitting to the shared virtual device.
+Desktop and window producers have unrelated uptime epochs. Passing those
+epochs directly to the device can trigger its backwards-timestamp recovery,
+advancing native time only 1 ms per report and delaying short gestures.
+The receiver uses ABI-2's 100 us units and wraps at the native 21-bit
+millisecond period. Contact contents, button edges, and stream order are
+unchanged; this adds no gesture timer or minimum contact duration.
+
+`stream_receiver_test.swift` exercises unrelated producer epochs, wraparound,
+and preserved report contents with an injected receiver clock.
+
+Driver version 13 also preserves source-to-source timestamp deltas after a
+backwards clock handoff. Recovery advances one tick once, then retains the
+subsequent report cadence; failed submissions do not advance the source anchor.
+The user confirmed on 2026-09-13 that the issue was resolved after restarting
+the Mac to complete the pending driver upgrade. See the
+[verification record](../../docs/evidence/macos-hid-clock-20260912/README.md).
+
 The driver turns each snapshot into a 12-byte native header plus 9 bytes per
 contact, including packed signed 13-bit coordinates, begin/move/end state,
 button, timestamp, pressure and contact dimensions. Feature requests expose
