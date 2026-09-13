@@ -177,7 +177,8 @@ impl DesktopWindowClient {
     ///
     /// Returns an error if the local endpoint cannot be verified or the
     /// controller rejects the token, deadline, sequence, or move.
-    pub fn move_window(&self, request: &MoveRequest) -> Result<(), DesktopWindowError> {
+    /// Returns the renewed idle enrollment deadline when supported by the plugin.
+    pub fn move_window(&self, request: &MoveRequest) -> Result<Option<u64>, DesktopWindowError> {
         let encoded = serde_json::json!({
             "version": VERSION, "operation": "move",
             "localWindowId": request.local_window_id, "token": request.token,
@@ -187,8 +188,10 @@ impl DesktopWindowClient {
             "desiredFullCaptureWidth": request.desired_full_capture_width,
             "desiredFullCaptureHeight": request.desired_full_capture_height,
         });
-        self.invoke(&encoded)?;
-        Ok(())
+        let reply = self.invoke(&encoded)?;
+        Ok(reply
+            .get("expiresAtMonotonicNs")
+            .and_then(serde_json::Value::as_u64))
     }
 
     /// Releases only the matching owned enrollment; `restore` requests its retained origin.
@@ -348,6 +351,9 @@ fn open_private_file(path: &Path) -> Result<File, DesktopWindowError> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
+            .create(true)
+            .truncate(false)
+            .mode(0o600)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
             .open(path)?;
         let metadata = file.metadata()?;
@@ -393,6 +399,9 @@ mod tests {
     #[test]
     fn fake_ipc_verifies_peer_and_round_trips_private_reply() {
         let (directory, request_path) = private_file("ok");
+        // Empty-desktop startup may create only the private directory. The
+        // adapter must create its exchange file before the first operation.
+        std::fs::remove_file(&request_path).unwrap();
         let socket_path = directory.join("hypr.sock");
         let listener = UnixListener::bind(&socket_path).unwrap();
         // Hyprland 0.56.2 exposes its command socket as mode 0755, inside an
@@ -425,6 +434,13 @@ mod tests {
             })
             .unwrap();
         assert_eq!(enrolled.local_window_id, "owned");
+        assert_eq!(
+            std::fs::metadata(directory.join("request.json"))
+                .unwrap()
+                .mode()
+                & 0o777,
+            0o600
+        );
         assert!(
             received
                 .recv()

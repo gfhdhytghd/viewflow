@@ -32,7 +32,7 @@ public:
                     std::unique_lock lock(mutex_);
                     changed_.wait(lock, [&] { return stopped_ || !queue_.empty(); });
                     if (stopped_) break;
-                    record = std::move(queue_.front()); queue_.pop_front();
+                    record = std::move(queue_.front()); queue_.pop_front(); changed_.notify_all();
                 }
                 std::span<const uint8_t> bytes(record);
                 while (!bytes.empty() && !stopped_) {
@@ -42,22 +42,28 @@ public:
                     if (count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                         pollfd fd{STDOUT_FILENO, POLLOUT, 0}; poll(&fd, 1, 50); continue;
                     }
-                    stopped_ = true;
+                    stop();
                 }
             }
+            changed_.notify_all();
         });
     }
+    void stop() {
+        { std::lock_guard lock(mutex_); stopped_ = true; }
+        changed_.notify_all();
+    }
     ~Output() {
-        stopped_ = true; changed_.notify_all();
+        stop();
         if (worker_.joinable()) worker_.join();
         fcntl(STDOUT_FILENO, F_SETFL, flags_);
     }
     bool alive() const { return !stopped_; }
     bool ready() { std::lock_guard lock(mutex_); return !stopped_ && queue_.size() < capacity_; }
-    bool push(std::vector<uint8_t> record) {
+    bool push(std::vector<uint8_t> record, bool wait_for_space = false) {
         reverse::Writer prefix; prefix.u32(static_cast<uint32_t>(record.size()));
         record.insert(record.begin(), prefix.bytes.begin(), prefix.bytes.end());
-        std::lock_guard lock(mutex_);
+        std::unique_lock lock(mutex_);
+        if (wait_for_space) changed_.wait(lock, [&] { return stopped_ || queue_.size() < capacity_; });
         if (stopped_ || queue_.size() >= capacity_) return false;
         queue_.push_back(std::move(record)); changed_.notify_one(); return true;
     }

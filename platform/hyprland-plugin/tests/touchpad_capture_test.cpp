@@ -30,7 +30,13 @@ int main() {
   };
   set(0, 99, -2000, -1000);
   set(3, 100, 2000, 1000);
+  state.event(EV_ABS, ABS_MT_PRESSURE, 21);
+  state.event(EV_ABS, ABS_MT_TOUCH_MAJOR, 108);
+  state.event(EV_ABS, ABS_MT_TOUCH_MINOR, 76);
+  state.event(EV_ABS, ABS_MT_ORIENTATION, -2);
   auto frame = state.snapshot();
+  assert(frame.contacts[1].pressure == 21 && frame.contacts[1].major == 108);
+  assert(frame.contacts[1].minor == 76 && frame.contacts[1].orientation == -2);
   assert(frame.width == 10000 && frame.height == 5000 && frame.count == 2);
   assert(frame.contacts[0].id == 99 && frame.contacts[0].x == 2500 && frame.contacts[0].y == 1250);
   assert(frame.contacts[1].id == 100 && frame.contacts[1].x == 7500);

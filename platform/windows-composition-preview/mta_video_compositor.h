@@ -1,5 +1,6 @@
 #pragma once
 #include "video_compositor.h"
+#include "mmcss_scope.h"
 #include "signalled_task.h"
 #include <mfapi.h>
 #include <condition_variable>
@@ -38,6 +39,7 @@ class MtaVideoCompositor {
     std::promise<HRESULT> ready;
     auto result = ready.get_future();
     worker_ = std::thread([this, workers, color_codec, ready = std::move(ready)]() mutable {
+      MmcssScope multimedia_schedule("decoder");
       HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
       if (FAILED(hr)) { ready.set_value(hr); return; }
       hr = MFStartup(MF_VERSION);

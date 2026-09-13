@@ -11,6 +11,7 @@ pub(crate) struct DesktopReceiverState {
     active: Option<DesktopWindowMove>,
     pending: Option<DesktopWindowMove>,
     pending_ordinal: u64,
+    pending_delay_reported: bool,
     native_sequence: u64,
     deferred: Option<AtlasDesktopMove>,
     confirmed_end_ordinal: u64,
@@ -74,11 +75,15 @@ impl DesktopReceiverState {
     pub(crate) fn pending(&self) -> bool {
         self.pending.is_some()
     }
-    pub(crate) fn check_deadline(&self, now: u64) -> Result<()> {
-        ensure!(
-            self.pending.is_none_or(|p| now < p.sender_not_after_ns),
-            "desktop move acknowledgement expired"
-        );
+    pub(crate) fn check_deadline(&mut self, now: u64) -> Result<()> {
+        if !self.pending_delay_reported
+            && self.pending.is_some_and(|p| now >= p.sender_not_after_ns)
+        {
+            self.pending_delay_reported = true;
+            eprintln!("desktop move acknowledgement delayed; retaining ordered gesture and media");
+        }
+        // The source checks operation admission and completes/rejects it locally.
+        // Its delayed receipt cannot revoke an already executed geometry write.
         Ok(())
     }
 
@@ -244,6 +249,7 @@ impl DesktopReceiverState {
             .map_err(|e| anyhow::anyhow!("invalid desktop intent: {e:?}"))?;
         self.active = Some(movement);
         self.pending = Some(movement);
+        self.pending_delay_reported = false;
         self.pending_ordinal = event.ingress_ordinal();
         self.native_sequence = selection.sequence;
         Ok(movement)
@@ -703,7 +709,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_begin_rejects_stale_or_mismatched_ack_without_opening_another_gesture() {
+    fn pending_begin_retains_late_ack_and_rejects_mismatched_lineage() {
         let mut state = DesktopReceiverState::default();
         let frames = VecDeque::from([frame(true)]);
         let begin = state
@@ -718,7 +724,19 @@ mod tests {
                 .prepare(event(Phase::Begin, 1), Id128(1), Id128(2), 600, &frames)
                 .is_err()
         );
-        assert!(state.check_deadline(500).is_err());
+        state.check_deadline(500).unwrap();
+        assert!(state.pending_delay_reported && state.active() && state.pending());
+        assert!(state.acknowledge(wrong, 5_000).is_err());
+        state
+            .acknowledge(ack(begin, Outcome::Applied), 5_001)
+            .unwrap();
+        let end = state
+            .prepare(event(Phase::End, 2), Id128(1), Id128(2), 6_000, &frames)
+            .unwrap();
+        assert!(!state.pending_delay_reported);
+        state.acknowledge(ack(end, Outcome::Ended), 7_000).unwrap();
+        assert!(!state.active() && !state.pending());
+        assert!(!state.allows_native_ordinal(2));
     }
 
     #[test]

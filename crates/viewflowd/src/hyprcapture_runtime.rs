@@ -473,6 +473,43 @@ pub async fn start_viewflow_gpu_stream(
     compositor_pid: u32,
     timeout: Duration,
 ) -> Result<GpuStreamSession> {
+    start_viewflow_gpu_stream_with_mode(
+        window_address,
+        fps,
+        compositor_pid,
+        timeout,
+        crate::atlas_peer::AtlasPerformanceMode::FrameRate,
+    )
+    .await
+}
+
+fn viewflow_start_expression(
+    expression: &str,
+    mode: crate::atlas_peer::AtlasPerformanceMode,
+) -> String {
+    let expression = provider_expression(expression, true);
+    if mode == crate::atlas_peer::AtlasPerformanceMode::Latency {
+        expression.replacen(
+            "hl.plugin.viewflow_capture.window_stream_start(",
+            "hl.plugin.viewflow_capture.window_stream_start_commit(",
+            1,
+        )
+    } else {
+        expression
+    }
+}
+
+/// Start a Viewflow stream with the requested capture scheduling mode.
+/// # Errors
+/// Latency mode requires the plugin's `window_stream_start_commit` API.
+/// Startup and cleanup otherwise retain the same GPU ownership contract.
+pub async fn start_viewflow_gpu_stream_with_mode(
+    window_address: &str,
+    fps: u16,
+    compositor_pid: u32,
+    timeout: Duration,
+    mode: crate::atlas_peer::AtlasPerformanceMode,
+) -> Result<GpuStreamSession> {
     let address = window_address.to_owned();
     tokio::task::spawn_blocking(move || {
         validate_arguments(&address, 1, timeout)?;
@@ -485,10 +522,14 @@ pub async fn start_viewflow_gpu_stream(
             Instant::now() + timeout,
             &base,
             &mut |expression, deadline| {
-                invoke_hyprctl(&provider_expression(expression, true), deadline)
+                invoke_hyprctl(&viewflow_start_expression(expression, mode), deadline)
             },
         )?;
         session.independent_provider = true;
+        eprintln!(
+            "viewflow-capture-mode requested={mode:?} fps={fps} stream={}",
+            session.request_id
+        );
         Ok(session)
     })
     .await
@@ -1280,6 +1321,25 @@ fn effective_uid() -> u32 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn performance_mode_selects_capture_start_without_changing_cleanup() {
+        use crate::atlas_peer::AtlasPerformanceMode::{FrameRate, Latency};
+        let start = "hl.plugin.hyprcapture.window_stream_start(\"/private/request.json\")";
+        assert_eq!(
+            super::viewflow_start_expression(start, FrameRate),
+            "hl.plugin.viewflow_capture.window_stream_start(\"/private/request.json\")"
+        );
+        assert_eq!(
+            super::viewflow_start_expression(start, Latency),
+            "hl.plugin.viewflow_capture.window_stream_start_commit(\"/private/request.json\")"
+        );
+        let stop = "hl.plugin.hyprcapture.window_stream_stop(\"/private/request.json\")";
+        assert_eq!(
+            super::viewflow_start_expression(stop, FrameRate),
+            super::viewflow_start_expression(stop, Latency)
+        );
+    }
+
     #[test]
     fn independent_provider_only_changes_the_lua_namespace() {
         let command = "hl.plugin.hyprcapture.window_stream_stop(\"/private/request.json\")";

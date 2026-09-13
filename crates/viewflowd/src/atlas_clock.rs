@@ -197,7 +197,10 @@ impl AtlasClockClient {
                 mapping.estimate.remote_offset_ns,
                 mapping.estimate.uncertainty_ns,
                 mapping.estimate.network_round_trip_ns,
-                mapping.valid_until.saturating_duration_since(Instant::now()).as_nanos(),
+                mapping
+                    .valid_until
+                    .saturating_duration_since(Instant::now())
+                    .as_nanos(),
             ));
         }
         Ok(mapping)

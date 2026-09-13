@@ -33,6 +33,7 @@ struct Rect {
 unsafe extern "C" {
     fn CGPreflightPostEventAccess() -> bool;
     fn CGEventSourceFlagsState(state: i32) -> u64;
+    fn CGEventSourceButtonState(state: i32, button: u32) -> bool;
     fn CGEventSourceCreate(state: i32) -> Ref;
     fn CGEventSourceSetLocalEventsSuppressionInterval(source: Ref, seconds: f64);
     fn CGEventSourceSetLocalEventsFilterDuringSuppressionState(
@@ -257,7 +258,11 @@ impl QuartzSink {
                     relative,
                     drag,
                 } => {
-                    let old = self.position.map_or_else(location, Ok)?;
+                    let old = if relative {
+                        location()?
+                    } else {
+                        self.position.map_or_else(location, Ok)?
+                    };
                     let p = clamp(if relative {
                         Point {
                             x: old.x + x,
@@ -288,7 +293,7 @@ impl QuartzSink {
                     e
                 }
                 Event::Button { button, down } => {
-                    let p = self.position.map_or_else(location, Ok)?;
+                    let p = location()?;
                     let kind = match (button, down) {
                         (0, true) => 1,
                         (0, false) => 2,
@@ -486,4 +491,17 @@ mod tests {
             assert_eq!(CGEventGetIntegerValueField(double.raw(), 1), 2);
         }
     }
+}
+
+// Reading combined session state does not create or post an input event.
+pub(super) fn observe_cursor() -> Result<(f64, f64, u32)> {
+    let point = location()?;
+    let mut buttons = 0;
+    for button in 0..5 {
+        // SAFETY: the API accepts scalar session and mouse-button identifiers.
+        if unsafe { CGEventSourceButtonState(0, button) } {
+            buttons |= 1 << button;
+        }
+    }
+    Ok((point.x, point.y, buttons))
 }

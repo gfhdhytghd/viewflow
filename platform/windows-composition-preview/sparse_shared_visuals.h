@@ -151,6 +151,10 @@ struct SharedSparseScene {
   struct Node {
     SpriteVisual background{nullptr}; ContainerVisual clip{nullptr};
     SpriteVisual pixels{nullptr}; CompositionEffectBrush masked{nullptr};
+    CompositionEffectBrush cached_masked{nullptr};
+    CompositionSurfaceBrush cached_backdrop{nullptr};
+    std::vector<SpriteVisual> cached_parts;
+    bool background_cached{};
     uint32_t atlas_x{},atlas_y{};
   };
   ContainerVisual root{nullptr};
@@ -158,6 +162,7 @@ struct SharedSparseScene {
   Compositor compositor{nullptr};
   CompositionBrush backdrop{nullptr};
   CompositionEffectFactory masked_factory{nullptr};
+  CompositionEffectFactory cached_factory{nullptr};
   winrt::Windows::Foundation::Size atlas_size{};
   std::map<Key,Node> nodes;
   std::vector<Key> order;
@@ -254,6 +259,8 @@ inline void commit_shared_sparse_visuals(SharedSparseScene& scene,SharedSparsePl
         node.pixels.Offset({-float(node.atlas_x),-float(node.atlas_y),0});
         if(node.masked)node.masked.Properties().InsertMatrix3x2(L"SparseMaskTransform.TransformMatrix",
             {1,0,0,1,-float(node.atlas_x),-float(node.atlas_y)});
+        if(node.cached_masked)node.cached_masked.Properties().InsertMatrix3x2(L"SparseMaskTransform.TransformMatrix",
+            {1,0,0,1,-float(node.atlas_x),-float(node.atlas_y)});
       }
     }
     if(reattach || !scene.nodes.contains(key)) {
@@ -286,6 +293,10 @@ inline SharedSparseScene make_shared_sparse_scene(
   scene.root=compositor.CreateContainerVisual();
   scene.brush=compositor.CreateSurfaceBrush(surface);
   scene.brush.Stretch(CompositionStretch::None);
+  // Packed patches have no replicated texel gutter. Linear filtering at a
+  // fractional window scale samples another patch or transparent atlas padding
+  // across their internal edges, producing seams in otherwise continuous pixels.
+  scene.brush.BitmapInterpolationMode(CompositionBitmapInterpolationMode::NearestNeighbor);
   scene.brush.HorizontalAlignmentRatio(0.0f);
   scene.brush.VerticalAlignmentRatio(0.0f);
   if(backdrop) {

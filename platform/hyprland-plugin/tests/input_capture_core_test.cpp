@@ -139,5 +139,22 @@ int main() {
       (*afterDrag->entryPosition)[0] != 3400 || (*afterDrag->entryPosition)[1] != 900 ||
       afterDrag->monitorId != 1 || afterDrag->anchorX != 3071) return 29;
 
+  // A decoded proxy may arrive after native release, but only the original
+  // physical press can resume. Encoded End/new press cannot revive the ticket.
+  InputCaptureCore late;
+  (void)late.button(272, true);
+  (void)late.release();
+  late.armDragReturn(42);
+  if (!late.canContinueDrag(42) || late.canContinueDrag(41)) return 31;
+  (void)late.button(272, false);
+  (void)late.button(272, true);
+  if (late.canContinueDrag(42)) return 32;
+  late.armDragReturn(43);
+  late.finishDragReturn();
+  if (late.canContinueDrag(43)) return 33;
+  late.armDragReturn(44);
+  late.resetConnection();
+  if (late.canContinueDrag(44)) return 34;
+
   return 0;
 }

@@ -23,7 +23,12 @@ class Fixture final : public QWindow, protected QOpenGLExtraFunctions {
 public:
   Fixture() {
     setTitle(QStringLiteral("Viewflow isolated 4K frame fixture"));
-    setFlags(Qt::Window | Qt::FramelessWindowHint);
+    auto flags = Qt::Window | Qt::FramelessWindowHint;
+    const bool passive = qEnvironmentVariableIntValue("VIEWFLOW_FIXTURE_PASSIVE") == 1;
+    if (passive)
+      flags |= Qt::WindowTransparentForInput | Qt::WindowDoesNotAcceptFocus;
+    setFlags(flags);
+    std::printf("fixture-input-policy passive=%u\n", unsigned(passive));
     setSurfaceType(QSurface::OpenGLSurface);
     frame_timer_.setSingleShot(true);
     frame_timer_.setTimerType(Qt::PreciseTimer);

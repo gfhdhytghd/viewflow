@@ -130,3 +130,81 @@ async fn source_can_be_either_tls_endpoint_and_delayed_input_stays_ordered() {
 async fn native_failure_recovers_on_same_paired_connection() {
     trial(false, true).await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listener_presents_two_sources_without_waiting_for_first_to_close() {
+    let roots = [
+        tempfile::tempdir().unwrap(),
+        tempfile::tempdir().unwrap(),
+        tempfile::tempdir().unwrap(),
+    ];
+    for root in &roots {
+        std::fs::write(root.path().join("native.py"), NATIVE_FIXTURE).unwrap();
+    }
+    let identity = PeerIdentity::from_pem(
+        include_bytes!("../../viewflow-transport/tests/fixtures/peer.pem"),
+        include_bytes!("../../viewflow-transport/tests/fixtures/peer.key"),
+        include_bytes!("../../viewflow-transport/tests/fixtures/ca.pem"),
+    )
+    .unwrap();
+    let server = quinn::Endpoint::server(
+        build_server_config(&identity).unwrap(),
+        "127.0.0.1:0".parse().unwrap(),
+    )
+    .unwrap();
+    let listener = server.clone();
+    let backend = config(roots[0].path(), false, false);
+    let serving = tokio::spawn(async move {
+        viewflowd::reverse_bridge::serve_window_bridges(&listener, &backend, false).await
+    });
+    let mut client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();
+    client.set_default_client_config(build_client_config(&identity).unwrap());
+    let mut connections = Vec::new();
+    let mut tasks = Vec::new();
+    for root in &roots[1..] {
+        let connection = client
+            .connect(server.local_addr().unwrap(), "localhost")
+            .unwrap()
+            .await
+            .unwrap();
+        let backend = config(root.path(), true, false);
+        let source = connection.clone();
+        tasks.push(tokio::spawn(async move {
+            run_window_bridge(&source, &backend, true).await
+        }));
+        connections.push(connection);
+    }
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !roots[1..]
+            .iter()
+            .all(|root| root.path().join("roundtrips").exists())
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("both sources must exchange data while both connections remain open");
+    assert!(
+        connections
+            .iter()
+            .all(|connection| connection.close_reason().is_none())
+    );
+    connections[0].close(0u32.into(), b"first window closed");
+    tasks.remove(0).await.unwrap().unwrap();
+    assert!(connections[1].close_reason().is_none());
+    server.close(0u32.into(), b"listener stopped");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        tasks.remove(0).await.unwrap().unwrap();
+        serving.await.unwrap().unwrap();
+    })
+    .await
+    .expect("listener shutdown cleans up every native backend");
+    assert_eq!(
+        std::fs::read_to_string(roots[0].path().join("presenter-cleaned"))
+            .unwrap()
+            .lines()
+            .count(),
+        2
+    );
+    client.close(0u32.into(), b"done");
+}

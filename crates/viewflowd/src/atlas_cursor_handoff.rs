@@ -24,6 +24,7 @@ pub(crate) struct CursorConfig {
     pub position_offset: (f64, f64),
     pub position_scale: (f64, f64),
     pub raw_touchpad: bool,
+    pub external_touchpad: bool,
     pub ready_file: Option<std::path::PathBuf>,
     pub local: Vec<DesktopRect>,
     pub remote: DesktopRect,
@@ -35,8 +36,10 @@ pub(crate) struct CursorConfig {
 }
 impl CursorConfig {
     fn position(&self, x: f64, y: f64) -> Result<InputEventKind> {
-        position((x + self.position_offset.0) * self.position_scale.0,
-                 (y + self.position_offset.1) * self.position_scale.1)
+        position(
+            (x + self.position_offset.0) * self.position_scale.0,
+            (y + self.position_offset.1) * self.position_scale.1,
+        )
     }
 }
 #[derive(Default)]
@@ -46,17 +49,33 @@ struct NativeCaptureQueue {
 }
 impl NativeCaptureQueue {
     fn push(&self, mut packet: Vec<u8>, received: Instant) -> Result<()> {
-        let mut queue = self.queued.lock().map_err(|_| anyhow::anyhow!("capture queue poisoned"))?;
+        let mut queue = self
+            .queued
+            .lock()
+            .map_err(|_| anyhow::anyhow!("capture queue poisoned"))?;
+        if packet.get(6..8) == Some(&38u16.to_le_bytes()[..])
+            && queue
+                .back()
+                .is_some_and(|(old, _)| old.get(6..8) == Some(&38u16.to_le_bytes()[..]))
+        {
+            queue.pop_back();
+        }
         if let Some((previous, previous_time)) = queue.back_mut() {
             // Adjacent relative motions can be summed without crossing a key,
             // button, wheel, lease boundary, or native sequence regression.
-            if packet.len() == 88 && previous.len() == 88
-                && packet[6..8] == 31u16.to_le_bytes() && previous[6..8] == packet[6..8]
+            if packet.len() == 88
+                && previous.len() == 88
+                && packet[6..8] == 31u16.to_le_bytes()
+                && previous[6..8] == packet[6..8]
                 && packet[20..44] == previous[20..44]
-                && u64_at(&packet, 44)? > u64_at(previous, 44)? {
+                && u64_at(&packet, 44)? > u64_at(previous, 44)?
+            {
                 let dx = double(&packet, 56)? + double(previous, 56)?;
                 let dy = double(&packet, 64)? + double(previous, 64)?;
-                ensure!(dx.is_finite() && dy.is_finite(), "capture motion accumulation overflow");
+                ensure!(
+                    dx.is_finite() && dy.is_finite(),
+                    "capture motion accumulation overflow"
+                );
                 packet[56..64].copy_from_slice(&dx.to_le_bytes());
                 packet[64..72].copy_from_slice(&dy.to_le_bytes());
                 *previous = packet;
@@ -64,7 +83,10 @@ impl NativeCaptureQueue {
                 return Ok(());
             }
         }
-        ensure!(queue.len() < 4096, "capture ordered control resource exhausted");
+        ensure!(
+            queue.len() < 4096,
+            "capture ordered control resource exhausted"
+        );
         queue.push_back((packet, received));
         drop(queue);
         self.ready.notify_one();
@@ -73,7 +95,12 @@ impl NativeCaptureQueue {
     async fn recv(&self) -> (Vec<u8>, Instant) {
         loop {
             let notified = self.ready.notified();
-            if let Some(event) = self.queued.lock().expect("capture queue poisoned").pop_front() {
+            if let Some(event) = self
+                .queued
+                .lock()
+                .expect("capture queue poisoned")
+                .pop_front()
+            {
                 return event;
             }
             notified.await;
@@ -84,7 +111,9 @@ impl NativeCaptureQueue {
 #[derive(Debug)]
 struct NativeCaptureRejected;
 impl std::fmt::Display for NativeCaptureRejected {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str("native capture command rejected") }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("native capture command rejected")
+    }
 }
 impl std::error::Error for NativeCaptureRejected {}
 
@@ -134,7 +163,17 @@ impl CursorBridge {
         let (commands, requests) = mpsc::channel(4);
         let (clocks, clock) = watch::channel(None);
         let task = tokio::spawn(async move {
-            let result = run(config, writer, origin, receive, commands, clock).await;
+            let feedback = config.external_touchpad;
+            let telemetry = receive.clone();
+            let worker = run(config, writer, origin, receive, commands, clock);
+            let result = if feedback {
+                tokio::select! {
+                    result = worker => result,
+                    result = receive_cursor_feedback(&network, telemetry) => result,
+                }
+            } else {
+                worker.await
+            };
             retire_on_failure(&network, &result);
             result
         });
@@ -148,12 +187,12 @@ impl CursorBridge {
         }
     }
     pub(crate) fn pending_release_generation(&self) -> Option<u64> {
-        self.pending.as_ref().and_then(|request| {
-            match request.command {
+        self.pending
+            .as_ref()
+            .and_then(|request| match request.command {
                 CaptureCommand::Release { generation, .. } => Some(generation),
                 _ => None,
-            }
-        })
+            })
     }
     #[cfg(test)]
     pub(crate) fn fixture_pending_release(
@@ -256,7 +295,13 @@ async fn native(
     deadline: tokio::time::Instant,
 ) -> Result<()> {
     let (reply, result) = oneshot::channel();
-    commands.send(NativeRequest { command, reply, deadline }).await?;
+    commands
+        .send(NativeRequest {
+            command,
+            reply,
+            deadline,
+        })
+        .await?;
     // Once queued, finish the native operation; a late receipt still describes
     // the actual capture state and must not be replaced by a guessed rollback.
     result.await??;
@@ -301,27 +346,137 @@ fn position(x: f64, y: f64) -> Result<InputEventKind> {
         },
     ))
 }
-// Claim only the shared edge, within two physical remote pixels and while
+// Claim only the shared edge, within eight physical remote pixels and while
 // moving toward the local screen. Other Windows edges retain native Snap.
-fn drag_seam_return(local: DesktopRect, remote: DesktopRect, scale: f64,
-    previous: (f64, f64), current: (f64, f64)) -> Option<(f64, f64)> {
-    let (lx, ly) = (local.x_millidip as f64 / 1000., local.y_millidip as f64 / 1000.);
-    let (lr, lb) = (lx + local.width_millidip as f64 / 1000., ly + local.height_millidip as f64 / 1000.);
-    let (rx, ry) = (remote.x_millidip as f64 / 1000., remote.y_millidip as f64 / 1000.);
-    let (rr, rb) = (rx + remote.width_millidip as f64 / 1000., ry + remote.height_millidip as f64 / 1000.);
+fn drag_seam_return(
+    local: DesktopRect,
+    remote: DesktopRect,
+    scale: f64,
+    previous: (f64, f64),
+    current: (f64, f64),
+) -> Option<(f64, f64)> {
+    let (lx, ly) = (
+        local.x_millidip as f64 / 1000.,
+        local.y_millidip as f64 / 1000.,
+    );
+    let (lr, lb) = (
+        lx + local.width_millidip as f64 / 1000.,
+        ly + local.height_millidip as f64 / 1000.,
+    );
+    let (rx, ry) = (
+        remote.x_millidip as f64 / 1000.,
+        remote.y_millidip as f64 / 1000.,
+    );
+    let (rr, rb) = (
+        rx + remote.width_millidip as f64 / 1000.,
+        ry + remote.height_millidip as f64 / 1000.,
+    );
     let (x, y) = current;
-    let band = 2. / scale;
-    if (lr-rx).abs() < 0.001 && x < previous.0 && x <= rx+band && x >= lx && y >= ly.max(ry) && y < lb.min(rb) {
-        return Some((x.min(lr-0.001), y));
+    let band = 8. / scale;
+    if (lr - rx).abs() < 0.001
+        && x < previous.0
+        && x <= rx + band
+        && x >= lx
+        && y >= ly.max(ry)
+        && y < lb.min(rb)
+    {
+        return Some((x.min(lr - 0.001), y));
     }
-    if (rr-lx).abs() < 0.001 && x > previous.0 && x >= rr-band && x < lr && y >= ly.max(ry) && y < lb.min(rb) {
+    if (rr - lx).abs() < 0.001
+        && x > previous.0
+        && x >= rr - band
+        && x < lr
+        && y >= ly.max(ry)
+        && y < lb.min(rb)
+    {
         return Some((x.max(lx), y));
     }
-    if (lb-ry).abs() < 0.001 && y < previous.1 && y <= ry+band && y >= ly && x >= lx.max(rx) && x < lr.min(rr) {
-        return Some((x, y.min(lb-0.001)));
+    if (lb - ry).abs() < 0.001
+        && y < previous.1
+        && y <= ry + band
+        && y >= ly
+        && x >= lx.max(rx)
+        && x < lr.min(rr)
+    {
+        return Some((x, y.min(lb - 0.001)));
     }
-    if (rb-ly).abs() < 0.001 && y > previous.1 && y >= rb-band && y < lb && x >= lx.max(rx) && x < lr.min(rr) {
+    if (rb - ly).abs() < 0.001
+        && y > previous.1
+        && y >= rb - band
+        && y < lb
+        && x >= lx.max(rx)
+        && x < lr.min(rr)
+    {
         return Some((x, y.max(ly)));
+    }
+    None
+}
+
+async fn receive_cursor_feedback(
+    network: &quinn::Connection,
+    events: std::sync::Arc<NativeCaptureQueue>,
+) -> Result<()> {
+    loop {
+        let data = network.read_datagram().await?;
+        if crate::cursor_feedback::Sample::decode(&data).is_none() {
+            continue;
+        }
+        let mut packet = vec![0; 20];
+        packet[6..8].copy_from_slice(&38u16.to_le_bytes());
+        packet.extend_from_slice(&data);
+        events.push(packet, Instant::now())?;
+    }
+}
+
+// Native Quartz is clamped at its display edge. Preserve its measured height
+// and cross only an adjacent shared edge approached from inside that display.
+fn observed_cursor_return(
+    local: &[DesktopRect],
+    remote: DesktopRect,
+    previous: (f64, f64),
+    current: (f64, f64),
+) -> Option<(f64, f64)> {
+    let rx = remote.x_millidip as f64 / 1000.;
+    let ry = remote.y_millidip as f64 / 1000.;
+    let rr = rx + remote.width_millidip as f64 / 1000.;
+    let rb = ry + remote.height_millidip as f64 / 1000.;
+    for rect in local {
+        let lx = rect.x_millidip as f64 / 1000.;
+        let ly = rect.y_millidip as f64 / 1000.;
+        let lr = lx + rect.width_millidip as f64 / 1000.;
+        let lb = ly + rect.height_millidip as f64 / 1000.;
+        if (lr - rx).abs() < 0.001
+            && current.0 <= rx + 0.5
+            && current.0 < previous.0
+            && current.1 >= ly.max(ry)
+            && current.1 < lb.min(rb)
+        {
+            return Some((lr - 0.001, current.1));
+        }
+        if (rr - lx).abs() < 0.001
+            && current.0 >= rr - 1.0
+            && current.0 > previous.0
+            && current.1 >= ly.max(ry)
+            && current.1 < lb.min(rb)
+        {
+            return Some((lx, current.1));
+        }
+        if (lb - ry).abs() < 0.001
+            && current.1 <= ry + 0.5
+            && current.1 < previous.1
+            && current.0 >= lx.max(rx)
+            && current.0 < lr.min(rr)
+        {
+            return Some((current.0, lb - 0.001));
+        }
+        if (rb - ly).abs() < 0.001
+            && current.1 >= rb - 1.0
+            && current.1 > previous.1
+            && current.0 >= lx.max(rx)
+            && current.0 < lr.min(rr)
+        {
+            return Some((current.0, ly));
+        }
     }
     None
 }
@@ -335,11 +490,16 @@ async fn run(
     _clocks: watch::Receiver<Option<crate::input_runtime::ClockSnapshot>>,
 ) -> Result<()> {
     ensure!(
-        config.fps > 0 && config.monitor_id >= 0 && config.remote_scale.is_finite() && config.remote_scale > 0.0,
+        config.fps > 0
+            && config.monitor_id >= 0
+            && config.remote_scale.is_finite()
+            && config.remote_scale > 0.0,
         "invalid cursor capture policy"
     );
     for local in &config.local {
-        local.validate().map_err(|e| anyhow::anyhow!("local desktop: {e:?}"))?;
+        local
+            .validate()
+            .map_err(|e| anyhow::anyhow!("local desktop: {e:?}"))?;
     }
     config
         .remote
@@ -354,6 +514,7 @@ async fn run(
             generation: config.topology_generation,
             monitor_id: config.monitor_id,
             raw_touchpad: config.raw_touchpad,
+            external_touchpad: config.external_touchpad,
             x: config.remote.x_millidip as f64 / 1000.,
             y: config.remote.y_millidip as f64 / 1000.,
             width: config.remote.width_millidip as f64 / 1000.,
@@ -375,8 +536,70 @@ async fn run(
     let mut y = 0.;
     let mut sequence = 0u64;
     let mut native_sequence = None;
+    let mut feedback_serial = 0;
+    let mut feedback_seen = false;
+    let mut injection_failures = writer.outbound().input_acks.injection_failures.subscribe();
+    let mut window_drag = config
+        .external_touchpad
+        .then(crate::cursor_native_drag::Observer::from_environment)
+        .flatten();
+    let mut left_button_held = false;
+    let mut remote_returns = tokio::task::JoinSet::<Result<()>>::new();
+    let mut pending_reverse_return: Option<(u64, tokio::time::Instant, (f64, f64))> = None;
     loop {
-        let (packet, received) = events.recv().await;
+        let (packet, received) = tokio::select! {
+            event = events.recv() => event,
+            failure = injection_failures.recv() => {
+                let Ok(failure) = failure else { continue };
+                if !active || failure.lease_generation != generation
+                    || failure.target_device != config.target
+                    || failure.event_sequence == 0 || failure.event_sequence > sequence {
+                    continue;
+                }
+                eprintln!("atlas-cursor-handoff phase=remote-injection-failed generation={generation} sequence={} local-release=immediate", failure.event_sequence);
+                // A real receiver failure releases the local pointer first.
+                // Remote held-state cleanup cannot keep the local device captive.
+                release_capture_locally(&commands, generation, budget).await?;
+                active = false;
+                native_sequence = None;
+                generation = rollback_capture(&config, &writer, &commands, generation, budget).await?;
+                continue;
+            }
+            result = remote_returns.join_next(), if !remote_returns.is_empty() => {
+                result.context("cursor cleanup task missing")???;
+                continue;
+            }
+            _ = config.reverse_drag.changed.notified(), if pending_reverse_return.is_some() => {
+                let (returned_generation, started, position) = pending_reverse_return.unwrap();
+                let latest = *config.reverse_drag.latest_start.lock().await;
+                if let Some((_, drag)) = latest.filter(|(observed, _)| *observed >= started) {
+                    // This command continues the original press at the current
+                    // local pointer. A release/new press or new lease invalidates
+                    // it in the compositor, without warping the pointer back.
+                    let target = viewflow_hyprland::capture_wire::DragTarget {
+                        pid: drag.pid, address: drag.address, surface: 0, reverse_id: drag.id, grab_offset: drag.grab_offset,
+                    };
+                    let result = native(&commands, CaptureCommand::Release {
+                        generation: returned_generation, return_position: Some(position), drag_target: Some(target),
+                    }, tokio::time::Instant::now() + budget).await;
+                    pending_reverse_return = None;
+                    match result {
+                        Ok(()) => {
+                            if let Some(current) = config.reverse_drag.lock().await.as_mut()
+                                .filter(|current| current.id == drag.id && current.address == drag.address) {
+                                current.handed_off = true;
+                            }
+                            eprintln!("atlas-cursor-handoff phase=late-drag-return generation={returned_generation} reverse_id={} pending_us={}", drag.id, started.elapsed().as_micros());
+                        }
+                        Err(error) if error.is::<NativeCaptureRejected>() => {
+                            eprintln!("atlas-cursor-handoff late drag no longer held generation={returned_generation}");
+                        }
+                        Err(error) => return Err(error),
+                    }
+                }
+                continue;
+            }
+        };
         let tag = u16::from_le_bytes(packet[6..8].try_into()?);
         let bytes = &packet[20..];
         // The native FIFO may still contain packets from the now-revoked lease.
@@ -386,7 +609,11 @@ async fn run(
         }
         let event_budget = if tag == 31 { motion_budget } else { budget };
         let deadline = tokio::time::Instant::now() + budget;
-        if active && Instant::now() >= received + motion_budget && tag == 31 {
+        if active
+            && !config.external_touchpad
+            && Instant::now() >= received + motion_budget
+            && tag == 31
+        {
             // Late motion is disposable; keep the integrated position so the
             // next real sample/button uses the right coordinates. It must not
             // release a held Win key or abandon capture in the middle of a drag.
@@ -411,26 +638,64 @@ async fn run(
             continue;
         }
         let previous_position = (x, y);
-        let event = if tag == 30 {
+        let event = if tag == 38 {
+            let Some(sample) = crate::cursor_feedback::Sample::decode(bytes) else {
+                continue;
+            };
+            if !config.external_touchpad
+                || !active
+                || sample.generation != generation
+                || sample.anchor_sequence > sequence
+                || sample.serial <= feedback_serial
+            {
+                continue;
+            }
+            feedback_serial = sample.serial;
+            if !feedback_seen {
+                eprintln!(
+                    "cursor authority=macos generation={generation} actual_x={} actual_y={}",
+                    sample.x, sample.y
+                );
+            }
+            (x, y) = (
+                sample.x / config.position_scale.0 - config.position_offset.0,
+                sample.y / config.position_scale.1 - config.position_offset.1,
+            );
+            left_button_held = sample.buttons & 1 != 0;
+            if let Some(observer) = &mut window_drag {
+                observer
+                    .observe((x, y), left_button_held, &config.drag, &config.reverse_drag)
+                    .await;
+            }
+            let returned = feedback_seen
+                .then(|| {
+                    observed_cursor_return(&config.local, config.remote, previous_position, (x, y))
+                })
+                .flatten();
+            feedback_seen = true;
+            let Some(position) = returned else {
+                continue;
+            };
+            (x, y) = position;
+            config.position(x, y)?
+        } else if tag == 30 {
             ensure!(
                 !active && (bytes.len() == 37 || bytes.len() == 53),
                 "unexpected cursor edge candidate"
             );
             x = double(bytes, 17)?;
             y = double(bytes, 25)?;
-            let local = config.local.iter().copied().find(|local| contains(*local, x, y))
+            let local = config
+                .local
+                .iter()
+                .copied()
+                .find(|local| contains(*local, x, y))
                 .context("cursor entry outside local displays")?;
             match bytes[8] {
                 0 => x = local.x_millidip as f64 / 1000. - 0.001,
-                1 => {
-                    x = (local.x_millidip as f64 + local.width_millidip as f64)
-                        / 1000.
-                }
+                1 => x = (local.x_millidip as f64 + local.width_millidip as f64) / 1000.,
                 2 => y = local.y_millidip as f64 / 1000. - 0.001,
-                3 => {
-                    y = (local.y_millidip as f64 + local.height_millidip as f64)
-                        / 1000.
-                }
+                3 => y = (local.y_millidip as f64 + local.height_millidip as f64) / 1000.,
                 _ => bail!("invalid shared edge"),
             }
             if bytes.len() == 53 {
@@ -471,14 +736,8 @@ async fn run(
                 eprintln!(
                     "atlas-cursor-handoff phase=activation-rejected generation={generation} reason={error:#}"
                 );
-                generation = rollback_capture(
-                    &config,
-                    &writer,
-                    &commands,
-                    generation,
-                    budget,
-                )
-                .await?;
+                generation =
+                    rollback_capture(&config, &writer, &commands, generation, budget).await?;
                 active = false;
                 native_sequence = None;
                 continue;
@@ -487,6 +746,10 @@ async fn run(
                 "atlas-cursor-handoff phase=native-active generation={generation} x={x} y={y}"
             );
             active = true;
+            feedback_seen = false;
+            feedback_serial = 0;
+            left_button_held = false;
+            pending_reverse_return = None;
             sequence = 0;
             native_sequence = None;
             config.position(x, y)?
@@ -509,17 +772,36 @@ async fn run(
             native_sequence = Some(next);
             match tag {
                 31 => {
-                    ensure!(bytes.len() == 68, "invalid motion packet");
-                    (x, y) = advance_displays(
-                        &config.local,
-                        config.remote,
-                        (x, y),
-                        (double(bytes, 36)?, double(bytes, 44)?),
+                    ensure!(
+                        bytes.len() == 68 || bytes.len() == 69,
+                        "invalid motion packet"
                     );
-                    config.position(x, y)?
+                    if config.external_touchpad {
+                        // The native HID path already moves the Mac cursor.
+                        // A normal mouse still sends relative motion, with no
+                        // Linux-side position integration or return decision.
+                        if bytes.get(68) == Some(&1) {
+                            continue;
+                        }
+                        InputEventKind::PointerMotion(viewflow_protocol::RelativePointerMotion {
+                            delta_x_dip: double(bytes, 36)?,
+                            delta_y_dip: double(bytes, 44)?,
+                        })
+                    } else {
+                        (x, y) = advance_displays(
+                            &config.local,
+                            config.remote,
+                            (x, y),
+                            (double(bytes, 36)?, double(bytes, 44)?),
+                        );
+                        config.position(x, y)?
+                    }
                 }
                 32 => {
-                    ensure!(bytes.len() == 41, "invalid button packet");
+                    ensure!(
+                        bytes.len() == 41 || bytes.len() == 42,
+                        "invalid button packet"
+                    );
                     let code = u32::from_le_bytes(bytes[36..40].try_into()?);
                     let button = match code {
                         272 => viewflow_protocol::PointerButton::Left,
@@ -530,6 +812,12 @@ async fn run(
                         _ => bail!("unsupported captured button"),
                     };
                     ensure!(bytes[40] <= 1, "invalid button state");
+                    if code == 272 {
+                        left_button_held = bytes[40] == 1;
+                    }
+                    if config.external_touchpad && bytes.get(41) == Some(&1) {
+                        continue;
+                    }
                     InputEventKind::PointerButton(viewflow_protocol::PointerButtonEvent {
                         button,
                         state: if bytes[40] == 1 {
@@ -572,46 +860,56 @@ async fn run(
                 }
                 37 => {
                     ensure!(bytes.len() == 104, "invalid touchpad packet");
-                    let word = |offset| -> Result<u32> { Ok(u32::from_le_bytes(bytes[offset..offset+4].try_into()?)) };
+                    let word = |offset| -> Result<u32> {
+                        Ok(u32::from_le_bytes(bytes[offset..offset + 4].try_into()?))
+                    };
                     let count = word(40)?;
                     ensure!(count <= 5, "invalid touchpad count");
                     let mut frame = viewflow_protocol::TouchpadFrame {
-                        width: word(32)?, height: word(36)?, count: count as u8,
+                        width: word(32)?,
+                        height: word(36)?,
+                        count: count as u8,
                         ..viewflow_protocol::TouchpadFrame::default()
                     };
                     for (i, c) in frame.contacts.iter_mut().enumerate() {
                         let base = 44 + i * 12;
-                        *c = viewflow_protocol::TouchpadContact { id: word(base)?, x: word(base+4)?, y: word(base+8)? };
+                        *c = viewflow_protocol::TouchpadContact {
+                            id: word(base)?,
+                            x: word(base + 4)?,
+                            y: word(base + 8)?,
+                        };
                     }
-                    frame.validate().map_err(|e| anyhow::anyhow!("invalid touchpad frame: {e:?}"))?;
+                    frame
+                        .validate()
+                        .map_err(|e| anyhow::anyhow!("invalid touchpad frame: {e:?}"))?;
                     InputEventKind::Touchpad(frame)
                 }
                 36 => InputEventKind::ReleaseAll,
                 _ => bail!("unexpected capture packet"),
             }
         };
-        // Serialize takeover with source geometry writes. Once claimed, queued
-        // remote Update/End messages must not move this native drag backwards.
-        let mut transfer = config.drag.lock().await;
-        let mut reverse_drag = config.reverse_drag.lock().await;
-        let candidate = transfer.as_ref().filter(|drag| !drag.handed_off && !drag.resizing && drag.move_confirmed);
-        let seam_return = if tag == 31 && (candidate.is_some() || reverse_drag.as_ref().is_some_and(|drag| !drag.handed_off)) {
-            config.local.iter().find_map(|local| drag_seam_return(*local, config.remote, config.remote_scale, previous_position, (x, y)))
-        } else { None };
-        if let Some(point) = seam_return { (x, y) = point; }
-        if config.local.iter().any(|local| contains(*local, x, y)) || matches!(event, InputEventKind::ReleaseAll) {
-            let drag_target = if config.local.iter().any(|local| contains(*local, x, y)) && tag == 31 {
-                transfer.as_mut().filter(|drag| !drag.handed_off && !drag.resizing && drag.move_confirmed).map(|drag| {
-                    drag.target
-                }).or_else(|| reverse_drag.as_mut().filter(|drag| !drag.handed_off).map(|drag| {
-                    viewflow_hyprland::capture_wire::DragTarget { pid: drag.pid, address: drag.address, surface: 0, reverse_id: drag.id }
-                }))
-            } else { None };
+        let tag = if tag == 38 { 31 } else { tag };
+        // Claim under the geometry locks, then release them before any network
+        // receipt wait. The shared reader may have a desktop Update ahead of
+        // the revoke ACK; that Update must be able to observe the claim and end.
+        let return_started = tokio::time::Instant::now();
+        if let Some(returned) = claim_cursor_return(
+            &config,
+            tag,
+            matches!(event, InputEventKind::ReleaseAll),
+            left_button_held,
+            previous_position,
+            (x, y),
+        )
+        .await
+        {
+            (x, y) = returned.position;
+            let drag_target = returned.drag_target;
             let native_generation = generation;
             generation = generation
                 .checked_add(1)
                 .context("cursor lease exhausted")?;
-            crate::send_desktop_revoke_confirmed(
+            let cleanup = crate::queue_desktop_revoke(
                 &writer.outbound(),
                 viewflow_protocol::InputLeaseRevoke {
                     operation_id: Id128(u128::from(generation)),
@@ -624,12 +922,20 @@ async fn run(
             )
             .await
             .map_err(|e| anyhow::anyhow!("cursor revoke: {e:?}"))?;
+            let queued_at = tokio::time::Instant::now();
+            // Remote input retirement has entered its ordered stream. Local
+            // physical dragging can proceed while its receipt is in flight.
+            remote_returns.spawn(async move {
+                cleanup.confirm_desktop(deadline).await.map_err(|e| anyhow::anyhow!("cursor revoke receipt: {e:?}"))?;
+                eprintln!("atlas-cursor-handoff phase=remote-released generation={generation} receipt_us={}", queued_at.elapsed().as_micros());
+                Ok(())
+            });
             let returned = native(
                 &commands,
                 CaptureCommand::Release {
                     generation: native_generation,
                     drag_target,
-                return_position: if config.local.iter().any(|local| contains(*local, x, y)) {
+                    return_position: if config.local.iter().any(|local| contains(*local, x, y)) {
                         Some((x, y))
                     } else {
                         None
@@ -639,21 +945,30 @@ async fn run(
             )
             .await;
             if let Err(error) = returned {
-                eprintln!("atlas-cursor-handoff return rejected: {error:#}; releasing locally without drag");
-                if !error.is::<NativeCaptureRejected>() { return Err(error); }
+                eprintln!(
+                    "atlas-cursor-handoff return rejected: {error:#}; releasing locally without drag"
+                );
+                if !error.is::<NativeCaptureRejected>() {
+                    return Err(error);
+                }
                 release_capture_locally(&commands, native_generation, budget).await?;
-            } else if let Some(target) = drag_target {
-                if let Some(drag) = transfer.as_mut().filter(|drag| drag.target == target) { drag.handed_off = true; }
-                if let Some(drag) = reverse_drag.as_mut().filter(|drag| drag.id == target.reverse_id) { drag.handed_off = true; }
             }
+            // A failed native continuation still leaves remote geometry retired.
+            // Reopening it here would apply queued pre-return positions locally.
             eprintln!(
-                "atlas-cursor-handoff phase=return-complete generation={generation} x={x} y={y}"
+                "atlas-cursor-handoff phase=return-complete generation={generation} x={x} y={y} queue_us={} native_us={} drag_target={:?}",
+                queued_at.duration_since(return_started).as_micros(),
+                queued_at.elapsed().as_micros(),
+                drag_target
             );
+            if tag == 31 && left_button_held && drag_target.is_none() {
+                pending_reverse_return = Some((native_generation, return_started, (x, y)));
+                // The proxy might have mapped while the revoke receipt was in flight.
+                config.reverse_drag.changed.notify_one();
+            }
             active = false;
             continue;
         }
-        drop(transfer);
-        drop(reverse_drag);
         // Clamp only nonshared exterior boundaries; local return was checked first.
         x = x.clamp(
             config.remote.x_millidip as f64 / 1000.,
@@ -669,20 +984,33 @@ async fn run(
         } else {
             event
         };
-        if matches!(event, InputEventKind::PointerButton(_) | InputEventKind::PointerWheel(_)) {
+        if !config.external_touchpad
+            && matches!(
+                event,
+                InputEventKind::PointerButton(_) | InputEventKind::PointerWheel(_)
+            )
+        {
             // Motion may have been coalesced. Send the latest position before
             // the transition on the same ordered stream; no round trip is needed.
-            sequence = sequence.checked_add(1).context("cursor sequence exhausted")?;
+            sequence = sequence
+                .checked_add(1)
+                .context("cursor sequence exhausted")?;
             let positioned = InputEvent {
                 lease_generation: generation,
                 target_device: config.target,
                 sequence,
                 sender_not_after_ns: sender_event_expiry(
                     u64::try_from(received.duration_since(origin).as_nanos())?,
-                    crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS)?,
+                    crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS,
+                )?,
                 event: config.position(x, y)?,
             };
-            writer.send(crate::input_runtime::input_event_payload(positioned), deadline).await?;
+            writer
+                .send(
+                    crate::input_runtime::input_event_payload(positioned),
+                    deadline,
+                )
+                .await?;
         }
         sequence = sequence
             .checked_add(1)
@@ -706,6 +1034,80 @@ async fn run(
     }
 }
 
+struct CursorReturn {
+    position: (f64, f64),
+    drag_target: Option<viewflow_hyprland::capture_wire::DragTarget>,
+}
+
+async fn claim_cursor_return(
+    config: &CursorConfig,
+    tag: u16,
+    release_all: bool,
+    left_button_held: bool,
+    previous: (f64, f64),
+    mut position: (f64, f64),
+) -> Option<CursorReturn> {
+    let mut transfer = config.drag.lock().await;
+    let mut reverse = config.reverse_drag.lock().await;
+    let eligible =
+        |drag: &&mut DragTransfer| !drag.handed_off && !drag.resizing && drag.move_confirmed;
+    let has_drag = transfer.as_mut().filter(eligible).is_some()
+        || reverse.as_ref().is_some_and(|drag| !drag.handed_off);
+    if tag == 31 && (has_drag || left_button_held) {
+        if let Some(point) = config.local.iter().find_map(|local| {
+            drag_seam_return(
+                *local,
+                config.remote,
+                config.remote_scale,
+                previous,
+                position,
+            )
+        }) {
+            position = point;
+        }
+    }
+    let local = config
+        .local
+        .iter()
+        .any(|rect| contains(*rect, position.0, position.1));
+    if !local && !release_all {
+        return None;
+    }
+    let drag_target = if local && tag == 31 {
+        transfer
+            .as_mut()
+            .filter(eligible)
+            .map(|drag| {
+                // This marks the remote writer as retired, before native takeover.
+                // It must stay retired even if the physical button was released
+                // while cleanup was in flight and no local drag is started.
+                drag.handed_off = true;
+                drag.target
+            })
+            .or_else(|| {
+                reverse
+                    .as_mut()
+                    .filter(|drag| !drag.handed_off)
+                    .map(|drag| {
+                        drag.handed_off = true;
+                        viewflow_hyprland::capture_wire::DragTarget {
+                            pid: drag.pid,
+                            address: drag.address,
+                            surface: 0,
+                            reverse_id: drag.id,
+                            grab_offset: drag.grab_offset,
+                        }
+                    })
+            })
+    } else {
+        None
+    };
+    Some(CursorReturn {
+        position,
+        drag_target,
+    })
+}
+
 fn retire_on_failure(network: &quinn::Connection, result: &Result<()>) {
     if let Err(error) = result {
         eprintln!("atlas-cursor-handoff failed: {error:#}");
@@ -718,12 +1120,22 @@ fn revoked_capture_tail(active: bool, tag: u16) -> bool {
 }
 
 async fn release_capture_locally(
-    commands: &mpsc::Sender<NativeRequest>, generation: u64, budget: Duration,
+    commands: &mpsc::Sender<NativeRequest>,
+    generation: u64,
+    budget: Duration,
 ) -> Result<()> {
     loop {
-        match native(commands, CaptureCommand::Release {
-            generation, drag_target: None, return_position: None,
-        }, tokio::time::Instant::now() + budget).await {
+        match native(
+            commands,
+            CaptureCommand::Release {
+                generation,
+                drag_target: None,
+                return_position: None,
+            },
+            tokio::time::Instant::now() + budget,
+        )
+        .await
+        {
             Ok(()) => return Ok(()),
             Err(error) if error.is::<NativeCaptureRejected>() => {
                 eprintln!("cursor local release rejected; retaining session and retrying cleanup");
@@ -762,7 +1174,8 @@ async fn rollback_capture(
     )
     .await
     .map_err(|error| anyhow::anyhow!("cursor rollback receiver cleanup: {error:?}"))?;
-    release_capture_locally(commands, generation, budget).await
+    release_capture_locally(commands, generation, budget)
+        .await
         .context("cursor rollback native release")?;
     eprintln!(
         "atlas-cursor-handoff phase=rollback-complete generation={revoked_generation} requires=fresh-physical-edge"
@@ -895,11 +1308,17 @@ fn keyboard_usage(code: u32) -> Option<u16> {
 }
 
 /// Use each real display separately: a bounding box would create paths through gaps.
-fn advance_displays(locals: &[DesktopRect], remote: DesktopRect,
-    previous: (f64, f64), delta: (f64, f64)) -> (f64, f64) {
+fn advance_displays(
+    locals: &[DesktopRect],
+    remote: DesktopRect,
+    previous: (f64, f64),
+    delta: (f64, f64),
+) -> (f64, f64) {
     for local in locals {
         let point = advance(*local, remote, previous, delta);
-        if contains(*local, point.0, point.1) { return point; }
+        if contains(*local, point.0, point.1) {
+            return point;
+        }
     }
     (previous.0 + delta.0, previous.1 + delta.1)
 }
@@ -907,7 +1326,9 @@ fn advance_displays(locals: &[DesktopRect], remote: DesktopRect,
 pub(crate) fn local_displays(socket: &std::path::Path, remote_id: i64) -> Result<Vec<DesktopRect>> {
     let ipc = viewflow_hyprland::HyprIpcClient::new(socket.to_path_buf());
     let monitors = viewflow_hyprland::parse_monitors(&ipc.request("j/monitors")?)?;
-    monitors.into_iter().filter(|monitor| !monitor.disabled && monitor.id != remote_id)
+    monitors
+        .into_iter()
+        .filter(|monitor| !monitor.disabled && monitor.id != remote_id)
         .map(|monitor| {
             let bounds = monitor.bounds_dip();
             let rect = DesktopRect {
@@ -916,9 +1337,11 @@ pub(crate) fn local_displays(socket: &std::path::Path, remote_id: i64) -> Result
                 width_millidip: (bounds.size.width * 1000.).round() as u64,
                 height_millidip: (bounds.size.height * 1000.).round() as u64,
             };
-            rect.validate().map_err(|e| anyhow::anyhow!("local display: {e:?}"))?;
+            rect.validate()
+                .map_err(|e| anyhow::anyhow!("local display: {e:?}"))?;
             Ok(rect)
-        }).collect()
+        })
+        .collect()
 }
 
 /// Detect crossing of the shared seam even when one motion skips the whole local display.
@@ -965,29 +1388,138 @@ fn advance(
 mod tests {
     use super::*;
     #[test]
+    fn native_cursor_return_uses_mac_height_and_requires_shared_edge_motion() {
+        let local = DesktopRect {
+            x_millidip: 0,
+            y_millidip: 0,
+            width_millidip: 3072000,
+            height_millidip: 1728000,
+        };
+        let remote = DesktopRect {
+            x_millidip: 3072000,
+            y_millidip: 390000,
+            width_millidip: 1920000,
+            height_millidip: 1200000,
+        };
+        assert_eq!(
+            observed_cursor_return(&[local], remote, (3075., 800.), (3072., 805.)),
+            Some((3071.999, 805.))
+        );
+        assert_eq!(
+            observed_cursor_return(&[local], remote, (3072., 805.), (3072., 805.)),
+            None
+        );
+        assert_eq!(
+            observed_cursor_return(&[local], remote, (3072., 805.), (3080., 805.)),
+            None
+        );
+        assert_eq!(
+            observed_cursor_return(&[local], remote, (3080., 100.), (3072., 100.)),
+            None
+        );
+    }
+
+    #[test]
     fn bottom_neighbor_supports_pointer_and_drag_without_filling_gap() {
-        let main = DesktopRect { x_millidip: 0, y_millidip: 0,
-            width_millidip: 3_072_000, height_millidip: 1_728_000 };
-        let remote = DesktopRect { x_millidip: 3_072_000, y_millidip: 390_000,
-            width_millidip: 1_920_000, height_millidip: 1_200_000 };
-        let bottom = DesktopRect { x_millidip: 3_072_000, y_millidip: 1_590_000,
-            width_millidip: 1_376_000, height_millidip: 1_032_000 };
+        let main = DesktopRect {
+            x_millidip: 0,
+            y_millidip: 0,
+            width_millidip: 3_072_000,
+            height_millidip: 1_728_000,
+        };
+        let remote = DesktopRect {
+            x_millidip: 3_072_000,
+            y_millidip: 390_000,
+            width_millidip: 1_920_000,
+            height_millidip: 1_200_000,
+        };
+        let bottom = DesktopRect {
+            x_millidip: 3_072_000,
+            y_millidip: 1_590_000,
+            width_millidip: 1_376_000,
+            height_millidip: 1_032_000,
+        };
         let locals = [main, bottom];
         for delta in [(0., 3.), (0., 3000.)] {
             let point = advance_displays(&locals, remote, (3500., 1589.), delta);
             assert!(contains(bottom, point.0, point.1));
         }
         let point = advance_displays(&locals, remote, (4800., 1589.), (0., 3.));
-        assert!(!locals.iter().any(|local| contains(*local, point.0, point.1)));
-        let returned = locals.iter().find_map(|local|
-            drag_seam_return(*local, remote, 2., (3500., 1587.), (3500., 1589.)));
+        assert!(
+            !locals
+                .iter()
+                .any(|local| contains(*local, point.0, point.1))
+        );
+        let returned = locals
+            .iter()
+            .find_map(|local| drag_seam_return(*local, remote, 2., (3500., 1587.), (3500., 1589.)));
         let point = returned.unwrap();
         assert!(contains(bottom, point.0, point.1));
     }
 
     #[tokio::test]
+    async fn explicit_injection_failure_releases_local_before_remote_cleanup() {
+        use std::sync::Arc;
+        let (_client, _server, connection, remote) = crate::atlas_session::tests::pair().await;
+        let owner = crate::shared_control::SharedControlWriter::start(&connection).unwrap();
+        let writer = owner.sender();
+        let registry = writer.outbound().input_acks.clone();
+        let (seen, mut events_seen) = mpsc::unbounded_channel();
+        let reader = tokio::spawn(async move {
+            let mut sequencer = viewflow_transport::ControlSequencer::default();
+            loop {
+                let envelope = viewflow_transport::receive_control_sequenced(&remote, &mut sequencer).await.unwrap();
+                if let viewflow_protocol::DomainControl::InputEvent(event) =
+                    viewflow_protocol::DomainControl::try_from(envelope).unwrap() {
+                    seen.send(event).unwrap();
+                }
+                // Deliberately withhold revoke ACK: local recovery must not wait.
+            }
+        });
+        let (commands, mut requests) = mpsc::channel::<NativeRequest>(8);
+        let (released, mut releases) = mpsc::unbounded_channel();
+        let native = tokio::spawn(async move {
+            while let Some(request) = requests.recv().await {
+                if matches!(request.command, CaptureCommand::Release { .. }) {
+                    released.send(()).unwrap();
+                }
+                let _ = request.reply.send(Ok(()));
+            }
+        });
+        let (_clock_owner, clock) = watch::channel(None);
+        let queue = Arc::new(NativeCaptureQueue::default());
+        let worker = tokio::spawn(run(CursorConfig {
+            drag: Default::default(), reverse_drag: Default::default(),
+            remote_scale: 2.0, position_offset: (-100.0, 0.0), position_scale: (1.0, 1.0),
+            ready_file: None, raw_touchpad: false, external_touchpad: true,
+            local: vec![rect(0, 0)], remote: rect(100_000, 0), monitor_id: 1,
+            topology_generation: 1, owner: Id128(1), target: Id128(2), fps: 60,
+        }, writer, Instant::now(), queue.clone(), commands, clock));
+        let mut edge = vec![0; 57];
+        edge[6..8].copy_from_slice(&30u16.to_le_bytes()); edge[28] = 1;
+        edge[37..45].copy_from_slice(&99.0f64.to_le_bytes());
+        edge[45..53].copy_from_slice(&50.0f64.to_le_bytes());
+        queue.push(edge, Instant::now()).unwrap();
+        let event = tokio::time::timeout(Duration::from_secs(1), events_seen.recv()).await.unwrap().unwrap();
+        let failure = viewflow_protocol::InputAppliedAck {
+            lease_generation: event.lease_generation, target_device: event.target_device,
+            event_sequence: event.sequence, result: viewflow_protocol::InputAppliedResult::InjectionFailed,
+        };
+        registry.resolve(viewflow_protocol::InputAppliedAck { lease_generation: event.lease_generation + 99, ..failure });
+        assert!(tokio::time::timeout(Duration::from_millis(20), releases.recv()).await.is_err());
+        registry.resolve(failure);
+        tokio::time::timeout(Duration::from_secs(1), releases.recv()).await.unwrap().unwrap();
+        assert!(!worker.is_finished(), "remote cleanup can remain pending after local release");
+        assert!(connection.close_reason().is_none());
+        worker.abort(); reader.abort(); native.abort();
+    }
+
+    #[tokio::test]
     async fn cursor_without_any_event_acks_preserves_connection_and_click_position() {
-        use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+        use std::sync::{
+            Arc, Mutex,
+            atomic::{AtomicBool, Ordering},
+        };
         let (_client, _server, connection, remote) = crate::atlas_session::tests::pair().await;
         let owner = crate::shared_control::SharedControlWriter::start(&connection).unwrap();
         let writer = owner.sender();
@@ -996,19 +1528,31 @@ mod tests {
         let held = Arc::new(Mutex::new(Vec::new()));
         let (observed, mut events_seen) = mpsc::unbounded_channel();
         let reader = {
-            let release = release.clone(); let held = held.clone(); let registry = registry.clone();
+            let release = release.clone();
+            let held = held.clone();
+            let registry = registry.clone();
             tokio::spawn(async move {
                 let mut sequencer = viewflow_transport::ControlSequencer::default();
                 loop {
-                    let envelope = viewflow_transport::receive_control_sequenced(&remote, &mut sequencer).await.unwrap();
-                    if let viewflow_protocol::DomainControl::InputEvent(event) = viewflow_protocol::DomainControl::try_from(envelope).unwrap() {
+                    let envelope =
+                        viewflow_transport::receive_control_sequenced(&remote, &mut sequencer)
+                            .await
+                            .unwrap();
+                    if let viewflow_protocol::DomainControl::InputEvent(event) =
+                        viewflow_protocol::DomainControl::try_from(envelope).unwrap()
+                    {
                         observed.send(event).unwrap();
                         let ack = viewflow_protocol::InputAppliedAck {
-                            lease_generation: event.lease_generation, target_device: event.target_device,
-                            event_sequence: event.sequence, result: viewflow_protocol::InputAppliedResult::Applied,
+                            lease_generation: event.lease_generation,
+                            target_device: event.target_device,
+                            event_sequence: event.sequence,
+                            result: viewflow_protocol::InputAppliedResult::Applied,
                         };
-                        if release.load(Ordering::Acquire) { registry.resolve(ack); }
-                        else { held.lock().unwrap().push(ack); }
+                        if release.load(Ordering::Acquire) {
+                            registry.resolve(ack);
+                        } else {
+                            held.lock().unwrap().push(ack);
+                        }
                     }
                 }
             })
@@ -1016,20 +1560,46 @@ mod tests {
         let origin = Instant::now();
         let (clock_owner, clock) = watch::channel(None);
         let (commands, mut requests) = mpsc::channel::<NativeRequest>(4);
-        let native = tokio::spawn(async move { while let Some(request) = requests.recv().await { let _ = request.reply.send(Ok(())); } });
+        let native = tokio::spawn(async move {
+            while let Some(request) = requests.recv().await {
+                let _ = request.reply.send(Ok(()));
+            }
+        });
         let queue = Arc::new(NativeCaptureQueue::default());
-        let worker = tokio::spawn(run(CursorConfig {
-            drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (-100.0, 0.0), position_scale: (1.0, 0.9), ready_file: None, raw_touchpad: true,
-            local: vec![rect(0, 0)], remote: rect(100_000, 0), monitor_id: 1,
-            topology_generation: 1, owner: Id128(1), target: Id128(2), fps: 60,
-        }, writer, origin, queue.clone(), commands, clock));
+        let worker = tokio::spawn(run(
+            CursorConfig {
+                drag: Default::default(),
+                reverse_drag: Default::default(),
+                remote_scale: 2.0,
+                position_offset: (-100.0, 0.0),
+                position_scale: (1.0, 0.9),
+                ready_file: None,
+                raw_touchpad: true,
+                external_touchpad: false,
+                local: vec![rect(0, 0)],
+                remote: rect(100_000, 0),
+                monitor_id: 1,
+                topology_generation: 1,
+                owner: Id128(1),
+                target: Id128(2),
+                fps: 60,
+            },
+            writer,
+            origin,
+            queue.clone(),
+            commands,
+            clock,
+        ));
         let mut edge = vec![0; 57];
         edge[6..8].copy_from_slice(&30u16.to_le_bytes());
         edge[28] = 1;
         edge[37..45].copy_from_slice(&99.0f64.to_le_bytes());
         edge[45..53].copy_from_slice(&50.0f64.to_le_bytes());
         queue.push(edge, Instant::now()).unwrap();
-        tokio::time::timeout(Duration::from_secs(1), events_seen.recv()).await.unwrap().unwrap();
+        tokio::time::timeout(Duration::from_secs(1), events_seen.recv())
+            .await
+            .unwrap()
+            .unwrap();
         for sequence in 1u64..=80 {
             let mut packet = vec![0; 88];
             packet[6..8].copy_from_slice(&31u16.to_le_bytes());
@@ -1047,7 +1617,8 @@ mod tests {
         button[20..28].copy_from_slice(&2u64.to_le_bytes());
         button[28..44].copy_from_slice(&2u128.to_be_bytes());
         button[44..52].copy_from_slice(&81u64.to_le_bytes());
-        button[56..60].copy_from_slice(&272u32.to_le_bytes()); button[60] = 1;
+        button[56..60].copy_from_slice(&272u32.to_le_bytes());
+        button[60] = 1;
         queue.push(button, Instant::now()).unwrap();
         // Deliberately never acknowledge any ordinary input, including clicks.
         let mut previous = None;
@@ -1055,14 +1626,18 @@ mod tests {
             loop {
                 let event = events_seen.recv().await.unwrap();
                 if matches!(event.event, InputEventKind::PointerButton(_)) {
-                    let InputEventKind::DesktopPointerPosition(position) = previous.unwrap() else { panic!("click lacks position barrier") };
+                    let InputEventKind::DesktopPointerPosition(position) = previous.unwrap() else {
+                        panic!("click lacks position barrier")
+                    };
                     assert_eq!(position.x_millidip, 20_000);
                     assert_eq!(position.y_millidip, 45_000);
                     break;
                 }
                 previous = Some(event.event);
             }
-        }).await.unwrap();
+        })
+        .await
+        .unwrap();
         assert!(!worker.is_finished() && connection.close_reason().is_none());
         // Full touchpad frames use the same FIFO and need no frame/clock ack.
         for (native_sequence, count) in [(82u64, 5u32), (83, 0)] {
@@ -1076,19 +1651,29 @@ mod tests {
             packet[60..64].copy_from_slice(&count.to_le_bytes());
             for i in 0..5usize {
                 let base = 64 + i * 12;
-                packet[base..base+4].copy_from_slice(&(i as u32 + 100).to_le_bytes());
-                packet[base+4..base+8].copy_from_slice(&2000u32.to_le_bytes());
-                packet[base+8..base+12].copy_from_slice(&4000u32.to_le_bytes());
+                packet[base..base + 4].copy_from_slice(&(i as u32 + 100).to_le_bytes());
+                packet[base + 4..base + 8].copy_from_slice(&2000u32.to_le_bytes());
+                packet[base + 8..base + 12].copy_from_slice(&4000u32.to_le_bytes());
             }
             queue.push(packet, Instant::now()).unwrap();
-            let event = tokio::time::timeout(Duration::from_secs(1), events_seen.recv()).await.unwrap().unwrap();
-            let InputEventKind::Touchpad(frame) = event.event else { panic!("touchpad lost in native/network bridge") };
+            let event = tokio::time::timeout(Duration::from_secs(1), events_seen.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            let InputEventKind::Touchpad(frame) = event.event else {
+                panic!("touchpad lost in native/network bridge")
+            };
             assert_eq!(u32::from(frame.count), count);
             assert_eq!((frame.width, frame.height), (16000, 11000));
-            if count > 0 { assert_eq!(frame.contacts[4].id, 104); }
+            if count > 0 {
+                assert_eq!(frame.contacts[4].id, 104);
+            }
         }
         assert!(!worker.is_finished() && connection.close_reason().is_none());
-        worker.abort(); native.abort(); reader.abort(); drop(clock_owner);
+        worker.abort();
+        native.abort();
+        reader.abort();
+        drop(clock_owner);
     }
 
     #[tokio::test]
@@ -1171,15 +1756,28 @@ mod tests {
     }
 
     #[test]
-    fn drag_return_claims_only_two_physical_pixels_toward_shared_edge() {
+    fn drag_return_claims_only_eight_physical_pixels_toward_shared_edge() {
         let local = rect(0, 0);
         for scale in [1., 1.25, 2., 3.] {
-            let band = 2. / scale;
+            let band = 8. / scale;
             let remote = rect(100_000, 0);
-            let point = drag_seam_return(local, remote, scale, (103., 50.), (100.+band, 50.)).unwrap();
+            let point =
+                drag_seam_return(local, remote, scale, (102. + band, 50.), (100. + band, 50.))
+                    .unwrap();
             assert!(contains(local, point.0, point.1));
-            assert!(drag_seam_return(local, remote, scale, (104., 50.), (100.+band+0.01, 50.)).is_none());
-            assert!(drag_seam_return(local, remote, scale, (100., 50.), (100.+band, 50.)).is_none());
+            assert!(
+                drag_seam_return(
+                    local,
+                    remote,
+                    scale,
+                    (103. + band, 50.),
+                    (100. + band + 0.01, 50.)
+                )
+                .is_none()
+            );
+            assert!(
+                drag_seam_return(local, remote, scale, (100., 50.), (100. + band, 50.)).is_none()
+            );
             assert!(drag_seam_return(local, remote, scale, (103., 101.), (100., 101.)).is_none());
         }
         for (remote, previous, current) in [
@@ -1188,7 +1786,10 @@ mod tests {
             (rect(0, 100_000), (40., 105.), (40., 75.)),
             (rect(0, -100_000), (40., -5.), (40., 25.)),
         ] {
-            assert_eq!(drag_seam_return(local, remote, 2., previous, current), Some(current));
+            assert_eq!(
+                drag_seam_return(local, remote, 2., previous, current),
+                Some(current)
+            );
         }
     }
 
@@ -1199,6 +1800,132 @@ mod tests {
             assert!(!revoked_capture_tail(true, tag));
         }
         assert!(!revoked_capture_tail(false, 30)); // A new physical edge still faces freshness.
+    }
+
+    #[tokio::test]
+    async fn return_claim_allows_queued_geometry_before_revoke_ack() {
+        use viewflow_protocol::{
+            DomainControl, InputLeaseRevoke, InputLeaseRevokedAck, InputLeaseRevokedResult,
+        };
+        use viewflow_transport::{ControlSequencer, receive_control_sequenced};
+        for reverse in [false, true] {
+            let (_client, _server, connection, remote) = crate::atlas_session::tests::pair().await;
+            let writer_owner =
+                crate::shared_control::SharedControlWriter::start(&connection).unwrap();
+            let outbound = writer_owner.sender().outbound();
+            let target = viewflow_hyprland::capture_wire::DragTarget {
+                pid: 7,
+                address: 8,
+                surface: if reverse { 0 } else { 9 },
+                reverse_id: if reverse { 10 } else { 0 },
+                grab_offset: None,
+            };
+            let config = CursorConfig {
+                drag: Default::default(),
+                reverse_drag: Default::default(),
+                remote_scale: 2.,
+                position_offset: (0., 0.),
+                position_scale: (1., 1.),
+                ready_file: None,
+                raw_touchpad: true,
+                external_touchpad: false,
+                local: vec![rect(0, 0)],
+                remote: rect(100_000, 0),
+                monitor_id: 1,
+                topology_generation: 1,
+                owner: Id128(1),
+                target: Id128(2),
+                fps: 60,
+            };
+            if reverse {
+                *config.reverse_drag.lock().await = Some(crate::reverse_bridge::NativeDrag {
+                    id: target.reverse_id,
+                    pid: target.pid,
+                    address: target.address,
+                    handed_off: false,
+                    grab_offset: None,
+                });
+            } else {
+                *config.drag.lock().await = Some(DragTransfer {
+                    window: Id128(42),
+                    target,
+                    handed_off: false,
+                    resizing: false,
+                    move_confirmed: true,
+                });
+            }
+            let claimed = claim_cursor_return(&config, 31, false, false, (103., 50.), (99., 50.))
+                .await
+                .unwrap();
+            assert_eq!(claimed.drag_target, Some(target));
+            assert_eq!(claimed.position, (99., 50.));
+            // Queueing retirement finishes before the remote ACK. This lets
+            // the caller restore local dragging immediately, then retain the
+            // receipt independently while geometry continues on both readers.
+            let pending = tokio::time::timeout(
+                Duration::from_millis(250),
+                crate::queue_desktop_revoke(
+                    &outbound,
+                    InputLeaseRevoke {
+                        operation_id: Id128(3),
+                        lease_generation: 3,
+                        owner_device: Id128(1),
+                        target_device: Id128(2),
+                        state: InputLeaseState::Revoked,
+                    },
+                    tokio::time::Instant::now() + Duration::from_secs(1),
+                ),
+            )
+            .await
+            .expect("local return may not wait for the remote receipt")
+            .unwrap();
+            let waiting = tokio::spawn(
+                pending.confirm_desktop(tokio::time::Instant::now() + Duration::from_secs(1)),
+            );
+            let DomainControl::InputLeaseRevoke(revoke) = DomainControl::try_from(
+                receive_control_sequenced(&remote, &mut ControlSequencer::default())
+                    .await
+                    .unwrap(),
+            )
+            .unwrap() else {
+                panic!("expected revoke")
+            };
+            assert!(!waiting.is_finished());
+            // This is the shared reader's order in the failing live route:
+            // queued geometry needs both locks before it can consume the ACK.
+            tokio::time::timeout(Duration::from_millis(100), async {
+                let geometry = config.drag.lock().await;
+                let reverse_geometry = config.reverse_drag.lock().await;
+                if reverse {
+                    assert!(reverse_geometry.as_ref().unwrap().handed_off);
+                } else {
+                    assert!(geometry.as_ref().unwrap().handed_off);
+                }
+                assert_eq!(
+                    outbound.lease_revoke_acks.resolve(InputLeaseRevokedAck {
+                        operation_id: revoke.operation_id,
+                        lease_generation: revoke.lease_generation,
+                        owner_device: revoke.owner_device,
+                        target_device: revoke.target_device,
+                        state: revoke.state,
+                        result: InputLeaseRevokedResult::Applied,
+                    }),
+                    crate::LeaseRevokeAckResolution::Delivered
+                );
+            })
+            .await
+            .expect("return may not hold geometry locks over a receipt wait");
+            waiting.await.unwrap().unwrap();
+            assert!(connection.close_reason().is_none());
+            // No old motion may reacquire or transfer the same drag a second time.
+            assert!(
+                claim_cursor_return(&config, 31, false, false, (103., 50.), (99., 50.))
+                    .await
+                    .unwrap()
+                    .drag_target
+                    .is_none()
+            );
+        }
     }
 
     #[tokio::test]
@@ -1232,7 +1959,14 @@ mod tests {
             ));
             let (commands, mut native_requests) = mpsc::channel(4);
             let config = CursorConfig {
-                drag: Default::default(), reverse_drag: Default::default(), remote_scale: 2.0, position_offset: (0.0, 0.0), position_scale: (1.0, 1.0), ready_file: None, raw_touchpad: true,
+                drag: Default::default(),
+                reverse_drag: Default::default(),
+                remote_scale: 2.0,
+                position_offset: (0.0, 0.0),
+                position_scale: (1.0, 1.0),
+                ready_file: None,
+                raw_touchpad: true,
+                external_touchpad: false,
                 local: vec![rect(0, 0)],
                 remote: rect(100_000, 0),
                 monitor_id: 1,
@@ -1243,14 +1977,9 @@ mod tests {
             };
             let network = connection.clone();
             let work = tokio::spawn(async move {
-                let result = rollback_capture(
-                    &config,
-                    &writer,
-                    &commands,
-                    2,
-                    Duration::from_millis(200),
-                )
-                .await;
+                let result =
+                    rollback_capture(&config, &writer, &commands, 2, Duration::from_millis(200))
+                        .await;
                 retire_on_failure(
                     &network,
                     &result
@@ -1274,9 +2003,14 @@ mod tests {
                 "native release must wait for receiver cleanup ACK"
             );
             tokio::time::sleep(Duration::from_millis(220)).await;
-            assert!(!work.is_finished(), "elapsed cleanup target must not retire the session");
+            assert!(
+                !work.is_finished(),
+                "elapsed cleanup target must not retire the session"
+            );
             if failure == Some("receiver") {
-                outbound.lease_revoke_acks.disconnect("fixture peer disconnected");
+                outbound
+                    .lease_revoke_acks
+                    .disconnect("fixture peer disconnected");
             }
             if failure != Some("receiver") {
                 assert_eq!(
@@ -1296,7 +2030,7 @@ mod tests {
                     CaptureCommand::Release {
                         generation: 2,
                         drag_target: None,
-                return_position: None
+                        return_position: None
                     }
                 ));
                 assert!(
@@ -1486,12 +2220,24 @@ mod tests {
         });
         for reject in [true, false] {
             let request = requests.recv().await.unwrap();
-            assert_eq!(request.command, CaptureCommand::Release {
-                generation: 2, drag_target: None, return_position: None,
-            });
+            assert_eq!(
+                request.command,
+                CaptureCommand::Release {
+                    generation: 2,
+                    drag_target: None,
+                    return_position: None,
+                }
+            );
             tokio::time::sleep(Duration::from_millis(5)).await;
             assert!(!work.is_finished());
-            request.reply.send(if reject { Err(NativeCaptureRejected.into()) } else { Ok(()) }).unwrap();
+            request
+                .reply
+                .send(if reject {
+                    Err(NativeCaptureRejected.into())
+                } else {
+                    Ok(())
+                })
+                .unwrap();
         }
         work.await.unwrap().unwrap();
     }

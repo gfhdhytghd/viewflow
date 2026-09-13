@@ -42,7 +42,7 @@ OSDictionary *VFTrackpad::newDeviceDescription() {
     // Product, manufacturer and serial identify this virtual implementation.
     bool ok=string_property(d,"Product","Viewflow Native MT Protocol Experiment") &&
         string_property(d,"Manufacturer","Viewflow") &&
-        string_property(d,"SerialNumber","Viewflow-Native-MT-v12") &&
+        string_property(d,"SerialNumber","Viewflow-Native-MT-v13") &&
         string_property(d,"Transport","Virtual") &&
         string_property(d,"HIDDefaultBehavior","Trackpad") &&
         number_property(d,"VendorID",0x5ac) && number_property(d,"ProductID",2) &&

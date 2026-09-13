@@ -1,7 +1,7 @@
 //! Hyprland GPU window source for the portable native-window peer.
 use anyhow::{Result, ensure};
 
-const USAGE: &str = "usage: vf-hyprland-windows --window 0xADDRESS --compositor-pid PID [--fps 60] [--input-native /absolute/viewflow-linux-window-input]\nShares one selected window using the Viewflow capture plugin and NVENC. Omit --input-native for view-only sharing. Launch through vf-window-peer.";
+const USAGE: &str = "usage: vf-hyprland-windows --window 0xADDRESS --compositor-pid PID [--fps 60] [--performance-mode frame-rate|latency] [--input-native /absolute/viewflow-linux-window-input]\nShares one selected window using the Viewflow capture plugin and NVENC. Omit --input-native for view-only sharing. Launch through vf-window-peer.";
 
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -42,10 +42,12 @@ mod native {
     };
     use viewflow_hyprland::{HyprIpcClient, resolve_socket_path};
     use viewflowd::{
+        atlas_peer::AtlasPerformanceMode,
         gpu_nvenc_runtime::{GpuAtlasIdentity, GpuAtlasTile, GpuEncodeOutcome, GpuEncoder},
         hyprcapture_gpu_socket::{GpuFrame, GpuReceiveOutcome},
         hyprcapture_gpu_wire::{HcgfFrame, InputGeometry},
-        hyprcapture_runtime::start_viewflow_gpu_stream,
+        hyprcapture_runtime::start_viewflow_gpu_stream_with_mode,
+        native_window_blur::BlurRecipe,
         native_window_wire::{self as wire, Frame, Input, Tile},
     };
     type Snapshot = Arc<Mutex<Option<(HcgfFrame, InputGeometry)>>>;
@@ -145,6 +147,24 @@ mod native {
             )
             .unwrap();
             assert_eq!((global.a, global.b), (mapped.a, mapped.b));
+            // A title-bar drag moves the source while video is in flight.
+            // Desktop pointer coordinates must not inherit that displacement.
+            let mut later_frame = frame.clone();
+            later_frame.logical_x += 170.0;
+            later_frame.logical_y -= 90.0;
+            let later = translate(
+                Input { a: -980, b: 240, c: 1, ..pointer },
+                &later_frame,
+                &geometry,
+            ).unwrap();
+            assert_eq!((later.a, later.b), (global.a, global.b));
+            // Precise scrolling is not a position: preserve milli-points,
+            // axis, source, and stop across Retina/source geometry conversion.
+            let scroll = translate(
+                Input { kind: 3, a: 1, b: -1250, c: 1, d: 1, ..pointer },
+                &later_frame, &geometry,
+            ).unwrap();
+            assert_eq!((scroll.a, scroll.b, scroll.c, scroll.d), (1, -1250, 1, 1));
             let moved = translate(
                 Input {
                     kind: 6,
@@ -230,6 +250,7 @@ mod native {
                 let mut sequence = 0;
                 let mut stdin = std::io::stdin().lock();
                 while let Some(event) = wire::read_input(&mut stdin)? {
+                    if event.kind == 3 { eprintln!("window-scroll transport seq={} id={} axis={} amount={} precise={} stop={}",event.sequence,event.id,event.a,event.b,event.c,event.d); }
                     if event.sequence <= sequence {
                         eprintln!("window input sequence regression rejected");
                         continue;
@@ -283,12 +304,15 @@ mod native {
                     // Receipt means the geometry request was processed, even
                     // if unavailable. Publish observed native geometry so the
                     // proxy can recover instead of waiting for an impossible ACK.
-                    if event.kind == 6 {
+                    if event.kind == 6 || event.kind == 15 {
                         ack.store(event.sequence, Ordering::Release);
                     }
                 }
                 Ok(())
             })();
+            // Let capture teardown start immediately; releasing a slow input
+            // helper must not hold the producer slot until the peer kills us.
+            stopped.store(true, Ordering::Release);
             drop(helper);
             if let Err(error) = result {
                 eprintln!("Hyprland window input pipe ended: {error:#}");
@@ -301,12 +325,20 @@ mod native {
         let mut address = None;
         let mut compositor = None;
         let mut fps = 60u16;
+        let mut performance_mode = AtlasPerformanceMode::FrameRate;
         let mut input_native = None;
         for pair in args.chunks_exact(2) {
             match pair[0].as_str() {
                 "--window" => address = Some(pair[1].clone()),
                 "--compositor-pid" => compositor = Some(pair[1].parse::<u32>()?),
                 "--fps" => fps = pair[1].parse()?,
+                "--performance-mode" => {
+                    performance_mode = match pair[1].as_str() {
+                        "frame-rate" => AtlasPerformanceMode::FrameRate,
+                        "latency" => AtlasPerformanceMode::Latency,
+                        _ => anyhow::bail!("invalid performance mode"),
+                    }
+                }
                 "--input-native" => input_native = Some(PathBuf::from(&pair[1])),
                 _ => anyhow::bail!(USAGE),
             }
@@ -341,6 +373,49 @@ mod native {
             .collect::<String>();
         let snapshot: Snapshot = Arc::new(Mutex::new(None));
         let stopped = Arc::new(AtomicBool::new(false));
+        let blur: Arc<Mutex<Option<BlurRecipe>>> = Arc::new(Mutex::new(None));
+        let fullscreen = Arc::new(AtomicBool::new(false));
+        let raised = Arc::new(AtomicBool::new(false));
+        {
+            let raised = raised.clone();
+            let fullscreen = fullscreen.clone();
+            let address = address.clone();
+            let target = blur.clone();
+            let stopped = stopped.clone();
+            let ipc = ipc.clone().with_timeout(Duration::from_millis(150));
+            std::thread::spawn(move || {
+                let mut failed = false;
+                while !stopped.load(Ordering::Acquire) {
+                    if let Ok(text) = ipc.request("j/clients") {
+                        if let Ok(clients) = serde_json::from_str::<Vec<serde_json::Value>>(&text) {
+                            if let Some(window) = clients.iter().find(|w| w["address"].as_str()==Some(address.as_str())) {
+                                raised.store(window["focusHistoryID"].as_u64()==Some(0),Ordering::Release);
+                                fullscreen.store(window["fullscreen"].as_u64()==Some(2) || window["fullscreenClient"].as_u64()==Some(2),Ordering::Release);
+                            }
+                        }
+                    }
+                    match BlurRecipe::read(&ipc) {
+                        Ok(recipe) => {
+                            let mut current = target.lock().unwrap();
+                            if *current != Some(recipe) {
+                                eprintln!("window-source-blur {recipe:?}");
+                                *current = Some(recipe);
+                            }
+                            failed = false;
+                        }
+                        Err(error) => {
+                            if !failed {
+                                eprintln!(
+                                    "window source blur query recovering, last recipe retained: {error}"
+                                );
+                            }
+                            failed = true;
+                        }
+                    }
+                    std::thread::sleep(Duration::from_millis(500));
+                }
+            });
+        }
         let ack = Arc::new(AtomicU64::new(0));
         input_worker(
             input_native,
@@ -351,13 +426,26 @@ mod native {
             stopped.clone(),
             ack.clone(),
         );
-        let stream =
-            start_viewflow_gpu_stream(&address, fps, compositor, Duration::from_secs(10)).await?;
+        let stream = start_viewflow_gpu_stream_with_mode(
+            &address,
+            fps,
+            compositor,
+            Duration::from_secs(10),
+            performance_mode,
+        )
+        .await?;
         let (mut receiver, control) = stream.into_parts();
         let mut encoder: Option<GpuEncoder> = None;
         let mut extent = (0, 0);
         let mut force_idr = true;
         let mut outstanding: Option<Box<GpuFrame>> = None;
+        let binding_path = std::env::var_os("XDG_RUNTIME_DIR")
+            .map(PathBuf::from)
+            .map(|root| {
+                root.join("viewflow/macos-windows/bindings")
+                    .join(format!("{}.json", std::process::id()))
+            });
+        let mut published_binding = None;
         let result = async {
             while !stopped.load(Ordering::Acquire) {
                 let frame = match receiver.recv_frame()? {
@@ -378,6 +466,15 @@ mod native {
                     input.window == native_address && input.pid == u64::from(pid),
                     "capture target identity changed"
                 );
+                if published_binding!=Some((input.window,input.surface,input.pid)) {
+                    if let Some(path)=&binding_path {
+                        let value=serde_json::json!({"producer_pid":std::process::id(),"window":input.window,"surface":input.surface,"pid":input.pid});
+                        if let Some(parent)=path.parent() {let _=std::fs::create_dir_all(parent);}
+                        let temporary=path.with_extension("next");
+                        if std::fs::write(&temporary,value.to_string()).is_ok() {let _=std::fs::rename(temporary,path);}
+                    }
+                    published_binding=Some((input.window,input.surface,input.pid));
+                }
                 let wanted = (
                     metadata.crop_width.div_ceil(2) * 2,
                     metadata.crop_height.div_ceil(2) * 2,
@@ -431,11 +528,13 @@ mod native {
                 let captured = metadata.clone();
                 receiver.release_after_source_reads(frame)?;
                 outstanding = None;
+                let encoded_at = now()?;
                 match outcome {
                     GpuEncodeOutcome::Encoded(encoded) => {
                         let sx = f64::from(captured.crop_width) / captured.logical_width;
                         let sy = f64::from(captured.crop_height) / captured.logical_height;
                         let tile = Tile {
+                            flags: (if fullscreen.load(Ordering::Acquire) {32} else {0}) | (if raised.load(Ordering::Acquire) {64} else {0}),
                             id: 1,
                             x: (captured.logical_x * sx).round() as i32,
                             y: (captured.logical_y * sy).round() as i32,
@@ -446,6 +545,7 @@ mod native {
                             title: title.clone(),
                             geometry_ack: ack.load(Ordering::Acquire),
                         };
+                        let blur_recipe=*blur.lock().unwrap();
                         let record = Frame {
                             width: extent.0,
                             height: extent.1,
@@ -455,9 +555,17 @@ mod native {
                             raw_alpha: &encoded.raw_alpha,
                             color: &encoded.color_annex_b,
                         }
-                        .encode()?;
+                        .encode_with_blur(blur_recipe.as_ref())?;
                         *snapshot.lock().unwrap() = Some((captured, input));
+                        let packed_at = now()?;
                         wire::write_record(&mut std::io::stdout().lock(), &record)?;
+                        let sent_at = now()?;
+                        if sent_at.saturating_sub(start) > 100_000_000 {
+                            eprintln!("window-source-slow encode-ms={:.1} pack-ms={:.1} pipe-ms={:.1} bytes={}",
+                                encoded_at.saturating_sub(start) as f64 / 1e6,
+                                packed_at.saturating_sub(encoded_at) as f64 / 1e6,
+                                sent_at.saturating_sub(packed_at) as f64 / 1e6, record.len());
+                        }
                         force_idr = false;
                     }
                     GpuEncodeOutcome::ExpiredClean | GpuEncodeOutcome::ExpiredAfterSubmission => {
@@ -476,6 +584,9 @@ mod native {
             Ok::<(), anyhow::Error>(())
         }
         .await;
+        if let Some(path) = binding_path {
+            let _ = std::fs::remove_file(path);
+        }
         *snapshot.lock().unwrap() = None;
         // GPU failures retain the outstanding lease until the owned producer is
         // stopped. Never manufacture a release receipt for uncertain GPU reads.

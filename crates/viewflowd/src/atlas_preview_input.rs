@@ -92,7 +92,9 @@ pub struct AtlasPreviewInput {
     // None is the normal/default path. Recovery has no silent capability
     // upgrade: it is wired only by the recovery-aware owner.
     recovery: Option<AtlasRecoveryInput>,
-    desktop_cursor: Option<viewflow_platform::windows_input::DesktopPointerDisplay>,
+    // Retain the receiver declaration rather than a Windows-only mapper. The
+    // selected native backend derives its OS coordinate adapter when serving.
+    desktop_cursor: Option<crate::desktop_config::AtlasReceiverDesktopConfig>,
     desktop_moves: Option<mpsc::Receiver<crate::desktop_pointer::AtlasDesktopMove>>,
 }
 
@@ -287,7 +289,7 @@ mod tests {
         for notice_ahead in [false, true] {
             let origin = Instant::now();
             let old = AtlasFrame {
-            patches: None,
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 100,
                 geometry_epoch: 2,
@@ -642,10 +644,18 @@ mod tests {
         // Cancellation must discard only its own prefix. A later click in a
         // different HWND and a focus cleanup can already be in the same FIFO.
         let old_event = AtlasNativePointer::parse(crate::atlas_pointer::tests::MOTION).unwrap();
-        _native_owner.try_send(old_event.fixture_ingress(1)).unwrap();
-        let other = AtlasNativePointer::parse(&crate::atlas_pointer::tests::MOTION.replace("window_lo=8", "window_lo=9")).unwrap();
+        _native_owner
+            .try_send(old_event.fixture_ingress(1))
+            .unwrap();
+        let other = AtlasNativePointer::parse(
+            &crate::atlas_pointer::tests::MOTION.replace("window_lo=8", "window_lo=9"),
+        )
+        .unwrap();
         _native_owner.try_send(other.fixture_ingress(2)).unwrap();
-        let release = AtlasNativePointer::parse(&crate::atlas_pointer::tests::MOTION.replace("kind=motion", "kind=release")).unwrap();
+        let release = AtlasNativePointer::parse(
+            &crate::atlas_pointer::tests::MOTION.replace("kind=motion", "kind=release"),
+        )
+        .unwrap();
         _native_owner.try_send(release.fixture_ingress(3)).unwrap();
         input.accept_rejected_notice(notice, (110, 1000)).unwrap();
         assert_eq!(input.native_backlog.len(), 2);
@@ -677,10 +687,17 @@ mod tests {
             .unwrap();
         assert!(fresh.matches(&newest));
         assert!(fresh.sequence > old.sequence);
-        assert!(fresh.sender_not_after_ns >= fresh_creation_floor + (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS));
         assert!(
             fresh.sender_not_after_ns
-                <= u64::try_from(origin.elapsed().as_nanos()).unwrap() + (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS)
+                >= fresh_creation_floor
+                    + (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+                        - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS)
+        );
+        assert!(
+            fresh.sender_not_after_ns
+                <= u64::try_from(origin.elapsed().as_nanos()).unwrap()
+                    + (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+                        - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS)
         );
         assert!(requests.try_recv().is_err()); // Fresh selection is not authorization.
         // Its 24 ms decision budget expiring must not erase correlation while
@@ -1446,12 +1463,7 @@ impl AtlasPreviewInput {
         config: crate::desktop_config::AtlasReceiverDesktopConfig,
     ) -> Result<Self> {
         config.validate()?;
-        self.desktop_cursor = Some(viewflow_platform::windows_input::DesktopPointerDisplay {
-            bounds: config.display.rect()?,
-            native_x: config.native_x,
-            native_y: config.native_y,
-            scale_milli: config.display.scale_milli()?,
-        });
+        self.desktop_cursor = Some(config);
         Ok(self)
     }
 
@@ -1656,13 +1668,20 @@ impl AtlasPreviewInput {
             // The single native stdout dispatcher stamped this boundary after
             // every record emitted before cancellation. Nothing after it may
             // be discarded or replayed under a fresh authorization.
-            self.native_backlog.retain(|event| event.releases_input()
-                || event.ingress_ordinal() > marker.ingress_boundary
-                || event.selection().window_id != previous.window_id);
+            self.native_backlog.retain(|event| {
+                event.releases_input()
+                    || event.ingress_ordinal() > marker.ingress_boundary
+                    || event.selection().window_id != previous.window_id
+            });
             while let Ok(event) = self.native.try_recv() {
-                ensure!(event.ingress_ordinal() > 0, "native input lacks ingress order");
-                if event.releases_input() || event.ingress_ordinal() > marker.ingress_boundary
-                    || event.selection().window_id != previous.window_id {
+                ensure!(
+                    event.ingress_ordinal() > 0,
+                    "native input lacks ingress order"
+                );
+                if event.releases_input()
+                    || event.ingress_ordinal() > marker.ingress_boundary
+                    || event.selection().window_id != previous.window_id
+                {
                     self.native_backlog.push_back(event);
                 }
             }
@@ -1787,7 +1806,10 @@ impl AtlasPreviewInput {
                 original.window_id,
                 *input_sequence,
                 selection_now_ns
-                    .checked_add((crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS))
+                    .checked_add(
+                        (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+                            - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS),
+                    )
                     .context("fresh selection deadline overflow")?,
             )
             .map_err(|e| anyhow::anyhow!("invalid fresh recovery frame: {e:?}"))?;
@@ -1845,8 +1867,14 @@ impl AtlasPreviewInput {
         };
         loop {
             match recovery.notices.try_recv() {
-                Ok(notice) if self.focus_release_qpc.get(&notice.selection.window_id)
-                    .is_some_and(|boundary| notice.observed_qpc <= *boundary) => continue,
+                Ok(notice)
+                    if self
+                        .focus_release_qpc
+                        .get(&notice.selection.window_id)
+                        .is_some_and(|boundary| notice.observed_qpc <= *boundary) =>
+                {
+                    continue;
+                }
                 Ok(notice) => return Ok(Some(notice)),
                 Err(mpsc::error::TryRecvError::Empty) => return Ok(None),
                 Err(mpsc::error::TryRecvError::Disconnected) => {
@@ -2195,7 +2223,13 @@ impl AtlasPreviewInput {
         #[cfg(windows)]
         let cursor_receiver = self
             .desktop_cursor
-            .map(|display| {
+            .map(|config| {
+                let display = viewflow_platform::windows_input::DesktopPointerDisplay {
+                    bounds: config.display.rect()?,
+                    native_x: config.native_x,
+                    native_y: config.native_y,
+                    scale_milli: config.display.scale_milli()?,
+                };
                 crate::input_runtime::InputReceiver::new(
                     crate::input_runtime::InputBackendMode::Native,
                     Some(self.owner),
@@ -2203,7 +2237,24 @@ impl AtlasPreviewInput {
                 .map(|receiver| receiver.with_desktop_display(display))
             })
             .transpose()?;
-        #[cfg(not(windows))]
+        #[cfg(target_os = "macos")]
+        let cursor_receiver = self
+            .desktop_cursor
+            .map(|config| {
+                let display = viewflow_platform::macos_input::MacOsDesktopPointerDisplay {
+                    bounds: config.display.rect()?,
+                    native_x: config.native_x,
+                    native_y: config.native_y,
+                    scale_milli: config.display.scale_milli()?,
+                };
+                crate::input_runtime::InputReceiver::new(
+                    crate::input_runtime::InputBackendMode::Native,
+                    Some(self.owner),
+                )
+                .map(|receiver| receiver.with_desktop_display(display))
+            })
+            .transpose()?;
+        #[cfg(not(any(windows, target_os = "macos")))]
         let cursor_receiver = None;
         let (preview_send, mut preview_controls) = mpsc::channel(64);
         let cursor_work = crate::atlas_cursor_receiver::run(
@@ -2236,6 +2287,7 @@ impl AtlasPreviewInput {
             let mut released_selection_floor = 0_u64;
             let mut focus_releases = VecDeque::new();
             let mut desktop = crate::desktop_receiver_state::DesktopReceiverState::default();
+            let mut desktop_wait_logged = std::time::Instant::now();
             let mut tick = tokio::time::interval(Duration::from_millis(1));
             tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
@@ -2303,6 +2355,7 @@ impl AtlasPreviewInput {
                         }
                         DomainControl::DesktopWindowMoveAck(ack) => {
                             ensure!(self.desktop_moves.is_some(), "desktop ACK on disabled route");
+                            eprintln!("desktop-receiver-ack drag={:?} sequence={} outcome={:?}", ack.drag_id, ack.sequence, ack.result);
                             desktop.acknowledge(ack, clock.now_ns())?;
                         }
                         DomainControl::ClockSyncReply(reply) => crate::dispatch_clock_reply(&replies, reply).await?,
@@ -2335,12 +2388,19 @@ impl AtlasPreviewInput {
                         Err(_) => break,
                     }
                 }
-                while let Some(index) = self.native_backlog.iter().position(AtlasNativePointer::releases_input) {
+                while let Some(index) = self
+                    .native_backlog
+                    .iter()
+                    .position(AtlasNativePointer::releases_input)
+                {
                     let event = self.native_backlog.remove(index).expect("located release");
                     let window = event.selection().window_id;
-                    self.focus_release_qpc.insert(window, event.focus_release_qpc());
-                    self.native_backlog.retain(|queued| queued.selection().window_id != window
-                        || queued.ingress_ordinal() > event.ingress_ordinal());
+                    self.focus_release_qpc
+                        .insert(window, event.focus_release_qpc());
+                    self.native_backlog.retain(|queued| {
+                        queued.selection().window_id != window
+                            || queued.ingress_ordinal() > event.ingress_ordinal()
+                    });
                     focus_releases.push_back(window);
                     released_selection_floor = sequence;
                     waiting = None;
@@ -2354,14 +2414,28 @@ impl AtlasPreviewInput {
                     }
                 }
                 if !focus_releases.is_empty() {
-                    if let Some(p) = preview.as_mut() { p.pump(snapshot, &outbound).await?; }
-                    if preview.as_ref().is_some_and(|p| !p.idle_for_selection()) { continue; }
+                    if let Some(p) = preview.as_mut() {
+                        p.pump(snapshot, &outbound).await?;
+                    }
+                    if preview.as_ref().is_some_and(|p| !p.idle_for_selection()) {
+                        continue;
+                    }
                     while let Some(window) = focus_releases.pop_front() {
-                        writer.send(wire::control_envelope::Payload::WindowInputRelease(
-                            wire::WindowInputRelease { window_id: Some(wire::Id128 {
-                                high: (window.0 >> 64) as u64, low: window.0 as u64 }) }),
-                            tokio::time::Instant::now() + Duration::from_secs(5)).await?;
-                        if let Some(p) = preview.as_mut().filter(|p| p.selected_window() == window) {
+                        writer
+                            .send(
+                                wire::control_envelope::Payload::WindowInputRelease(
+                                    wire::WindowInputRelease {
+                                        window_id: Some(wire::Id128 {
+                                            high: (window.0 >> 64) as u64,
+                                            low: window.0 as u64,
+                                        }),
+                                    },
+                                ),
+                                tokio::time::Instant::now() + Duration::from_secs(5),
+                            )
+                            .await?;
+                        if let Some(p) = preview.as_mut().filter(|p| p.selected_window() == window)
+                        {
                             p.pause_for_desktop_move()?;
                         }
                     }
@@ -2369,6 +2443,25 @@ impl AtlasPreviewInput {
                 desktop.check_deadline(clock.now_ns())?;
                 if let Some(moves) = &mut self.desktop_moves {
                     ensure!(!moves.is_closed(), "desktop native event owner ended");
+                    if !moves.is_empty() && desktop_wait_logged.elapsed() >= Duration::from_secs(1)
+                    {
+                        eprintln!(
+                            "desktop-receiver-queue queued={} pending={} active={} recovery={} rejected={} selection={} layout={} native={} backlog={} preview_idle={}",
+                            moves.len(),
+                            desktop.pending(),
+                            desktop.active(),
+                            self.recovery.as_ref().is_some_and(|r| r.pending.is_some()),
+                            self.recovery.as_ref().is_some_and(|r| r.rejected.is_some()),
+                            waiting.is_some(),
+                            waiting_layout.is_some(),
+                            self.native.len(),
+                            self.native_backlog.len(),
+                            preview
+                                .as_ref()
+                                .is_none_or(WindowPreviewInput::idle_for_selection)
+                        );
+                        desktop_wait_logged = std::time::Instant::now();
+                    }
                     if !desktop.pending()
                         && self
                             .recovery
@@ -2376,7 +2469,8 @@ impl AtlasPreviewInput {
                             .is_none_or(|r| r.pending.is_none() && r.rejected.is_none())
                         && waiting.is_none()
                         && waiting_layout.is_none()
-                        && (desktop.active() || (self.native.is_empty() && self.native_backlog.is_empty()))
+                        && (desktop.active()
+                            || (self.native.is_empty() && self.native_backlog.is_empty()))
                         && preview
                             .as_ref()
                             .is_none_or(WindowPreviewInput::idle_for_selection)
@@ -2395,7 +2489,14 @@ impl AtlasPreviewInput {
                             let (qpc, frequency) = (self.qpc)()?;
                             let deadline_ns = match event.sender_not_after_ns(qpc, frequency, now) {
                                 Ok(deadline) => deadline,
-                                Err(_) if event.phase == viewflow_protocol::DesktopWindowMovePhase::Begin => {
+                                Err(_)
+                                    if event.phase
+                                        == viewflow_protocol::DesktopWindowMovePhase::Begin =>
+                                {
+                                    eprintln!(
+                                        "desktop-receiver-rejected drag={} reason=native-deadline",
+                                        event.drag_id
+                                    );
                                     desktop.reject_begin(event);
                                     continue;
                                 }
@@ -2407,7 +2508,19 @@ impl AtlasPreviewInput {
                                 self.owner,
                                 deadline_ns,
                                 &committed,
-                            )? else { continue; };
+                            )?
+                            else {
+                                continue;
+                            };
+                            if movement.phase != viewflow_protocol::DesktopWindowMovePhase::Update {
+                                eprintln!(
+                                    "desktop-receiver-send phase={:?} drag={} sequence={} frame={}",
+                                    movement.phase,
+                                    event.drag_id,
+                                    movement.sequence,
+                                    movement.base_atlas_frame
+                                );
+                            }
                             if movement.phase == viewflow_protocol::DesktopWindowMovePhase::Begin {
                                 if let Some(p) = &mut preview {
                                     p.pause_for_desktop_move()?;
@@ -2580,7 +2693,12 @@ impl AtlasPreviewInput {
                 let candidate = if let Some(candidate) = waiting_layout.take() {
                     Some(candidate)
                 } else {
-                    let native = match self.native_backlog.pop_front().map(Ok).unwrap_or_else(|| self.native.try_recv()) {
+                    let native = match self
+                        .native_backlog
+                        .pop_front()
+                        .map(Ok)
+                        .unwrap_or_else(|| self.native.try_recv())
+                    {
                         Ok(event) => event,
                         Err(mpsc::error::TryRecvError::Empty) => continue,
                         Err(mpsc::error::TryRecvError::Disconnected) => {

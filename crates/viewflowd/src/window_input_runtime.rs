@@ -158,9 +158,19 @@ pub struct AuthorizedWindow {
 impl AuthorizedWindow {
     /// Internal empty-desktop state, never announced as an authorization.
     pub(crate) fn unbound(owner: DeviceId, target_device: DeviceId) -> Self {
-        Self { owner, target_device, generation: 0, geometry: PresentedInputGeometry::unbound(),
-            expires_local_ns: 0, native_address: 0, native_surface: 0, native_pid: 0,
-            surface_extent: [1.; 2], content_origin: [0.; 2], content_scale: [1.; 2] }
+        Self {
+            owner,
+            target_device,
+            generation: 0,
+            geometry: PresentedInputGeometry::unbound(),
+            expires_local_ns: 0,
+            native_address: 0,
+            native_surface: 0,
+            native_pid: 0,
+            surface_extent: [1.; 2],
+            content_origin: [0.; 2],
+            content_scale: [1.; 2],
+        }
     }
 
     /// Construct from one retained source GPU frame and its exact, source-verified
@@ -938,16 +948,30 @@ impl WindowInputSession {
         {
             bail!("invalid content scale");
         }
-        let unbound = deferred && authorized.geometry.identity().window.0 == 0
-            && authorized.generation == 0 && authorized.expires_local_ns == 0
-            && authorized.native_address == 0 && authorized.native_surface == 0 && authorized.native_pid == 0;
+        let unbound = deferred
+            && authorized.geometry.identity().window.0 == 0
+            && authorized.generation == 0
+            && authorized.expires_local_ns == 0
+            && authorized.native_address == 0
+            && authorized.native_surface == 0
+            && authorized.native_pid == 0;
         let mut grant = if unbound {
             WindowPointerGrant::idle(authorized.owner, authorized.target_device)
         } else {
-            WindowPointerGrant::new(authorized.owner, authorized.target_device, authorized.generation,
-                authorized.geometry, authorized.expires_local_ns)
-        }.ok_or_else(|| anyhow!("invalid window grant"))?;
-        let deadline = if unbound { 0 } else { native_deadline(origin, authorized.expires_local_ns)? };
+            WindowPointerGrant::new(
+                authorized.owner,
+                authorized.target_device,
+                authorized.generation,
+                authorized.geometry,
+                authorized.expires_local_ns,
+            )
+        }
+        .ok_or_else(|| anyhow!("invalid window grant"))?;
+        let deadline = if unbound {
+            0
+        } else {
+            native_deadline(origin, authorized.expires_local_ns)?
+        };
         let mut keyboard_grant = (allow_keyboard && !deferred)
             .then(|| Self::new_keyboard_grant(&authorized))
             .transpose()?;
@@ -961,14 +985,31 @@ impl WindowInputSession {
             Request::begin
         };
         let desktop_suspension = if deferred {
-            let previous = if unbound { None } else { Some(grant.authorization(elapsed_ns(origin)?).context("initial atlas grant expired")?) };
+            let previous = if unbound {
+                None
+            } else {
+                Some(
+                    grant
+                        .authorization(elapsed_ns(origin)?)
+                        .context("initial atlas grant expired")?,
+                )
+            };
             grant.revoke();
-            if let Some(keyboard) = &mut keyboard_grant { keyboard.revoke(); }
+            if let Some(keyboard) = &mut keyboard_grant {
+                keyboard.revoke();
+            }
             previous
         } else {
-            let request = begin(1, authorized.generation, authorized.native_address, authorized.native_pid,
-                deadline, authorized.surface_extent, authorized.native_surface)
-                .map_err(|e| anyhow!("native begin: {e:?}"))?;
+            let request = begin(
+                1,
+                authorized.generation,
+                authorized.native_address,
+                authorized.native_pid,
+                deadline,
+                authorized.surface_extent,
+                authorized.native_surface,
+            )
+            .map_err(|e| anyhow!("native begin: {e:?}"))?;
             connection.send(request)?;
             None
         };
@@ -1051,7 +1092,7 @@ impl WindowInputSession {
             || next.target_device != previous.target_device
             || next.target_window != previous.target_window
             || next.geometry_epoch != previous.geometry_epoch
-            || next.presented_frame <= previous.presented_frame
+            || next.presented_frame < previous.presented_frame
             || next.lease_generation <= previous.lease_generation
             || next.source_not_after_ns <= previous.source_not_after_ns
             || self.native_binding
@@ -1177,40 +1218,46 @@ impl WindowInputSession {
             !self.closed_windows.contains(&next.target_window),
             "closed atlas target cannot resume"
         );
-        anyhow::ensure!(next.owner_device == owner && next.target_device == target_device && next.lease_generation > self.generation,
-            "desktop resume changed paired devices or regressed generation");
+        anyhow::ensure!(
+            next.owner_device == owner
+                && next.target_device == target_device
+                && next.lease_generation > self.generation,
+            "desktop resume changed paired devices or regressed generation"
+        );
         if let Some(previous) = previous {
             anyhow::ensure!(
-            next.owner_device == previous.owner_device
-                && next.target_device == previous.target_device
-                && next.lease_generation > previous.lease_generation,
-            "desktop resume did not provide newer source authorization"
-        );
-        if next.target_window == previous.target_window {
-            // A no-op drag may leave its geometry epoch unchanged. It still
-            // needs a newer lease generation and non-regressing frame;
-            // neither an old receipt nor a geometry regression can revive it.
-            anyhow::ensure!(
-                next.geometry_epoch >= previous.geometry_epoch
-                    && next.presented_frame >= previous.presented_frame,
-                "desktop resume did not provide fresh same-window geometry"
+                next.owner_device == previous.owner_device
+                    && next.target_device == previous.target_device
+                    && next.lease_generation > previous.lease_generation,
+                "desktop resume did not provide newer source authorization"
             );
+            if next.target_window == previous.target_window {
+                // A no-op drag may leave its geometry epoch unchanged. It still
+                // needs a newer lease generation and non-regressing frame;
+                // neither an old receipt nor a geometry regression can revive it.
+                anyhow::ensure!(
+                    next.geometry_epoch >= previous.geometry_epoch
+                        && next.presented_frame >= previous.presented_frame,
+                    "desktop resume did not provide fresh same-window geometry"
+                );
+            } else {
+                // Epoch/frame values are per-window, so they are not comparable
+                // across a selection. Require the new source policy to bind a
+                // different native target before reissuing BEGIN on this socket.
+                anyhow::ensure!(
+                    (
+                        authorized.native_address,
+                        authorized.native_surface,
+                        authorized.native_pid,
+                    ) != self.native_binding,
+                    "desktop resume changed window without a fresh native binding"
+                );
+            }
         } else {
-            // Epoch/frame values are per-window, so they are not comparable
-            // across a selection. Require the new source policy to bind a
-            // different native target before reissuing BEGIN on this socket.
             anyhow::ensure!(
-                (
-                    authorized.native_address,
-                    authorized.native_surface,
-                    authorized.native_pid,
-                ) != self.native_binding,
-                "desktop resume changed window without a fresh native binding"
+                !self.native_grant_ever_active && self.generation == 0,
+                "missing desktop pause authorization"
             );
-        }
-        } else {
-            anyhow::ensure!(!self.native_grant_ever_active && self.generation == 0,
-                "missing desktop pause authorization");
         }
         // A capture cancellation releases input but leaves the native authority
         // revoked. Complete END before BEGIN; DesktopPaused alone is not an END
@@ -1864,13 +1911,27 @@ impl<'a> RoutedWindowInput<'a> {
         self.desktop_moves = desktop_moves;
     }
 
-    pub(crate) async fn release_window_input(&mut self, network: &quinn::Connection,
-        window: viewflow_protocol::WindowId) -> Result<()> {
-        if self.session.grant.authorization(0).is_some_and(|auth| auth.target_window == window) {
-            self.session.wait_native(network, &mut self.presentations, &mut self.metadata).await?;
-            if !matches!(self.session.state, State::Ready | State::ResizeSuspended) { return Ok(()); }
+    pub(crate) async fn release_window_input(
+        &mut self,
+        network: &quinn::Connection,
+        window: viewflow_protocol::WindowId,
+    ) -> Result<()> {
+        if self
+            .session
+            .grant
+            .authorization(0)
+            .is_some_and(|auth| auth.target_window == window)
+        {
+            self.session
+                .wait_native(network, &mut self.presentations, &mut self.metadata)
+                .await?;
+            if !matches!(self.session.state, State::Ready | State::ResizeSuspended) {
+                return Ok(());
+            }
             self.session.pause_for_desktop_mode(true)?;
-            self.session.wait_native(network, &mut self.presentations, &mut self.metadata).await?;
+            self.session
+                .wait_native(network, &mut self.presentations, &mut self.metadata)
+                .await?;
             self.fence_desktop_authorizations();
         }
         Ok(())
@@ -2333,16 +2394,31 @@ mod tests {
         std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
         let path = directory.path().join("empty.sock");
         let listener = Listener::bind(&path, i32::try_from(std::process::id()).unwrap()).unwrap();
-        let native = socket::socket(AddressFamily::Unix, SockType::SeqPacket, SockFlag::SOCK_NONBLOCK, None).unwrap();
+        let native = socket::socket(
+            AddressFamily::Unix,
+            SockType::SeqPacket,
+            SockFlag::SOCK_NONBLOCK,
+            None,
+        )
+        .unwrap();
         socket::connect(native.as_raw_fd(), &UnixAddr::new(&path).unwrap()).unwrap();
         let actual = window_switch::tests::authorization(3, 7);
-        let mut session = WindowInputSession::prepare_atlas(listener.accept().unwrap(),
-            AuthorizedWindow::unbound(actual.owner, actual.target_device), Instant::now(), true, true).unwrap();
+        let mut session = WindowInputSession::prepare_atlas(
+            listener.accept().unwrap(),
+            AuthorizedWindow::unbound(actual.owner, actual.target_device),
+            Instant::now(),
+            true,
+            true,
+        )
+        .unwrap();
         assert_eq!(session.state, State::DesktopPaused);
         assert!(session.grant.authorization(0).is_none());
         assert!(session.poll().unwrap().is_none());
         let mut bytes = [0; 256];
-        assert_eq!(socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT).unwrap_err(), nix::errno::Errno::EAGAIN);
+        assert_eq!(
+            socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT).unwrap_err(),
+            nix::errno::Errno::EAGAIN
+        );
         session.resume_after_desktop_pause(actual).unwrap();
         assert_eq!(session.state, State::Beginning);
         assert!(socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT).unwrap() > 0);
@@ -2501,7 +2577,11 @@ mod tests {
                     if rejected_begin {
                         window_switch::tests::reply(&native, 1, generation, 0);
                         loop {
-                            match socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT) {
+                            match socket::recv(
+                                native.as_raw_fd(),
+                                &mut bytes,
+                                MsgFlags::MSG_DONTWAIT,
+                            ) {
                                 Ok(_) => break,
                                 Err(nix::errno::Errno::EAGAIN) => {
                                     tokio::time::sleep(Duration::from_millis(1)).await
@@ -2544,7 +2624,9 @@ mod tests {
                     loop {
                         match socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT) {
                             Ok(_) => break,
-                            Err(nix::errno::Errno::EAGAIN) => tokio::time::sleep(Duration::from_millis(1)).await,
+                            Err(nix::errno::Errno::EAGAIN) => {
+                                tokio::time::sleep(Duration::from_millis(1)).await
+                            }
                             Err(error) => panic!("{error}"),
                         }
                     }
@@ -2555,8 +2637,13 @@ mod tests {
                 result.unwrap();
                 assert_eq!(route.session.state, State::DesktopPaused);
                 assert!(source.close_reason().is_none());
-                route.session.resume_after_desktop_pause(
-                    window_switch::tests::authorization(4, generation + 1)).unwrap();
+                route
+                    .session
+                    .resume_after_desktop_pause(window_switch::tests::authorization(
+                        4,
+                        generation + 1,
+                    ))
+                    .unwrap();
                 window_switch::tests::receive(&native);
                 window_switch::tests::reply(&native, 3, generation + 1, 1);
                 route.session.poll().unwrap();
@@ -2565,9 +2652,13 @@ mod tests {
             if rejected_begin {
                 assert_eq!(route.session.state, State::DesktopPaused);
                 assert_eq!(route.session.last_ended_generation, generation);
-                route.session.resume_after_desktop_pause(
-                    window_switch::tests::authorization(4, generation + 1)
-                ).unwrap();
+                route
+                    .session
+                    .resume_after_desktop_pause(window_switch::tests::authorization(
+                        4,
+                        generation + 1,
+                    ))
+                    .unwrap();
                 window_switch::tests::receive(&native);
                 window_switch::tests::reply(&native, 3, generation + 1, 1);
                 route.session.poll().unwrap();
@@ -2771,7 +2862,7 @@ mod tests {
                 .send_capture(CaptureCommand::Release {
                     generation: 2,
                     drag_target: None,
-                return_position: None,
+                    return_position: None,
                 })
                 .unwrap();
             window_switch::tests::receive(&native);
@@ -3190,12 +3281,23 @@ mod tests {
             assert!(rebound.generation > original.generation);
             assert_eq!(rebound.geometry.identity().geometry_epoch, 5);
             assert_eq!(rebound.native_surface, original.native_surface);
-            assert!(geometry_policy.select(select(3), &evidence, context)
-                .err().unwrap().is::<crate::atlas_input_policy::AtlasSelectionSuperseded>());
-            let recovered = geometry_policy.select(
-                viewflow_protocol::AtlasWindowSelection { sequence: 4, ..request },
-                &changed, context,
-            ).unwrap();
+            assert!(
+                geometry_policy
+                    .select(select(3), &evidence, context)
+                    .err()
+                    .unwrap()
+                    .is::<crate::atlas_input_policy::AtlasSelectionSuperseded>()
+            );
+            let recovered = geometry_policy
+                .select(
+                    viewflow_protocol::AtlasWindowSelection {
+                        sequence: 4,
+                        ..request
+                    },
+                    &changed,
+                    context,
+                )
+                .unwrap();
             assert_eq!(recovered.geometry.identity(), rebound.geometry.identity());
             let mut mismatch = select(3);
             mismatch.source_frame_id += 1;
@@ -3349,27 +3451,30 @@ mod tests {
                     .unwrap()
                     .is_none()
             );
-            assert!(
-                maintained
-                    .maintain_capture(&evidence, Id128(3), 600_000_100, 1, 10)
-                    .unwrap()
-                    .is_none()
+            let static_renewal = maintained
+                .maintain_capture(&evidence, Id128(3), 600_000_100, 1, 10)
+                .unwrap()
+                .unwrap();
+            assert_eq!(static_renewal.generation, 2);
+            assert_eq!(
+                static_renewal.geometry.identity(),
+                initial.geometry.identity()
             );
             let mut newer = evidence.clone();
             newer.manifest.tiles[0].source_frame_id += 1;
             newer.snapshots.get_mut(&Id128(3)).unwrap().frame.sequence += 1;
             assert!(
                 maintained
-                    .maintain_capture(&newer, Id128(3), 600_000_099, 11, 10)
+                    .maintain_capture(&newer, Id128(3), 1_100_000_099, 11, 10)
                     .unwrap()
                     .is_none()
             );
             let renewed = maintained
-                .maintain_capture(&newer, Id128(3), 600_000_100, 1, 10)
+                .maintain_capture(&newer, Id128(3), 1_100_000_100, 1, 10)
                 .unwrap()
                 .unwrap();
-            assert_eq!(renewed.generation, 2);
-            assert_eq!(renewed.expires_local_ns, 1_600_000_100);
+            assert_eq!(renewed.generation, 3);
+            assert_eq!(renewed.expires_local_ns, 2_100_000_100);
             let mut frozen =
                 AtlasInputPolicy::new(Id128(1), Id128(2), vec![(Id128(3), 123)], 1_000_000_000)
                     .unwrap();
@@ -3377,12 +3482,7 @@ mod tests {
                 .maintain_capture(&evidence, Id128(3), 100, 1, 10)
                 .unwrap()
                 .unwrap();
-            for now in [
-                500_000_100,
-                600_000_100,
-                900_000_100,
-                unchanged.expires_local_ns - 1,
-            ] {
+            for now in [100, 100_000_100, 400_000_100] {
                 assert!(
                     frozen
                         .maintain_capture(&evidence, Id128(3), now, 1, 10)
@@ -3390,17 +3490,18 @@ mod tests {
                         .is_none()
                 );
             }
-            // Polling the same frame never keeps input alive at the original end.
-            assert!(
-                frozen
-                    .maintain_capture(&evidence, Id128(3), unchanged.expires_local_ns, 1, 10)
-                    .is_err()
+            // Static content renews before expiry; a lack of visual damage is
+            // not a connection or input-session failure.
+            let renewed_static = frozen
+                .maintain_capture(&evidence, Id128(3), 600_000_100, 1, 10)
+                .unwrap()
+                .unwrap();
+            assert_eq!(renewed_static.generation, 2);
+            assert_eq!(
+                renewed_static.geometry.identity().frame,
+                unchanged.geometry.identity().frame
             );
-            assert!(
-                frozen
-                    .maintain_capture(&newer, Id128(3), unchanged.expires_local_ns, 1, 10)
-                    .is_err()
-            );
+            assert_eq!(renewed_static.expires_local_ns, 1_600_000_100);
             for changed in 0..5 {
                 let mut bound =
                     AtlasInputPolicy::new(Id128(1), Id128(2), vec![(Id128(3), 123)], 1_000_000_000)
@@ -3461,7 +3562,7 @@ mod tests {
             );
             assert!(
                 maintained
-                    .maintain_capture(&newer, Id128(3), 1_600_000_100, 1, 10)
+                    .maintain_capture(&newer, Id128(3), renewed.expires_local_ns, 1, 10)
                     .is_err()
             );
         }
@@ -3867,13 +3968,18 @@ mod tests {
             let (_owner, mut receiver) = tokio::sync::watch::channel(geometry);
             let mut received = 0;
             let result = session
-                .wait_native_until(&source, &mut receiver, &mut |_| {
-                    received += 1;
-                    if termination == SharedEnd::SlowMetadata {
-                        std::thread::sleep(Duration::from_millis(30));
-                    }
-                    Ok(())
-                }, Instant::now() + Duration::from_millis(24))
+                .wait_native_until(
+                    &source,
+                    &mut receiver,
+                    &mut |_| {
+                        received += 1;
+                        if termination == SharedEnd::SlowMetadata {
+                            std::thread::sleep(Duration::from_millis(30));
+                        }
+                        Ok(())
+                    },
+                    Instant::now() + Duration::from_millis(24),
+                )
                 .await;
             if termination == SharedEnd::SlowMetadata {
                 assert!(
@@ -4084,7 +4190,7 @@ mod tests {
                 SharedEnd::ForwardedPreview | SharedEnd::KeyboardForwarded
             ) {
                 let manifest = viewflow_protocol::AtlasFrame {
-            patches: None,
+                    patches: None,
                     stream_id: Id128(99),
                     frame_id: 1,
                     geometry_epoch: 1,
@@ -4447,7 +4553,7 @@ mod tests {
         }
         if let Some(atlas) = atlas_sender {
             let manifest = viewflow_protocol::AtlasFrame {
-            patches: None,
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 10,
                 geometry_epoch: 1,
@@ -4940,26 +5046,34 @@ mod tests {
             // Withhold the response. The next probe must still be sent on
             // the same connection without destroying the native input route.
             let retry = tokio::time::timeout(Duration::from_secs(1), receive_control(&remote))
-                .await.unwrap().unwrap();
-            let DomainControl::ClockSyncProbe(retry) = DomainControl::try_from(retry).unwrap() else {
+                .await
+                .unwrap()
+                .unwrap();
+            let DomainControl::ClockSyncProbe(retry) = DomainControl::try_from(retry).unwrap()
+            else {
                 panic!("expected resynchronization probe");
             };
             assert_eq!(retry.probe_id, next_probe.probe_id + 1);
             for (sequence, probe) in [(6, next_probe), (7, retry)] {
                 let received = elapsed_ns(origin).unwrap();
-                send_control(&remote, &wire::ControlEnvelope {
-                    protocol_major: u32::from(PROTOCOL_VERSION.major),
-                    protocol_minor: u32::from(PROTOCOL_VERSION.minor),
-                    sequence,
-                    payload: Some(wire::control_envelope::Payload::ClockSyncReply(
-                        wire::ClockSyncReply {
-                            probe_id: probe.probe_id,
-                            t0_send_ns: probe.t0_send_ns,
-                            t1_receive_ns: received,
-                            t2_send_ns: elapsed_ns(origin).unwrap(),
-                        }
-                    )),
-                }).await.unwrap();
+                send_control(
+                    &remote,
+                    &wire::ControlEnvelope {
+                        protocol_major: u32::from(PROTOCOL_VERSION.major),
+                        protocol_minor: u32::from(PROTOCOL_VERSION.minor),
+                        sequence,
+                        payload: Some(wire::control_envelope::Payload::ClockSyncReply(
+                            wire::ClockSyncReply {
+                                probe_id: probe.probe_id,
+                                t0_send_ns: probe.t0_send_ns,
+                                t1_receive_ns: received,
+                                t2_send_ns: elapsed_ns(origin).unwrap(),
+                            },
+                        )),
+                    },
+                )
+                .await
+                .unwrap();
             }
             // An old reply cannot poison the current probe or block the
             // shared receiver. Fresh input works after the replacement reply.
@@ -4968,14 +5082,20 @@ mod tests {
                 loop {
                     match socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT) {
                         Ok(52) => break,
-                        Err(nix::errno::Errno::EAGAIN) => tokio::time::sleep(Duration::from_millis(1)).await,
+                        Err(nix::errno::Errno::EAGAIN) => {
+                            tokio::time::sleep(Duration::from_millis(1)).await
+                        }
                         other => panic!("expected motion after resynchronization: {other:?}"),
                     }
                 }
-            }).await.unwrap();
+            })
+            .await
+            .unwrap();
             ack_native(3, 3, 2);
             let ack = tokio::time::timeout(Duration::from_millis(100), receive_control(&remote))
-                .await.unwrap().unwrap();
+                .await
+                .unwrap()
+                .unwrap();
             let DomainControl::WindowPointerAck(ack) = DomainControl::try_from(ack).unwrap() else {
                 panic!("expected recovered motion acknowledgement");
             };
@@ -5235,7 +5355,16 @@ mod tests {
         changed.native_surface = 790;
         assert!(session.renew(changed).is_err());
         let mut stale = renewal();
-        stale.geometry = geometry;
+        stale.geometry = PresentedInputGeometry::new(
+            PresentedInputIdentity {
+                window: Id128(3),
+                geometry_epoch: 4,
+                frame: 4,
+            },
+            capture,
+            capture.slice_for_display(Point::default(), rect).unwrap(),
+        )
+        .unwrap();
         assert!(session.renew(stale).is_err());
         let mut excessive = renewal();
         excessive.expires_local_ns = u64::MAX;

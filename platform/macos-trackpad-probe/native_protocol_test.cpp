@@ -48,13 +48,34 @@ static void natural_lift() {
     assert((packets[start][20]&15)==5 && packets[start+2].size()==12);
     assert((packets.back()[20]&15)==6 && s.ids==(1<<5));
     // The native 21-bit millisecond clock wraps without losing an end phase.
-    s.emitted_stamp=0x1ffffe;s.have_stamp=true;
+    s.emitted_stamp=0x1ffffe;s.source_stamp=0x1ffffe;s.have_stamp=true;
     empty_wire(p,0x1ffffe*10);assert(!s.apply(p,sizeof(p),send));
     assert(stamp(packets[packets.size()-3])==0x1fffff);
     assert(stamp(packets[packets.size()-2])==0 && stamp(packets.back())==1);
 }
+static void clock_handoff_cadence() {
+    State s{};s.init();uint8_t p[wire_size];empty_wire(p,10000000);
+    contact(p,0,0,1,10000,12000);
+    std::vector<std::vector<uint8_t>> packets;
+    auto send=[&](const uint8_t* b,size_t n){packets.emplace_back(b,b+n);return 0;};
+    assert(!s.apply(p,sizeof(p),send));
+    // Change to a producer whose uptime epoch is behind the previous one.
+    put32(p+4,1000);assert(!s.apply(p,sizeof(p),send));
+    assert(((stamp(packets[1])-stamp(packets[0]))&0x1fffff)==1);
+    for(unsigned i=1;i<=100;++i) {
+        put32(p+4,1000+i*100);assert(!s.apply(p,sizeof(p),send));
+        assert(((stamp(packets.back())-stamp(packets[packets.size()-2]))&0x1fffff)==10);
+    }
+    // Failed output must not consume source time or change the clock anchor.
+    const auto before=s.source_stamp;
+    put32(p+4,12000);assert(s.apply(p,sizeof(p),[](const uint8_t*,size_t){return 7;})==7);
+    assert(s.source_stamp==before);
+    assert(!s.apply(p,sizeof(p),send));
+    assert(((stamp(packets.back())-stamp(packets[packets.size()-2]))&0x1fffff)==100);
+}
 int main() {
     natural_lift();
+    clock_handoff_cadence();
     uint8_t wire[wire_size];empty_wire(wire,12000);
     for(unsigned i=0;i<5;++i)contact(wire,i,i,1,i*7000,i*7000);
     assert(valid(wire,sizeof(wire)));assert(down_count(wire)==5);

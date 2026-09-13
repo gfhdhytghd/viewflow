@@ -15,6 +15,8 @@ pkg_check_modules(LIBINPUT REQUIRED IMPORTED_TARGET libinput)
 
 add_library(viewflow-hyprland SHARED
     src/main.cpp
+    src/macos_shadow.cpp
+    src/popup_backdrop.cpp
     src/metadata_bridge.cpp
     src/socket_sink.cpp
     src/input_capture.cpp
@@ -27,7 +29,7 @@ add_library(viewflow-hyprland SHARED
     src/window_keyboard_session.cpp
 )
 target_include_directories(viewflow-hyprland PRIVATE include src)
-target_link_libraries(viewflow-hyprland PRIVATE PkgConfig::HYPRLAND PkgConfig::XKBCOMMON PkgConfig::LIBINPUT ${CMAKE_DL_LIBS})
+target_link_libraries(viewflow-hyprland PRIVATE PkgConfig::HYPRLAND PkgConfig::XKBCOMMON PkgConfig::LIBINPUT ${CMAKE_DL_LIBS} GLESv2)
 target_compile_options(viewflow-hyprland PRIVATE
     -Wall
     -Wextra

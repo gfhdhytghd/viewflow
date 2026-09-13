@@ -13,7 +13,8 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 anyhow = "1.0.104"
 bytes = "1.11.1"
 prost = "0.13"
-quinn = { version = "0.11.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+quinn = { version = "0.11.11", default-features = false, features = ["runtime-tokio", "rustls-ring", "log"] }
+log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"

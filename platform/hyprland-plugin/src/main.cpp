@@ -2,9 +2,13 @@
 #include "metadata_bridge.hpp"
 #include "input_capture.hpp"
 #include "desktop_window_controller.hpp"
+#include "macos_shadow.hpp"
+#include "popup_backdrop.hpp"
 
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
+#include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/pointer/PointerManager.hpp>
 #include <nlohmann/json.hpp>
 
 #include <memory>
@@ -25,6 +29,8 @@ HANDLE g_handle = nullptr;
 std::unique_ptr<viewflow::hyprland::MetadataBridge> g_bridge;
 std::unique_ptr<viewflow::hyprland::InputCapture> g_inputCapture;
 std::unique_ptr<viewflow::hyprland::DesktopWindowController> g_desktopWindowController;
+std::unique_ptr<viewflow::hyprland::MacOsShadows> g_macShadows;
+std::unique_ptr<viewflow::hyprland::PopupBackdrops> g_popupBackdrops;
 CFunctionHook* g_focusMotionHook = nullptr;
 // This compositor convenience path bypasses cancellable mouse.move. Keep an
 // already-owned remote pointer installed only under the session's exact guard.
@@ -97,7 +103,9 @@ int desktopWindowRequest(lua_State* state) {
 // Optional synchronous compositor-thread interop, queried by edgehover before
 // it synthesizes local input. No cached callback survives plugin unload.
 APICALL EXPORT bool viewflow_input_capture_active_v1() {
-  return g_inputCapture && g_inputCapture->captured();
+  // Consumers such as edgehover cancel the current physical event when this
+  // is true. A synchronous returned window operation is not that event.
+  return g_inputCapture && g_inputCapture->captured() && !g_inputCapture->forwardedMotion;
 }
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
@@ -130,6 +138,38 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         const auto json = g_inputCapture ? g_inputCapture->pointerTimingsJson() : "[]";
         lua_pushlstring(state, json.data(), json.size());
         return 1;
+      }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "forwarded_button", [](lua_State* state) -> int {
+        const auto code = lua_tointeger(state, 1), down = lua_tointeger(state, 2), time = lua_tointeger(state, 3);
+        if (!g_inputCapture || code < 272 || code > 276 || down < 0 || down > 1 || time < 0 || time > UINT32_MAX) {
+          lua_pushliteral(state, "invalid forwarded button"); return lua_error(state);
+        }
+        g_inputCapture->forwardedButton(static_cast<uint32_t>(code), down != 0, static_cast<uint32_t>(time));
+        return 0;
+      }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "forwarded_axis", [](lua_State* state) -> int {
+        const auto axis=lua_tointeger(state,1), amount=lua_tointeger(state,2), precise=lua_tointeger(state,3), time=lua_tointeger(state,4);
+        if (!g_inputCapture || axis<0 || axis>1 || amount<INT32_MIN || amount>INT32_MAX || precise<0 || precise>1 || time<0 || time>UINT32_MAX) {
+          lua_pushliteral(state,"invalid forwarded axis"); return lua_error(state);
+        }
+        g_inputCapture->forwardedAxis(static_cast<uint32_t>(axis),-double(amount)/(precise?1000.0:8.0),
+            precise?0:static_cast<int32_t>(-amount),precise?WL_POINTER_AXIS_SOURCE_CONTINUOUS:WL_POINTER_AXIS_SOURCE_WHEEL,static_cast<uint32_t>(time));
+        return 0;
+      }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "with_forwarded_motion", [](lua_State* state) -> int {
+        if (!g_inputCapture || !lua_isfunction(state, 1)) {
+          lua_pushliteral(state, "forwarded motion requires a function");
+          return lua_error(state);
+        }
+        const bool previous = g_inputCapture->forwardedMotion;
+        const auto physicalPosition = g_pInputManager->getMouseCoordsInternal();
+        g_inputCapture->forwardedMotion = true;
+        lua_pushvalue(state, 1);
+        const int result = lua_pcall(state, 0, 0, 0);
+        // Returned window input borrows the seat position for synchronous
+        // hit testing. It must not move the physical cross-desktop cursor or
+        // manufacture a new edge crossing after the user has returned home.
+        if (!previous) Pointer::mgr()->warpTo(physicalPosition);
+        g_inputCapture->forwardedMotion = previous;
+        if (result != LUA_OK) return lua_error(state);
+        return 0;
       }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "desktop_window", desktopWindowRequest)) {
     g_desktopWindowController.reset();
     g_inputCapture.reset();
@@ -156,6 +196,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     throw std::runtime_error("Viewflow exact compositor focus-motion hook unavailable");
   }
 
+  g_macShadows = std::make_unique<viewflow::hyprland::MacOsShadows>(handle);
+  g_popupBackdrops = std::make_unique<viewflow::hyprland::PopupBackdrops>(handle);
   return {
       "viewflow-hyprland",
       "Non-blocking Viewflow metadata and physical edge-input bridge (no "
@@ -166,6 +208,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
+  g_popupBackdrops.reset();
+  g_macShadows.reset();
   if (g_focusMotionHook) HyprlandAPI::removeFunctionHook(g_handle, g_focusMotionHook);
   g_focusMotionHook = nullptr;
   if (g_desktopWindowController) g_desktopWindowController->shutdown();

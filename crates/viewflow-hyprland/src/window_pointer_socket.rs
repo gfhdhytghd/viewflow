@@ -192,7 +192,7 @@ mod tests {
                 .send_capture(CaptureCommand::Release {
                     generation: 9,
                     drag_target: None,
-                return_position: None,
+                    return_position: None,
                 })
                 .unwrap();
             let mut reply = if wrong == 0 { 8_u64 } else { 9_u64 }

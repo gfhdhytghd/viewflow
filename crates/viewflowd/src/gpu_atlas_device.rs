@@ -45,8 +45,13 @@ pub struct GpuAtlasDevice {
 }
 
 impl GpuAtlasDevice {
-    pub(crate) fn poll_capture_readable(&mut self, cx: &mut std::task::Context<'_>) -> std::task::Poll<()> {
-        self.active.as_mut().map_or(std::task::Poll::Pending, |(pool, _)| pool.poll_readable(cx))
+    pub(crate) fn poll_capture_readable(
+        &mut self,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<()> {
+        self.active
+            .as_mut()
+            .map_or(std::task::Poll::Pending, |(pool, _)| pool.poll_readable(cx))
     }
 
     pub(crate) fn set_occlusion(

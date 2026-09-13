@@ -17,7 +17,7 @@
 namespace viewflow::hyprland {
 
 struct TouchpadSnapshot {
-  struct Contact { std::uint32_t id{}, x{}, y{}; };
+  struct Contact { std::uint32_t id{}, x{}, y{}; int pressure{5}, major{80}, minor{80}, orientation{}; };
   std::uint32_t width{}, height{}, count{};
   std::array<Contact, 5> contacts{};
 };
@@ -26,7 +26,7 @@ struct TouchpadSnapshot {
 // An empty snapshot releases every remote contact after SYN_DROPPED or overflow.
 class TouchpadSlots {
 public:
-  struct Slot { int id = -1, x{}, y{}, tool{}; };
+  struct Slot { int id = -1, x{}, y{}, tool{}, pressure{5}, major{80}, minor{80}, orientation{}; };
   std::array<Slot, 32> slots{};
   int selected{};
   bool dropped{};
@@ -42,6 +42,10 @@ public:
     else if (code == ABS_MT_POSITION_X) slot.x = value;
     else if (code == ABS_MT_POSITION_Y) slot.y = value;
     else if (code == ABS_MT_TOOL_TYPE) slot.tool = value;
+    else if (code == ABS_MT_PRESSURE) slot.pressure = value;
+    else if (code == ABS_MT_TOUCH_MAJOR) slot.major = value;
+    else if (code == ABS_MT_TOUCH_MINOR) slot.minor = value;
+    else if (code == ABS_MT_ORIENTATION) slot.orientation = value;
   }
 
   TouchpadSnapshot snapshot() const {
@@ -52,7 +56,7 @@ public:
     for (const auto& slot : slots) {
       if (slot.id < 0 || slot.tool == MT_TOOL_PALM) continue;
       if (out.count == out.contacts.size()) { out.count = 0; return out; }
-      out.contacts[out.count++] = {static_cast<std::uint32_t>(slot.id), physical(slot.x, x), physical(slot.y, y)};
+      out.contacts[out.count++] = {static_cast<std::uint32_t>(slot.id), physical(slot.x, x), physical(slot.y, y), slot.pressure, slot.major, slot.minor, slot.orientation};
     }
     return out;
   }
@@ -149,10 +153,10 @@ private:
   void resync() {
     for (auto& slot : m_slots.slots) slot = {};
     bool complete = true;
-    for (const auto code : {ABS_MT_TRACKING_ID, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TOOL_TYPE}) {
+    for (const auto code : {ABS_MT_TRACKING_ID, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TOOL_TYPE, ABS_MT_PRESSURE, ABS_MT_TOUCH_MAJOR, ABS_MT_TOUCH_MINOR, ABS_MT_ORIENTATION}) {
       std::array<int, 33> values{}; values[0] = code;
       if (::ioctl(m_fd, EVIOCGMTSLOTS(static_cast<unsigned>(static_cast<std::size_t>(m_slotCount + 1) * sizeof(int))), values.data()) < 0) {
-        if (code != ABS_MT_TOOL_TYPE) complete = false;
+        if (code == ABS_MT_TRACKING_ID || code == ABS_MT_POSITION_X || code == ABS_MT_POSITION_Y) complete = false;
         continue;
       }
       for (int i = 0; i < m_slotCount; ++i) {

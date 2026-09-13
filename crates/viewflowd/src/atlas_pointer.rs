@@ -26,8 +26,13 @@ pub struct AtlasNativePointer {
 
 impl AtlasNativePointer {
     #[must_use]
-    pub fn releases_input(&self) -> bool { self.release }
-    pub fn focus_release_qpc(&self) -> u64 { self.deadline_qpc.saturating_sub(self.frequency.saturating_mul(5)) }
+    pub fn releases_input(&self) -> bool {
+        self.release
+    }
+    pub fn focus_release_qpc(&self) -> u64 {
+        self.deadline_qpc
+            .saturating_sub(self.frequency.saturating_mul(5))
+    }
 
     pub fn ingress_ordinal(&self) -> u64 {
         self.ingress_ordinal
@@ -467,6 +472,11 @@ pub async fn dispatch_stdout_with_recovery_notices_and_desktop(
                 .map_err(|error| native_queue_error("recovery notice", notices.max_capacity(), error))?;
         } else if line.starts_with("desktop-move-v1") {
             let desktop_move = crate::desktop_pointer::AtlasDesktopMove::parse(&line)?;
+            if desktop_move.phase != viewflow_protocol::DesktopWindowMovePhase::Update {
+                eprintln!("desktop-receiver-native phase={:?} drag={} sequence={} frame={}",
+                    desktop_move.phase, desktop_move.drag_id, desktop_move.selection.sequence,
+                    desktop_move.selection.atlas_frame_id);
+            }
             ingress_ordinal = ingress_ordinal
                 .checked_add(1)
                 .ok_or_else(|| anyhow::anyhow!("atlas native ingress ordinal overflow"))?;
@@ -600,7 +610,8 @@ pub(crate) mod tests {
 
     #[test]
     fn focus_release_is_cleanup_and_cannot_become_pointer_motion() {
-        let event = AtlasNativePointer::parse(&MOTION.replace("kind=motion", "kind=release")).unwrap();
+        let event =
+            AtlasNativePointer::parse(&MOTION.replace("kind=motion", "kind=release")).unwrap();
         assert!(event.releases_input());
         assert_eq!(event.selection().window_id, Id128(8));
         assert!(event.into_event(9, 1000, 110, 1000).is_err());

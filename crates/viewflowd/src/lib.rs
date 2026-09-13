@@ -41,11 +41,8 @@ pub mod alpha_reference;
 pub mod atlas_clock;
 #[cfg(target_os = "linux")]
 mod atlas_cursor_handoff;
-#[cfg(target_os = "linux")]
-pub mod cursor_source;
 mod atlas_cursor_receiver;
 pub mod atlas_feedback;
-mod atlas_socket_trace;
 #[cfg(target_os = "linux")]
 pub mod atlas_input_policy;
 pub mod atlas_input_recovery;
@@ -57,6 +54,7 @@ pub mod atlas_preview_input;
 pub mod atlas_receiver_presenter;
 pub mod atlas_runtime;
 pub mod atlas_session;
+mod atlas_socket_trace;
 #[cfg(all(target_os = "linux", feature = "native-gpu-nvenc"))]
 pub mod atlas_source;
 #[cfg(all(target_os = "linux", feature = "native-gpu-nvenc"))]
@@ -66,6 +64,11 @@ mod bootstrap_runtime;
 pub mod clipboard_runtime;
 pub mod clipboard_sync;
 mod clock_retention;
+mod cursor_feedback;
+#[cfg(target_os = "linux")]
+mod cursor_native_drag;
+#[cfg(target_os = "linux")]
+pub mod cursor_source;
 pub mod desktop_config;
 pub mod desktop_pointer;
 #[cfg(target_os = "linux")]
@@ -98,8 +101,8 @@ pub mod hyprcapture_runtime;
 #[cfg(unix)]
 mod local_peer;
 pub mod shared_control;
-mod window_icon;
 mod window_forwarded_preview;
+mod window_icon;
 #[cfg(not(target_os = "linux"))]
 pub mod hyprcapture_runtime {
     //! Platform stub: HyprCapture is a Linux Hyprland plugin.
@@ -138,13 +141,14 @@ pub mod hyprcapture_socket;
 pub mod hyprcapture_stream;
 mod input_runtime;
 pub mod media_runtime;
+pub mod native_window_wire;
+pub mod native_window_blur;
 #[cfg(all(target_os = "linux", feature = "native-nvenc"))]
 pub mod nvenc_runtime;
 pub mod pixel_runtime;
 pub mod raw_session;
-pub mod reverse_bridge;
-pub mod native_window_wire;
 mod readiness_runtime;
+pub mod reverse_bridge;
 #[cfg(unix)]
 mod sidecar_runtime;
 #[cfg(target_os = "linux")]
@@ -841,11 +845,14 @@ pub async fn run(command: Command) -> Result<()> {
     match command {
         #[cfg(target_os = "macos")]
         Command::InputStatus => {
-            println!("{}", serde_json::json!({
-                "backend": "macos-quartz",
-                "event_post_authorized": viewflow_platform::macos_input::MacOsInputBackend::is_authorized(),
-                "input_injected": false,
-            }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "backend": "macos-quartz",
+                    "event_post_authorized": viewflow_platform::macos_input::MacOsInputBackend::is_authorized(),
+                    "input_injected": false,
+                })
+            );
             Ok(())
         }
         Command::Serve(config) => run_server(config).await,
@@ -1266,9 +1273,19 @@ enum InputAckResolution {
     Unmatched,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct InputAckRegistry {
     state: Arc<Mutex<InputAckState>>,
+    injection_failures: tokio::sync::broadcast::Sender<InputAppliedAck>,
+}
+
+impl Default for InputAckRegistry {
+    fn default() -> Self {
+        Self {
+            state: Arc::default(),
+            injection_failures: tokio::sync::broadcast::channel(64).0,
+        }
+    }
 }
 
 impl InputAckRegistry {
@@ -1312,6 +1329,11 @@ impl InputAckRegistry {
         ack: InputAppliedAck,
         received_at: tokio::time::Instant,
     ) -> InputAckResolution {
+        // Streaming input does not wait for Applied ACKs, but an explicit
+        // backend failure must still reach the owner of local capture.
+        if ack.result == InputAppliedResult::InjectionFailed {
+            let _ = self.injection_failures.send(ack);
+        }
         let key = InputAckKey::from(&ack);
         let mut state = self.lock();
         let now = Instant::now();
@@ -1595,7 +1617,9 @@ impl LeaseRevokeAckRegistry {
     }
 
     fn register_with_deadline(
-        &self, key: LeaseRevokeAckKey, deadline: Option<tokio::time::Instant>,
+        &self,
+        key: LeaseRevokeAckKey,
+        deadline: Option<tokio::time::Instant>,
     ) -> Result<PendingLeaseRevokeAck, LeaseRevokeDeliveryError> {
         let (sender, receiver) = oneshot::channel();
         let mut state = self.lock();
@@ -1637,7 +1661,10 @@ impl LeaseRevokeAckRegistry {
         let now = Instant::now();
         Self::prune_tombstones(&mut state, now);
         if let Some(entry) = state.pending.remove(&key) {
-            if entry.deadline.is_some_and(|deadline| received_at >= deadline) {
+            if entry
+                .deadline
+                .is_some_and(|deadline| received_at >= deadline)
+            {
                 Self::insert_tombstone(
                     &mut state,
                     key,
@@ -1742,7 +1769,7 @@ impl LeaseRevokeAckRegistry {
     }
 }
 
-struct PendingLeaseRevokeAck {
+pub(crate) struct PendingLeaseRevokeAck {
     key: LeaseRevokeAckKey,
     registry: LeaseRevokeAckRegistry,
     receiver: oneshot::Receiver<std::result::Result<InputLeaseRevokedAck, String>>,
@@ -1983,6 +2010,8 @@ async fn handle_server_connection(
     let _producer_registration = producer_registry
         .map(|registry| registry.register(connection.remote_address(), outbound.clone()));
     let mut input = InputReceiver::new(input_backend, device_id)?;
+    #[cfg(target_os = "macos")]
+    let _cursor_feedback = cursor_feedback::start(connection.clone(), input.feedback.clone());
     let mut probe = tokio::spawn(run_probe_loop(
         "server",
         connection.clone(),
@@ -2056,8 +2085,14 @@ async fn handle_server_receiver(
         let t1_receive_ns = clock.now_ns();
         match incoming {
             #[cfg(target_os = "linux")]
-            PeerPayload::Control(DomainControl::WindowInputRelease(window)) if window_input.is_some() => {
-                window_input.as_mut().expect("source route checked").release_window_input(connection, window).await?;
+            PeerPayload::Control(DomainControl::WindowInputRelease(window))
+                if window_input.is_some() =>
+            {
+                window_input
+                    .as_mut()
+                    .expect("source route checked")
+                    .release_window_input(connection, window)
+                    .await?;
             }
             #[cfg(target_os = "linux")]
             PeerPayload::Control(DomainControl::DesktopWindowMove(movement))
@@ -2969,16 +3004,43 @@ pub(crate) async fn send_desktop_revoke_confirmed(
     revoke: InputLeaseRevoke,
     target: tokio::time::Instant,
 ) -> std::result::Result<InputLeaseRevokedAck, LeaseRevokeDeliveryError> {
+    let pending = queue_desktop_revoke(outbound, revoke, target).await?;
+    pending.confirm_desktop(target).await
+}
+
+#[cfg(any(unix, test))]
+pub(crate) async fn queue_desktop_revoke(
+    outbound: &OutboundSender,
+    revoke: InputLeaseRevoke,
+    target: tokio::time::Instant,
+) -> std::result::Result<PendingLeaseRevokeAck, LeaseRevokeDeliveryError> {
     let key = LeaseRevokeAckKey::from(&revoke);
-    let mut pending = outbound.lease_revoke_acks.register_with_deadline(key, None)?;
+    let mut pending = outbound
+        .lease_revoke_acks
+        .register_with_deadline(key, None)?;
     pending.may_have_been_sent = true;
-    crate::shared_control::send_bounded_control(outbound, input_lease_revoke_payload(revoke), target)
-        .await.map_err(|error| LeaseRevokeDeliveryError::DeliveryUnknown(error.to_string()))?;
-    let ack = PendingLeaseRevokeAck::map_result((&mut pending.receiver).await)?;
-    if tokio::time::Instant::now() > target {
-        eprintln!("desktop revoke delayed; ordered cleanup confirmed");
+    crate::shared_control::send_bounded_control(
+        outbound,
+        input_lease_revoke_payload(revoke),
+        target,
+    )
+    .await
+    .map_err(|error| LeaseRevokeDeliveryError::DeliveryUnknown(error.to_string()))?;
+    Ok(pending)
+}
+
+impl PendingLeaseRevokeAck {
+    #[cfg(any(unix, test))]
+    pub(crate) async fn confirm_desktop(
+        mut self,
+        target: tokio::time::Instant,
+    ) -> std::result::Result<InputLeaseRevokedAck, LeaseRevokeDeliveryError> {
+        let ack = Self::map_result((&mut self.receiver).await)?;
+        if tokio::time::Instant::now() > target {
+            eprintln!("desktop revoke delayed; ordered cleanup confirmed");
+        }
+        Ok(ack)
     }
-    Ok(ack)
 }
 
 #[cfg(any(unix, test))]
@@ -3465,7 +3527,10 @@ async fn acknowledge_input_result(
     clock: Option<ClockSnapshot>,
     local_now_ns: u64,
 ) -> Result<()> {
-    let result = match input.apply_event(&event, clock, local_now_ns) {
+    // The authenticated QUIC control stream already preserves input order.
+    // Clock drift and queue delay must not discard cursor or key transitions.
+    let _ = (clock, local_now_ns);
+    let result = match input.apply_ordered_event(&event) {
         Ok(()) => InputAppliedResult::Applied,
         Err(error) => error.result(),
     };
@@ -3614,7 +3679,8 @@ async fn run_probe_loop(
             }
         };
         let Some(dispatch) = dispatch else {
-            probe_id = probe_id.checked_add(1)
+            probe_id = probe_id
+                .checked_add(1)
                 .ok_or_else(|| anyhow!("clock probe identifier exhausted"))?;
             sleep(probe_interval).await;
             continue;
@@ -4568,6 +4634,61 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reliable_input_accepts_delayed_cursor_and_still_rejects_replay() {
+        let (controls, mut received) = mpsc::channel(4);
+        let outbound = OutboundSender::new(controls);
+        let mut input = InputReceiver::new(InputBackendMode::Disabled, Some(Id128(2))).unwrap();
+        let lease = viewflow_protocol::InputLease {
+            generation: 1,
+            owner: Id128(1),
+            route_to: Id128(2),
+            state: viewflow_protocol::InputLeaseState::Offered,
+        };
+        input.apply_lease(lease).unwrap();
+        input
+            .apply_lease(viewflow_protocol::InputLease {
+                generation: 2,
+                state: viewflow_protocol::InputLeaseState::Active,
+                ..lease
+            })
+            .unwrap();
+        let event = InputEvent {
+            lease_generation: 2,
+            target_device: Id128(2),
+            sequence: 1,
+            sender_not_after_ns: 1,
+            event: viewflow_protocol::InputEventKind::DesktopPointerPosition(
+                viewflow_protocol::DesktopPointerPosition {
+                    x_millidip: 100,
+                    y_millidip: 200,
+                },
+            ),
+        };
+        for (event, expected) in [
+            (event, InputAppliedResult::Applied),
+            (event, InputAppliedResult::RejectedEventSequence),
+        ] {
+            acknowledge_input_result(
+                &outbound,
+                "127.0.0.1:1".parse().unwrap(),
+                "test",
+                &mut input,
+                event,
+                None,
+                10_000_000_000,
+            )
+            .await
+            .unwrap();
+            let wire::control_envelope::Payload::InputAppliedAck(ack) =
+                received.recv().await.unwrap().payload
+            else {
+                panic!("expected input acknowledgment");
+            };
+            assert_eq!(ack.result, wire::InputAppliedResult::from(expected) as i32);
+        }
+    }
+
+    #[tokio::test]
     async fn input_success_waits_for_exact_remote_event_identity() {
         let (controls, mut received) = mpsc::channel(4);
         let outbound = OutboundSender::new(controls);
@@ -5189,3 +5310,5 @@ mod tests {
 pub(crate) mod atlas_growth;
 
 pub mod atlas_occlusion;
+
+pub mod audio_wire;

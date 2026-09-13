@@ -52,12 +52,12 @@ pub(crate) struct ClockSnapshot {
     pub(crate) measured_at_local_ns: u64,
 }
 
+#[cfg(target_os = "macos")]
+use viewflow_platform::macos_input::{MacOsInputBackend, MacOsInputError};
 #[cfg(windows)]
 use viewflow_platform::windows_input::WindowsInputBackend;
 #[cfg(any(windows, test))]
 use viewflow_platform::windows_input::WindowsInputError;
-#[cfg(target_os = "macos")]
-use viewflow_platform::macos_input::{MacOsInputBackend, MacOsInputError};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum InputBackendMode {
@@ -116,14 +116,21 @@ impl InputBackend {
         match self {
             Self::Disabled => Ok(()),
             #[cfg(target_os = "macos")]
-            Self::MacOs(backend) => backend.apply(event).map_err(|error| {
-                eprintln!("macos-input-rejected {} reason={error}", input_event_diagnostic(event));
-                match error {
-                    MacOsInputError::UnsupportedHidUsage | MacOsInputError::UnsupportedInput => InputApplyError::UnsupportedInput,
-                    MacOsInputError::InvalidCoordinate => InputApplyError::InvalidInput,
-                    MacOsInputError::PermissionDenied | MacOsInputError::EventCreationFailed => InputApplyError::InjectionFailed,
-                }
-            }),
+            Self::MacOs(backend) => {
+                backend.apply(event).map_err(|error| {
+                    eprintln!(
+                        "macos-input-rejected {} reason={error}",
+                        input_event_diagnostic(event)
+                    );
+                    match error {
+                        MacOsInputError::UnsupportedHidUsage
+                        | MacOsInputError::UnsupportedInput => InputApplyError::UnsupportedInput,
+                        MacOsInputError::InvalidCoordinate => InputApplyError::InvalidInput,
+                        MacOsInputError::PermissionDenied
+                        | MacOsInputError::EventCreationFailed => InputApplyError::InjectionFailed,
+                    }
+                })
+            }
             #[cfg(windows)]
             Self::Native(backend) => backend.apply(event).map_err(|error| {
                 let reason = match error {
@@ -211,6 +218,7 @@ impl From<WindowsInputError> for InputApplyError {
 /// Connection-local gate for generation, target, and event sequence validation.
 #[derive(Debug)]
 pub(crate) struct InputReceiver {
+    pub(crate) feedback: crate::cursor_feedback::State,
     backend: InputBackend,
     local_device: Option<Id128>,
     lease: Option<InputLease>,
@@ -225,6 +233,7 @@ impl InputReceiver {
             bail!("native input injection requires a local device id");
         }
         Ok(Self {
+            feedback: Default::default(),
             backend: InputBackend::new(mode)?,
             local_device,
             lease: None,
@@ -240,6 +249,17 @@ impl InputReceiver {
         display: viewflow_platform::windows_input::DesktopPointerDisplay,
     ) -> Self {
         if let InputBackend::Native(backend) = &mut self.backend {
+            backend.set_desktop_display(display);
+        }
+        self
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) fn with_desktop_display(
+        mut self,
+        display: viewflow_platform::macos_input::MacOsDesktopPointerDisplay,
+    ) -> Self {
+        if let InputBackend::MacOs(backend) = &mut self.backend {
             backend.set_desktop_display(display);
         }
         self
@@ -292,6 +312,7 @@ impl InputReceiver {
         {
             self.backend.release_all()?;
         }
+        *self.feedback.lock().unwrap() = None;
         self.previous_event_sequence = None;
         self.lease = Some(lease);
         Ok(())
@@ -328,6 +349,7 @@ impl InputReceiver {
         // Do not publish the revoked state until the native backend confirms
         // that all held input has actually been released.
         self.backend.release_all()?;
+        *self.feedback.lock().unwrap() = None;
         self.previous_event_sequence = None;
         self.lease = Some(revoke.lease());
 
@@ -383,28 +405,33 @@ impl InputReceiver {
         }
 
         if let Some((clock, local_now_ns)) = freshness {
-        if let Err(error) = validate_event_freshness(event, clock, local_now_ns) {
-            let mapped_horizon_ns = clock.map(|snapshot| {
-                i128::from(
-                    snapshot
-                        .estimate
-                        .remote_to_local_ns(event.sender_not_after_ns),
-                ) - i128::from(local_now_ns)
-            });
-            let uncertainty_ns = clock.map(|snapshot| snapshot.estimate.uncertainty_ns);
-            let sample_age_ns =
-                clock.map(|snapshot| local_now_ns.saturating_sub(snapshot.measured_at_local_ns));
-            eprintln!(
-                "atlas-input-rejected stage=freshness {} result={error:?} mapped_horizon_ns={mapped_horizon_ns:?} uncertainty_ns={uncertainty_ns:?} sample_age_ns={sample_age_ns:?}",
-                input_event_diagnostic(event)
-            );
-            // A time-invalid identity is terminal. Consuming it prevents the
-            // same stale event from becoming injectable after a later probe.
-            self.previous_event_sequence = Some(event.sequence);
-            return Err(error);
-        }
+            if let Err(error) = validate_event_freshness(event, clock, local_now_ns) {
+                let mapped_horizon_ns = clock.map(|snapshot| {
+                    i128::from(
+                        snapshot
+                            .estimate
+                            .remote_to_local_ns(event.sender_not_after_ns),
+                    ) - i128::from(local_now_ns)
+                });
+                let uncertainty_ns = clock.map(|snapshot| snapshot.estimate.uncertainty_ns);
+                let sample_age_ns = clock
+                    .map(|snapshot| local_now_ns.saturating_sub(snapshot.measured_at_local_ns));
+                eprintln!(
+                    "atlas-input-rejected stage=freshness {} result={error:?} mapped_horizon_ns={mapped_horizon_ns:?} uncertainty_ns={uncertainty_ns:?} sample_age_ns={sample_age_ns:?}",
+                    input_event_diagnostic(event)
+                );
+                // A time-invalid identity is terminal. Consuming it prevents the
+                // same stale event from becoming injectable after a later probe.
+                self.previous_event_sequence = Some(event.sequence);
+                return Err(error);
+            }
         }
         self.backend.apply(event)?;
+        if matches!(event.event, InputEventKind::DesktopPointerPosition(_)) {
+            *self.feedback.lock().unwrap() = Some((event.lease_generation, event.sequence));
+        } else if matches!(event.event, InputEventKind::ReleaseAll) {
+            *self.feedback.lock().unwrap() = None;
+        }
         self.previous_event_sequence = Some(event.sequence);
         #[cfg(test)]
         {
@@ -414,6 +441,7 @@ impl InputReceiver {
     }
 
     pub(crate) fn release_all(&mut self) -> Result<()> {
+        *self.feedback.lock().unwrap() = None;
         self.backend.release_all()
     }
 }
@@ -463,8 +491,12 @@ pub(crate) fn conservative_operation_deadline(
     clock: Option<ClockSnapshot>,
     local_now_ns: u64,
 ) -> std::result::Result<u64, InputApplyError> {
-    conservative_remote_deadline(sender_not_after_ns, clock, local_now_ns,
-        Some(INPUT_OPERATION_TIMEOUT_NS + MAX_CLOCK_UNCERTAINTY_NS))
+    conservative_remote_deadline(
+        sender_not_after_ns,
+        clock,
+        local_now_ns,
+        Some(INPUT_OPERATION_TIMEOUT_NS + MAX_CLOCK_UNCERTAINTY_NS),
+    )
 }
 
 /// A lease expiry is not an event budget. It uses the same clock quality and
@@ -920,10 +952,20 @@ fn event_to_wire(event: InputEventKind) -> wire::input_event::Event {
                 repeat: key.repeat,
             })
         }
-        InputEventKind::Touchpad(frame) => wire::input_event::Event::Touchpad(wire::TouchpadFrame {
-            width: frame.width, height: frame.height,
-            contacts: frame.contacts[..usize::from(frame.count)].iter().map(|c| wire::TouchpadContact { id: c.id, x: c.x, y: c.y }).collect(),
-        }),
+        InputEventKind::Touchpad(frame) => {
+            wire::input_event::Event::Touchpad(wire::TouchpadFrame {
+                width: frame.width,
+                height: frame.height,
+                contacts: frame.contacts[..usize::from(frame.count)]
+                    .iter()
+                    .map(|c| wire::TouchpadContact {
+                        id: c.id,
+                        x: c.x,
+                        y: c.y,
+                    })
+                    .collect(),
+            })
+        }
         InputEventKind::ReleaseAll => {
             wire::input_event::Event::ReleaseAll(wire::ReleaseAllInput {})
         }
@@ -1137,21 +1179,34 @@ mod tests {
     }
 
     #[test]
-    fn ordered_cursor_preserves_transitions_without_clock_but_rejects_replay_and_wrong_target() {
+    fn ordered_cursor_preserves_delayed_transitions_but_rejects_replay_and_wrong_target() {
         let mut receiver = active_receiver();
-        let mut event = motion_event(1, 0);
+        // This sender deadline is intentionally old. The cursor route is a
+        // live ordered operation, so it preserves press/release bookkeeping
+        // across a delayed delivery rather than applying a frame-time cutoff.
+        let mut event = motion_event(1, 1);
         event.event = InputEventKind::PointerButton(viewflow_protocol::PointerButtonEvent {
             button: viewflow_protocol::PointerButton::Left,
             state: InputSwitchState::Pressed,
         });
         receiver.apply_ordered_event(&event).unwrap();
-        assert!(matches!(receiver.apply_ordered_event(&event), Err(InputApplyError::EventSequence)));
+        assert_eq!(receiver.applied_event_count, 1);
+        assert!(matches!(
+            receiver.apply_ordered_event(&event),
+            Err(InputApplyError::EventSequence)
+        ));
         event.sequence = 2;
         event.target_device = Id128(99);
-        assert!(matches!(receiver.apply_ordered_event(&event), Err(InputApplyError::TargetDevice)));
+        assert!(matches!(
+            receiver.apply_ordered_event(&event),
+            Err(InputApplyError::TargetDevice)
+        ));
         event.target_device = Id128(2);
-        if let InputEventKind::PointerButton(button) = &mut event.event { button.state = InputSwitchState::Released; }
+        if let InputEventKind::PointerButton(button) = &mut event.event {
+            button.state = InputSwitchState::Released;
+        }
         receiver.apply_ordered_event(&event).unwrap();
+        assert_eq!(receiver.applied_event_count, 2);
     }
 
     #[test]
@@ -1341,10 +1396,22 @@ mod tests {
         let now = 10_000_000_000;
         let clock = Some(clock_snapshot(0, 1_000_000, now));
         let deadline = now + INPUT_OPERATION_TIMEOUT_NS + 1_000_000;
-        assert_eq!(conservative_input_deadline(deadline, clock, now), Err(InputApplyError::InvalidInput));
-        assert_eq!(conservative_operation_deadline(deadline, clock, now), Ok(deadline - 1_000_000));
-        assert_eq!(conservative_operation_deadline(deadline, None, now), Err(InputApplyError::ClockUnsynchronized));
-        assert_eq!(conservative_operation_deadline(deadline + 1_000_000_000, clock, now), Err(InputApplyError::InvalidInput));
+        assert_eq!(
+            conservative_input_deadline(deadline, clock, now),
+            Err(InputApplyError::InvalidInput)
+        );
+        assert_eq!(
+            conservative_operation_deadline(deadline, clock, now),
+            Ok(deadline - 1_000_000)
+        );
+        assert_eq!(
+            conservative_operation_deadline(deadline, None, now),
+            Err(InputApplyError::ClockUnsynchronized)
+        );
+        assert_eq!(
+            conservative_operation_deadline(deadline + 1_000_000_000, clock, now),
+            Err(InputApplyError::InvalidInput)
+        );
     }
 
     #[test]
@@ -1453,17 +1520,70 @@ mod touchpad_tests {
     fn touchpad_round_trip_and_ordered_lease_release() {
         let mut receiver = InputReceiver::new(InputBackendMode::Disabled, Some(Id128(2))).unwrap();
         for (generation, state) in [(1, InputLeaseState::Offered), (2, InputLeaseState::Active)] {
-            receiver.apply_lease(InputLease { generation, state, owner: Id128(1), route_to: Id128(2) }).unwrap();
+            receiver
+                .apply_lease(InputLease {
+                    generation,
+                    state,
+                    owner: Id128(1),
+                    route_to: Id128(2),
+                })
+                .unwrap();
         }
-        let mut frame = viewflow_protocol::TouchpadFrame { width: 16000, height: 11000, count: 5, ..Default::default() };
-        for (i, c) in frame.contacts.iter_mut().enumerate() { *c = viewflow_protocol::TouchpadContact { id: i as u32, x: 1000, y: 2000 }; }
-        let event = InputEvent { lease_generation: 2, target_device: Id128(2), sequence: 1, sender_not_after_ns: 1, event: InputEventKind::Touchpad(frame) };
-        let wire::control_envelope::Payload::InputEvent(encoded) = input_event_payload(event) else { panic!() };
+        let mut frame = viewflow_protocol::TouchpadFrame {
+            width: 16000,
+            height: 11000,
+            count: 5,
+            ..Default::default()
+        };
+        for (i, c) in frame.contacts.iter_mut().enumerate() {
+            *c = viewflow_protocol::TouchpadContact {
+                id: i as u32,
+                x: 1000,
+                y: 2000,
+            };
+        }
+        let event = InputEvent {
+            lease_generation: 2,
+            target_device: Id128(2),
+            sequence: 1,
+            sender_not_after_ns: 1,
+            event: InputEventKind::Touchpad(frame),
+        };
+        let wire::control_envelope::Payload::InputEvent(encoded) = input_event_payload(event)
+        else {
+            panic!()
+        };
         assert_eq!(InputEvent::try_from(encoded).unwrap(), event);
         receiver.apply_ordered_event(&event).unwrap();
-        assert_eq!(receiver.apply_ordered_event(&event), Err(InputApplyError::EventSequence));
-        receiver.apply_ordered_event(&InputEvent { sequence: 2, event: InputEventKind::Touchpad(viewflow_protocol::TouchpadFrame { count: 0, ..frame }), ..event }).unwrap();
-        receiver.apply_lease(InputLease { generation: 3, state: InputLeaseState::Revoked, owner: Id128(1), route_to: Id128(2) }).unwrap();
-        assert!(receiver.apply_ordered_event(&InputEvent { sequence: 3, ..event }).is_err());
+        assert_eq!(
+            receiver.apply_ordered_event(&event),
+            Err(InputApplyError::EventSequence)
+        );
+        receiver
+            .apply_ordered_event(&InputEvent {
+                sequence: 2,
+                event: InputEventKind::Touchpad(viewflow_protocol::TouchpadFrame {
+                    count: 0,
+                    ..frame
+                }),
+                ..event
+            })
+            .unwrap();
+        receiver
+            .apply_lease(InputLease {
+                generation: 3,
+                state: InputLeaseState::Revoked,
+                owner: Id128(1),
+                route_to: Id128(2),
+            })
+            .unwrap();
+        assert!(
+            receiver
+                .apply_ordered_event(&InputEvent {
+                    sequence: 3,
+                    ..event
+                })
+                .is_err()
+        );
     }
 }

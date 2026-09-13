@@ -21,7 +21,7 @@ pub fn encode(
                 b[base + 8..base + 12].copy_from_slice(&c.y.to_le_bytes());
             }
             (6, 0, 0)
-        },
+        }
         InputEventKind::ReleaseAll => (0, 0, 0),
         InputEventKind::DesktopPointerPosition(p) => (1, p.x_millidip as u64, p.y_millidip as u64),
         InputEventKind::PointerMotion(p) => (2, p.delta_x_dip.to_bits(), p.delta_y_dip.to_bits()),
@@ -78,23 +78,26 @@ pub fn decode(
     } else {
         InputSwitchState::Released
     };
-    if b[77..80] != [0; 3] || (b[4] != 6 && b[68..] != [0; 72]) { return Err(invalid); }
+    if b[77..80] != [0; 3] || (b[4] != 6 && b[68..] != [0; 72]) {
+        return Err(invalid);
+    }
     let event = match b[4] {
         6 if x == 0 && y == 0 => {
             let mut frame = TouchpadFrame {
                 width: u32::from_le_bytes(b[68..72].try_into().unwrap()),
                 height: u32::from_le_bytes(b[72..76].try_into().unwrap()),
-                count: b[76], ..TouchpadFrame::default()
+                count: b[76],
+                ..TouchpadFrame::default()
             };
             for (i, c) in frame.contacts.iter_mut().enumerate() {
                 let base = 80 + i * 12;
-                c.id = u32::from_le_bytes(b[base..base+4].try_into().unwrap());
-                c.x = u32::from_le_bytes(b[base+4..base+8].try_into().unwrap());
-                c.y = u32::from_le_bytes(b[base+8..base+12].try_into().unwrap());
+                c.id = u32::from_le_bytes(b[base..base + 4].try_into().unwrap());
+                c.x = u32::from_le_bytes(b[base + 4..base + 8].try_into().unwrap());
+                c.y = u32::from_le_bytes(b[base + 8..base + 12].try_into().unwrap());
             }
             frame.validate().map_err(|_| invalid)?;
             InputEventKind::Touchpad(frame)
-        },
+        }
         0 if x == 0 && y == 0 => InputEventKind::ReleaseAll,
         1 => InputEventKind::DesktopPointerPosition(DesktopPointerPosition {
             x_millidip: x as i64,
@@ -153,9 +156,7 @@ pub fn decode(
     } else {
         None
     };
-    if b[4] == 1 && display.is_none() {
-        return Err(invalid);
-    }
+    // No mapping means physical pixels; the console worker resolves its desktop.
     Ok((
         InputEvent {
             lease_generation: 0,
@@ -269,7 +270,7 @@ mod tests {
         };
         let (_, result) = decode(&encode(Some(e), Some(d))).unwrap();
         assert_eq!(result.unwrap().native_position(p), Ok((-100, 100)));
-        assert!(decode(&encode(Some(e), None)).is_err());
+        assert!(decode(&encode(Some(e), None)).unwrap().1.is_none());
     }
     #[test]
     fn preserve_backend_errors() {
@@ -293,20 +294,87 @@ mod touchpad_tests {
     use super::*;
     #[test]
     fn broker_preserves_five_contacts_and_validates_count_and_coordinates() {
-        let mut frame = TouchpadFrame { width: 16000, height: 11000, count: 5, ..TouchpadFrame::default() };
+        let mut frame = TouchpadFrame {
+            width: 16000,
+            height: 11000,
+            count: 5,
+            ..TouchpadFrame::default()
+        };
         for (i, c) in frame.contacts.iter_mut().enumerate() {
-            *c = TouchpadContact { id: i as u32 + 100, x: i as u32 * 2000, y: 9000 };
+            *c = TouchpadContact {
+                id: i as u32 + 100,
+                x: i as u32 * 2000,
+                y: 9000,
+            };
         }
-        let event = InputEvent { lease_generation: 2, target_device: Id128(2), sequence: 3, sender_not_after_ns: 1, event: InputEventKind::Touchpad(frame) };
+        let event = InputEvent {
+            lease_generation: 2,
+            target_device: Id128(2),
+            sequence: 3,
+            sender_not_after_ns: 1,
+            event: InputEventKind::Touchpad(frame),
+        };
         let bytes = encode(Some(event), None);
         assert_eq!(decode(&bytes).unwrap().0.event, event.event);
-        let mut invalid = bytes; invalid[76] = 6;
+        let mut invalid = bytes;
+        invalid[76] = 6;
         assert!(decode(&invalid).is_err());
-        let mut invalid = bytes; invalid[84..88].copy_from_slice(&16001u32.to_le_bytes());
+        let mut invalid = bytes;
+        invalid[84..88].copy_from_slice(&16001u32.to_le_bytes());
         assert!(decode(&invalid).is_err());
-        let mut invalid = bytes; invalid[92..96].copy_from_slice(&100u32.to_le_bytes());
+        let mut invalid = bytes;
+        invalid[92..96].copy_from_slice(&100u32.to_le_bytes());
         assert!(decode(&invalid).is_err());
-        let empty = InputEvent { event: InputEventKind::Touchpad(TouchpadFrame { count: 0, ..frame }), ..event };
-        assert_eq!(decode(&encode(Some(empty), None)).unwrap().0.event, empty.event);
+        let empty = InputEvent {
+            event: InputEventKind::Touchpad(TouchpadFrame { count: 0, ..frame }),
+            ..event
+        };
+        assert_eq!(
+            decode(&encode(Some(empty), None)).unwrap().0.event,
+            empty.event
+        );
+    }
+}
+
+#[cfg(test)]
+mod prelogin_coordinate_tests {
+    #[test]
+    fn input_only_positions_round_trip_without_video_mapping() {
+        use super::super::windows_input::DesktopPointerDisplay;
+        use viewflow_protocol::*;
+        let position = DesktopPointerPosition {
+            x_millidip: -960_000,
+            y_millidip: 1_199_000,
+        };
+        let event = InputEvent {
+            lease_generation: 1,
+            target_device: Id128(1),
+            sequence: 1,
+            sender_not_after_ns: 0,
+            event: InputEventKind::DesktopPointerPosition(position),
+        };
+        let (decoded, display) = super::decode(&super::encode(Some(event), None)).unwrap();
+        assert!(display.is_none());
+        assert_eq!(decoded.event, event.event);
+        let mapping = DesktopPointerDisplay::physical_pixels(-1920, 0, 5760, 2400).unwrap();
+        assert_eq!(mapping.native_position(position).unwrap(), (-960, 1199));
+        assert_eq!(
+            mapping
+                .native_position(DesktopPointerPosition {
+                    x_millidip: 3_839_000,
+                    y_millidip: 2_399_000
+                })
+                .unwrap(),
+            (3839, 2399)
+        );
+        assert!(
+            mapping
+                .native_position(DesktopPointerPosition {
+                    x_millidip: 3_840_000,
+                    y_millidip: 0
+                })
+                .is_err()
+        );
+        assert!(DesktopPointerDisplay::physical_pixels(0, 0, 0, 2400).is_err());
     }
 }

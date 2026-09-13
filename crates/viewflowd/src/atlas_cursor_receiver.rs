@@ -3,9 +3,9 @@
 use anyhow::{Context, Result, bail, ensure};
 use std::time::Duration;
 use tokio::sync::{mpsc, watch};
-use viewflow_protocol::{DomainControl, Id128};
 #[cfg(test)]
 use viewflow_protocol::InputAppliedResult;
+use viewflow_protocol::{DomainControl, Id128};
 
 pub(crate) fn is_cursor_control(control: &DomainControl) -> bool {
     matches!(
@@ -88,13 +88,20 @@ pub(crate) async fn serve(
             }
             DomainControl::InputEvent(event) => {
                 if event.sequence == 1 {
-                    eprintln!("atlas-cursor-received {}", crate::input_runtime::input_event_diagnostic(&event));
+                    eprintln!(
+                        "atlas-cursor-received {}",
+                        crate::input_runtime::input_event_diagnostic(&event)
+                    );
                 }
                 if let Err(error) = receiver.apply_ordered_event(&event) {
-                    eprintln!("atlas cursor input rejected: {} result={error:?}",
-                        crate::input_runtime::input_event_diagnostic(&event));
+                    eprintln!(
+                        "atlas cursor input rejected: {} result={error:?}",
+                        crate::input_runtime::input_event_diagnostic(&event)
+                    );
                     if error == crate::input_runtime::InputApplyError::InjectionFailed {
-                        receiver.release_all().context("cursor native failure cleanup")?;
+                        receiver
+                            .release_all()
+                            .context("cursor native failure cleanup")?;
                     }
                 }
                 continue;
@@ -313,7 +320,6 @@ mod tests {
         assert!(!task.is_finished());
         drop(send);
         assert!(task.await.unwrap().is_err());
-
     }
 
     #[tokio::test]

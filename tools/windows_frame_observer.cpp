@@ -27,7 +27,7 @@ static BOOL CALLBACK find_window(HWND window, LPARAM opaque) {
      std::wcscmp(name,L"ViewflowAtlasProxy")==0) { s.window=window; ++s.count; }
   return TRUE;
 }
-static int run(DWORD pid, unsigned duration, FILE* log, bool physical4k) {
+static int run(DWORD pid, unsigned duration, FILE* log, bool physical4k, bool exact4k) {
   bool placed=false;
   LARGE_INTEGER frequency{},start{},now{}; QueryPerformanceFrequency(&frequency);
   QueryPerformanceCounter(&start);
@@ -90,14 +90,18 @@ static int run(DWORD pid, unsigned duration, FILE* log, bool physical4k) {
     WindowSearch search{pid}; EnumWindows(find_window,reinterpret_cast<LPARAM>(&search));
     if(search.count!=1) { Sleep(10); continue; }
     if(physical4k && !placed) {
-      RECT target{};
+      struct Selection { RECT rect{}; unsigned count{}; bool exact{}; } selection{{},0,exact4k};
       EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR,HDC,LPRECT rect,LPARAM out)->BOOL {
-        if(rect->right-rect->left>=3840 && rect->bottom-rect->top>=2400) {
-          *reinterpret_cast<RECT*>(out)=*rect; return FALSE;
+        auto& s=*reinterpret_cast<Selection*>(out);
+        const auto w=rect->right-rect->left,h=rect->bottom-rect->top;
+        if(s.exact ? (w==3840 && h==2400) : (w>=3840 && h>=2400)) {
+          s.rect=*rect; ++s.count; return s.exact ? TRUE : FALSE;
         }
         return TRUE;
-      },reinterpret_cast<LPARAM>(&target));
-      if(target.right==target.left) { std::fprintf(log,"no_4k_capable_monitor\n"); return 14; }
+      },reinterpret_cast<LPARAM>(&selection));
+      const auto target=selection.rect;
+      std::fprintf(log,"monitor_selection exact4k=%u matches=%u\n",unsigned(exact4k),selection.count);
+      if(selection.count!=1) { std::fprintf(log,"no_4k_capable_monitor\n"); return 14; }
       // Align the 3840x2400 content, excluding its four-pixel capture border.
       if(!SetWindowPos(search.window,nullptr,target.left-4,target.top-4,0,0,SWP_NOSIZE|SWP_NOZORDER|SWP_NOACTIVATE))return 15;
       std::fprintf(log,"owned_proxy_moved=%ld,%ld no_activate=true\n",target.left-4,target.top-4); placed=true;
@@ -118,6 +122,9 @@ static int run(DWORD pid, unsigned duration, FILE* log, bool physical4k) {
         for(UINT o=0;;++o) {
           ComPtr<IDXGIOutput> candidate; if(adapter->EnumOutputs(o,&candidate)==DXGI_ERROR_NOT_FOUND)break;
           candidate->GetDesc(&output); if(output.Monitor!=monitor)continue;
+          if(exact4k && (output.DesktopCoordinates.right-output.DesktopCoordinates.left!=3840 || output.DesktopCoordinates.bottom-output.DesktopCoordinates.top!=2400)) {
+            std::fprintf(log,"output_left_exact_4k_baseline\n");return 19;
+          }
           std::fprintf(log,"output_rotation=%u\n",unsigned(output.Rotation));
           if(output.Rotation>DXGI_MODE_ROTATION_ROTATE270) { std::fprintf(log,"unsupported_rotation\n"); return 4; }
           hr=D3D11CreateDevice(adapter.Get(),D3D_DRIVER_TYPE_UNKNOWN,nullptr,0,nullptr,0,D3D11_SDK_VERSION,&device,nullptr,&context);
@@ -212,9 +219,10 @@ static int run(DWORD pid, unsigned duration, FILE* log, bool physical4k) {
 int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int) {
   SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
   int argc=0; auto argv=CommandLineToArgvW(GetCommandLineW(),&argc); if(!argv || argc<4 || argc>6)return 2;
-  bool physical4k=false,timer_requested=true;
+  bool physical4k=false,exact4k=false,timer_requested=true;
   for(int i=4;i<argc;++i) {
     if(std::wcscmp(argv[i],L"physical4k")==0)physical4k=true;
+    else if(std::wcscmp(argv[i],L"exact4k")==0){physical4k=true;exact4k=true;}
     else if(std::wcscmp(argv[i],L"timer0")==0)timer_requested=false;
     else if(std::wcscmp(argv[i],L"timer1")==0)timer_requested=true;
     else {LocalFree(argv);return 2;}
@@ -223,6 +231,6 @@ int WINAPI wWinMain(HINSTANCE,HINSTANCE,PWSTR,int) {
   FILE* log=nullptr; if(!pid || duration<1000 || duration>120000 || _wfopen_s(&log,argv[3],L"w") || !log) { LocalFree(argv); return 2; }
   LocalFree(argv); setvbuf(log,nullptr,_IOLBF,4096);
   int result=1;
-  { ObserverTimer timer(timer_requested,log); result=run(pid,duration,log,physical4k); }
+  { ObserverTimer timer(timer_requested,log); result=run(pid,duration,log,physical4k,exact4k); }
   std::fprintf(log,"exit=%d\n",result); fclose(log); return result;
 }

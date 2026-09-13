@@ -241,6 +241,7 @@ pub(crate) struct DesktopEnrollmentSupervisor {
     lane: SharedDesktopSourceLane,
     queued: VecDeque<DesktopCandidate>,
     provider: crate::atlas_peer::AtlasCaptureProvider,
+    performance_mode: crate::atlas_peer::AtlasPerformanceMode,
     fps: u16,
     compositor_pid: u32,
     socket: PathBuf,
@@ -267,6 +268,7 @@ impl DesktopEnrollmentSupervisor {
         lane: SharedDesktopSourceLane,
         desktop: &crate::desktop_config::AtlasSourceDesktopConfig,
         provider: crate::atlas_peer::AtlasCaptureProvider,
+        performance_mode: crate::atlas_peer::AtlasPerformanceMode,
         fps: u16,
         compositor_pid: u32,
         stream_id: Id128,
@@ -276,6 +278,7 @@ impl DesktopEnrollmentSupervisor {
             lane,
             queued: VecDeque::new(),
             provider,
+            performance_mode,
             fps,
             compositor_pid,
             socket: desktop.hyprland_socket.clone(),
@@ -349,9 +352,18 @@ impl DesktopEnrollmentSupervisor {
         }
         if let Some(input) = input.as_deref_mut() {
             let icons: Vec<_> = {
-                let lane = self.lane.lock().map_err(|_| anyhow::anyhow!("desktop icon state poisoned"))?;
-                self.icons.values().filter(|icon| lane.is_enrolled(icon.window_id)
-                    && self.published_icons.get(&icon.window_id) != Some(*icon)).cloned().collect()
+                let lane = self
+                    .lane
+                    .lock()
+                    .map_err(|_| anyhow::anyhow!("desktop icon state poisoned"))?;
+                self.icons
+                    .values()
+                    .filter(|icon| {
+                        lane.is_enrolled(icon.window_id)
+                            && self.published_icons.get(&icon.window_id) != Some(*icon)
+                    })
+                    .cloned()
+                    .collect()
             };
             for icon in icons {
                 input.publish_application_icon(icon.clone()).await?;
@@ -428,15 +440,18 @@ impl DesktopEnrollmentSupervisor {
                         .lane
                         .lock()
                         .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?;
-                    (!self.retired.contains(&candidate.window)
-                        && !lane.is_enrolled(candidate.window),
-                        lane.enrollment_capacity_remaining())
+                    (
+                        !self.retired.contains(&candidate.window)
+                            && !lane.is_enrolled(candidate.window),
+                        lane.enrollment_capacity_remaining(),
+                    )
                 };
                 if !eligible {
                     continue;
                 }
                 if !has_capacity {
-                    self.capacity_retry.insert(candidate.window, Instant::now() + Duration::from_secs(2));
+                    self.capacity_retry
+                        .insert(candidate.window, Instant::now() + Duration::from_secs(2));
                     self.return_capacity_rejected(candidate);
                     continue;
                 }
@@ -444,6 +459,7 @@ impl DesktopEnrollmentSupervisor {
                 self.probe = Some(tokio::spawn(probe_candidate(
                     candidate,
                     self.provider,
+                    self.performance_mode,
                     self.fps,
                     self.compositor_pid,
                     self.socket.clone(),
@@ -461,11 +477,16 @@ impl DesktopEnrollmentSupervisor {
         self.cleanup.spawn(async move {
             let result = tokio::task::spawn_blocking(move || {
                 return_rejected_to_local(socket, display, &candidate)
-            }).await;
+            })
+            .await;
             match result {
-                Ok(Ok(true)) => eprintln!("desktop capacity rejected: window returned to local display"),
+                Ok(Ok(true)) => {
+                    eprintln!("desktop capacity rejected: window returned to local display")
+                }
                 Ok(Ok(false)) => eprintln!("desktop capacity rejected: local layout retained"),
-                other => eprintln!("desktop capacity return failed; existing stream retained: {other:?}"),
+                other => {
+                    eprintln!("desktop capacity return failed; existing stream retained: {other:?}")
+                }
             }
             Ok(())
         });
@@ -723,10 +744,14 @@ fn discover_local_candidates(
     // Scrolling layouts can place local tiled clients beyond the monitor edge.
     // Their layout coordinates do not transfer ownership to the remote output.
     let remote_monitors: std::collections::BTreeSet<i64> = monitors
-        .as_array().context("invalid local monitor inventory")?.iter()
+        .as_array()
+        .context("invalid local monitor inventory")?
+        .iter()
         .filter(|monitor| {
-            monitor["x"].as_i64().and_then(|x| x.checked_mul(1000)) == Some(viewport.bounds.x_millidip)
-                && monitor["y"].as_i64().and_then(|y| y.checked_mul(1000)) == Some(viewport.bounds.y_millidip)
+            monitor["x"].as_i64().and_then(|x| x.checked_mul(1000))
+                == Some(viewport.bounds.x_millidip)
+                && monitor["y"].as_i64().and_then(|y| y.checked_mul(1000))
+                    == Some(viewport.bounds.y_millidip)
         })
         .filter_map(|monitor| monitor["id"].as_i64())
         .collect();
@@ -734,7 +759,9 @@ fn discover_local_candidates(
         .iter()
         .filter(|client| {
             client["floating"].as_bool() == Some(true)
-                || client["monitor"].as_i64().is_some_and(|id| remote_monitors.contains(&id))
+                || client["monitor"]
+                    .as_i64()
+                    .is_some_and(|id| remote_monitors.contains(&id))
         })
         .filter(|client| {
             client["workspace"]["id"]
@@ -821,6 +848,7 @@ fn discover_local_candidates(
 async fn probe_candidate(
     candidate: DesktopCandidate,
     provider: crate::atlas_peer::AtlasCaptureProvider,
+    performance_mode: crate::atlas_peer::AtlasPerformanceMode,
     fps: u16,
     compositor_pid: u32,
     socket: PathBuf,
@@ -828,11 +856,12 @@ async fn probe_candidate(
 ) -> Result<Option<ProbedCandidate>> {
     let started = match provider {
         crate::atlas_peer::AtlasCaptureProvider::Viewflow => {
-            crate::hyprcapture_runtime::start_viewflow_gpu_stream(
+            crate::hyprcapture_runtime::start_viewflow_gpu_stream_with_mode(
                 &candidate.address,
                 fps,
                 compositor_pid,
                 Duration::from_millis(250),
+                performance_mode,
             )
             .await
         }
@@ -902,11 +931,12 @@ async fn probe_candidate(
     // producer gives the real session its first unread HCGF.
     let fresh = match provider {
         crate::atlas_peer::AtlasCaptureProvider::Viewflow => {
-            crate::hyprcapture_runtime::start_viewflow_gpu_stream(
+            crate::hyprcapture_runtime::start_viewflow_gpu_stream_with_mode(
                 &candidate.address,
                 fps,
                 compositor_pid,
                 Duration::from_millis(250),
+                performance_mode,
             )
             .await
         }
@@ -946,10 +976,13 @@ fn return_rejected_to_local(
     if !locally_observed_exact(socket.clone(), candidate)? {
         return Ok(false);
     }
-    let ipc = viewflow_hyprland::HyprIpcClient::new(socket)
-        .with_timeout(Duration::from_millis(250));
+    let ipc =
+        viewflow_hyprland::HyprIpcClient::new(socket).with_timeout(Duration::from_millis(250));
     let clients: serde_json::Value = serde_json::from_str(&ipc.request("j/clients")?)?;
-    let client = clients.as_array().context("invalid clients")?.iter()
+    let client = clients
+        .as_array()
+        .context("invalid clients")?
+        .iter()
         .find(|c| c["address"].as_str() == Some(candidate.address.as_str()))
         .context("rejected window already closed")?;
     // A capacity decision may race with retiling. Never change the layout's
@@ -958,17 +991,28 @@ fn return_rejected_to_local(
         return Ok(false);
     }
     let monitors: serde_json::Value = serde_json::from_str(&ipc.request("j/monitors")?)?;
-    let monitor = monitors.as_array().context("invalid monitors")?.iter()
-        .find(|m| m["x"].as_i64() == Some(i64::from(display.x))
-            && m["y"].as_i64() == Some(i64::from(display.y)))
+    let monitor = monitors
+        .as_array()
+        .context("invalid monitors")?
+        .iter()
+        .find(|m| {
+            m["x"].as_i64() == Some(i64::from(display.x))
+                && m["y"].as_i64() == Some(i64::from(display.y))
+        })
         .context("local display unavailable")?;
-    let workspace = monitor["activeWorkspace"]["id"].as_i64().context("local workspace unavailable")?;
+    let workspace = monitor["activeWorkspace"]["id"]
+        .as_i64()
+        .context("local workspace unavailable")?;
     let rect = display.rect()?;
     let (x, y, width, height) = capacity_return_rect(
-        display.x, display.y,
-        (rect.width_millidip / 1000) as i64, (rect.height_millidip / 1000) as i64,
+        display.x,
+        display.y,
+        (rect.width_millidip / 1000) as i64,
+        (rect.height_millidip / 1000) as i64,
         client["size"][0].as_i64().context("missing window width")?,
-        client["size"][1].as_i64().context("missing window height")?,
+        client["size"][1]
+            .as_i64()
+            .context("missing window height")?,
         client["at"][0].as_i64().context("missing window x")?,
         client["at"][1].as_i64().context("missing window y")?,
     );
@@ -986,9 +1030,16 @@ fn return_rejected_to_local(
     Ok(true)
 }
 
-fn capacity_return_rect(x: i32, y: i32, screen_w: i64, screen_h: i64,
-                        window_w: i64, window_h: i64,
-                        window_x: i64, window_y: i64) -> (i64, i64, i64, i64) {
+fn capacity_return_rect(
+    x: i32,
+    y: i32,
+    screen_w: i64,
+    screen_h: i64,
+    window_w: i64,
+    window_h: i64,
+    window_x: i64,
+    window_y: i64,
+) -> (i64, i64, i64, i64) {
     // Project onto the nearest edge of the valid window-origin rectangle.
     // Outside origins already reach that boundary by clamping. For an origin
     // inside the display, select the shortest translation instead of leaving
@@ -1010,7 +1061,10 @@ fn capacity_return_rect(x: i32, y: i32, screen_w: i64, screen_h: i64,
             (right - returned_x, right, returned_y),
             (returned_y - top, returned_x, top),
             (bottom - returned_y, returned_x, bottom),
-        ].into_iter().min_by_key(|edge| edge.0).expect("four edges");
+        ]
+        .into_iter()
+        .min_by_key(|edge| edge.0)
+        .expect("four edges");
         returned_x = nearest.1;
         returned_y = nearest.2;
     }
@@ -1112,7 +1166,12 @@ pub(crate) async fn refresh_automatic_seed(
         return Ok(true);
     }
     config.windows.clear();
-    config.desktop.as_mut().expect("automatic desktop").candidates.clear();
+    config
+        .desktop
+        .as_mut()
+        .expect("automatic desktop")
+        .candidates
+        .clear();
     Ok(true)
 }
 
@@ -1305,8 +1364,15 @@ fn intersects(a: DesktopRect, b: DesktopRect) -> bool {
 mod tests {
     #[test]
     fn empty_desktop_can_start_and_reserve_later_windows() {
-        let viewport = DesktopViewport { topology_generation: 1, bounds: viewflow_protocol::DesktopRect {
-            x_millidip: 0, y_millidip: 0, width_millidip: 100_000, height_millidip: 100_000 } };
+        let viewport = DesktopViewport {
+            topology_generation: 1,
+            bounds: viewflow_protocol::DesktopRect {
+                x_millidip: 0,
+                y_millidip: 0,
+                width_millidip: 100_000,
+                height_millidip: 100_000,
+            },
+        };
         let lane = DesktopSourceLane::new(viewport, vec![], [], 8).unwrap();
         assert!(lane.enrolled.is_empty());
         assert!(lane.enrollment_capacity_remaining());
@@ -1318,7 +1384,16 @@ mod tests {
             (0, 0, 3072, 1728, 6000, 4000),
             (-1920, 390, 1920, 1200, 1030, 860),
         ] {
-            let (x, y, w, h) = super::capacity_return_rect(sx, sy, sw, sh, ww, wh, i64::from(sx) + sw, i64::from(sy) + 200);
+            let (x, y, w, h) = super::capacity_return_rect(
+                sx,
+                sy,
+                sw,
+                sh,
+                ww,
+                wh,
+                i64::from(sx) + sw,
+                i64::from(sy) + 200,
+            );
             assert!(x > i64::from(sx) && y > i64::from(sy));
             assert!(x + w < i64::from(sx) + sw);
             assert!(y + h < i64::from(sy) + sh);
@@ -1327,10 +1402,22 @@ mod tests {
     }
     #[test]
     fn capacity_return_stays_at_crossed_edge_and_preserves_parallel_position() {
-        assert_eq!(super::capacity_return_rect(0,0,3072,1728,1000,800,3100,450), (2056,450,1000,800));
-        assert_eq!(super::capacity_return_rect(-1920,390,1920,1200,800,600,-2500,600), (-1904,600,800,600));
-        assert_eq!(super::capacity_return_rect(0,0,1920,1200,800,600,400,-500), (400,16,800,600));
-        assert_eq!(super::capacity_return_rect(0,0,1920,1200,800,600,400,1300), (400,584,800,600));
+        assert_eq!(
+            super::capacity_return_rect(0, 0, 3072, 1728, 1000, 800, 3100, 450),
+            (2056, 450, 1000, 800)
+        );
+        assert_eq!(
+            super::capacity_return_rect(-1920, 390, 1920, 1200, 800, 600, -2500, 600),
+            (-1904, 600, 800, 600)
+        );
+        assert_eq!(
+            super::capacity_return_rect(0, 0, 1920, 1200, 800, 600, 400, -500),
+            (400, 16, 800, 600)
+        );
+        assert_eq!(
+            super::capacity_return_rect(0, 0, 1920, 1200, 800, 600, 400, 1300),
+            (400, 584, 800, 600)
+        );
     }
     #[test]
     fn capacity_return_uses_nearest_edge_when_origin_is_already_inside() {
@@ -1340,10 +1427,14 @@ mod tests {
             (500, 30, 500, 16),
             (500, 570, 500, 584),
         ] {
-            assert_eq!(super::capacity_return_rect(0, 0, 1920, 1200, 800, 600, wx, wy),
-                (expected_x, expected_y, 800, 600));
-            assert_eq!(super::capacity_return_rect(-1920, 390, 1920, 1200, 800, 600,
-                wx - 1920, wy + 390), (expected_x - 1920, expected_y + 390, 800, 600));
+            assert_eq!(
+                super::capacity_return_rect(0, 0, 1920, 1200, 800, 600, wx, wy),
+                (expected_x, expected_y, 800, 600)
+            );
+            assert_eq!(
+                super::capacity_return_rect(-1920, 390, 1920, 1200, 800, 600, wx - 1920, wy + 390),
+                (expected_x - 1920, expected_y + 390, 800, 600)
+            );
         }
     }
     use super::*;
@@ -1478,12 +1569,26 @@ mod tests {
             }
         });
         let candidate = DesktopCandidate {
-            window: Id128(16), address: "0x10".into(), native_address: 16,
-            stable_id: Some("retiled".into()), expected_pid: Some(16),
+            window: Id128(16),
+            address: "0x10".into(),
+            native_address: 16,
+            stable_id: Some("retiled".into()),
+            expected_pid: Some(16),
         };
-        assert!(!return_rejected_to_local(socket,
-            crate::desktop_config::AtlasDisplayConfig {x:0,y:0,width:100,height:100,scale:1.},
-            &candidate).unwrap());
+        assert!(
+            !return_rejected_to_local(
+                socket,
+                crate::desktop_config::AtlasDisplayConfig {
+                    x: 0,
+                    y: 0,
+                    width: 100,
+                    height: 100,
+                    scale: 1.
+                },
+                &candidate
+            )
+            .unwrap()
+        );
         worker.join().unwrap();
     }
 

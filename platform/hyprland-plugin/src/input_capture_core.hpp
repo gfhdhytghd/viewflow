@@ -82,6 +82,11 @@ public:
   [[nodiscard]] bool key(std::uint32_t code, bool pressed);
 
   [[nodiscard]] bool physicalButtonHeld(std::uint32_t code) const { return m_physicalButtons.contains(code); }
+  void armDragReturn(std::uint64_t generation) { m_pendingReturnGeneration = !m_lease && physicalButtonHeld(272) ? generation : 0; }
+  [[nodiscard]] bool canContinueDrag(std::uint64_t generation) const {
+    return generation != 0 && generation == m_pendingReturnGeneration && !m_lease && physicalButtonHeld(272);
+  }
+  void finishDragReturn() { m_pendingReturnGeneration = 0; }
   [[nodiscard]] CapturePhase phase() const noexcept;
   [[nodiscard]] bool captured() const noexcept;
   [[nodiscard]] const std::optional<EdgeCandidate> &activeEdge() const noexcept;
@@ -100,6 +105,7 @@ private:
   std::uint64_t m_lastGeneration = 0;
   std::optional<InputRect> m_remote;
   bool m_insideRemoteArm = false;
+  std::uint64_t m_pendingReturnGeneration = 0;
   std::set<std::uint32_t> m_physicalButtons;
   std::set<std::uint32_t> m_physicalKeys;
   std::set<std::uint32_t> m_buttons;

@@ -220,7 +220,9 @@ impl Coordinator {
                 Err(CoordinatorError::ClipboardRuntimeRequired)
             }
             // A local layout allocator is not an authenticated remote publisher.
-            DomainControl::AtlasFrame(_) | DomainControl::ApplicationIcon(_) | DomainControl::WindowInputRelease(_) => Err(CoordinatorError::AtlasRuntimeRequired),
+            DomainControl::AtlasFrame(_)
+            | DomainControl::ApplicationIcon(_)
+            | DomainControl::WindowInputRelease(_) => Err(CoordinatorError::AtlasRuntimeRequired),
             DomainControl::DesktopWindowMove(_) | DomainControl::DesktopWindowMoveAck(_) => {
                 Err(CoordinatorError::DesktopRuntimeRequired)
             }
@@ -687,7 +689,10 @@ mod tests {
         let next = coordinator
             .place_captured_window(Id128(2), Id128(20), 1, 32, 32)
             .unwrap();
-        assert_eq!((next.allocation.x, next.allocation.y), (first.allocation.x, first.allocation.y));
+        assert_eq!(
+            (next.allocation.x, next.allocation.y),
+            (first.allocation.x, first.allocation.y)
+        );
         assert_eq!((next.allocation.width, next.allocation.height), (32, 32));
         assert_ne!(next.generation, first.generation);
         coordinator

@@ -2,25 +2,25 @@
 
 pub mod application_audio;
 pub mod fake;
-#[cfg(any(target_os = "macos", test))]
-pub mod macos_input;
 #[cfg(target_os = "linux")]
 pub mod linux_application_audio;
 #[cfg(target_os = "linux")]
 pub mod linux_application_audio_capture;
 #[cfg(target_os = "linux")]
 pub mod linux_clipboard;
+#[cfg(any(target_os = "macos", test))]
+pub mod macos_input;
 pub mod sidecar;
-pub mod windows_input;
 #[cfg(any(windows, test))]
 mod touchpad_state;
-#[cfg(windows)]
-mod windows_touchpad;
-#[cfg(any(windows, test))]
-mod windows_input_wire;
+pub mod windows_input;
 #[cfg(windows)]
 pub mod windows_input_service;
+#[cfg(any(windows, test))]
+mod windows_input_wire;
 pub mod windows_proxy;
+#[cfg(windows)]
+mod windows_touchpad;
 pub use fake::FakeBackend;
 #[cfg(target_os = "linux")]
 pub use linux_clipboard::{

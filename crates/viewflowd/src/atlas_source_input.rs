@@ -67,11 +67,20 @@ pub(crate) struct AtlasSourceInput {
 }
 
 impl AtlasSourceInput {
-    pub(crate) fn reverse_drag(&self) -> crate::reverse_bridge::SharedNativeDrag { self.reverse_drag.clone() }
+    pub(crate) fn reverse_drag(&self) -> crate::reverse_bridge::SharedNativeDrag {
+        self.reverse_drag.clone()
+    }
 
-    pub(crate) async fn publish_application_icon(&self, icon: viewflow_protocol::ApplicationIcon) -> Result<()> {
-        self.writer.send(viewflow_protocol::wire::control_envelope::Payload::ApplicationIcon(icon.into()),
-            tokio::time::Instant::now() + std::time::Duration::from_secs(5)).await
+    pub(crate) async fn publish_application_icon(
+        &self,
+        icon: viewflow_protocol::ApplicationIcon,
+    ) -> Result<()> {
+        self.writer
+            .send(
+                viewflow_protocol::wire::control_envelope::Payload::ApplicationIcon(icon.into()),
+                tokio::time::Instant::now() + std::time::Duration::from_secs(5),
+            )
+            .await
     }
 
     /// Extend the source-local allowlist only after the desktop supervisor has
@@ -149,7 +158,10 @@ impl AtlasSourceInput {
                 ))
             })
             .collect::<Result<_>>()?;
-        let initial_window = allowed.first().map(|entry| entry.0).unwrap_or(viewflow_protocol::Id128(0));
+        let initial_window = allowed
+            .first()
+            .map(|entry| entry.0)
+            .unwrap_or(viewflow_protocol::Id128(0));
         let policy = AtlasInputPolicy::new(owner, source, allowed, 5_000_000_000)?;
         let listener = Listener::bind(
             &pointer.native_socket,
@@ -170,7 +182,13 @@ impl AtlasSourceInput {
                 (
                     Some(sender),
                     Some(DesktopMoveWorker::start(
-                        DesktopMoveController::new(config, desktop, lane, origin, drag_transfer.clone())?,
+                        DesktopMoveController::new(
+                            config,
+                            desktop,
+                            lane,
+                            origin,
+                            drag_transfer.clone(),
+                        )?,
                         receiver,
                         history_receive,
                         desktop_phase.clone(),
@@ -193,7 +211,11 @@ impl AtlasSourceInput {
                 position_scale: (1.0, 1.0),
                 ready_file: None,
                 raw_touchpad: true,
-                local: crate::atlas_cursor_handoff::local_displays(&desktop.hyprland_socket, monitor_id)?,
+                external_touchpad: false,
+                local: crate::atlas_cursor_handoff::local_displays(
+                    &desktop.hyprland_socket,
+                    monitor_id,
+                )?,
                 remote: desktop.remote_display.rect()?,
                 monitor_id,
                 topology_generation: desktop.topology_generation,
@@ -319,10 +341,21 @@ impl AtlasSourceInput {
                 Instant::now() < self.startup_deadline,
                 "atlas native pointer startup timed out"
             );
-            if self.native.is_none() { return Ok(()); }
+            if self.native.is_none() {
+                return Ok(());
+            }
             let initial = if let Some(committed) = self.history.back() {
-                self.policy.maintain_capture(committed, self.initial_window, now, native_now, self.max_capture_age_ns)?
-            } else { None }.unwrap_or_else(|| self.idle_initial.clone());
+                self.policy.maintain_capture(
+                    committed,
+                    self.initial_window,
+                    now,
+                    native_now,
+                    self.max_capture_age_ns,
+                )?
+            } else {
+                None
+            }
+            .unwrap_or_else(|| self.idle_initial.clone());
             let mut session = WindowInputSession::prepare_atlas(
                 self.native
                     .take()
@@ -717,8 +750,10 @@ impl DesktopMoveWorker {
                     let mut transfer = transfer_state.lock().await;
                     let begin = request.movement.phase == viewflow_protocol::DesktopWindowMovePhase::Begin;
                     if transfer.as_ref().is_some_and(|drag| drag.handed_off && drag.window == request.movement.window_id) && !begin {
-                        let result = controller.finish_transfer(request.movement.window_id).await.and_then(|()|
-                            desktop_ack(request.movement, viewflow_protocol::DesktopWindowMoveResult::Ended, controller.local_viewport));
+                        if let Err(error) = controller.finish_transfer(request.movement.window_id).await {
+                            eprintln!("desktop-source transferred gesture cleanup: {error:#}");
+                        }
+                        let result = desktop_ack(request.movement, viewflow_protocol::DesktopWindowMoveResult::Ended, controller.local_viewport);
                         phase.store(2, Ordering::Release);
                         let _ = request.completion.send(result);
                         continue;
@@ -743,15 +778,28 @@ impl DesktopMoveWorker {
                         Ok(ack) => Ok(ack),
                         Err(error) => {
                             eprintln!("desktop-source move rejected locally: {error:#}");
-                            // Restore only this gesture; a compositor rejection
-                            // must not terminate the shared video/input owner.
-                            controller.cancel_window(request.movement.window_id).await?;
+                            // Retire only this gesture and retain its last applied position.
+                            if controller.active.get(&request.movement.window_id)
+                                .is_some_and(|active| active.drag_id == request.movement.drag_id) {
+                                if let Err(cleanup) = controller.finish_transfer(request.movement.window_id).await {
+                                    eprintln!("desktop-source move cleanup retry needed: {cleanup:#}");
+                                }
+                            }
                             phase.store(2, Ordering::Release);
                             desktop_ack(request.movement,
                                 viewflow_protocol::DesktopWindowMoveResult::Rejected,
                                 controller.remote_viewport)
                         }
                     };
+                    if result.as_ref().is_ok_and(|ack| ack.result == viewflow_protocol::DesktopWindowMoveResult::Rejected)
+                        && controller.active.get(&request.movement.window_id)
+                            .is_some_and(|active| active.drag_id == request.movement.drag_id) {
+                        eprintln!("desktop-source rejected gesture retired drag={:?} sequence={}", request.movement.drag_id, request.movement.sequence);
+                        if let Err(cleanup) = controller.finish_transfer(request.movement.window_id).await {
+                            eprintln!("desktop-source rejected gesture cleanup: {cleanup:#}");
+                        }
+                        phase.store(2, Ordering::Release);
+                    }
                     if result.as_ref().is_ok_and(|ack|
                         ack.result == viewflow_protocol::DesktopWindowMoveResult::Ended ||
                         (begin && ack.result == viewflow_protocol::DesktopWindowMoveResult::Rejected)) {
@@ -766,7 +814,7 @@ impl DesktopMoveWorker {
                                     || (request.movement.desired_height_millidip != 0 && request.movement.desired_height_millidip != active.initial_bounds.height_millidip);
                                 *transfer = Some(crate::atlas_cursor_handoff::DragTransfer {
                                     window: request.movement.window_id,
-                                    target: viewflow_hyprland::capture_wire::DragTarget { pid: binding.pid, address: binding.address, surface: binding.surface, reverse_id: 0 },
+                                    target: viewflow_hyprland::capture_wire::DragTarget { pid: binding.pid, address: binding.address, surface: binding.surface, reverse_id: 0, grab_offset: None },
                                     handed_off: false, resizing, move_confirmed: !begin,
                                 });
                             }
@@ -922,7 +970,9 @@ impl DesktopMoveController {
         {
             return reject();
         }
-        let local_deadline = match crate::input_runtime::conservative_operation_deadline(
+        // Ordered desktop moves already have a paired route and immutable target.
+        // Clock mapping failures are diagnostics, not grounds to strand a gesture.
+        if let Err(error) = crate::input_runtime::conservative_operation_deadline(
             movement.sender_not_after_ns,
             clock.map(
                 |(estimate, measured_at_local_ns)| crate::input_runtime::ClockSnapshot {
@@ -932,20 +982,14 @@ impl DesktopMoveController {
             ),
             now_local_ns,
         ) {
-            Ok(deadline) => deadline,
-            Err(_) => return reject(),
-        };
-        let remaining = match local_deadline.checked_sub(now_local_ns) {
-            Some(remaining) if remaining > 0 => remaining,
-            _ => return reject(),
-        };
-        let native_deadline = match native_now_ns.checked_add(remaining) {
-            Some(deadline) => deadline,
-            None => return reject(),
-        };
-        // The local compositor capability is deliberately longer-lived than a
-        // single wire control deadline, but still bounded. Each move itself
-        // retains the caller's unextended mapped deadline above.
+            eprintln!(
+                "desktop-source move clock diagnostic drag={:?} sequence={} reason={error:?}",
+                movement.drag_id, movement.sequence
+            );
+        }
+        let native_deadline = native_now_ns
+            .checked_add(crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS)
+            .context("desktop move watchdog overflow")?;
         let enrollment_deadline = match native_now_ns.checked_add(MAX_DESKTOP_ENROLLMENT_NS) {
             Some(deadline) => deadline,
             None => return reject(),
@@ -988,9 +1032,11 @@ impl DesktopMoveController {
         }
         match movement.phase {
             viewflow_protocol::DesktopWindowMovePhase::Begin => {
-                if movement.sequence != 1 || self.active.contains_key(&movement.window_id) {
+                if movement.sequence != 1 {
                     return reject();
                 }
+                // A fresh ordered Begin supersedes an orphaned previous gesture.
+                self.finish_transfer(movement.window_id).await?;
                 let local_window_id = format!("{:032x}", movement.window_id.0);
                 let client = self.client.clone();
                 let enrollment = tokio::task::spawn_blocking(move || -> Result<_> {
@@ -1025,7 +1071,10 @@ impl DesktopMoveController {
                 .context("desktop enrollment worker failed")?;
                 let (enrollment, moved) = match enrollment {
                     Ok(enrollment) => enrollment,
-                    Err(_) => return reject(),
+                    Err(error) => {
+                        eprintln!("desktop-source enrollment rejected: {error:#}");
+                        return reject();
+                    }
                 };
                 self.active.insert(
                     movement.window_id,
@@ -1038,7 +1087,14 @@ impl DesktopMoveController {
                         base: base.clone(),
                     },
                 );
-                moved.context("desktop initial move failed; enrollment retained for cleanup")?;
+                if let Some(expires) =
+                    moved.context("desktop initial move failed; enrollment retained for cleanup")?
+                {
+                    self.active
+                        .get_mut(&movement.window_id)
+                        .unwrap()
+                        .expires_native_ns = expires;
+                }
                 desktop_ack(
                     movement,
                     viewflow_protocol::DesktopWindowMoveResult::Applied,
@@ -1075,7 +1131,11 @@ impl DesktopMoveController {
                 // The plugin consumes a valid sequence before checking its deadline.
                 // Keep the attempted sequence even when the reply is a rejection.
                 active.last_sequence = movement.sequence;
-                moved.context("desktop move failed; enrollment retained for cleanup")?;
+                if let Some(expires) =
+                    moved.context("desktop move failed; enrollment retained for cleanup")?
+                {
+                    active.expires_native_ns = expires;
+                }
                 desktop_ack(
                     movement,
                     viewflow_protocol::DesktopWindowMoveResult::Applied,
@@ -1143,31 +1203,30 @@ impl DesktopMoveController {
     }
 
     async fn finish_transfer(&mut self, window: viewflow_protocol::WindowId) -> Result<()> {
-        let Some(active) = self.active.get(&window) else { return Ok(()); };
-        let request = viewflow_hyprland::ReleaseRequest {
-            local_window_id: format!("{:032x}", window.0), token: active.token.clone(),
-            sequence: active.last_sequence.checked_add(1).context("desktop release sequence overflow")?,
-            not_after_monotonic_ns: desktop_cleanup_deadline(u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?, active.expires_native_ns)?,
-            restore: false,
-        };
-        let client = self.client.clone();
-        tokio::task::spawn_blocking(move || client.release(&request)).await.context("desktop transfer release failed")??;
-        self.active.remove(&window);
-        Ok(())
+        let active = self
+            .active
+            .remove(&window)
+            .map(|drag| (window, drag))
+            .into_iter()
+            .collect();
+        self.release_enrollments_with_restore(active, false).await
     }
 
     /// Release every locally owned compositor enrollment on normal source
     /// retirement. This is distinct from the plugin's expiry fallback and
     /// requests restoration because no remote End was confirmed.
     async fn shutdown(&mut self) -> Result<()> {
-        let handed_off = self.transfer.lock().await.as_ref().filter(|drag| drag.handed_off).map(|drag| drag.window);
-        if let Some(window) = handed_off { self.finish_transfer(window).await?; }
+        let handed_off = self
+            .transfer
+            .lock()
+            .await
+            .as_ref()
+            .filter(|drag| drag.handed_off)
+            .map(|drag| drag.window);
+        if let Some(window) = handed_off {
+            self.finish_transfer(window).await?;
+        }
         let active = std::mem::take(&mut self.active);
-        self.release_enrollments(active).await
-    }
-
-    async fn cancel_window(&mut self, window: viewflow_protocol::WindowId) -> Result<()> {
-        let active = self.active.remove(&window).map(|drag| (window, drag)).into_iter().collect();
         self.release_enrollments(active).await
     }
 
@@ -1175,9 +1234,25 @@ impl DesktopMoveController {
         &mut self,
         active: BTreeMap<viewflow_protocol::WindowId, ActiveDesktopDrag>,
     ) -> Result<()> {
+        self.release_enrollments_with_restore(active, true).await
+    }
+
+    async fn release_enrollments_with_restore(
+        &mut self,
+        active: BTreeMap<viewflow_protocol::WindowId, ActiveDesktopDrag>,
+        restore: bool,
+    ) -> Result<()> {
         let native_now = u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?;
         let mut failure = None;
         for (window, active) in active {
+            if native_now >= active.expires_native_ns {
+                // The compositor has already retired this geometry capability.
+                // There is no held input here and nothing left to release.
+                eprintln!(
+                    "desktop-source enrollment already expired window={window:?}; retired locally"
+                );
+                continue;
+            }
             // A failed/expired token must not skip cleanup of other windows.
             let result = async {
                 let deadline = desktop_cleanup_deadline(native_now, active.expires_native_ns)?;
@@ -1193,7 +1268,7 @@ impl DesktopMoveController {
                         token: active.token,
                         sequence,
                         not_after_monotonic_ns: deadline,
-                        restore: true,
+                        restore,
                     };
                     match client.release(&request) {
                         Err(viewflow_hyprland::DesktopWindowError::Rejected(message))
@@ -1392,102 +1467,112 @@ mod tests {
 
     #[tokio::test]
     async fn desktop_cleanup_expired_window_does_not_skip_live_window_or_uncertain_sequence() {
-        use std::io::{Read, Write};
-        use std::os::unix::{fs::PermissionsExt, net::UnixListener};
-        use viewflow_protocol::Id128;
-        let directory = tempfile::tempdir().unwrap();
-        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
-        let socket = directory.path().join("hypr.sock");
-        let request = directory.path().join("request.json");
-        std::fs::write(&request, b"{}").unwrap();
-        std::fs::set_permissions(&request, std::fs::Permissions::from_mode(0o600)).unwrap();
-        let listener = UnixListener::bind(&socket).unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let reply_path = request.clone();
-        let worker = std::thread::spawn(move || {
-            let deadline = std::time::Instant::now() + Duration::from_secs(2);
-            let mut rejected = false;
-            loop {
-                if let Ok((mut peer, _)) = listener.accept() {
-                    peer.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
-                    let mut command = [0; 1024];
-                    assert!(peer.read(&mut command).unwrap() > 0);
-                    let payload: serde_json::Value =
-                        serde_json::from_slice(&std::fs::read(&reply_path).unwrap()).unwrap();
-                    assert_eq!(payload["localWindowId"], format!("{:032x}", 2));
-                    assert_eq!(payload["restore"], true);
-                    if !rejected {
-                        assert_eq!(payload["sequence"], 2);
-                        std::fs::write(&reply_path, br#"{"version":1,"ok":false,"error":"desktop-window sequence rejected"}"#).unwrap();
+        for restore in [true, false] {
+            use std::io::{Read, Write};
+            use std::os::unix::{fs::PermissionsExt, net::UnixListener};
+            use viewflow_protocol::Id128;
+            let directory = tempfile::tempdir().unwrap();
+            std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700))
+                .unwrap();
+            let socket = directory.path().join("hypr.sock");
+            let request = directory.path().join("request.json");
+            std::fs::write(&request, b"{}").unwrap();
+            std::fs::set_permissions(&request, std::fs::Permissions::from_mode(0o600)).unwrap();
+            let listener = UnixListener::bind(&socket).unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let reply_path = request.clone();
+            let worker = std::thread::spawn(move || {
+                let deadline = std::time::Instant::now() + Duration::from_secs(2);
+                let mut rejected = false;
+                loop {
+                    if let Ok((mut peer, _)) = listener.accept() {
+                        peer.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+                        let mut command = [0; 1024];
+                        assert!(peer.read(&mut command).unwrap() > 0);
+                        let payload: serde_json::Value =
+                            serde_json::from_slice(&std::fs::read(&reply_path).unwrap()).unwrap();
+                        assert_eq!(payload["localWindowId"], format!("{:032x}", 2));
+                        assert_eq!(payload["restore"], restore);
+                        if !rejected {
+                            assert_eq!(payload["sequence"], 2);
+                            std::fs::write(&reply_path, br#"{"version":1,"ok":false,"error":"desktop-window sequence rejected"}"#).unwrap();
+                            peer.write_all(b"ok").unwrap();
+                            rejected = true;
+                            continue;
+                        }
+                        assert_eq!(payload["sequence"], 1);
+                        std::fs::write(&reply_path, br#"{"version":1,"ok":true}"#).unwrap();
                         peer.write_all(b"ok").unwrap();
-                        rejected = true;
-                        continue;
+                        return;
                     }
-                    assert_eq!(payload["sequence"], 1);
-                    std::fs::write(&reply_path, br#"{"version":1,"ok":true}"#).unwrap();
-                    peer.write_all(b"ok").unwrap();
-                    return;
+                    assert!(
+                        std::time::Instant::now() < deadline,
+                        "live window cleanup was skipped"
+                    );
+                    std::thread::sleep(Duration::from_millis(1));
                 }
-                assert!(
-                    std::time::Instant::now() < deadline,
-                    "live window cleanup was skipped"
-                );
-                std::thread::sleep(Duration::from_millis(1));
-            }
-        });
-        let bounds = desktop_manifest(1, 1, 1).desktop.unwrap().viewport;
-        let lane = crate::desktop_source::DesktopSourceLane::new(
-            crate::desktop_source::DesktopViewport {
+            });
+            let bounds = desktop_manifest(1, 1, 1).desktop.unwrap().viewport;
+            let lane = crate::desktop_source::DesktopSourceLane::new(
+                crate::desktop_source::DesktopViewport {
+                    topology_generation: 1,
+                    bounds,
+                },
+                vec![crate::desktop_source::DesktopCandidate {
+                    window: Id128(2),
+                    address: "0x2".into(),
+                    native_address: 2,
+                    stable_id: Some("fixture".into()),
+                    expected_pid: Some(2),
+                }],
+                [Id128(2)],
+                8,
+            )
+            .unwrap()
+            .shared();
+            let now = u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns().unwrap()).unwrap();
+            let mut controller = DesktopMoveController {
+                transfer: Default::default(),
+                client: viewflow_hyprland::DesktopWindowClient::new(
+                    viewflow_hyprland::HyprIpcClient::new(socket),
+                    request,
+                    i32::try_from(std::process::id()).unwrap(),
+                ),
+                lane,
+                stream_id: Id128(99),
+                config_generation: 1,
                 topology_generation: 1,
-                bounds,
-            },
-            vec![crate::desktop_source::DesktopCandidate {
-                window: Id128(2),
-                address: "0x2".into(),
-                native_address: 2,
-                stable_id: Some("fixture".into()),
-                expected_pid: Some(2),
-            }],
-            [Id128(2)],
-            8,
-        )
-        .unwrap()
-        .shared();
-        let now = u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns().unwrap()).unwrap();
-        let mut controller = DesktopMoveController {
-            transfer: Default::default(),
-            client: viewflow_hyprland::DesktopWindowClient::new(
-                viewflow_hyprland::HyprIpcClient::new(socket),
-                request,
-                i32::try_from(std::process::id()).unwrap(),
-            ),
-            lane,
-            stream_id: Id128(99),
-            config_generation: 1,
-            topology_generation: 1,
-            local_viewport: bounds,
-            remote_viewport: bounds,
-            owner: Id128(3),
-            source: Id128(4),
-            active: [(1, now - 1), (2, now + 5_000_000_000)]
-                .into_iter()
-                .map(|(id, expires)| {
-                    (
-                        Id128(id),
-                        ActiveDesktopDrag {
-                            drag_id: Id128(7),
-                            last_sequence: 1,
-                            token: "a".repeat(48),
-                            expires_native_ns: expires,
-                            initial_bounds: bounds,
-                            base: desktop_manifest(1, 1, 1),
-                        },
-                    )
-                })
-                .collect(),
-        };
-        assert!(controller.shutdown().await.is_err());
-        worker.join().unwrap();
+                local_viewport: bounds,
+                remote_viewport: bounds,
+                owner: Id128(3),
+                source: Id128(4),
+                active: [(1, now - 1), (2, now + 5_000_000_000)]
+                    .into_iter()
+                    .map(|(id, expires)| {
+                        (
+                            Id128(id),
+                            ActiveDesktopDrag {
+                                drag_id: Id128(7),
+                                last_sequence: 1,
+                                token: "a".repeat(48),
+                                expires_native_ns: expires,
+                                initial_bounds: bounds,
+                                base: desktop_manifest(1, 1, 1),
+                            },
+                        )
+                    })
+                    .collect(),
+            };
+            if restore {
+                controller.shutdown().await.unwrap();
+            } else {
+                controller.finish_transfer(Id128(1)).await.unwrap();
+                assert!(!controller.active.contains_key(&Id128(1)));
+                controller.finish_transfer(Id128(2)).await.unwrap();
+                assert!(controller.active.is_empty());
+            }
+            worker.join().unwrap();
+        }
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

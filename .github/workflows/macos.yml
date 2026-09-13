@@ -24,3 +24,10 @@ jobs:
         run: cmake -S platform/macos -B build/macos -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" && cmake --build build/macos
       - name: Check native codecs and CLI without desktop permissions
         run: ctest --test-dir build/macos --output-on-failure
+      - name: Build unified macOS app (explicit development build without HID)
+        run: python3 tools/build-macos-app.py --without-driver --output dist/Viewflow-Development-No-HID.app --zip
+      - name: Upload macOS development artifact (HID activation not verified)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Viewflow-macOS-Development-No-HID
+          path: dist/Viewflow-Development-No-HID.zip

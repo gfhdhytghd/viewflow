@@ -294,7 +294,10 @@ enum AlphaStorage {
 
 impl From<Vec<u8>> for RawAlpha {
     fn from(bytes: Vec<u8>) -> Self {
-        Self { storage: AlphaStorage::Owned(bytes), _owner_thread: PhantomData }
+        Self {
+            storage: AlphaStorage::Owned(bytes),
+            _owner_thread: PhantomData,
+        }
     }
 }
 
@@ -314,7 +317,9 @@ impl AsRef<[u8]> for RawAlpha {
 
 impl std::ops::Deref for RawAlpha {
     type Target = [u8];
-    fn deref(&self) -> &Self::Target { self.as_ref() }
+    fn deref(&self) -> &Self::Target {
+        self.as_ref()
+    }
 }
 
 /// Encoded color and independent, lossless straight-alpha bytes.
@@ -770,11 +775,19 @@ impl GpuEncoder {
         let copy_alpha = *COPY_ALPHA.get_or_init(|| {
             let copy = std::env::var_os("VIEWFLOW_ALPHA_OUTPUT_COPY").is_some_and(|v| v == "1");
             crate::atlas_feedback::trace_line(format_args!(
-                "alpha-output-storage mode={}", if copy { "rust-copy" } else { "native-owned-view" }));
+                "alpha-output-storage mode={}",
+                if copy {
+                    "rust-copy"
+                } else {
+                    "native-owned-view"
+                }
+            ));
             copy
         });
         let raw_alpha = if copy_alpha {
-            owned.copy_plane(self.alpha_bytes, vf_gpu_dmabuf_output_copy_raw_alpha)?.into()
+            owned
+                .copy_plane(self.alpha_bytes, vf_gpu_dmabuf_output_copy_raw_alpha)?
+                .into()
         } else {
             owned.into_raw_alpha(self.alpha_bytes)?
         };
@@ -805,13 +818,20 @@ impl Output {
         let mut data = std::ptr::null();
         let mut length = 0;
         // SAFETY: unique owner-thread output and exact writable ABI arguments.
-        let status = unsafe { vf_gpu_dmabuf_output_view_raw_alpha(
-            self.0.as_ptr(), &raw mut data, &raw mut length) };
-        ensure!(status == 0 && length == expected && length <= isize::MAX as usize,
-            "GPU alpha view shape mismatch");
+        let status = unsafe {
+            vf_gpu_dmabuf_output_view_raw_alpha(self.0.as_ptr(), &raw mut data, &raw mut length)
+        };
+        ensure!(
+            status == 0 && length == expected && length <= isize::MAX as usize,
+            "GPU alpha view shape mismatch"
+        );
         let data = NonNull::new(data.cast_mut()).context("GPU alpha view is null")?;
         Ok(RawAlpha {
-            storage: AlphaStorage::Native { _output: self, data, length },
+            storage: AlphaStorage::Native {
+                _output: self,
+                data,
+                length,
+            },
             _owner_thread: PhantomData,
         })
     }

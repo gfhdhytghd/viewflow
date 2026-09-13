@@ -130,8 +130,10 @@ struct App {
         if (wl_display_roundtrip(display) < 0 || !state) throw std::runtime_error("read native keyboard layout");
     }
     std::string guard() const {
+        // The client inventory serializes stable IDs as hexadecimal strings;
+        // Lua window objects expose the same ID as an integer.
         return "local w=hl.get_window('address:" + address + "');assert(w and w.mapped and w.pid==" + std::to_string(pid) +
-            " and w.stable_id=='" + stable_id + "','window target changed');";
+            " and w.stable_id==0x" + stable_id + ",'window target changed');";
     }
     void action(const std::string& body) {
         const auto result = ipc("/eval " + guard() + body);
@@ -139,10 +141,15 @@ struct App {
             throw std::runtime_error("native window operation: " + result);
     }
     std::string move_pointer() const {
-        return "hl.dispatch(hl.dsp.cursor.move({x=" + std::to_string(pointer_x / 1000.0) + ",y=" + std::to_string(pointer_y / 1000.0) + "}));";
+        return "hl.plugin.viewflow.with_forwarded_motion(function() hl.dispatch(hl.dsp.cursor.move({x=" + std::to_string(pointer_x / 1000.0) + ",y=" + std::to_string(pointer_y / 1000.0) + "})) end);";
     }
     void focus(bool move) {
-        action("hl.dispatch(hl.dsp.focus({window=w}));" + (move && has_pointer ? move_pointer() : ""));
+        action("hl.plugin.viewflow.with_forwarded_motion(function() hl.dispatch(hl.dsp.focus({window=w}));" +
+            (move && has_pointer ? move_pointer() : "") + " end);");
+    }
+    std::string button_command(uint32_t code, bool down) const {
+        return "hl.plugin.viewflow.forwarded_button(" + std::to_string(code) + "," +
+            std::to_string(down ? 1 : 0) + "," + std::to_string(time()) + ");";
     }
     void flush() {
         if (wl_display_roundtrip(display) < 0) throw std::runtime_error("Wayland input connection failed");
@@ -159,7 +166,7 @@ struct App {
             xkb_state_update_key(state, code + 8, XKB_KEY_UP);
         }
         held_keys.clear(); send_modifiers();
-        for (auto code : held_buttons) zwlr_virtual_pointer_v1_button(pointer, time(), code, WL_POINTER_BUTTON_STATE_RELEASED);
+        for (auto code : held_buttons) ipc("/eval " + button_command(code, false));
         held_buttons.clear(); zwlr_virtual_pointer_v1_frame(pointer); flush();
     }
     void input(const vf::Input& event) {
@@ -173,10 +180,16 @@ struct App {
         case vf::InputKind::button: {
             if (event.a < 272 || event.a > 276 || (event.b != 0 && event.b != 1)) return;
             const auto code = static_cast<uint32_t>(event.a);
+            std::fprintf(stderr, "window-button received sequence=%llu down=%d capture-phase=%s\n",
+                static_cast<unsigned long long>(event.sequence), event.b,
+                ipc("/repl local s=hl.plugin.viewflow.capture_status();return s:match('\"phase\":(%d+)')").c_str());
             if ((event.b != 0) == held_buttons.contains(code)) return;
-            if (event.b) focus(true);
-            zwlr_virtual_pointer_v1_button(pointer, time(), code, event.b ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
-            zwlr_virtual_pointer_v1_frame(pointer);
+            // Position, focus and button dispatch must share one compositor
+            // turn; physical capture can move the cursor between IPC and a
+            // separate Wayland request. Nested refocus stays in the same scope.
+            action("hl.plugin.viewflow.with_forwarded_motion(function() " +
+                std::string(event.b ? "hl.dispatch(hl.dsp.focus({window=w}));" : "") +
+                (has_pointer ? move_pointer() : "") + button_command(code, event.b != 0) + " end);");
             if (event.b) held_buttons.insert(code); else held_buttons.erase(code);
             flush(); break;
         }
@@ -192,14 +205,25 @@ struct App {
             flush(); break;
         }
         case vf::InputKind::wheel: {
+            std::fprintf(stderr,"window-scroll helper seq=%llu axis=%d amount=%d precise=%d stop=%d\n",
+                static_cast<unsigned long long>(event.sequence),event.a,event.b,event.c,event.d);
             if (event.a != 0 && event.a != 1) return;
-            focus(true);
-            const double delta = std::clamp(-event.b / 8.0, -1'000'000.0, 1'000'000.0);
-            zwlr_virtual_pointer_v1_axis_source(pointer, WL_POINTER_AXIS_SOURCE_WHEEL);
-            zwlr_virtual_pointer_v1_axis(pointer, time(), static_cast<uint32_t>(event.a), wl_fixed_from_double(delta));
-            zwlr_virtual_pointer_v1_frame(pointer); flush(); break;
+            // Position and scroll must share one compositor dispatch. The
+            // forwarded-motion scope restores the physical cursor on return.
+            const auto axis_call = [&](int amount) {
+                return "hl.plugin.viewflow.forwarded_axis("+std::to_string(event.a)+","+
+                    std::to_string(amount)+","+std::to_string(event.c==1?1:0)+","+std::to_string(time())+");";
+            };
+            action("hl.plugin.viewflow.with_forwarded_motion(function() hl.dispatch(hl.dsp.focus({window=w}));"+
+                (has_pointer?move_pointer():"")+axis_call(event.b)+
+                ((event.c==1 && event.d && event.b)?axis_call(0):"")+" end);");
+            std::fprintf(stderr,"window-scroll synchronous seq=%llu\n",static_cast<unsigned long long>(event.sequence));
+            break;
         }
         case vf::InputKind::focus: focus(false); break;
+        case vf::InputKind::fullscreen:
+            if(event.a!=0 && event.a!=1)throw std::runtime_error("invalid fullscreen state");
+            action("hl.dispatch(hl.dsp.window.fullscreen({window=w,mode='fullscreen',action='"+std::string(event.a?"set":"unset")+"'}));"); break;
         case vf::InputKind::close: action("hl.dispatch(hl.dsp.window.close({window=w}));"); break;
         case vf::InputKind::geometry:
             if (event.c <= 0 || event.d <= 0) return;
@@ -220,7 +244,7 @@ int main(int argc, char* argv[]) {
         size_t used = 0; const auto pid = std::stoul(argv[2], &used);
         if (used != std::strlen(argv[2]) || pid == 0 || pid > INT32_MAX || !app.address.starts_with("0x") ||
             app.address.size() > 18 || app.address.size() < 3 || app.address.substr(2).find_first_not_of("0123456789abcdefABCDEF") != std::string::npos ||
-            app.stable_id.empty() || app.stable_id.size() > 128 || app.stable_id.find_first_not_of("0123456789abcdefABCDEF-") != std::string::npos)
+            app.stable_id.empty() || app.stable_id.size() > 16 || app.stable_id.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos)
             throw std::runtime_error("invalid pinned window identity");
         app.pid = static_cast<unsigned>(pid); app.start();
         std::vector<uint8_t> bytes;

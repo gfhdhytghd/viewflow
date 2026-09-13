@@ -1,9 +1,18 @@
+#ifndef INITGUID
+#define INITGUID
+#endif
 #include <windows.h>
+#include "mmcss_scope.h"
+#include <windows.graphics.directx.direct3d11.interop.h>
+#include <winrt/Windows.Graphics.Capture.h>
+#include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
+#include <d3dcompiler.h>
+#include <thread>
+#include <mutex>
 #include <windowsx.h>
 #include <wct.h>
 #include <imm.h>
 #include <mmsystem.h>
-#define INITGUID
 #include <DispatcherQueue.h>
 #include <algorithm>
 #include <array>
@@ -49,6 +58,7 @@
 #include "atlas_pointer.h"
 #include "atlas_frame_bindings.h"
 #include "sparse_coalesce.h"
+#include "diagnostic_window.h"
 #include "atlas_decode_identities.h"
 #include "remote_input_ime.h"
 #include "keyboard_clock_bounds.h"
@@ -57,6 +67,7 @@
 #include "desktop_stacking.h"
 #include "frameless_window.h"
 #include "application_icon.h"
+#include "background_region.h"
 #include <functional>
 #include <exception>
 
@@ -665,6 +676,7 @@ struct Foreground {
   CompositionSurfaceBrush gpu_brush{nullptr};
   CompositionDrawingSurface spare_surface{nullptr};
   CompositionSurfaceBrush spare_brush{nullptr};
+  winrt::Windows::Foundation::IAsyncAction spare_commit{nullptr};
   SpriteVisual visual{nullptr};
   ContainerVisual sparse_root{nullptr};
   std::vector<SparseVisual> sparse_visuals; // Retained for the independent reference probe.
@@ -840,10 +852,13 @@ void copy_gpu_frame(Foreground &result, CompositionDrawingSurface const &surface
 GpuSurfaceCandidate stage_gpu_surface(Foreground &result,
                                       Compositor const &compositor,
                                       viewflow::windows::CompositedFrame const &frame) {
-  // Keep the previous drawing surface as the next unbound back buffer.
-  // Composition retains resources while pending GPU work references them.
+  // A queued brush swap does not yet unbind the old surface in the compositor.
+  // Reuse it only after that commit completed; otherwise allocate an unbound
+  // candidate and let Composition retain the old resource for its pending work.
   GpuSurfaceCandidate candidate;
-  if (result.spare_surface && result.spare_surface.Size().Width == float(frame.width) &&
+  if (result.spare_surface && result.spare_commit &&
+      result.spare_commit.Status() == winrt::Windows::Foundation::AsyncStatus::Completed &&
+      result.spare_surface.Size().Width == float(frame.width) &&
       result.spare_surface.Size().Height == float(frame.height)) {
     candidate = {std::move(result.spare_surface), std::move(result.spare_brush), frame.width, frame.height};
   } else {
@@ -851,6 +866,7 @@ GpuSurfaceCandidate stage_gpu_surface(Foreground &result,
     result.spare_brush = nullptr;
     candidate = make_gpu_surface(result, compositor, frame.width, frame.height);
   }
+  result.spare_commit = nullptr;
   copy_gpu_frame(result, candidate.surface, frame);
   return candidate;
 }
@@ -865,13 +881,14 @@ void commit_gpu_surface(Foreground &result, GpuSurfaceCandidate candidate) {
   result.visual.Brush(candidate.brush);
   result.spare_surface = std::move(result.surface);
   result.spare_brush = std::move(result.gpu_brush);
+  result.spare_commit = result.visual.Compositor().RequestCommitAsync();
   result.surface = std::move(candidate.surface);
   result.gpu_brush = std::move(candidate.brush);
   result.width = candidate.width;
   result.height = candidate.height;
 }
 
-// One shared double-buffered atlas surface backs every sparse proxy. A window
+// One shared atlas surface backs every sparse proxy. A window
 // owns only small visual/brush descriptors; hidden regions own no pixel surface.
 struct SparseGpuCandidate {
   CompositionDrawingSurface surface{nullptr};
@@ -949,8 +966,11 @@ void commit_sparse_visuals(Foreground& foreground,SparseGpuCandidate next,
   foreground.visual.Brush(nullptr);
   foreground.gpu_brush=nullptr; foreground.spare_brush=nullptr;
   foreground.surface=nullptr; foreground.spare_surface=nullptr;
+  foreground.spare_commit=nullptr;
   foreground.width=next.width; foreground.height=next.height;
 }
+
+#include "native_background_cache.h"
 
 void update_gpu(Foreground &result, Compositor const &compositor,
                 viewflow::windows::CompositedFrame const &frame,
@@ -1483,6 +1503,7 @@ struct AtlasInputContext {
   bool chrome_pending{}, wm_drain_left{};
   POINT chrome_down{};
   std::function<void(float, float)> resize_preview;
+  std::function<void()> update_background;
 };
 
 bool update_desktop_clip(HWND hwnd, AtlasInputContext* context) {
@@ -1508,6 +1529,10 @@ bool update_desktop_clip(HWND hwnd, AtlasInputContext* context) {
 // The hook runs on the atlas UI thread. Focused proxies own keyboard delivery;
 // unfocused movable proxies reserve only a hovered Win gesture.
 constexpr UINT_PTR atlas_modal_timer = 0x5646;
+// Window-local timer IDs must be distinct: the shell's modal resize loop
+// needs the media pump even while cached backgrounds refresh independently.
+constexpr UINT_PTR atlas_background_timer = 0x5647;
+static_assert(atlas_modal_timer != atlas_background_timer);
 thread_local std::function<void()> atlas_modal_pump;
 thread_local std::exception_ptr atlas_modal_error;
 thread_local bool atlas_modal_pumping{};
@@ -1999,7 +2024,7 @@ LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
           (x < (rect.left + rect.right) / 2 ? HTBOTTOMLEFT : HTBOTTOMRIGHT);
     }
     const int hit = viewflow::windows_preview::FramelessHit(rect, x, y, IsZoomed(hwnd));
-    if (context->desktop.movable && hit == HTCLIENT && y >= rect.top && y < rect.top + 30)
+    if (context->desktop.movable && hit == HTCLIENT && y >= rect.top && y < rect.top + 40)
       return HTCAPTION;
     return hit;
   }
@@ -2010,6 +2035,12 @@ LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
   if (context && context->wm_moving && message == WM_SIZE && context->resize_preview) {
     RECT client{};
     if (GetClientRect(hwnd, &client)) context->resize_preview(float(client.right), float(client.bottom));
+  }
+  if (context && context->update_background &&
+      (message == WM_WINDOWPOSCHANGED || message == WM_SIZE ||
+       (message == WM_TIMER && w == atlas_background_timer))) {
+    context->update_background();
+    if (message == WM_TIMER) return 0;
   }
   if (context && context->wm_moving &&
       (message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP))
@@ -2032,6 +2063,10 @@ LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
       std::cerr << "desktop-wm ended\n";
       emit_native_geometry(hwnd, context, Phase::End);
       context->wm_moving = false;
+      // Releasing the shell loop returns placement to source frames immediately.
+      // In particular, lease cleanup at a cross-display return must not leave
+      // a two-second edge-aligned copy while Hyprland continues the same drag.
+      context->wm_pending_until = 0;
       // The shell consumed the release in its modal loop. Reconcile the
       // cancelled application ledger with that observed physical release.
       if (context->input.rejected_recovery_pending()) {
@@ -2235,7 +2270,13 @@ class AtlasNativePresenter {
     SpriteVisual backdrop{nullptr};
     CompositionMaskBrush backdrop_mask{nullptr};
     CompositionBrush raw_backdrop{nullptr};
+    std::unique_ptr<NativeBackgroundCache> background_cache;
     bool layout_absent{};
+    ~Proxy() {
+      input.update_background={};
+      if(window.value)KillTimer(window.value,atlas_background_timer);
+      if(background_cache)background_cache->Report(stderr);
+    }
   };
  public:
   ~AtlasNativePresenter() {
@@ -2275,6 +2316,9 @@ class AtlasNativePresenter {
         bad("atlas blur sigma must be between 0 and 64 physical pixels");
       backdrop_sigma_ = float(sigma);
     }
+    std::cerr << "atlas-backdrop sigma=" << backdrop_sigma_
+              << " mode=" << (backdrop_sigma_ > 0 ? "host-blur" : "alpha-only")
+              << "\n";
     LARGE_INTEGER frequency{};
     if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0) bad("atlas QPC frequency");
     frequency_ = uint64_t(frequency.QuadPart);
@@ -2508,12 +2552,21 @@ class AtlasNativePresenter {
   std::unique_ptr<Proxy> CreateProxy(const std::wstring& title, uint32_t width,
                                     uint32_t height, size_t index) {
     if (!width || !height || width > INT_MAX || height > INT_MAX) bad("atlas proxy dimensions");
+    const bool mouse_passthrough = viewflow::windows_preview::DiagnosticMousePassthrough();
+    if (mouse_passthrough && (pointer_events_ || keyboard_events_))
+      bad("passive diagnostic window cannot be used for an input-enabled test");
     auto proxy = std::make_unique<Proxy>();
     const int initial_offset = int(index % 8) * 32;
-    proxy->window.value = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | (desktop_display_ ? WS_EX_APPWINDOW : WS_EX_TOOLWINDOW) | (keyboard_events_ ? 0 : WS_EX_NOACTIVATE),
+    proxy->window.value = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | (desktop_display_ ? WS_EX_APPWINDOW : WS_EX_TOOLWINDOW) | (keyboard_events_ ? 0 : WS_EX_NOACTIVATE) |
+        (mouse_passthrough ? viewflow::windows_preview::kDiagnosticMouseStyles : 0),
         L"ViewflowAtlasProxy", title.c_str(), desktop_display_ ? WS_OVERLAPPEDWINDOW : WS_POPUP, 80 + initial_offset, 80 + initial_offset, int(width), int(height),
         nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
     if (!proxy->window.value) throw_last_error();
+    if (mouse_passthrough) {
+      viewflow::windows_preview::ConfigureDiagnosticMousePassthrough(proxy->window.value);
+      std::cerr << "atlas-diagnostic-window mouse_passthrough=1 no_activate=1 hwnd="
+                << proxy->window.value << "\n";
+    }
     // A proxy reveals an existing remote window; suppress the local DWM
     // opening/closing transition before its first show, including pooled proxies.
     const BOOL disable_transitions = TRUE;
@@ -2566,6 +2619,24 @@ class AtlasNativePresenter {
     }
     proxy->root.Children().InsertAtTop(proxy->foreground.visual);
     proxy->target.Root(proxy->root);
+    if (backdrop_sigma_ > 0 && NativeBackgroundCache::Enabled()) {
+      try {
+        proxy->background_cache=std::make_unique<NativeBackgroundCache>(
+            compositor_,proxy->foreground.d3d.get(),proxy->window.value);
+        proxy->input.update_background=[p=proxy.get()] {
+          p->background_cache->Update(p->window.value,p->foreground);
+        };
+        SetLastError(ERROR_SUCCESS);
+        if (!SetWindowLongPtrW(proxy->window.value,GWLP_USERDATA,
+            reinterpret_cast<LONG_PTR>(&proxy->input)) && GetLastError()!=ERROR_SUCCESS) throw_last_error();
+        // Static foregrounds still observe local-window backdrop changes.
+        if (!SetTimer(proxy->window.value,atlas_background_timer,16,nullptr)) throw_last_error();
+      } catch (...) {
+        proxy->input.update_background={};
+        KillTimer(proxy->window.value,atlas_background_timer);
+        proxy->background_cache.reset();
+      }
+    }
     proxy->input.resize_preview = [state = &proxy->foreground, visual = proxy->foreground.visual, backdrop = proxy->backdrop](float w, float h) {
       visual.Size({w, h});
       if(state->sparse_root && state->width && state->height)
@@ -2756,6 +2827,9 @@ class AtlasNativePresenter {
         ShowWindow(proxy.window.value, SW_SHOWNOACTIVATE);
         ++window_shows_;
       }
+      if (proxy.background_cache) proxy.background_cache->Update(proxy.window.value,proxy.foreground);
+      if (proxy.background_cache && frame.frame_identity % 60 == 0)
+        sampled_timings_ += proxy.background_cache->Snapshot();
     }
     if(shared_candidate) {
       sparse_atlas_->spare_surface=std::move(sparse_atlas_->surface);
@@ -2838,19 +2912,11 @@ class AtlasNativePresenter {
         }
         return false;
       };
-      if (source_active && raise_serial != last_source_raise_serial_ && reorder(source_active, HWND_TOP))
+      if (source_active && raise_serial != last_source_raise_serial_ && reorder(source_active, HWND_TOP)) {
         last_source_raise_serial_ = raise_serial;
-      // A local Windows activation owns immediate stacking. Keep it until
-      // the asynchronous source order acknowledges that same foreground window.
-      if (atlas_local_raise) {
-        auto selected = std::find(desired.begin(), desired.end(), atlas_local_raise);
-        if (selected == desired.begin() && selected != desired.end()) atlas_local_raise = nullptr;
-        else if (selected != desired.end()) {
-          const auto hwnd = *selected;
-          desired.erase(selected);
-          desired.insert(desired.begin(), hwnd);
-        }
+        raise_order_.source_raised(source_active, atlas_local_raise);
       }
+      raise_order_.reconcile(desired, atlas_local_raise);
       std::vector<HWND> relative;
       for (HWND hwnd = GetTopWindow(nullptr); hwnd; hwnd = GetWindow(hwnd, GW_HWNDNEXT))
         if (std::find(desired.begin(), desired.end(), hwnd) != desired.end()) relative.push_back(hwnd);
@@ -2869,6 +2935,11 @@ class AtlasNativePresenter {
         }
       }
     }
+    // All proxy brush/geometry changes and hidden-window cleanup precede the
+    // fence. A later atlas upload cannot overwrite the previous layout's pixels
+    // while those visual changes are still queued in Windows Composition.
+    if (shared_candidate)
+      sparse_atlas_->spare_commit = compositor_.RequestCommitAsync();
     stage = "atlas-final-commit-check";
     const auto commit_ticks = Clock(binding->deadline);
     if (commit_ticks >= binding->deadline.deadline) ++late_commits_;
@@ -2938,6 +3009,7 @@ class AtlasNativePresenter {
   std::map<viewflow::vfgp::AtlasId, std::unique_ptr<Proxy>> proxies_;
   std::vector<std::unique_ptr<Proxy>> reserved_proxies_;
   uint32_t last_source_raise_serial_{};
+  viewflow::windows_preview::DesktopRaiseOrder<HWND> raise_order_;
   uint32_t proxy_capacity_{};
   float backdrop_sigma_ = 12.0f;
   bool dispositions_{};
@@ -3011,6 +3083,7 @@ int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t
                       bool dispositions = false, bool pointer_events = false, bool wheel_events = false, bool keyboard_events = false,
                       bool input_recovery = false,
                       std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {}, uint32_t color_codec = 2) {
+  viewflow::windows_preview::MmcssScope multimedia_schedule("presenter");
   KeyboardClockReport clock_report(keyboard_events);
   LARGE_INTEGER keyboard_frequency{};
   if (keyboard_events && (!QueryPerformanceFrequency(&keyboard_frequency) || keyboard_frequency.QuadPart <= 0))

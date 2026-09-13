@@ -16,11 +16,13 @@ pub(crate) fn trace_line(args: std::fmt::Arguments<'_>) {
 /// Opt-in stage timing: `1` samples frames; `all` diagnoses periodic stalls.
 pub(crate) fn trace_frame(frame: u64) -> bool {
     static MODE: std::sync::OnceLock<u8> = std::sync::OnceLock::new();
-    let mode = *MODE.get_or_init(|| match std::env::var("VIEWFLOW_ATLAS_TIMINGS").as_deref() {
-        Ok("1") => 1,
-        Ok("all") => 2,
-        _ => 0,
-    });
+    let mode = *MODE.get_or_init(
+        || match std::env::var("VIEWFLOW_ATLAS_TIMINGS").as_deref() {
+            Ok("1") => 1,
+            Ok("all") => 2,
+            _ => 0,
+        },
+    );
     mode == 2 || (mode == 1 && (frame <= 8 || frame % 30 == 0))
 }
 
@@ -31,7 +33,9 @@ pub(crate) fn trace_frame(frame: u64) -> bool {
 pub(crate) struct ConnectionSampler(Option<tokio::task::JoinHandle<()>>);
 impl Drop for ConnectionSampler {
     fn drop(&mut self) {
-        if let Some(task) = &self.0 { task.abort(); }
+        if let Some(task) = &self.0 {
+            task.abort();
+        }
     }
 }
 pub(crate) fn sample_connection(
@@ -52,17 +56,27 @@ pub(crate) fn sample_connection(
                 _ = connection.closed() => break,
                 _ = interval.tick() => {}
             }
-            let Ok(before_ns) = now() else { break; };
+            let Ok(before_ns) = now() else {
+                break;
+            };
             let stats = connection.stats();
             let space = connection.datagram_send_buffer_space();
-            let Ok(after_ns) = now() else { break; };
+            let Ok(after_ns) = now() else {
+                break;
+            };
             let gap_ns = previous.map_or(0, |p| before_ns.saturating_sub(p));
             previous = Some(before_ns);
             trace_line(format_args!(
                 "atlas-quic-sample role={role} before_ns={before_ns} after_ns={after_ns} gap_ns={gap_ns} rtt_us={} cwnd={} lost_packets={} congestion_events={} udp_tx={} udp_tx_bytes={} udp_rx={} udp_rx_bytes={} send_buffer_space={space}",
-                stats.path.rtt.as_micros(), stats.path.cwnd, stats.path.lost_packets,
-                stats.path.congestion_events, stats.udp_tx.datagrams, stats.udp_tx.bytes,
-                stats.udp_rx.datagrams, stats.udp_rx.bytes));
+                stats.path.rtt.as_micros(),
+                stats.path.cwnd,
+                stats.path.lost_packets,
+                stats.path.congestion_events,
+                stats.udp_tx.datagrams,
+                stats.udp_tx.bytes,
+                stats.udp_rx.datagrams,
+                stats.udp_rx.bytes
+            ));
         }
     })))
 }

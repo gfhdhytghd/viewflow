@@ -10,6 +10,22 @@ use std::{
 };
 
 pub async fn run(path: &Path) -> Result<()> {
+    // Windows consumes native Precision Touchpad frames on this connection.
+    // macOS uses the separately connected DriverKit HID bridge instead.
+    let raw_touchpad = match std::env::var("VIEWFLOW_CURSOR_RAW_TOUCHPAD").as_deref() {
+        Ok("1" | "true") => true,
+        Ok("0" | "false") | Err(std::env::VarError::NotPresent) => false,
+        _ => anyhow::bail!("VIEWFLOW_CURSOR_RAW_TOUCHPAD must be 0, 1, false or true"),
+    };
+    let external_touchpad = match std::env::var("VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD").as_deref() {
+        Ok("1" | "true") => true,
+        Ok("0" | "false") | Err(std::env::VarError::NotPresent) => false,
+        _ => anyhow::bail!("VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD must be 0, 1, false or true"),
+    };
+    anyhow::ensure!(
+        !(raw_touchpad && external_touchpad),
+        "VIEWFLOW_CURSOR_RAW_TOUCHPAD and VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD cannot both be enabled"
+    );
     let ready = std::env::var_os("VIEWFLOW_CURSOR_READY_FILE").map(std::path::PathBuf::from);
     if let Some(path) = &ready {
         let _ = std::fs::remove_file(path);
@@ -95,8 +111,14 @@ pub async fn run(path: &Path) -> Result<()> {
                 height * desktop.remote_display.scale / f64::from(desktop.remote_display.height),
             ),
             ready_file: ready.clone(),
-            raw_touchpad: false,
-            local: crate::atlas_cursor_handoff::local_displays(&desktop.hyprland_socket, pointer.cursor_monitor_id.context("cursor monitor missing")?)?,
+            raw_touchpad,
+            external_touchpad,
+            local: crate::atlas_cursor_handoff::local_displays(
+                &desktop.hyprland_socket,
+                pointer
+                    .cursor_monitor_id
+                    .context("cursor monitor missing")?,
+            )?,
             remote: desktop.remote_display.rect()?,
             monitor_id: pointer
                 .cursor_monitor_id

@@ -60,6 +60,10 @@ pub struct AtlasDesktopCandidate {
     pub stable_id: String,
 }
 
+fn default_seam_cache_dip() -> u16 {
+    256
+}
+
 fn default_capacity() -> usize {
     8
 }
@@ -76,15 +80,59 @@ pub struct AtlasSourceDesktopConfig {
     pub auto_enroll: bool,
     #[serde(default = "default_capacity")]
     pub max_enrolled_windows: usize,
+    /// Pixel residency beyond the shared display edge, in logical pixels.
+    /// This never changes the displayed viewport or window/input geometry.
+    #[serde(default = "default_seam_cache_dip")]
+    pub seam_cache_dip: u16,
     #[serde(default)]
     pub candidates: Vec<AtlasDesktopCandidate>,
 }
 
 impl AtlasSourceDesktopConfig {
+    pub(crate) fn seam_cache_viewport(&self) -> Result<DesktopRect> {
+        ensure!(
+            self.seam_cache_dip <= 1024,
+            "desktop seam cache exceeds 1024 logical pixels"
+        );
+        let local = self.local_display.rect()?;
+        let remote = self.remote_display.rect()?;
+        let margin = i64::from(self.seam_cache_dip) * 1000;
+        let (lr, lb) = (
+            local.x_millidip + i64::try_from(local.width_millidip)?,
+            local.y_millidip + i64::try_from(local.height_millidip)?,
+        );
+        let (rr, rb) = (
+            remote.x_millidip + i64::try_from(remote.width_millidip)?,
+            remote.y_millidip + i64::try_from(remote.height_millidip)?,
+        );
+        let mut cache = remote;
+        if local.y_millidip < rb && remote.y_millidip < lb {
+            if lr == remote.x_millidip {
+                cache.x_millidip -= margin;
+                cache.width_millidip += margin as u64;
+            } else if rr == local.x_millidip {
+                cache.width_millidip += margin as u64;
+            }
+        }
+        if local.x_millidip < rr && remote.x_millidip < lr {
+            if lb == remote.y_millidip {
+                cache.y_millidip -= margin;
+                cache.height_millidip += margin as u64;
+            } else if rb == local.y_millidip {
+                cache.height_millidip += margin as u64;
+            }
+        }
+        cache
+            .validate()
+            .map_err(|e| anyhow::anyhow!("invalid seam cache bounds: {e:?}"))?;
+        Ok(cache)
+    }
+
     /// # Errors
     /// Requires disjoint coordinate-configured displays, bounded local enrollment and exact
     /// local IPC paths. Actual path ownership is checked when opening the IPC.
     pub fn validate(&self, max_tiles: usize) -> Result<()> {
+        self.seam_cache_viewport()?;
         let local = self.local_display.rect()?;
         let remote = self.remote_display.rect()?;
         let lr = local.x_millidip + i64::try_from(local.width_millidip)?;
@@ -227,6 +275,7 @@ mod tests {
             native_control_dir: std::env::temp_dir().join("viewflow-layout-control"),
             auto_enroll: true,
             max_enrolled_windows: 8,
+            seam_cache_dip: default_seam_cache_dip(),
             candidates: vec![],
         };
         for (x, y) in [
@@ -243,6 +292,45 @@ mod tests {
         config.remote_display.x = 1279;
         config.remote_display.y = 0;
         assert!(config.validate(8).is_err());
+    }
+
+    #[test]
+    fn seam_residency_expands_only_adjacent_edge_and_never_the_visible_viewport() {
+        let mut config: AtlasSourceDesktopConfig = serde_json::from_value(serde_json::json!({
+            "topology_generation": 1,
+            "local_display": {"x":0,"y":0,"width":6144,"height":3456,"scale":2.0},
+            "remote_display": {"x":3072,"y":390,"width":3840,"height":2400,"scale":2.0},
+            "hyprland_socket":"/tmp/viewflow-layout.sock", "native_control_dir":"/tmp/viewflow-layout-control"
+        })).unwrap();
+        assert_eq!(config.seam_cache_dip, 256);
+        let visible = config.remote_display.rect().unwrap();
+        let resident = config.seam_cache_viewport().unwrap();
+        assert_eq!(resident.x_millidip, visible.x_millidip - 256_000);
+        assert_eq!(resident.width_millidip, visible.width_millidip + 256_000);
+        assert_eq!(resident.y_millidip, visible.y_millidip);
+        assert_eq!(resident.height_millidip, visible.height_millidip);
+        assert_eq!(config.remote_display.rect().unwrap(), visible);
+        config.seam_cache_dip = 0;
+        assert_eq!(config.seam_cache_viewport().unwrap(), visible);
+        config.seam_cache_dip = 1025;
+        assert!(config.validate(8).is_err());
+        config.seam_cache_dip = 256;
+        for (x, y, dx, dy, dw, dh) in [
+            (-1920, 100, 0, 0, 256_000, 0),
+            (100, -1200, 0, 0, 0, 256_000),
+            (100, 1728, 0, -256_000, 0, 256_000),
+            (3073, 390, 0, 0, 0, 0),  // gap
+            (3072, 1728, 0, 0, 0, 0), // corner touching only
+        ] {
+            config.remote_display.x = x;
+            config.remote_display.y = y;
+            let before = config.remote_display.rect().unwrap();
+            let after = config.seam_cache_viewport().unwrap();
+            assert_eq!(after.x_millidip, before.x_millidip + dx);
+            assert_eq!(after.y_millidip, before.y_millidip + dy);
+            assert_eq!(after.width_millidip, before.width_millidip + dw);
+            assert_eq!(after.height_millidip, before.height_millidip + dh);
+        }
     }
 
     #[test]

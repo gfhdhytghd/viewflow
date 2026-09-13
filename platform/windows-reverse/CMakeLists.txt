@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 project(viewflow_windows_reverse LANGUAGES CXX)
-add_library(viewflow_reverse_encoder STATIC hardware_encoder.cpp alpha_plane.cpp)
+add_library(viewflow_reverse_encoder STATIC hardware_encoder.cpp mft_encoder.cpp vpl_encoder.cpp alpha_plane.cpp compact_alpha_plane.cpp)
 target_compile_features(viewflow_reverse_encoder PUBLIC cxx_std_20)
 target_compile_definitions(viewflow_reverse_encoder PUBLIC UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(viewflow_reverse_encoder PUBLIC d3d11 d3dcompiler dxgi mfplat mf mfuuid ole32 oleaut32 wmcodecdspuuid)
@@ -28,3 +28,28 @@ add_executable(viewflow_reverse_geometry_test ../reverse-common/geometry_sync_te
 target_compile_features(viewflow_reverse_geometry_test PRIVATE cxx_std_20)
 target_compile_options(viewflow_reverse_geometry_test PRIVATE /UNDEBUG)
 add_test(NAME reverse_geometry COMMAND viewflow_reverse_geometry_test)
+
+# Treat uninitialized HRESULT checks as errors in the GPU implementation.
+if(MSVC)
+    target_compile_options(viewflow_reverse_encoder PRIVATE /we4700 /we4701)
+endif()
+add_executable(viewflow_reverse_frame_changes_test frame_changes_test.cpp)
+target_compile_features(viewflow_reverse_frame_changes_test PRIVATE cxx_std_20)
+target_compile_options(viewflow_reverse_frame_changes_test PRIVATE /UNDEBUG)
+add_test(NAME reverse_frame_changes COMMAND viewflow_reverse_frame_changes_test)
+# Requires an interactive hardware D3D session; run explicitly during deployment.
+add_executable(viewflow_reverse_alpha_async_probe alpha_async_probe.cpp)
+target_link_libraries(viewflow_reverse_alpha_async_probe PRIVATE viewflow_reverse_encoder)
+
+add_executable(viewflow_reverse_performance_mode_test performance_mode_test.cpp)
+target_compile_features(viewflow_reverse_performance_mode_test PRIVATE cxx_std_20)
+target_compile_options(viewflow_reverse_performance_mode_test PRIVATE /UNDEBUG)
+add_test(NAME reverse_performance_mode COMMAND viewflow_reverse_performance_mode_test)
+
+target_include_directories(viewflow_reverse_encoder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Manual read-only probe against an existing user-opened IME candidate window.
+add_executable(viewflow_reverse_ime_inventory_probe ime_inventory_probe.cpp)
+target_compile_features(viewflow_reverse_ime_inventory_probe PRIVATE cxx_std_20)
+target_compile_definitions(viewflow_reverse_ime_inventory_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(viewflow_reverse_ime_inventory_probe PRIVATE viewflow_windows_window_capture dwmapi windowsapp runtimeobject user32)

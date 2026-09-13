@@ -1,0 +1,26 @@
+Viewflow Linux 权限设置
+
+1. 在当前用户的 Hyprland 会话中打开 Viewflow。
+   应用的“权限设置”页可以检查版本并加载随包提供的两个插件。
+   插件与 Hyprland 的构建提交必须一致；升级 Hyprland 后重新构建安装包。
+   加载只影响当前会话。需要持久化时，把包中 plugins 下的两个绝对路径
+   加入你现有的 Hyprland 插件加载配置；安装器不会改写桌面配置。
+
+2. 窗口和普通触控板路由使用 Hyprland 插件，不要求以 root 运行 App。
+   原生 Magic Trackpad -> Mac HID 转发读取 Linux evdev 设备
+   （/dev/input/eventN 或 /dev/input/by-id/...-event-mouse），不是 hidraw。
+   在本地登录会话中，先确认该设备的当前用户读取权限。
+   如需临时授予权限，替换下列路径后由你执行：
+     sudo setfacl -m "u:$(id -un):r" /dev/input/eventN
+   这条 ACL 在设备重新枚举后可能失效。持久规则应只匹配你选定的设备。
+   不要以 root 启动整个 Viewflow。
+
+3. 原生触控板跨 Mac 转发仍使用已授权的 SSH 连接。
+   在配对参数中把 --receiver 设置为：
+     /Applications/Viewflow.app/Contents/MacOS/Viewflow
+   Mac 上需先打开统一 App、安装驱动并启动“原生触控板 HID”。
+   安装 Linux 包不会连接 Mac，也不会生成或复制 SSH 私钥。
+
+4. 此 Linux 图形实现面向 Hyprland + NVIDIA EGL/CUDA。
+   包含 Viewflow 运行库；主机仍需提供匹配的 NVIDIA 驱动、Wayland 会话
+   和与插件构建一致的 Hyprland。它不是任意桌面环境的通用包。

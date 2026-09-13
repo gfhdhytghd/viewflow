@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "input_capture.hpp"
 #include "diagnostic_clock.hpp"
+#include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
@@ -71,6 +72,7 @@ void InputCapture::start() {
   m_tick = events.tick.listen([this] { tick(); });
   m_mouseMove = events.input.mouse.move.listen(
       [this](Vector2D position, Event::SCallbackInfo &info) {
+        if (forwardedMotion) return;
         observePointerPosition(position.x, position.y);
         if (!m_core.captured())
           return;
@@ -80,17 +82,18 @@ void InputCapture::start() {
       });
   m_mouseButton = events.input.mouse.button.listen(
       [this](IPointer::SButtonEvent, Event::SCallbackInfo &info) {
-        if (m_core.captured())
+        if (m_core.captured() && !m_buttonPhysical) ++m_returnedButtons;
+        if (m_core.captured() && m_buttonPhysical)
           info.cancelled = true;
       });
   m_mouseAxis = events.input.mouse.axis.listen(
       [this](IPointer::SAxisEvent, Event::SCallbackInfo &info) {
-        if (m_core.captured())
+        if (m_core.captured() && m_axisPhysical)
           info.cancelled = true;
       });
   m_keyboardKey = events.input.keyboard.key.listen(
       [this](IKeyboard::SKeyEvent, Event::SCallbackInfo &info) {
-        if (m_core.captured())
+        if (m_core.captured() && m_keyPhysical)
           info.cancelled = true;
       });
   m_gestures[0] = events.gesture.swipe.begin.listen([this](IPointer::SSwipeBeginEvent e, Event::SCallbackInfo& info) {
@@ -143,6 +146,26 @@ void InputCapture::start() {
   m_bridge.onCommandsReady([this](InputDispatchOrigin origin) { tick(origin); });
 }
 
+void InputCapture::forwardedButton(uint32_t code, bool down, uint32_t time) {
+  if (!g_pInputManager) return;
+  const bool previousMotion = forwardedMotion, previousPhysical = m_buttonPhysical;
+  forwardedMotion = true;
+  m_buttonPhysical = false;
+  const auto pointerSurface = g_pSeatManager->m_state.pointerFocus.lock();
+  const auto keyboardSurface = g_pSeatManager->m_state.keyboardFocus.lock();
+  pid_t pointerPid = 0, keyboardPid = 0;
+  if (pointerSurface) wl_client_get_credentials(pointerSurface->client(), &pointerPid, nullptr, nullptr);
+  if (keyboardSurface) wl_client_get_credentials(keyboardSurface->client(), &keyboardPid, nullptr, nullptr);
+  const auto position = g_pInputManager->getMouseCoordsInternal();
+  std::fprintf(stderr, "viewflow-return-button phase=%d down=%d pointer_pid=%d keyboard_pid=%d x=%.1f y=%.1f\n",
+      int(m_core.phase()), int(down), pointerPid, keyboardPid, position.x, position.y);
+  g_pInputManager->onMouseButton({time, code,
+      down ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED, false}, nullptr);
+  g_pSeatManager->sendPointerFrame();
+  m_buttonPhysical = previousPhysical;
+  forwardedMotion = previousMotion;
+}
+
 void InputCapture::tick(InputDispatchOrigin origin) {
   const auto tickStarted = diagnosticMonotonicNs();
   if (m_clickPending) {
@@ -185,17 +208,29 @@ void InputCapture::tick(InputDispatchOrigin origin) {
   m_previousDispatchEnded = diagnosticMonotonicNs();
 }
 
+void InputCapture::forwardedAxis(uint32_t axis, double delta, int32_t discrete, uint32_t source, uint32_t time) {
+  if (!g_pInputManager) return;
+  const bool previousMotion = forwardedMotion, previousPhysical = m_axisPhysical;
+  forwardedMotion = true;
+  m_axisPhysical = false;
+  g_pInputManager->onMouseWheel({.timeMs=time, .source=static_cast<wl_pointer_axis_source>(source),
+      .axis=static_cast<wl_pointer_axis>(axis), .delta=delta, .deltaDiscrete=discrete}, nullptr);
+  g_pSeatManager->sendPointerFrame();
+  m_axisPhysical = previousPhysical;
+  forwardedMotion = previousMotion;
+}
+
 void InputCapture::reconcileDevices() {
   if (!g_pInputManager)
     return;
 
   std::unordered_set<IPointer *> livePointers;
   for (const auto &pointer : g_pInputManager->m_pointers) {
-    if (!pointer || !physical(*pointer))
+    if (!pointer)
       continue;
     auto *raw = pointer.get();
     livePointers.insert(raw);
-    if (!m_touchpad && pointer->m_isTouchpad) {
+    if (!m_touchpad && physical(*pointer) && pointer->m_isTouchpad) {
       const auto aq = pointer->aq();
       auto* device = aq ? aq->getLibinputHandle() : nullptr;
       if (device) {
@@ -209,27 +244,33 @@ void InputCapture::reconcileDevices() {
 
     auto listeners = std::make_unique<PointerListeners>();
     auto *record = listeners.get();
+    record->physical = physical(*pointer);
     listeners->destroy = pointer->m_events.destroy.listen([this, record] {
       record->dead = true;
-      if (m_core.captured())
+      if (m_core.captured() && record->physical)
         release(true);
     });
     listeners->motion = pointer->m_pointerEvents.motion.listen(
-        [this](const IPointer::SMotionEvent &event) {
-          onPointerMotion(event);
+        [this, raw](const IPointer::SMotionEvent &event) {
+          if (!physical(*raw)) return;
+          onPointerMotion(event, externalTouchpad() && raw == m_touchpadPointer);
         });
     listeners->button = pointer->m_pointerEvents.button.listen(
-        [this](const IPointer::SButtonEvent &event) {
-          onPointerButton(event);
+        [this, raw](const IPointer::SButtonEvent &event) {
+          m_buttonPhysical = physical(*raw);
+          if (!m_buttonPhysical) return;
+          onPointerButton(event, externalTouchpad() && raw == m_touchpadPointer);
         });
     listeners->axis = pointer->m_pointerEvents.axis.listen(
         [this, raw](const IPointer::SAxisEvent &event) {
+          m_axisPhysical = physical(*raw);
+          if (!m_axisPhysical) return;
           // Only the captured raw device's derived wheel is redundant.
-          if (raw == m_touchpadPointer && rawTouchpad() && m_core.captured() && event.source == WL_POINTER_AXIS_SOURCE_FINGER) return;
+          if (raw == m_touchpadPointer && suppressesDerivedTouchpad() && m_core.captured() && event.source == WL_POINTER_AXIS_SOURCE_FINGER) return;
           onPointerAxis(event);
         });
     listeners->frame =
-        pointer->m_pointerEvents.frame.listen([this] { onPointerFrame(); });
+        pointer->m_pointerEvents.frame.listen([this, raw] { if (physical(*raw)) onPointerFrame(); });
     m_pointers.emplace(raw, std::move(listeners));
   }
   if (m_touchpadPointer && !livePointers.contains(m_touchpadPointer)) {
@@ -237,7 +278,7 @@ void InputCapture::reconcileDevices() {
   }
   const bool pointerDisappeared =
       std::ranges::any_of(m_pointers, [&](const auto &entry) {
-        return entry.second->dead || !livePointers.contains(entry.first);
+        return entry.second->physical && (entry.second->dead || !livePointers.contains(entry.first));
       });
   std::unordered_set<IKeyboard *> liveKeyboards;
   for (const auto &keyboard : g_pInputManager->m_keyboards) {
@@ -261,9 +302,10 @@ void InputCapture::reconcileDevices() {
         [this, record](const IKeyboard::SKeyEvent &event) {
           const auto keyboard = record->keyboard.lock();
           if (!keyboard) return;
+          m_keyPhysical = record->physical;
           const bool trusted = !record->physical && m_windowPointer.acceptsImeKeyboard(keyboard);
           const bool permitted = record->enabledState.permitted(keyboard->m_enabled) && keyboard->m_allowed;
-          if (m_core.captured() || trusted) suppressKeyboard(*record);
+          if ((m_core.captured() && record->physical) || trusted) suppressKeyboard(*record);
           else record->enabledState.restore(keyboard->m_enabled);
           if (record->physical) onKey(event);
           else if (trusted && permitted) m_windowPointer.imeKey(keyboard, event.keycode, event.state, event.timeMs);
@@ -275,7 +317,7 @@ void InputCapture::reconcileDevices() {
           if (!keyboard) return;
           const bool trusted = !record->physical && m_windowPointer.acceptsImeKeyboard(keyboard);
           const bool permitted = record->enabledState.permitted(keyboard->m_enabled) && keyboard->m_allowed;
-          if (m_core.captured() || trusted) suppressKeyboard(*record);
+          if ((m_core.captured() && record->physical) || trusted) suppressKeyboard(*record);
           else record->enabledState.restore(keyboard->m_enabled);
           if (trusted && permitted) m_windowPointer.imeModifiers(keyboard);
         });
@@ -323,9 +365,13 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
         return std::bit_cast<double>(*readIntegral<std::uint64_t>(packet->payload, offset));
       };
       InputRect remote{*monitorId, number(16), number(24), number(32), number(40)};
-      const bool validMode = packet->payload.size() == 48 || std::to_integer<unsigned>(packet->payload[48]) <= 1;
+      const bool validMode = packet->payload.size() == 48 || std::to_integer<unsigned>(packet->payload[48]) <= 2;
       const bool applied = validMode && *generation != 0 && m_core.configureRemote(remote);
-      if (applied) m_rawTouchpadEnabled = packet->payload.size() == 48 || std::to_integer<unsigned>(packet->payload[48]) != 0;
+      if (applied) {
+        m_touchpadMode = packet->payload.size() == 48
+            ? TouchpadMode::QuicRaw
+            : static_cast<TouchpadMode>(std::to_integer<unsigned>(packet->payload[48]));
+      }
       receipt(*generation, packet->type, applied);
     } else if (packet->type == protocol::MessageType::INPUT_LEASE_ACTIVATE) {
       if (packet->payload.size() != 24 && packet->payload.size() != 25)
@@ -366,7 +412,7 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
       if (!applied && !m_core.captured()) { release(false); m_lastReleasedGeneration = *generation; }
       receipt(*generation, packet->type, applied);
     } else if (packet->type == protocol::MessageType::INPUT_LEASE_RELEASE) {
-      if (packet->payload.size() != 8 && packet->payload.size() != 24 && packet->payload.size() != 44 && packet->payload.size() != 52)
+      if (packet->payload.size() != 8 && packet->payload.size() != 24 && packet->payload.size() != 44 && packet->payload.size() != 52 && packet->payload.size() != 68)
         continue;
       const auto generation = readIntegral<std::uint64_t>(packet->payload, 0);
       std::optional<Vector2D> returnPosition;
@@ -385,7 +431,9 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
       }
       const bool alreadyReleased = generation && !m_core.lease() &&
           *generation == m_lastReleasedGeneration && packet->payload.size() == 8;
-      const bool applied = alreadyReleased || (returnValid && generation && m_core.lease() &&
+      const bool lateDrag = returnValid && generation && !m_core.lease() &&
+          m_core.canContinueDrag(*generation) && (packet->payload.size() == 52 || packet->payload.size() == 68);
+      const bool applied = alreadyReleased || lateDrag || (returnValid && generation && m_core.lease() &&
           *generation == m_core.lease()->generation);
       if (applied) {
         SP<Layout::ITarget> dragTarget;
@@ -395,21 +443,47 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
           const auto pid = *readIntegral<std::uint32_t>(packet->payload, 24);
           const auto address = *readIntegral<std::uint64_t>(packet->payload, 28);
           const auto surface = *readIntegral<std::uint64_t>(packet->payload, 36);
-          const auto reverseId = packet->payload.size() == 52 ? *readIntegral<std::uint64_t>(packet->payload, 44) : 0;
+          const auto reverseId = packet->payload.size() >= 52 ? *readIntegral<std::uint64_t>(packet->payload, 44) : 0;
           for (const auto& window : Desktop::windowState()->windows()) {
             if (window && window->m_isMapped && window->m_isFloating &&
                 window->getPID() == static_cast<pid_t>(pid) &&
                 reinterpret_cast<std::uintptr_t>(window.get()) == address &&
                 ((surface != 0 && reinterpret_cast<std::uintptr_t>(window->resource().get()) == surface) ||
-                 (surface == 0 && reverseId != 0 && window->m_class == "ViewflowReverse-" + std::to_string(reverseId)))) {
+                 (surface == 0 && reverseId != 0 && (window->m_class == "ViewflowReverse-" + std::to_string(reverseId) || window->m_class == "ViewflowReverse-Mac-" + std::to_string(reverseId) || window->m_class == "ViewflowReverse-MacNative-" + std::to_string(reverseId))))) {
               dragTarget = window->layoutTarget();
               break;
             }
           }
         }
-        release(true);
-        if (returnPosition) Pointer::mgr()->warpTo(*returnPosition);
+        if (lateDrag && (!dragTarget || (g_layoutManager->dragController()->target() &&
+            g_layoutManager->dragController()->target() != dragTarget))) {
+          m_core.finishDragReturn();
+          receipt(*generation, packet->type, false);
+          continue;
+        }
+        if (!lateDrag) {
+          release(true);
+          if (returnPosition) Pointer::mgr()->warpTo(*returnPosition);
+          if (returnPosition && !dragTarget && m_core.physicalButtonHeld(272))
+            m_core.armDragReturn(*generation);
+        }
+        // A late mapped proxy follows the current local pointer. It must never
+        // replay the old seam coordinates or continue a later physical press.
+        if (lateDrag || dragTarget) m_core.finishDragReturn();
         if (dragTarget && returnPosition && !g_layoutManager->dragController()->target()) {
+          if (packet->payload.size() == 68) {
+            const auto grabX = std::bit_cast<double>(*readIntegral<std::uint64_t>(packet->payload, 52));
+            const auto grabY = std::bit_cast<double>(*readIntegral<std::uint64_t>(packet->payload, 60));
+            if (!std::isfinite(grabX) || !std::isfinite(grabY) || std::abs(grabX) > 1e6 || std::abs(grabY) > 1e6) {
+              receipt(*generation, packet->type, false); continue;
+            }
+            const auto pointer = g_pInputManager->getMouseCoordsInternal();
+            // Preserve the native title-bar grab point, including the large
+            // crossing delta that was never sent into the Windows Snap edge.
+            if (!Config::Actions::move({pointer.x-grabX, pointer.y-grabY}, false, dragTarget->window()).has_value()) {
+              receipt(*generation, packet->type, false); continue;
+            }
+          }
           g_layoutManager->beginDragTarget(dragTarget, MBIND_MOVE, std::nullopt, true);
           m_returnDrag = dragTarget;
         }
@@ -432,7 +506,7 @@ void InputCapture::observePointerPosition(double x, double y) {
   m_core.observePosition(x, y, monitors);
 }
 
-void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event) {
+void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event, bool external) {
   if (!m_core.captured()) {
     // Include keys/buttons already held when the plugin was loaded; raw
     // listeners could not have observed those earlier press transitions.
@@ -474,11 +548,12 @@ void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event) {
   payload.appendDouble(event.delta.y);
   payload.appendDouble(event.unaccel.x);
   payload.appendDouble(event.unaccel.y);
+  if (externalTouchpad()) payload.appendIntegral(static_cast<std::uint8_t>(external));
   if (!send(protocol::MessageType::INPUT_RELATIVE_MOTION, payload))
     release(false);
 }
 
-void InputCapture::onPointerButton(const IPointer::SButtonEvent &event) {
+void InputCapture::onPointerButton(const IPointer::SButtonEvent &event, bool external) {
   const bool pressed = event.state == WL_POINTER_BUTTON_STATE_PRESSED;
   if (!pressed && event.button == 272) {
     if (const auto target = m_returnDrag.lock(); target && g_layoutManager->dragController()->target() == target)
@@ -502,6 +577,7 @@ void InputCapture::onPointerButton(const IPointer::SButtonEvent &event) {
   payload.appendIntegral(event.timeMs);
   payload.appendIntegral(event.button);
   payload.appendIntegral(static_cast<std::uint8_t>(pressed));
+  if (externalTouchpad()) payload.appendIntegral(static_cast<std::uint8_t>(external));
   if (!send(protocol::MessageType::INPUT_POINTER_BUTTON, payload))
     release(false);
 }
@@ -531,7 +607,11 @@ bool InputCapture::remoteGesture() const {
   const auto surface = g_pSeatManager ? g_pSeatManager->m_state.pointerFocus.lock() : nullptr;
   if (!surface) return false;
   return std::ranges::any_of(Desktop::windowState()->windows(), [&](const auto& window) {
-    return window && window->m_class.starts_with("ViewflowReverse-") && window->resource() == surface;
+    // Mac proxies forward two-finger scrolling directly through HID. Keep
+    // compositor swipe/pinch gestures local, including three-finger actions.
+    return window && window->m_class.starts_with("ViewflowReverse-") &&
+           !window->m_class.starts_with("ViewflowReverse-Mac-") &&
+           !window->m_class.starts_with("ViewflowReverse-MacNative-") && window->resource() == surface;
   });
 }
 
@@ -604,7 +684,7 @@ void InputCapture::suppressKeyboard(KeyboardListeners &listeners) {
 
 void InputCapture::suppressLocalKeyboards() {
   for (auto &[_, listeners] : m_keyboards)
-    suppressKeyboard(*listeners);
+    if (listeners->physical) suppressKeyboard(*listeners);
 }
 
 void InputCapture::restoreLocalKeyboards() {
@@ -673,8 +753,10 @@ std::string InputCapture::captureStatusJson() const {
   std::ostringstream out;
   out << "{\"connected\":" << m_bridge.connected() << ",\"phase\":" << int(m_core.phase())
       << ",\"pointers\":" << m_pointers.size() << ",\"held_buttons\":" << (g_pInputManager && g_pInputManager->hasHeldButtons())
+      << ",\"returned_buttons\":" << m_returnedButtons
       << ",\"held_keys\":" << (g_pInputManager ? g_pInputManager->getKeysFromAllKBs().size() : 0)
-      << ",\"raw_touchpad\":" << rawTouchpad() << ",\"touchpad_frames\":" << m_touchpadFrames
+      << ",\"raw_touchpad\":" << rawTouchpad() << ",\"external_touchpad\":" << externalTouchpad()
+      << ",\"touchpad_suppression\":" << suppressesDerivedTouchpad() << ",\"touchpad_frames\":" << m_touchpadFrames
       << ",\"suppressed_gesture_events\":" << m_suppressedGestureEvents
       << ",\"local_gesture_events\":" << m_localGestureEvents
       << ",\"gesture_remote_now\":" << remoteGesture()
@@ -684,6 +766,9 @@ std::string InputCapture::captureStatusJson() const {
       << ",\"remote\":";
   if (const auto& r = m_core.remote()) out << "[" << r->monitorId << "," << r->x << "," << r->y << "," << r->width << "," << r->height << "]";
   else out << "null";
+  const auto drag = g_layoutManager->dragController()->target();
+  const auto dragWindow = drag ? drag->window() : nullptr;
+  out << ",\"native_drag_window\":" << reinterpret_cast<std::uintptr_t>(dragWindow.get());
   out << ",\"keycodes\":[";
   if (g_pInputManager) { bool first = true; for (const auto key : g_pInputManager->getKeysFromAllKBs()) { if (!first) out << ","; first = false; out << key; } }
   out << "],\"physical_held_keys\":[";

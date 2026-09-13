@@ -31,7 +31,11 @@ monitors() {
       printf '%s\n' "$initial" | jq --argjson active "$active" --argjson special "$special" '. + [{"id":99,"name":"HEADLESS-99","activeWorkspace":$active,"specialWorkspace":$special,"x":1000,"y":0,"width":0,"height":0,"scale":1}]'
       return
     fi
-    printf '%s\n' "$initial" | jq --argjson active "$active" --argjson special "$special" '. + [{"id":99,"name":"HEADLESS-99","activeWorkspace":$active,"specialWorkspace":$special,"x":1000,"y":0,"width":800,"height":500,"scale":1,"transform":0}]'
+    if [[ ${TEST_RESET_EXISTING:-0} == 1 && ! -e "$state/recovered-output" ]]; then
+      printf '%s\n' "$initial" | jq --argjson active "$active" --argjson special "$special" '. + [{"id":99,"name":"HEADLESS-99","activeWorkspace":$active,"specialWorkspace":$special,"x":1000,"y":0,"width":1920,"height":1080,"scale":1,"transform":0}]'
+    else
+      printf '%s\n' "$initial" | jq --argjson active "$active" --argjson special "$special" '. + [{"id":99,"name":"HEADLESS-99","activeWorkspace":$active,"specialWorkspace":$special,"x":1000,"y":0,"width":800,"height":500,"scale":1,"transform":0}]'
+    fi
   else printf '%s\n' "$initial"; fi
 }
 plugins() {
@@ -49,6 +53,7 @@ if [[ $1 == output && $2 == remove && $3 == HEADLESS-99 ]]; then rm -f "$state/o
 if [[ $1 == eval ]]; then
   if [[ $2 == *'hl.monitor('* ]]; then
     [[ $2 == *'position = "1000x0"'* ]] || exit 4
+    if [[ ${TEST_RESET_EXISTING:-0} == 1 ]]; then mkdir -p "$state"; : >"$state/recovered-output"; fi
   elif [[ $2 == *'monitor:set_special_workspace("viewflow")'* ]]; then
     [[ $2 == *'monitor:set_workspace("name:viewflow-underlay")'* ]] || exit 4
     : >"$state/special-workspace"
@@ -131,7 +136,23 @@ rg -q -- '-j clients' "$TEST_LOG"
   --capture-plugin "$tmp/plugins/capture.so" --input-plugin "$tmp/plugins/input.so" \
   --state-dir "$tmp/runtime/owned"
 jq -e '.windows == [] and .desktop.candidates == [] and .desktop.auto_enroll and .pointer.cursor_monitor_id == 99' "$tmp/runtime/owned/config" >/dev/null
+[[ -f "$tmp/runtime/owned/native-control/desktop-window.json" ]]
+[[ $(stat -c %a "$tmp/runtime/owned/native-control/desktop-window.json") == 600 ]]
 "$root/tools/desktop-drag-linux.sh" stop --state-dir "$tmp/runtime/owned"
+
+log_before=$(wc -l <"$TEST_LOG")
+mkdir -p "$TEST_STATE"
+: >"$TEST_STATE/output-created"
+TEST_RESET_EXISTING=1 "$root/tools/desktop-drag-linux.sh" start \
+  --config "$tmp/source.json" --monitor DP-4 --existing-output HEADLESS-99 --empty-desktop --peer "$tmp/peer" \
+  --capture-plugin "$tmp/plugins/capture.so" --input-plugin "$tmp/plugins/input.so" \
+  --state-dir "$tmp/runtime/owned"
+tail -n "+$((log_before + 1))" "$TEST_LOG" >"$tmp/existing-output.log"
+rg -q 'eval .*hl\.monitor' "$tmp/existing-output.log"
+[[ $(rg -c -- '-j monitors all' "$tmp/existing-output.log") -ge 5 ]]
+! rg -q 'output create headless' "$tmp/existing-output.log"
+"$root/tools/desktop-drag-linux.sh" stop --state-dir "$tmp/runtime/owned"
+rm -f "$TEST_STATE/output-created" "$TEST_STATE/recovered-output"
 
 loads_before=$(rg -c 'plugin load' "$TEST_LOG")
 if TEST_ZERO_OUTPUT=1 "$root/tools/desktop-drag-linux.sh" start \

@@ -283,6 +283,10 @@ async fn session(connection: &quinn::Connection, source: bool, native: &Native) 
     let mut magic = [0; 8];
     tokio::time::timeout(Duration::from_secs(10), receive.read_exact(&mut magic)).await??;
     ensure!(&magic == MAGIC, "clipboard stream version mismatch");
+    let diagnostics = std::env::var_os("VIEWFLOW_CLIPBOARD_DIAGNOSTICS").is_some();
+    if diagnostics {
+        eprintln!("clipboard lane ready");
+    }
     let role = u8::from(source);
     let (outgoing, mut outgoing_rx) = watch::channel::<Option<Update>>(None);
     let (incoming, mut incoming_rx) = watch::channel::<Option<Update>>(None);
@@ -317,6 +321,13 @@ async fn session(connection: &quinn::Connection, source: bool, native: &Native) 
             // versions and the source tie-break make simultaneous copies converge.
             if let Ok(content) = native.read().await {
                 if let Some(update) = state.local(content, role) {
+                    if diagnostics {
+                        eprintln!(
+                            "clipboard send kind={} bytes={}",
+                            update.content.kind,
+                            update.content.bytes.len()
+                        );
+                    }
                     outgoing.send(Some(update))?;
                 }
             }
@@ -324,8 +335,22 @@ async fn session(connection: &quinn::Connection, source: bool, native: &Native) 
                 state.remote(update);
             }
             if let Some(update) = state.pending.clone() {
-                if native.write(update.content.clone()).await.is_ok() {
-                    state.installed(&update.content);
+                match native.write(update.content.clone()).await {
+                    Ok(()) => {
+                        if diagnostics {
+                            eprintln!(
+                                "clipboard installed kind={} bytes={}",
+                                update.content.kind,
+                                update.content.bytes.len()
+                            );
+                        }
+                        state.installed(&update.content);
+                    }
+                    Err(error) => {
+                        if diagnostics {
+                            eprintln!("clipboard native write failed: {error}");
+                        }
+                    }
                 }
             }
         }

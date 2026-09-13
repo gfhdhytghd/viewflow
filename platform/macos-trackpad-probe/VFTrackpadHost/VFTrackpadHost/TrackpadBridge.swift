@@ -18,12 +18,12 @@ enum TrackpadBridge {
         }
         return IOConnectCallMethod(connection, selector, nil, 0, nil, 0, nil, nil, nil, nil)
     }
-    private static func readExactly(_ count: Int) throws -> [UInt8] {
+    private static func readExactly(_ count: Int, from inputFD: Int32) throws -> [UInt8] {
         var bytes = [UInt8](repeating: 0, count: count)
         var received = 0
         while received < count {
             let n = bytes.withUnsafeMutableBytes {
-                Darwin.read(STDIN_FILENO, $0.baseAddress!.advanced(by: received), count - received)
+                Darwin.read(inputFD, $0.baseAddress!.advanced(by: received), count - received)
             }
             if n == 0 {
                 if received == 0 { return [] }
@@ -52,7 +52,7 @@ enum TrackpadBridge {
         }
         return false
     }
-    static func run(_ mode: String) -> Int32 {
+    static func run(_ mode: String, inputFD: Int32 = STDIN_FILENO) -> Int32 {
         guard let matching = IOServiceMatching("IOUserService") as NSMutableDictionary? else { return 1 }
         matching["IOPropertyMatch"] = ["IOUserClass": "VFTrackpadRoot",
                                         "CFBundleIdentifier": "org.viewflow.trackpad-probe"]
@@ -91,25 +91,62 @@ enum TrackpadBridge {
 
             return 0
         }
+        return receiveStream(inputFD: inputFD,
+            submit: { call(connection, 1, $0) }, release: { call(connection, 2) })
+    }
+
+    // Injectable calls permit stream/ownership tests without submitting OS input.
+    static func receiveStream(inputFD: Int32, submit: ([UInt8]) -> kern_return_t,
+                              release: () -> kern_return_t,
+                              clock: () -> UInt32 = {
+                                  // Native HID wraps at 2^21 milliseconds. Wrap
+                                  // here, not at UInt32's unrelated 100 us period.
+                                  UInt32(UInt64(ProcessInfo.processInfo.systemUptime * 10_000) % 20_971_520)
+                              }) -> Int32 {
         var result: Int32 = 0
         var submitted: UInt64 = 0
+        var ownsInput = false
+        var waitingForOwner = false
         do {
-            guard try readExactly(8) == Array("VFTP".utf8) + [2, 0, 0, 0] else {
+            guard try readExactly(8, from: inputFD) == Array("VFTP".utf8) + [2, 0, 0, 0] else {
                 message("Invalid/missing VFTP version 2 stream header"); return 2
             }
             while true {
-                let report = try readExactly(72)
+                var report = try readExactly(72, from: inputFD)
                 if report.isEmpty { break }
-                let kr = call(connection, 1, report)
+                guard report[0] <= 5 else { result = 2; break }
+                let active = report[1] != 0 || (0..<Int(report[0])).contains { report[13 + 12 * $0] != 0 }
+                // A connected but idle producer does not own the virtual device.
+                if !ownsInput && !active { continue }
+                // All producers share one native device and its timestamp history.
+                // Linux and macOS uptime have different epochs; passing them through
+                // makes the driver's backward-time recovery compress real motion
+                // to 1 ms per report after a producer handoff. Stamp at this common
+                // receiver boundary in ABI-2's 100 us units instead.
+                let ticks = clock()
+                for byte in 0..<4 { report[4 + byte] = UInt8(truncatingIfNeeded: ticks >> (byte * 8)) }
+                let kr = submit(report)
+                if kr == kIOReturnExclusiveAccess {
+                    if !waitingForOwner { message("HID stream waiting for previous producer release") }
+                    waitingForOwner = true
+                    continue // Next physical snapshot can acquire after handoff.
+                }
                 if kr != KERN_SUCCESS {
                     message(String(format: "Touch report rejected: 0x%08x", kr)); result = 2; break
                 }
+                waitingForOwner = false
+                ownsInput = true
                 submitted += 1
+                if !active {
+                    let kr = release()
+                    if kr != KERN_SUCCESS { result = 2; break }
+                    ownsInput = false
+                }
             }
         } catch {
             message("Input stream failed: \(error)"); result = 2
         }
-        let released = call(connection, 2)
+        let released = ownsInput ? release() : KERN_SUCCESS
         if released != KERN_SUCCESS {
             message(String(format: "Touch release failed: 0x%08x; driver retries on close", released))
             result = 2

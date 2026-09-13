@@ -58,7 +58,33 @@ impl AtlasInputRecoveryFence {
     /// crossed the media admission boundary.  This must never cancel it.
     pub(crate) async fn arm(&self) {
         self.0.armed.store(true, Ordering::Release);
+        self.0.changed.notify_waiters();
         let _forward = self.0.forward_gate.lock().await;
+    }
+
+    async fn armed(&self) {
+        loop {
+            let changed = self.0.changed.notified();
+            tokio::pin!(changed);
+            changed.as_mut().enable();
+            if self.is_armed() {
+                return;
+            }
+            changed.await;
+        }
+    }
+
+    // Called only around the next receive operation, never disposition writes
+    // or native submission. A ready receive wins and is processed in full.
+    pub(crate) async fn wait_before_admission<T>(
+        &self,
+        waiting: impl std::future::Future<Output = Result<T>>,
+    ) -> Result<T> {
+        tokio::select! {
+            biased;
+            result = waiting => result,
+            () = self.armed() => Err(AtlasMediaFenced.into()),
+        }
     }
 
     fn clear(&self) {
@@ -324,10 +350,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn recovery_fence_wakes_idle_reception_but_finishes_ready_admission() {
+        let fence = AtlasInputRecoveryFence::default();
+        let forward = fence.begin_media_forward().await.unwrap();
+        let armer = {
+            let fence = fence.clone();
+            tokio::spawn(async move { fence.arm().await })
+        };
+        let error = tokio::time::timeout(
+            Duration::from_millis(100),
+            fence.wait_before_admission(std::future::pending::<Result<()>>()),
+        )
+        .await
+        .unwrap()
+        .unwrap_err();
+        assert!(error.is::<AtlasMediaFenced>());
+        assert!(!armer.is_finished());
+        // A ready receive wins and is processed even when arming and readiness
+        // are observed in the same poll.
+        assert_eq!(
+            fence.wait_before_admission(async { Ok(42) }).await.unwrap(),
+            42
+        );
+        drop(forward);
+        armer.await.unwrap();
+        fence.clear();
+        assert!(fence.begin_media_forward().await.is_ok());
+    }
+
+    #[tokio::test]
     async fn recovery_fence_finishes_crossed_forward_then_rejects_later_admission() {
         let fence = AtlasInputRecoveryFence::default();
-        // This models the media loop having crossed its boundary, then waiting
-        // for a frame. The drain may arrive before that frame does.
+        // This models a frame already admitted for native submission.
         let forward = fence.begin_media_forward().await.unwrap();
         let armer = {
             let fence = fence.clone();
@@ -340,8 +394,7 @@ mod tests {
             tokio::task::yield_now().await;
         }
         assert!(fence.is_armed());
-        // This already-crossed forward may consume a delayed frame and must
-        // finish its original bounded handoff. The armer cannot publish a
+        // This already-admitted frame must finish its handoff. The armer cannot publish a
         // cancellation or sample its final committed identity until it ends.
         assert!(!armer.is_finished());
         drop(forward);
@@ -661,11 +714,12 @@ impl AtlasReceiverPresenter {
             .as_mut()
             .context("atlas owner retired")?
             .0
-            .next_frame(&mut now, deadline)
+            .next_frame_with_fence(&mut now, deadline, Some(&self.recovery_fence))
             .await;
         let frame = match result {
             Ok(frame) => frame,
             Err(error) if error.downcast_ref::<AtlasWaitExpired>().is_some() => return Err(error),
+            Err(error) if error.is::<AtlasMediaFenced>() => return Err(error),
             Err(error) => return Err(self.retire(error).await),
         };
         // The admission guard predates any concurrent arm. Finish this exact

@@ -194,9 +194,13 @@ impl Client {
                 && std::env::var_os("VIEWFLOW_WINDOWS_CONSOLE_INPUT").is_some_and(|v| v == "1")
             {
                 let id = WTSGetActiveConsoleSessionId();
-                if id == u32::MAX { return Err(failed("no active console session")); }
+                if id == u32::MAX {
+                    return Err(failed("no active console session"));
+                }
                 id
-            } else { session()? };
+            } else {
+                session()?
+            };
             let h = CreateFileW(
                 pipe_name(target_session).as_ptr(),
                 GENERIC_READ | GENERIC_WRITE,
@@ -261,10 +265,18 @@ fn disable_cursor_suppression() {
     let name = wide("EnableCursorSuppression");
     let disabled = 0_u32;
     let result = unsafe {
-        RegSetKeyValueW(HKEY_LOCAL_MACHINE, path.as_ptr(), name.as_ptr(), REG_DWORD,
-            (&disabled as *const u32).cast(), size_of::<u32>() as u32)
+        RegSetKeyValueW(
+            HKEY_LOCAL_MACHINE,
+            path.as_ptr(),
+            name.as_ptr(),
+            REG_DWORD,
+            (&disabled as *const u32).cast(),
+            size_of::<u32>() as u32,
+        )
     };
-    log(&format!("cursor suppression disable on handoff: win32_status={result}"));
+    log(&format!(
+        "cursor suppression disable on handoff: win32_status={result}"
+    ));
 }
 
 fn probe_request() -> [u8; wire::REQUEST_SIZE] {
@@ -365,8 +377,10 @@ fn worker(sid: &str, stop_name: &str, parent_pid: u32) -> io::Result<()> {
                     })
                 } else {
                     wire::decode(&request).and_then(|(event, display)| {
-                        if matches!(event.event, viewflow_protocol::InputEventKind::DesktopPointerPosition(_))
-                            && cursor_lease != Some(event.lease_generation)
+                        if matches!(
+                            event.event,
+                            viewflow_protocol::InputEventKind::DesktopPointerPosition(_)
+                        ) && cursor_lease != Some(event.lease_generation)
                         {
                             disable_cursor_suppression();
                             cursor_lease = Some(event.lease_generation);

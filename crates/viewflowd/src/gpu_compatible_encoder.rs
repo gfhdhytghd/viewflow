@@ -106,6 +106,10 @@ pub enum AtlasSubmitOutcome {
 pub struct GpuAtlasCompatibleEncoder {
     occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
     canvas_limit: (u32, u32),
+    seam_cache: Option<(
+        viewflow_protocol::DesktopRect,
+        viewflow_protocol::DesktopRect,
+    )>,
     last_sparse_manifest: Option<viewflow_protocol::AtlasFrame>,
     inner: GpuCompatibleEncoder,
     last_layout: Option<AtlasSnapshot>,
@@ -113,6 +117,15 @@ pub struct GpuAtlasCompatibleEncoder {
 }
 
 impl GpuAtlasCompatibleEncoder {
+    pub(crate) fn set_seam_cache(
+        &mut self,
+        visible: viewflow_protocol::DesktopRect,
+        resident: viewflow_protocol::DesktopRect,
+    ) {
+        self.seam_cache = Some((visible, resident));
+        self.request_keyframe();
+    }
+
     pub(crate) fn occlusion_enabled(&self) -> bool {
         self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off
     }
@@ -144,6 +157,7 @@ impl GpuAtlasCompatibleEncoder {
             inner: GpuCompatibleEncoder::new(config)?,
             occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Off,
             canvas_limit: (8192, 4096),
+            seam_cache: None,
             last_sparse_manifest: None,
             last_layout: None,
             last_sources: BTreeMap::new(),
@@ -293,7 +307,7 @@ impl GpuAtlasCompatibleEncoder {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let sparse_sources = sparse_scene_sources(&sources, request.desktop)?;
+        let sparse_sources = sparse_scene_sources(&sources, request.desktop, self.seam_cache)?;
         let sparse_scene = (self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off)
             .then_some(crate::gpu_nvenc_runtime::GpuSparseScene {
                 prerender: self.occlusion == crate::atlas_occlusion::AtlasOcclusionMode::Prerender,
@@ -984,7 +998,13 @@ fn adapt(
             && output.color_annex_b.len() <= config.max_color_access_unit_bytes,
         "GPU color exceeds transport bound"
     );
-    let alpha = cached_alpha(generation, output.raw_alpha, config, alpha_cache, output.frame_id)?;
+    let alpha = cached_alpha(
+        generation,
+        output.raw_alpha,
+        config,
+        alpha_cache,
+        output.frame_id,
+    )?;
     let plane = |kind, payload| MediaPlaneFrame {
         window_id: generation.identity.window_id,
         frame_id: output.frame_id,
@@ -1016,25 +1036,44 @@ fn cached_alpha(
 ) -> Result<Bytes> {
     let raw_alpha = raw_alpha.into();
     static PROFILE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    let profile = *PROFILE.get_or_init(|| std::env::var_os("VIEWFLOW_ALPHA_COPY_PROFILE").is_some_and(|v| v == "1"));
+    let profile = *PROFILE
+        .get_or_init(|| std::env::var_os("VIEWFLOW_ALPHA_COPY_PROFILE").is_some_and(|v| v == "1"));
     let started = profile.then(std::time::Instant::now);
     #[cfg(target_os = "linux")]
-    let cpu_start = profile.then(|| nix::time::clock_gettime(nix::time::ClockId::CLOCK_THREAD_CPUTIME_ID).ok()).flatten();
-    let cache_hit = cache.as_ref().is_some_and(|previous| previous.generation == generation
+    let cpu_start = profile
+        .then(|| nix::time::clock_gettime(nix::time::ClockId::CLOCK_THREAD_CPUTIME_ID).ok())
+        .flatten();
+    let cache_hit = cache.as_ref().is_some_and(|previous| {
+        previous.generation == generation
         && previous.config == config
         // Both views retain immutable owners. Equal pointer + length is exact
         // identity; content comparison remains the fallback for other storage.
         && (std::ptr::eq(previous.raw_alpha.as_ref(), raw_alpha.as_ref())
-            || previous.raw_alpha.as_ref() == raw_alpha.as_ref()));
+            || previous.raw_alpha.as_ref() == raw_alpha.as_ref())
+    });
     if let Some(started) = started {
         let wall_ns = started.elapsed().as_nanos();
         #[cfg(target_os = "linux")]
-        let cpu_ns = cpu_start.and_then(|start| nix::time::clock_gettime(nix::time::ClockId::CLOCK_THREAD_CPUTIME_ID).ok().map(|end| (end.tv_sec()-start.tv_sec())*1_000_000_000+end.tv_nsec()-start.tv_nsec()));
+        let cpu_ns = cpu_start.and_then(|start| {
+            nix::time::clock_gettime(nix::time::ClockId::CLOCK_THREAD_CPUTIME_ID)
+                .ok()
+                .map(|end| {
+                    (end.tv_sec() - start.tv_sec()) * 1_000_000_000 + end.tv_nsec()
+                        - start.tv_nsec()
+                })
+        });
         #[cfg(not(target_os = "linux"))]
         let cpu_ns: Option<i64> = None;
-        crate::atlas_feedback::trace_line(format_args!("alpha-cache-profile frame={frame_id} bytes={} hit={cache_hit} wall_ns={wall_ns} cpu_ns={} cpu_valid={}", raw_alpha.len(), cpu_ns.unwrap_or(0), cpu_ns.is_some()));
+        crate::atlas_feedback::trace_line(format_args!(
+            "alpha-cache-profile frame={frame_id} bytes={} hit={cache_hit} wall_ns={wall_ns} cpu_ns={} cpu_valid={}",
+            raw_alpha.len(),
+            cpu_ns.unwrap_or(0),
+            cpu_ns.is_some()
+        ));
     }
-    if cache_hit { return Ok(cache.as_ref().expect("matched alpha cache").encoded.clone()); }
+    if cache_hit {
+        return Ok(cache.as_ref().expect("matched alpha cache").encoded.clone());
+    }
     let encoded = encode_alpha_rle(generation.width, generation.height, &raw_alpha)?;
     ensure!(
         encoded.len() <= config.max_alpha_access_unit_bytes,
@@ -1684,6 +1723,10 @@ mod tests {
 fn sparse_scene_sources(
     sources: &[AtlasSourceIdentity],
     desktop: Option<&viewflow_protocol::AtlasDesktopLayout>,
+    seam_cache: Option<(
+        viewflow_protocol::DesktopRect,
+        viewflow_protocol::DesktopRect,
+    )>,
 ) -> Result<Vec<crate::gpu_nvenc_runtime::GpuSparseSource>> {
     use crate::gpu_nvenc_runtime::GpuSparseSource;
     fn gcd(mut a: u64, mut b: u64) -> u64 {
@@ -1710,7 +1753,12 @@ fn sparse_scene_sources(
         };
         let clip = sparse_viewport_clip(
             window.bounds,
-            desktop.unwrap().viewport,
+            // Keep a bounded screen-exterior strip in the same frame's atlas.
+            // Native placement still uses the unexpanded desktop viewport. A
+            // moved HWND can reveal these pixels before the next frame arrives.
+            seam_cache
+                .filter(|(visible, _)| *visible == desktop.unwrap().viewport)
+                .map_or(desktop.unwrap().viewport, |(_, resident)| resident),
             source.width,
             source.height,
         );
@@ -1825,6 +1873,34 @@ mod sparse_viewport_tests {
             (0, 0, 100, 0)
         );
     }
+    #[test]
+    fn seam_residency_contains_pixels_revealed_before_the_next_source_frame() {
+        // A half-visible 2x window can move up to 256 logical pixels into the
+        // remote screen while every newly exposed source pixel is already sent.
+        let visible = rect(0, 0, 1920_000, 1200_000);
+        let resident = rect(-256_000, 0, 2176_000, 1200_000);
+        let window = rect(-500_000, 100_000, 1000_000, 800_000);
+        let old_visible = sparse_viewport_clip(window, visible, 2000, 1600);
+        let cached = sparse_viewport_clip(window, resident, 2000, 1600);
+        assert_eq!(old_visible, (1000, 0, 1000, 1600));
+        assert_eq!(cached, (488, 0, 1512, 1600));
+        for dip in [0, 1, 64, 128, 255, 256] {
+            let moved = rect(
+                window.x_millidip + dip * 1000,
+                window.y_millidip,
+                window.width_millidip,
+                window.height_millidip,
+            );
+            let exposed = sparse_viewport_clip(moved, visible, 2000, 1600);
+            assert!(exposed.0 >= cached.0 && exposed.0 + exposed.2 <= cached.0 + cached.2);
+        }
+        // Residency remains bounded: far-offscreen content does not consume slots.
+        assert_eq!(
+            sparse_viewport_clip(rect(-2000_000, 0, 1000_000, 800_000), resident, 2000, 1600).2,
+            0
+        );
+    }
+
     #[test]
     fn fractional_boundary_rounds_outward_without_losing_visible_pixels() {
         assert_eq!(

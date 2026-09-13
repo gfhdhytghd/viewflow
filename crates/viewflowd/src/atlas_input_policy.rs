@@ -286,13 +286,11 @@ impl AtlasInputPolicy {
                 // automatic maintenance renewal. Preserve the old expiry.
                 return Ok(None);
             }
-            // Polling may revisit the last committed capture before another
-            // visual receipt arrives. It cannot renew the lease, but is not a
-            // rebind or regression. Leave generation, geometry and expiry intact;
-            // the existing native lease still expires on its original deadline.
-            if tile.source_frame_id == identity.presented_frame {
-                return Ok(None);
-            }
+            // A static window can legitimately retain the same last committed
+            // frame for longer than one native input lease.  The unchanged
+            // identity is still locally owned and bound; renew its operation
+            // lease with a new generation instead of turning visual idleness
+            // into a connection-ending deadline.
         }
         self.generation = generation;
         self.current = Some(authorized.clone());
@@ -301,7 +299,7 @@ impl AtlasInputPolicy {
 
     /// # Errors
     /// Requires explicit distinct devices, unique local window/address bindings,
-    /// and a source-decided lease duration no longer than five seconds.
+    /// and a source-decided operation lease duration no longer than five seconds.
     pub fn new(
         owner: DeviceId,
         target: DeviceId,
@@ -397,7 +395,8 @@ impl AtlasInputPolicy {
             same_window = previous.target_window == request.window_id;
             if same_window {
                 if request.source_geometry_epoch < previous.geometry_epoch
-                    || request.source_frame_id < previous.presented_frame {
+                    || request.source_frame_id < previous.presented_frame
+                {
                     return Err(AtlasSelectionSuperseded.into());
                 }
                 if request.source_geometry_epoch > previous.geometry_epoch {

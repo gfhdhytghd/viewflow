@@ -15,7 +15,10 @@ mod window_keyboard;
 pub use window_keyboard::WindowKeyboardGrant;
 
 pub use atlas::{AtlasConfig, AtlasError, AtlasPlacement, AtlasRect, AtlasSnapshot, StableAtlas};
-pub use audio::{AudioRouteError, AudioRouter, ClearedAudioRoute, VersionedAudioRoute};
+pub use audio::{
+    ApplicationAudioLocations, AudioApplicationId, AudioCaptureScope, AudioForwardingDecision,
+    AudioPlaybackMode, AudioRouteError, AudioRouter, ClearedAudioRoute, VersionedAudioRoute,
+};
 pub use coordinator::{Coordinator, CoordinatorError, CoordinatorOutcome};
 pub use decoration::{CaptureGeometry, CaptureGeometryError, CaptureSlice};
 pub use frame_queue::{FrameAdmission, FrameQueue, FrameQueueConfig, FrameRejectReason};

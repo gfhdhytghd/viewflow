@@ -25,8 +25,13 @@ impl GpuAtlasSession {
     /// the caller. This never reads, releases, or retimestamps a capture.
     pub(crate) async fn capture_readable(&mut self) {
         std::future::poll_fn(|cx| {
-            self.device.as_mut().map_or(std::task::Poll::Pending, |device| device.poll_capture_readable(cx))
-        }).await;
+            self.device
+                .as_mut()
+                .map_or(std::task::Poll::Pending, |device| {
+                    device.poll_capture_readable(cx)
+                })
+        })
+        .await;
     }
 
     pub(crate) fn set_occlusion(

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>org.viewflow.app</string>
+  <key>CFBundleName</key><string>Viewflow</string>
+  <key>CFBundleDisplayName</key><string>Viewflow</string>
+  <key>CFBundleExecutable</key><string>Viewflow</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>0.1.0</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSLocalNetworkUsageDescription</key><string>Viewflow 通过局域网连接已配对的电脑，传输窗口、键盘鼠标、触控板和剪贴板。</string>
+  <key>NSBonjourServices</key><array><string>_viewflow._udp</string></array>
+  <key>CFBundleDocumentTypes</key><array><dict>
+    <key>CFBundleTypeName</key><string>Viewflow Connection</string>
+    <key>CFBundleTypeRole</key><string>Viewer</string>
+    <key>LSItemContentTypes</key><array><string>org.viewflow.connection</string></array>
+  </dict></array>
+  <key>UTExportedTypeDeclarations</key><array><dict>
+    <key>UTTypeIdentifier</key><string>org.viewflow.connection</string>
+    <key>UTTypeDescription</key><string>Viewflow 配对配置</string>
+    <key>UTTypeConformsTo</key><array><string>public.json</string></array>
+    <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>viewflowconnection</string></array></dict>
+  </dict></array>
+</dict></plist>

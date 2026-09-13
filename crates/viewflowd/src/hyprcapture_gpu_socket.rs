@@ -157,18 +157,27 @@ impl HyprCaptureGpuSocketReceiver {
                 Ok(readiness) => self.readiness = Some(readiness),
                 Err(error) => {
                     self.readiness_failed = true;
-                    eprintln!("atlas-capture-readiness fallback=periodic session_retained=true error={error}");
+                    eprintln!(
+                        "atlas-capture-readiness fallback=periodic session_retained=true error={error}"
+                    );
                     return Poll::Pending;
                 }
             }
         }
-        match self.readiness.as_ref().expect("registered").poll_read_ready(cx) {
+        match self
+            .readiness
+            .as_ref()
+            .expect("registered")
+            .poll_read_ready(cx)
+        {
             Poll::Ready(Ok(_guard)) => Poll::Ready(()),
             Poll::Pending => Poll::Pending,
             Poll::Ready(Err(error)) => {
                 self.readiness = None;
                 self.readiness_failed = true;
-                eprintln!("atlas-capture-readiness fallback=periodic session_retained=true error={error}");
+                eprintln!(
+                    "atlas-capture-readiness fallback=periodic session_retained=true error={error}"
+                );
                 Poll::Pending
             }
         }
@@ -179,9 +188,15 @@ impl HyprCaptureGpuSocketReceiver {
         // SAFETY: duplicate is an owned live socket. Both receive and HCGR
         // already use MSG_DONTWAIT; retaining other status flags is required.
         let flags = unsafe { libc::fcntl(duplicate.as_raw_fd(), libc::F_GETFL) };
-        if flags < 0 || unsafe {
-            libc::fcntl(duplicate.as_raw_fd(), libc::F_SETFL, flags | libc::O_NONBLOCK)
-        } < 0 {
+        if flags < 0
+            || unsafe {
+                libc::fcntl(
+                    duplicate.as_raw_fd(),
+                    libc::F_SETFL,
+                    flags | libc::O_NONBLOCK,
+                )
+            } < 0
+        {
             return Err(io::Error::last_os_error());
         }
         tokio::io::unix::AsyncFd::with_interest(duplicate, tokio::io::Interest::READABLE)
@@ -753,7 +768,9 @@ mod tests {
         tokio::time::timeout(
             Duration::from_secs(1),
             std::future::poll_fn(|cx| receiver.poll_readable(cx)),
-        ).await.expect("capture readiness did not wake");
+        )
+        .await
+        .expect("capture readiness did not wake");
     }
 
     #[tokio::test]
@@ -765,10 +782,17 @@ mod tests {
         for sequence in 1..=64 {
             // After the previous frame this recvmsg must clear stale cached
             // readiness, allowing the next edge to wake the same receiver.
-            assert!(matches!(receiver.recv_frame().unwrap(), GpuReceiveOutcome::WouldBlock));
+            assert!(matches!(
+                receiver.recv_frame().unwrap(),
+                GpuReceiveOutcome::WouldBlock
+            ));
             let mut cx = Context::from_waker(std::task::Waker::noop());
             assert!(receiver.poll_readable(&mut cx).is_pending());
-            send(&sender, &frame(sequence, 1), &[image.as_raw_fd(), fence.as_raw_fd()]);
+            send(
+                &sender,
+                &frame(sequence, 1),
+                &[image.as_raw_fd(), fence.as_raw_fd()],
+            );
             wait_readable(&mut receiver).await;
             assert!(receiver.outstanding.is_none());
             let received = match receiver.recv_frame().unwrap() {
@@ -779,11 +803,31 @@ mod tests {
             assert!(receiver.poll_readable(&mut cx).is_pending());
             let mut release = [0_u8; 32];
             // SAFETY: live test socket and exact writable output buffer.
-            assert_eq!(unsafe { libc::recv(sender.as_raw_fd(), release.as_mut_ptr().cast(), release.len(), libc::MSG_DONTWAIT) }, -1);
+            assert_eq!(
+                unsafe {
+                    libc::recv(
+                        sender.as_raw_fd(),
+                        release.as_mut_ptr().cast(),
+                        release.len(),
+                        libc::MSG_DONTWAIT,
+                    )
+                },
+                -1
+            );
             assert_eq!(io::Error::last_os_error().kind(), io::ErrorKind::WouldBlock);
             receiver.release_after_source_reads(&received).unwrap();
             // SAFETY: release is writable and HCGR was just sent synchronously.
-            assert_eq!(unsafe { libc::recv(sender.as_raw_fd(), release.as_mut_ptr().cast(), release.len(), libc::MSG_DONTWAIT) }, 32);
+            assert_eq!(
+                unsafe {
+                    libc::recv(
+                        sender.as_raw_fd(),
+                        release.as_mut_ptr().cast(),
+                        release.len(),
+                        libc::MSG_DONTWAIT,
+                    )
+                },
+                32
+            );
             assert_eq!(GpuRelease::decode(&release).unwrap().sequence, sequence);
         }
     }
@@ -799,7 +843,10 @@ mod tests {
         }
         drop(sender);
         wait_readable(&mut receiver).await;
-        assert!(matches!(receiver.recv_frame().unwrap(), GpuReceiveOutcome::Disconnected));
+        assert!(matches!(
+            receiver.recv_frame().unwrap(),
+            GpuReceiveOutcome::Disconnected
+        ));
     }
 
     #[cfg(feature = "native-gpu-nvenc")]
@@ -812,26 +859,52 @@ mod tests {
         let image = eventfd();
         let fence = eventfd();
         let mut pool = AtlasCapturePool::new(
-            vec![(Id128(1), receiver(socket_a)), (Id128(2), receiver(socket_b))], 100,
-        ).unwrap();
+            vec![
+                (Id128(1), receiver(socket_a)),
+                (Id128(2), receiver(socket_b)),
+            ],
+            100,
+        )
+        .unwrap();
         for sequence in 1..=4 {
             assert!(pool.poll_ready_at(10).unwrap().is_none());
             let mut cx = Context::from_waker(std::task::Waker::noop());
             assert!(pool.poll_readable(&mut cx).is_pending());
-            send(&sender_a, &frame(sequence, 1), &[image.as_raw_fd(), fence.as_raw_fd()]);
-            tokio::time::timeout(Duration::from_secs(1), std::future::poll_fn(|cx| pool.poll_readable(cx))).await.unwrap();
+            send(
+                &sender_a,
+                &frame(sequence, 1),
+                &[image.as_raw_fd(), fence.as_raw_fd()],
+            );
+            tokio::time::timeout(
+                Duration::from_secs(1),
+                std::future::poll_fn(|cx| pool.poll_readable(cx)),
+            )
+            .await
+            .unwrap();
             assert!(pool.poll_ready_at(10).unwrap().is_none());
             // A's cached readiness must not spin while its frame is held.
             assert!(pool.poll_readable(&mut cx).is_pending());
-            send(&sender_b, &frame(sequence, 1), &[image.as_raw_fd(), fence.as_raw_fd()]);
-            tokio::time::timeout(Duration::from_secs(1), std::future::poll_fn(|cx| pool.poll_readable(cx))).await.unwrap();
+            send(
+                &sender_b,
+                &frame(sequence, 1),
+                &[image.as_raw_fd(), fence.as_raw_fd()],
+            );
+            tokio::time::timeout(
+                Duration::from_secs(1),
+                std::future::poll_fn(|cx| pool.poll_readable(cx)),
+            )
+            .await
+            .unwrap();
             let batch = pool.poll_ready_at(10).unwrap().unwrap();
             assert_eq!(batch.len(), 2);
             let mut returned = Vec::new();
             for mut source in batch {
                 assert_eq!(source.frame.metadata().sequence, sequence);
                 assert_eq!(source.deadline_monotonic_ns, 101);
-                source.receiver.release_after_source_reads(&source.frame).unwrap();
+                source
+                    .receiver
+                    .release_after_source_reads(&source.frame)
+                    .unwrap();
                 returned.push((source.window, source.receiver));
             }
             pool.restore(returned).unwrap();

@@ -14,21 +14,40 @@ use viewflow_transport::{
 
 // Opt-in diagnostics only; counters describe the whole connection, not just
 // this frame. Enqueue completion is not proof that UDP packets reached the NIC.
-fn trace_connection(connection: &Connection, frame: u64, role: &str, stage: &str, elapsed_us: u128) {
-    if !crate::atlas_feedback::trace_frame(frame) { return; }
+fn trace_connection(
+    connection: &Connection,
+    frame: u64,
+    role: &str,
+    stage: &str,
+    elapsed_us: u128,
+) {
+    if !crate::atlas_feedback::trace_frame(frame) {
+        return;
+    }
     let stats = connection.stats();
     crate::atlas_feedback::trace_line(format_args!(
         "atlas-quic-state role={role} frame={frame} stage={stage} elapsed_us={elapsed_us} rtt_us={} cwnd={} lost_packets={} lost_bytes={} congestion_events={} sent_packets={} udp_tx={} udp_tx_bytes={} udp_rx={} udp_rx_bytes={} send_buffer_space={}",
-        stats.path.rtt.as_micros(), stats.path.cwnd, stats.path.lost_packets,
-        stats.path.lost_bytes, stats.path.congestion_events, stats.path.sent_packets,
-        stats.udp_tx.datagrams, stats.udp_tx.bytes, stats.udp_rx.datagrams,
-        stats.udp_rx.bytes, connection.datagram_send_buffer_space()));
+        stats.path.rtt.as_micros(),
+        stats.path.cwnd,
+        stats.path.lost_packets,
+        stats.path.lost_bytes,
+        stats.path.congestion_events,
+        stats.path.sent_packets,
+        stats.udp_tx.datagrams,
+        stats.udp_tx.bytes,
+        stats.udp_rx.datagrams,
+        stats.udp_rx.bytes,
+        connection.datagram_send_buffer_space()
+    ));
 }
 
 #[derive(Default)]
 struct ReceiveTrace {
-    first_ns: Option<u64>, last_ns: Option<u64>, staged_ns: Option<u64>,
-    datagrams: u64, bytes: u64,
+    first_ns: Option<u64>,
+    last_ns: Option<u64>,
+    staged_ns: Option<u64>,
+    datagrams: u64,
+    bytes: u64,
 }
 
 const MAX_HANDSHAKE_BYTES: usize = 4096;
@@ -193,6 +212,19 @@ pub struct AtlasReceiverSession {
     alpha_reference: bool,
     alpha_cache: Option<crate::alpha_reference::AlphaReferenceCache>,
     shared_controls: Option<tokio::sync::mpsc::Sender<DomainControl>>,
+    // Retain one ordered control when its bounded consumer is busy. Do not
+    // read another reliable record until this send completes; media and an
+    // already-admitted native presentation must still be allowed to progress.
+    pending_shared_control: Option<SharedControlForward>,
+}
+
+type SharedControlForward = std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>>;
+
+async fn forward_pending_control(pending: &mut Option<SharedControlForward>) -> Result<()> {
+    match pending {
+        Some(forward) => forward.await,
+        None => std::future::pending().await,
+    }
 }
 
 type ControlReadResult = (
@@ -203,6 +235,7 @@ type ControlRead = std::pin::Pin<Box<dyn std::future::Future<Output = ControlRea
 
 enum PumpEvent {
     Control(ControlReadResult),
+    ControlForwarded(Result<()>),
     DeferredManifest(AtlasFrame),
     Media(Result<bytes::Bytes, quinn::ConnectionError>),
     Deadline,
@@ -322,6 +355,7 @@ fn receiver_session(
         alpha_reference: false,
         alpha_cache: None,
         shared_controls: None,
+        pending_shared_control: None,
     }
 }
 
@@ -423,7 +457,8 @@ async fn offer_warmed_atlas_mode(
     let result = timeout_at(deadline, async {
         let mut offer = plan.message(connection, false)?;
         offer.version = if dispositions { 3 } else { 2 };
-        offer.alpha_reference = dispositions && plan.alpha.codec == viewflow_transport::VideoCodec::LosslessAlpha;
+        offer.alpha_reference =
+            dispositions && plan.alpha.codec == viewflow_transport::VideoCodec::LosslessAlpha;
         let payload = offer.encode_to_vec();
         ensure!(
             payload.len() <= MAX_HANDSHAKE_BYTES,
@@ -447,7 +482,10 @@ async fn offer_warmed_atlas_mode(
         expected.version = if dispositions { 3 } else { 2 };
         let mut accepted = read_message(&mut rx).await?;
         let alpha_reference = accepted.alpha_reference;
-        ensure!(!alpha_reference || offer.alpha_reference, "unsolicited atlas alpha reference capability");
+        ensure!(
+            !alpha_reference || offer.alpha_reference,
+            "unsolicited atlas alpha reference capability"
+        );
         accepted.alpha_reference = false;
         ensure!(accepted == expected, "atlas warmup acceptance mismatch");
         let feedback = if dispositions {
@@ -746,9 +784,14 @@ impl AtlasSenderSession {
         let alpha = if self.alpha_reference && !manifest.color_keyframe && alpha.len() > 84 {
             self.alpha_cache
                 .as_ref()
-                .and_then(|cache| cache.reference_for(
-                    alpha_identity(&manifest), manifest.width, manifest.height, &alpha,
-                ))
+                .and_then(|cache| {
+                    cache.reference_for(
+                        alpha_identity(&manifest),
+                        manifest.width,
+                        manifest.height,
+                        &alpha,
+                    )
+                })
                 .map(|key| {
                     let mut bytes = Vec::with_capacity(84);
                     bytes.extend_from_slice(b"VFAF");
@@ -791,7 +834,13 @@ impl AtlasSenderSession {
         self.send_manifest_inner(manifest, sequence, deadline)
             .await?;
         let manifest_sent = trace.then(Instant::now);
-        trace_connection(&self.connection, pending.frame_id, "source", "manifest_enqueued", started.map_or(0, |t| t.elapsed().as_micros()));
+        trace_connection(
+            &self.connection,
+            pending.frame_id,
+            "source",
+            "manifest_enqueued",
+            started.map_or(0, |t| t.elapsed().as_micros()),
+        );
         for packet in color.chain(alpha) {
             check_deadline(deadline).context("before atlas datagram enqueue")?;
             timeout_at(
@@ -803,7 +852,13 @@ impl AtlasSenderSession {
         }
         check_deadline(deadline).context("after atlas datagram enqueue")?;
         let enqueued = trace.then(Instant::now);
-        trace_connection(&self.connection, pending.frame_id, "source", "media_enqueued", started.map_or(0, |t| t.elapsed().as_micros()));
+        trace_connection(
+            &self.connection,
+            pending.frame_id,
+            "source",
+            "media_enqueued",
+            started.map_or(0, |t| t.elapsed().as_micros()),
+        );
         if let Some(feedback) = &mut self.feedback {
             let feedback_deadline = deadline + std::time::Duration::from_millis(150);
             let mut record = [0; crate::atlas_feedback::RECORD_BYTES];
@@ -812,13 +867,24 @@ impl AtlasSenderSession {
                 .context("atlas disposition feedback expired")??;
             check_deadline(feedback_deadline)?;
             self.last_disposition = Some(crate::atlas_feedback::decode(&record, &pending)?);
-            trace_connection(&self.connection, pending.frame_id, "source", "feedback_received", started.map_or(0, |t| t.elapsed().as_micros()));
+            trace_connection(
+                &self.connection,
+                pending.frame_id,
+                "source",
+                "feedback_received",
+                started.map_or(0, |t| t.elapsed().as_micros()),
+            );
         }
-        if self.alpha_reference && !alpha_referenced
-            && self.last_disposition == Some(crate::atlas_feedback::AtlasFrameDisposition::Committed)
+        if self.alpha_reference
+            && !alpha_referenced
+            && self.last_disposition
+                == Some(crate::atlas_feedback::AtlasFrameDisposition::Committed)
         {
             self.alpha_cache = Some(crate::alpha_reference::AlphaReferenceCache::new(
-                alpha_identity(&pending), pending.width, pending.height, full_alpha,
+                alpha_identity(&pending),
+                pending.width,
+                pending.height,
+                full_alpha,
                 warmup_limit(self.plan)?,
             )?);
         }
@@ -964,8 +1030,17 @@ impl AtlasReceiverSession {
     /// session; successful return is still not a native presentation receipt.
     pub async fn next_frame(
         &mut self,
+        now: impl FnMut() -> u64,
+        deadline: Instant,
+    ) -> Result<crate::atlas_runtime::AdmittedAtlas> {
+        self.next_frame_with_fence(now, deadline, None).await
+    }
+
+    pub(crate) async fn next_frame_with_fence(
+        &mut self,
         mut now: impl FnMut() -> u64,
         deadline: Instant,
+        fence: Option<&crate::atlas_receiver_presenter::AtlasInputRecoveryFence>,
     ) -> Result<crate::atlas_runtime::AdmittedAtlas> {
         ensure!(
             self.feedback_pending.is_none(),
@@ -983,18 +1058,27 @@ impl AtlasReceiverSession {
         loop {
             // Quinn 0.11 removes a datagram only on Poll::Ready. The reliable
             // read can consume partial bytes, so its boxed future is retained.
-            let event = if let Some(manifest) = self.fenced_manifest.take() {
-                PumpEvent::DeferredManifest(manifest)
-            } else {
-                let reader = self
-                    .control_read
-                    .as_mut()
-                    .ok_or_else(|| anyhow::anyhow!("missing atlas control reader"))?;
-                tokio::select! {
-                    control = reader => PumpEvent::Control(control),
-                    media = self.connection.read_datagram() => PumpEvent::Media(media),
-                    () = tokio::time::sleep_until(deadline) => PumpEvent::Deadline,
-                }
+            let receive = async {
+                Ok(if let Some(manifest) = self.fenced_manifest.take() {
+                    PumpEvent::DeferredManifest(manifest)
+                } else {
+                    let reader = self
+                        .control_read
+                        .as_mut()
+                        .ok_or_else(|| anyhow::anyhow!("missing atlas control reader"))?;
+                    tokio::select! {
+                        control = reader, if self.pending_shared_control.is_none() => PumpEvent::Control(control),
+                        result = forward_pending_control(&mut self.pending_shared_control) => PumpEvent::ControlForwarded(result),
+                        media = self.connection.read_datagram() => PumpEvent::Media(media),
+                        () = tokio::time::sleep_until(deadline) => PumpEvent::Deadline,
+                    }
+                })
+            };
+            // Only interrupt the receive wait. Disposition writes and admitted
+            // native submissions must finish under their existing ownership.
+            let event = match fence {
+                Some(fence) => fence.wait_before_admission(receive).await?,
+                None => receive.await?,
             };
             if matches!(event, PumpEvent::Deadline) {
                 return Err(AtlasWaitExpired.into());
@@ -1069,7 +1153,12 @@ impl AtlasReceiverSession {
                 let (result, sequence) = tokio::select! {
                     result = &mut waiting => return result,
                     () = controls.closed() => anyhow::bail!("atlas recovery input control owner closed"),
-                    control = reader => control,
+                    control = reader, if self.pending_shared_control.is_none() => control,
+                    result = forward_pending_control(&mut self.pending_shared_control) => {
+                        self.pending_shared_control = None;
+                        result?;
+                        continue;
+                    },
                 };
                 self.control_sequence = sequence;
                 self.control_read = Some(start_control_read(self.connection.clone(), sequence));
@@ -1109,13 +1198,22 @@ impl AtlasReceiverSession {
                 .control_read
                 .as_mut()
                 .context("native handoff control reader missing")?;
-            let (result, sequence) = tokio::select! {
+            let event = tokio::select! {
                 result = &mut presenting => return result,
-                control = reader => control,
+                control = reader, if self.pending_shared_control.is_none() => PumpEvent::Control(control),
+                result = forward_pending_control(&mut self.pending_shared_control) => PumpEvent::ControlForwarded(result),
             };
-            self.control_sequence = sequence;
-            self.control_read = Some(start_control_read(self.connection.clone(), sequence));
             let control_result = (|| {
+                let (result, sequence) = match event {
+                    PumpEvent::ControlForwarded(result) => {
+                        self.pending_shared_control = None;
+                        return result.map(|()| None);
+                    }
+                    PumpEvent::Control(control) => control,
+                    _ => unreachable!("handoff only polls reliable controls"),
+                };
+                self.control_sequence = sequence;
+                self.control_read = Some(start_control_read(self.connection.clone(), sequence));
                 let envelope = result?;
                 ensure!(
                     !matches!(
@@ -1144,6 +1242,11 @@ impl AtlasReceiverSession {
         now: u64,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
         match event {
+            PumpEvent::ControlForwarded(result) => {
+                self.pending_shared_control = None;
+                result?;
+                Ok(None)
+            }
             // The reliable sequence was already consumed under the fence.
             // Do not rewind it or restart the retained partial control read.
             PumpEvent::DeferredManifest(manifest) => self.stage_manifest(manifest, now),
@@ -1189,13 +1292,29 @@ impl AtlasReceiverSession {
             | DomainControl::DesktopWindowMoveAck(_)
             | DomainControl::ClockSyncProbe(_)
             | DomainControl::ClockSyncReply(_)) => {
-                self.shared_controls
+                ensure!(
+                    self.pending_shared_control.is_none(),
+                    "ordered control forward still pending"
+                );
+                let controls = self
+                    .shared_controls
                     .as_ref()
-                    .context("non-atlas control requires another dispatcher")?
-                    .try_send(control)
-                    .map_err(|error| {
-                        anyhow::anyhow!("atlas shared control queue unavailable: {error}")
-                    })?;
+                    .context("non-atlas control requires another dispatcher")?;
+                match controls.try_send(control) {
+                    Ok(()) => {}
+                    Err(tokio::sync::mpsc::error::TrySendError::Full(control)) => {
+                        let controls = controls.clone();
+                        self.pending_shared_control = Some(Box::pin(async move {
+                            controls
+                                .send(control)
+                                .await
+                                .context("atlas shared control consumer closed")
+                        }));
+                    }
+                    Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                        anyhow::bail!("atlas shared control consumer closed");
+                    }
+                }
                 Ok(None)
             }
             _ => anyhow::bail!("control is not allowed on atlas receiver"),
@@ -1224,6 +1343,15 @@ impl AtlasReceiverSession {
             "atlas control sequencer regressed"
         );
         check_deadline(deadline)?;
+        if self.pending_shared_control.is_some() {
+            timeout_at(
+                deadline,
+                forward_pending_control(&mut self.pending_shared_control),
+            )
+            .await
+            .context("atlas control forward wait expired")??;
+            self.pending_shared_control = None;
+        }
         let envelope = timeout_at(
             deadline,
             receive_control_sequenced(&self.connection, sequencer),
@@ -1242,9 +1370,18 @@ impl AtlasReceiverSession {
         now: u64,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
         if crate::atlas_feedback::trace_frame(manifest.frame_id) {
-            self.receive_traces.entry(manifest.frame_id).or_default().staged_ns = Some(now);
+            self.receive_traces
+                .entry(manifest.frame_id)
+                .or_default()
+                .staged_ns = Some(now);
             self.trim_receive_traces();
-            trace_connection(&self.connection, manifest.frame_id, "receiver", "manifest_staged", 0);
+            trace_connection(
+                &self.connection,
+                manifest.frame_id,
+                "receiver",
+                "manifest_staged",
+                0,
+            );
         }
         let expired = self
             .admission
@@ -1308,14 +1445,24 @@ impl AtlasReceiverSession {
         now: u64,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
         ensure!(!self.retired, "atlas receiver session is retired");
-        if packet.window_id == self.policy.stream_id && crate::atlas_feedback::trace_frame(packet.frame_id) {
+        if packet.window_id == self.policy.stream_id
+            && crate::atlas_feedback::trace_frame(packet.frame_id)
+        {
             let record = self.receive_traces.entry(packet.frame_id).or_default();
             let first = record.first_ns.is_none();
             record.first_ns.get_or_insert(now);
             record.last_ns = Some(now);
             record.datagrams += 1;
             record.bytes += packet.payload.len() as u64;
-            if first { trace_connection(&self.connection, packet.frame_id, "receiver", "first_datagram_dispatched", 0); }
+            if first {
+                trace_connection(
+                    &self.connection,
+                    packet.frame_id,
+                    "receiver",
+                    "first_datagram_dispatched",
+                    0,
+                );
+            }
             self.trim_receive_traces();
         }
         let result = self.push_media_inner(packet, now, now);
@@ -1403,10 +1550,22 @@ impl AtlasReceiverSession {
             .ok_or_else(|| anyhow::anyhow!("missing atlas alpha"))?;
         let referenced = alpha.payload.starts_with(b"VFAF");
         let alpha_payload = if referenced {
-            ensure!(self.alpha_reference && !layout.color_keyframe, "unnegotiated or keyframe atlas alpha reference");
-            self.alpha_cache.as_ref().context("atlas alpha reference has no baseline")?
-                .resolve(&alpha.payload[4..], alpha_identity(layout), layout.width, layout.height)?
-        } else { alpha.payload };
+            ensure!(
+                self.alpha_reference && !layout.color_keyframe,
+                "unnegotiated or keyframe atlas alpha reference"
+            );
+            self.alpha_cache
+                .as_ref()
+                .context("atlas alpha reference has no baseline")?
+                .resolve(
+                    &alpha.payload[4..],
+                    alpha_identity(layout),
+                    layout.width,
+                    layout.height,
+                )?
+        } else {
+            alpha.payload
+        };
         ensure!(
             color
                 .payload
@@ -1460,18 +1619,39 @@ impl AtlasReceiverSession {
             .map_err(|error| anyhow::anyhow!("atlas paired admission failed: {error:?}"))?;
         if self.alpha_reference && !referenced {
             self.alpha_cache = Some(crate::alpha_reference::AlphaReferenceCache::new(
-                alpha_identity(&admitted.layout), admitted.layout.width, admitted.layout.height,
-                admitted.media.alpha.clone().context("admitted atlas alpha missing")?,
-                self.policy.max_encoded_bytes.max(usize::try_from(u64::from(self.policy.width) * u64::from(self.policy.height))?),
+                alpha_identity(&admitted.layout),
+                admitted.layout.width,
+                admitted.layout.height,
+                admitted
+                    .media
+                    .alpha
+                    .clone()
+                    .context("admitted atlas alpha missing")?,
+                self.policy.max_encoded_bytes.max(usize::try_from(
+                    u64::from(self.policy.width) * u64::from(self.policy.height),
+                )?),
             )?);
         }
         if let Some(trace) = self.receive_traces.remove(&admitted.layout.frame_id) {
             crate::atlas_feedback::trace_line(format_args!(
                 "atlas-receive-stages frame={} first_dispatch_ns={} last_dispatch_ns={} manifest_dispatch_ns={} complete_dispatch_ns={} datagrams={} payload_bytes={} missing_first={} missing_manifest={}",
-                admitted.layout.frame_id, trace.first_ns.unwrap_or(0), trace.last_ns.unwrap_or(0),
-                trace.staged_ns.unwrap_or(0), now, trace.datagrams, trace.bytes,
-                trace.first_ns.is_none(), trace.staged_ns.is_none()));
-            trace_connection(&self.connection, admitted.layout.frame_id, "receiver", "pair_admitted", 0);
+                admitted.layout.frame_id,
+                trace.first_ns.unwrap_or(0),
+                trace.last_ns.unwrap_or(0),
+                trace.staged_ns.unwrap_or(0),
+                now,
+                trace.datagrams,
+                trace.bytes,
+                trace.first_ns.is_none(),
+                trace.staged_ns.is_none()
+            ));
+            trace_connection(
+                &self.connection,
+                admitted.layout.frame_id,
+                "receiver",
+                "pair_admitted",
+                0,
+            );
         }
         self.last_coded_frame = Some(admitted.layout.frame_id);
         self.reference_gap = false;
@@ -1481,12 +1661,15 @@ impl AtlasReceiverSession {
 
     fn trim_receive_traces(&mut self) {
         // Diagnostics must stay bounded even for stale or rejected frame IDs.
-        while self.receive_traces.len() > 4 { self.receive_traces.pop_first(); }
+        while self.receive_traces.len() > 4 {
+            self.receive_traces.pop_first();
+        }
     }
 
     fn retire_media(&mut self) {
         self.receive_traces.clear();
         self.shared_controls = None;
+        self.pending_shared_control = None;
         self.retired = true;
         self.color = None;
         self.alpha = None;
@@ -1539,7 +1722,9 @@ impl AtlasReceiverSession {
         if let Some(frame) = &frame {
             if crate::atlas_feedback::trace_frame(frame.layout.frame_id) {
                 crate::atlas_feedback::trace_line(format_args!(
-                    "atlas-receive-handoff frame={} post_process_ns={now}", frame.layout.frame_id));
+                    "atlas-receive-handoff frame={} post_process_ns={now}",
+                    frame.layout.frame_id
+                ));
             }
         }
         Ok(frame)
@@ -1920,7 +2105,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn shared_pump_routes_input_and_media_and_retires_on_control_backpressure() {
+    async fn shared_pump_preserves_order_and_media_across_control_backpressure() {
         for overflow in [false, true] {
             let (_client, _server, outbound, inbound) = pair().await;
             let deadline = Instant::now() + Duration::from_secs(2);
@@ -1945,7 +2130,11 @@ pub(crate) mod tests {
                 presented_frame: 4,
                 source_not_after_ns: 100,
             };
-            for _ in 0..if overflow { 2 } else { 1 } {
+            for index in 0..if overflow { 2 } else { 1 } {
+                let authorization = viewflow_protocol::WindowPointerAuthorization {
+                    lease_generation: authorization.lease_generation + index,
+                    ..authorization
+                };
                 shared
                     .send(
                         wire::control_envelope::Payload::WindowPointerAuthorization(
@@ -1981,26 +2170,40 @@ pub(crate) mod tests {
                 )
                 .await
                 .unwrap();
-            let result = receiver.next_frame(|| 110, deadline).await;
             if overflow {
-                assert!(
-                    result
-                        .err()
-                        .unwrap()
-                        .to_string()
-                        .contains("queue unavailable")
-                );
-                assert!(receiver.retired);
-                assert!(receiver.shared_controls.is_none());
-            } else {
-                assert_eq!(result.unwrap().layout, manifest);
-                assert_eq!(receiver.control_sequence.previous(), Some(2));
+                let error = receiver
+                    .next_frame(|| 110, Instant::now() + Duration::from_millis(50))
+                    .await
+                    .err()
+                    .unwrap();
+                assert!(error.is::<AtlasWaitExpired>());
+                assert!(!receiver.retired);
+                assert!(receiver.pending_shared_control.is_some());
+                assert!(inbound.close_reason().is_none());
+                let DomainControl::WindowPointerAuthorization(first) = events.try_recv().unwrap()
+                else {
+                    panic!("expected first ordered authorization");
+                };
+                assert_eq!(first, authorization);
             }
+            let result = receiver.next_frame(|| 110, deadline).await;
+            assert_eq!(result.unwrap().layout, manifest);
+            assert_eq!(
+                receiver.control_sequence.previous(),
+                Some(if overflow { 3 } else { 2 })
+            );
+            assert!(receiver.pending_shared_control.is_none());
             let DomainControl::WindowPointerAuthorization(received) = events.try_recv().unwrap()
             else {
                 panic!("expected shared input control");
             };
-            assert_eq!(received, authorization);
+            assert_eq!(
+                received,
+                viewflow_protocol::WindowPointerAuthorization {
+                    lease_generation: authorization.lease_generation + u64::from(overflow),
+                    ..authorization
+                }
+            );
             assert!(events.try_recv().is_err());
             if !overflow {
                 // Deliberately bypass the writer to model a replay from a peer.
@@ -2114,36 +2317,74 @@ pub(crate) mod tests {
         assert!(sender.alpha_reference && receiver.alpha_reference);
         for id in 1..=6 {
             let manifest = AtlasFrame {
-                patches: None, stream_id: Id128(99), frame_id: id,
-                geometry_epoch: 1, config_generation: 1, layout_revision: 0,
-                width: 64, height: 64, source_submitted_ns: 100 + id,
-                tiles: vec![], color_keyframe: id == 1 || id == 5,
-                alpha_keyframe: true, desktop: None,
+                patches: None,
+                stream_id: Id128(99),
+                frame_id: id,
+                geometry_epoch: 1,
+                config_generation: 1,
+                layout_revision: 0,
+                width: 64,
+                height: 64,
+                source_submitted_ns: 100 + id,
+                tiles: vec![],
+                color_keyframe: id == 1 || id == 5,
+                alpha_keyframe: true,
+                desktop: None,
             };
             // Frames 2/3 reference baseline 1; 4 changes alpha but expires;
             // 5 must independently restore both chains; 6 references baseline 5.
-            let alpha = viewflow_transport::encode_alpha_rle(64,64,&vec![if id<4 {7} else {93};4096]).unwrap();
-            let expected_reference = matches!(id,2|3|6);
-            assert_eq!(sender.alpha_cache.as_ref().and_then(|c| c.reference_for(
-                alpha_identity(&manifest),64,64,&alpha)).is_some(),expected_reference);
-            let outcome=if id==4 {ExpiredUnbound} else {Committed};
-            let send = sender.send_frame(manifest.clone(), frames[0].color.clone(), alpha.clone(), id, deadline);
+            let alpha = viewflow_transport::encode_alpha_rle(
+                64,
+                64,
+                &vec![if id < 4 { 7 } else { 93 }; 4096],
+            )
+            .unwrap();
+            let expected_reference = matches!(id, 2 | 3 | 6);
+            assert_eq!(
+                sender
+                    .alpha_cache
+                    .as_ref()
+                    .and_then(|c| c.reference_for(alpha_identity(&manifest), 64, 64, &alpha))
+                    .is_some(),
+                expected_reference
+            );
+            let outcome = if id == 4 { ExpiredUnbound } else { Committed };
+            let send = sender.send_frame(
+                manifest.clone(),
+                frames[0].color.clone(),
+                alpha.clone(),
+                id,
+                deadline,
+            );
             let receive = async {
-                let admitted=receiver.next_frame(||110,deadline).await.unwrap();
-                assert_eq!(admitted.layout,manifest);
-                assert_eq!(admitted.media.alpha.as_ref(),Some(&alpha));
-                assert_eq!(admitted.media.manifest.source_submitted_ns,100+id);
-                receiver.report_disposition(&manifest,outcome,deadline).await.unwrap();
+                let admitted = receiver.next_frame(|| 110, deadline).await.unwrap();
+                assert_eq!(admitted.layout, manifest);
+                assert_eq!(admitted.media.alpha.as_ref(), Some(&alpha));
+                assert_eq!(admitted.media.manifest.source_submitted_ns, 100 + id);
+                receiver
+                    .report_disposition(&manifest, outcome, deadline)
+                    .await
+                    .unwrap();
             };
-            let (sent,())=tokio::join!(send,receive);
+            let (sent, ()) = tokio::join!(send, receive);
             sent.unwrap();
             let mut future = manifest.clone();
             future.frame_id += 1;
-            let key = receiver.alpha_cache.as_ref().unwrap().reference_for(
-                alpha_identity(&future), 64, 64, &alpha,
-            ).unwrap();
+            let key = receiver
+                .alpha_cache
+                .as_ref()
+                .unwrap()
+                .reference_for(alpha_identity(&future), 64, 64, &alpha)
+                .unwrap();
             let baseline = u64::from_be_bytes(key[16..24].try_into().unwrap());
-            assert_eq!(baseline, match id { 2 | 3 => 1, 6 => 5, _ => id });
+            assert_eq!(
+                baseline,
+                match id {
+                    2 | 3 => 1,
+                    6 => 5,
+                    _ => id,
+                }
+            );
         }
     }
 
@@ -2544,6 +2785,154 @@ pub(crate) mod tests {
         .unwrap_err();
         assert!(error.to_string().contains("advanced twice"));
         assert!(receiver.retired && receiver.fenced_manifest.is_none());
+    }
+
+    #[tokio::test]
+    async fn idle_frame_wait_yields_to_recovery_and_resumes_same_session() {
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let (sender, receiver) = tokio::join!(
+            offer_atlas(&outbound, plan(), deadline),
+            accept_atlas(&inbound, plan(), deadline)
+        );
+        let _sender = sender.unwrap();
+        let mut receiver = receiver.unwrap();
+        let fence = crate::atlas_receiver_presenter::AtlasInputRecoveryFence::default();
+        let forward = fence.begin_media_forward().await.unwrap();
+        let armer = {
+            let fence = fence.clone();
+            tokio::spawn(async move {
+                tokio::task::yield_now().await;
+                fence.arm().await;
+            })
+        };
+        let error = tokio::time::timeout(
+            Duration::from_millis(200),
+            receiver.next_frame_with_fence(|| 110, deadline, Some(&fence)),
+        )
+        .await
+        .unwrap()
+        .err()
+        .unwrap();
+        assert!(error.is::<crate::atlas_receiver_presenter::AtlasMediaFenced>());
+        assert!(!receiver.retired && receiver.control_read.is_some());
+        assert!(receiver.feedback_pending.is_none());
+        drop(forward);
+        armer.await.unwrap();
+        fence.retry_cancelled_selection();
+        let error = receiver
+            .next_frame(|| 110, Instant::now() + Duration::from_millis(10))
+            .await
+            .err()
+            .unwrap();
+        assert!(error.is::<AtlasWaitExpired>());
+        assert!(!receiver.retired && inbound.close_reason().is_none());
+    }
+
+    #[tokio::test]
+    async fn full_control_queue_preserves_native_completion_and_fenced_resume() {
+        tokio::time::timeout(Duration::from_secs(3), async {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let frames = warmup_frames();
+            let (sender, receiver) = tokio::join!(
+                offer_warmed_atlas_dispositions(&outbound, plan(), &frames, deadline),
+                accept_warmed_atlas_dispositions(&inbound, plan(), deadline, |_| async { Ok(()) })
+            );
+            let mut sender = sender.unwrap();
+            let mut receiver = receiver.unwrap();
+            let (controls, mut events) = tokio::sync::mpsc::channel(1);
+            receiver.attach_shared_controls(controls).unwrap();
+            let manifest = AtlasFrame {
+                patches: None,
+                stream_id: Id128(99),
+                frame_id: 1,
+                geometry_epoch: 1,
+                config_generation: 1,
+                layout_revision: 0,
+                width: 64,
+                height: 64,
+                source_submitted_ns: 100,
+                tiles: vec![],
+                color_keyframe: true,
+                alpha_keyframe: true,
+                desktop: None,
+            };
+            let sending = sender.send_frame(
+                manifest.clone(),
+                frames[0].color.clone(),
+                frames[0].alpha.clone(),
+                1,
+                deadline,
+            );
+            let receiving = async {
+                let frame = receiver.next_frame(|| 110, deadline).await.unwrap();
+                for probe_id in [1, 2] {
+                    receiver
+                        .process_domain_control(
+                            DomainControl::ClockSyncProbe(viewflow_protocol::ClockSyncProbe {
+                                probe_id,
+                                t0_send_ns: 100,
+                            }),
+                            110,
+                        )
+                        .unwrap();
+                }
+                assert!(receiver.pending_shared_control.is_some());
+                // A congested input consumer cannot keep an already-admitted
+                // native frame from completing and receiving its disposition.
+                let completed = receiver
+                    .with_handoff_controls(async {
+                        tokio::time::sleep(Duration::from_millis(20)).await;
+                        Ok(42)
+                    })
+                    .await
+                    .unwrap();
+                assert_eq!(completed, 42);
+                assert!(receiver.pending_shared_control.is_some());
+                assert!(inbound.close_reason().is_none());
+                receiver
+                    .report_disposition(
+                        &frame.layout,
+                        crate::atlas_feedback::AtlasFrameDisposition::Committed,
+                        deadline,
+                    )
+                    .await
+                    .unwrap();
+
+                // Cancelling a subsequent recovery wait still retains exactly
+                // that pending record, without consuming another reliable read.
+                assert!(
+                    tokio::time::timeout(
+                        Duration::from_millis(20),
+                        receiver.with_fenced_controls(std::future::pending::<Result<()>>())
+                    )
+                    .await
+                    .is_err()
+                );
+                assert!(!receiver.retired && receiver.pending_shared_control.is_some());
+                receiver
+                    .with_fenced_controls(async {
+                        for expected in [1, 2] {
+                            let DomainControl::ClockSyncProbe(probe) = events.recv().await.unwrap()
+                            else {
+                                panic!("expected ordered clock control");
+                            };
+                            assert_eq!(probe.probe_id, expected);
+                        }
+                        Ok(())
+                    })
+                    .await
+                    .unwrap();
+                assert!(receiver.pending_shared_control.is_none());
+                assert!(events.try_recv().is_err());
+                assert!(inbound.close_reason().is_none());
+            };
+            let (sent, ()) = tokio::join!(sending, receiving);
+            sent.unwrap();
+        })
+        .await
+        .unwrap();
     }
 
     #[tokio::test]

@@ -85,16 +85,26 @@ pub(crate) async fn send_bounded_control(
     deadline: Instant,
 ) -> Result<()> {
     let (sent, confirmation) = oneshot::channel();
-    outbound.controls.send(crate::OutboundControl {
-        payload,
-        sent: Some(sent),
-        input_gate: None,
-    }).await.context("shared control writer queue stopped")?;
-    confirmation.await.context("shared control confirmation owner stopped")?
+    outbound
+        .controls
+        .send(crate::OutboundControl {
+            payload,
+            sent: Some(sent),
+            input_gate: None,
+        })
+        .await
+        .context("shared control writer queue stopped")?;
+    confirmation
+        .await
+        .context("shared control confirmation owner stopped")?
         .map_err(|error| anyhow::anyhow!("shared control writer failed: {error}"))?;
     if Instant::now() > deadline {
-        eprintln!("shared control latency target missed by {}us; ordered send completed",
-            Instant::now().saturating_duration_since(deadline).as_micros());
+        eprintln!(
+            "shared control latency target missed by {}us; ordered send completed",
+            Instant::now()
+                .saturating_duration_since(deadline)
+                .as_micros()
+        );
     }
     Ok(())
 }
@@ -115,12 +125,17 @@ mod tests {
                 outbound: crate::OutboundSender::new_connected(controls, connection.clone()),
                 connection: connection.clone(),
             };
-            let payload = |id| wire::control_envelope::Payload::ClockSyncProbe(wire::ClockSyncProbe {
-                probe_id: id, t0_send_ns: id,
-            });
+            let payload = |id| {
+                wire::control_envelope::Payload::ClockSyncProbe(wire::ClockSyncProbe {
+                    probe_id: id,
+                    t0_send_ns: id,
+                })
+            };
             let first_sender = sender.clone();
             let work = tokio::spawn(async move {
-                first_sender.send(payload(1), Instant::now() + Duration::from_millis(10)).await
+                first_sender
+                    .send(payload(1), Instant::now() + Duration::from_millis(10))
+                    .await
             });
             tokio::time::sleep(Duration::from_millis(30)).await;
             assert!(!work.is_finished());
@@ -128,18 +143,29 @@ mod tests {
                 work.abort();
                 assert!(work.await.unwrap_err().is_cancelled());
                 None
-            } else { Some(work) };
+            } else {
+                Some(work)
+            };
             assert!(connection.close_reason().is_none());
             let writer = crate::spawn_control_writer(connection.clone(), queue);
             let first = tokio::time::timeout(Duration::from_secs(1), receive_control(&remote))
-                .await.unwrap().unwrap();
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(first.sequence, 1);
-            if let Some(work) = work { work.await.unwrap().unwrap(); }
+            if let Some(work) = work {
+                work.await.unwrap().unwrap();
+            }
             // Both a cancelled waiter and a delayed confirmation leave the
             // connection-wide sequence usable for the next ordered control.
-            sender.send(payload(2), Instant::now() + Duration::from_secs(1)).await.unwrap();
+            sender
+                .send(payload(2), Instant::now() + Duration::from_secs(1))
+                .await
+                .unwrap();
             let second = tokio::time::timeout(Duration::from_secs(1), receive_control(&remote))
-                .await.unwrap().unwrap();
+                .await
+                .unwrap()
+                .unwrap();
             assert_eq!(second.sequence, 2);
             assert!(connection.close_reason().is_none());
             writer.abort();

@@ -2,10 +2,19 @@
 //! Quartz coordinates are logical desktop points, not Retina backing pixels.
 
 use std::collections::BTreeSet;
-use viewflow_protocol::{InputEvent, InputEventKind, InputSwitchState, PointerButton};
+use viewflow_protocol::{
+    DesktopPointerPosition, DesktopRect, InputEvent, InputEventKind, InputSwitchState,
+    PointerButton,
+};
 
 #[cfg(target_os = "macos")]
 mod native;
+
+/// Read the current Quartz cursor and button state without posting input.
+#[cfg(target_os = "macos")]
+pub fn observe_cursor() -> Result<(f64, f64, u32)> {
+    native::observe_cursor()
+}
 
 /// Stable tag for preventing injected events from being forwarded back.
 pub const VIEWFLOW_INPUT_TAG: i64 = 0x5646_4c57;
@@ -34,6 +43,58 @@ impl std::error::Error for MacOsInputError {}
 
 type Result<T> = std::result::Result<T, MacOsInputError>;
 
+/// Explicit shared-desktop to Quartz-point mapping.
+///
+/// `bounds` is expressed in the cross-device logical desktop. `native_x` and
+/// `native_y` retain the receiver configuration's physical-pixel origin, then
+/// are converted to Quartz logical points with `scale_milli`. This deliberately
+/// differs from the Windows mapper: Quartz receives logical display points, not
+/// backing pixels.
+#[derive(Clone, Copy, Debug)]
+pub struct MacOsDesktopPointerDisplay {
+    pub bounds: DesktopRect,
+    pub native_x: i32,
+    pub native_y: i32,
+    pub scale_milli: u32,
+}
+
+impl MacOsDesktopPointerDisplay {
+    /// Maps one shared-desktop point into the receiving Mac's Quartz space.
+    pub fn quartz_position(self, position: DesktopPointerPosition) -> Result<(f64, f64)> {
+        self.bounds
+            .validate()
+            .map_err(|_| MacOsInputError::InvalidCoordinate)?;
+        if !(125..=8000).contains(&self.scale_milli) {
+            return Err(MacOsInputError::InvalidCoordinate);
+        }
+        let axis = |value: i64, origin: i64, extent: u64, native: i32| -> Result<f64> {
+            let offset = value
+                .checked_sub(origin)
+                .ok_or(MacOsInputError::InvalidCoordinate)?;
+            if offset < 0
+                || u64::try_from(offset).map_err(|_| MacOsInputError::InvalidCoordinate)? >= extent
+            {
+                return Err(MacOsInputError::InvalidCoordinate);
+            }
+            Ok(f64::from(native) * 1000.0 / f64::from(self.scale_milli) + offset as f64 / 1000.0)
+        };
+        Ok((
+            axis(
+                position.x_millidip,
+                self.bounds.x_millidip,
+                self.bounds.width_millidip,
+                self.native_x,
+            )?,
+            axis(
+                position.y_millidip,
+                self.bounds.y_millidip,
+                self.bounds.height_millidip,
+                self.native_y,
+            )?,
+        ))
+    }
+}
+
 /// USB keyboard page -> Apple virtual key code. Layout interpretation stays on
 /// the receiving Mac; GUI maps to Command, Alt maps to Option (no Ctrl swap).
 #[must_use]
@@ -57,6 +118,9 @@ pub fn hid_to_keycode(page: u16, usage: u16) -> Option<u16> {
         0x2f => 33,
         0x30 => 30,
         0x31 => 42,
+        // ISO section key. This is distinct from the ANSI backslash key and
+        // is emitted by physical ISO keyboards as HID 0x32.
+        0x32 => 10,
         0x33 => 41,
         0x34 => 39,
         0x35 => 50,
@@ -89,6 +153,10 @@ pub fn hid_to_keycode(page: u16, usage: u16) -> Option<u16> {
         0x64 => 10,
         0x67 => 81,
         0x68..=0x6f => [105, 107, 113, 106, 64, 79, 80, 90][usize::from(usage - 0x68)],
+        // Apple virtual key codes for F21 through F24. Quartz keyboard events
+        // support these page-7 usages directly, unlike consumer-page media
+        // usages which require a separate event family.
+        0x70..=0x73 => [131, 132, 134, 135][usize::from(usage - 0x70)],
         0x87 => 94,
         0x89 => 93,
         0x90 => 104,
@@ -342,7 +410,10 @@ impl<S: Sink> Drop for State<S> {
 /// Native receiver. Posting is synchronous and ordered; no focus/capture gate.
 #[cfg(target_os = "macos")]
 #[derive(Debug)]
-pub struct MacOsInputBackend(State<native::QuartzSink>);
+pub struct MacOsInputBackend {
+    state: State<native::QuartzSink>,
+    desktop_display: Option<MacOsDesktopPointerDisplay>,
+}
 
 #[cfg(target_os = "macos")]
 impl MacOsInputBackend {
@@ -350,10 +421,10 @@ impl MacOsInputBackend {
     /// Missing OS authorization is reported on apply, allowing local recovery.
     #[must_use]
     pub fn new() -> Self {
-        Self(State::new(
-            native::QuartzSink::default(),
-            native::caps_lock(),
-        ))
+        Self {
+            state: State::new(native::QuartzSink::default(), native::caps_lock()),
+            desktop_display: None,
+        }
     }
 
     /// Checks current OS event-post authorization without requesting it.
@@ -365,13 +436,26 @@ impl MacOsInputBackend {
     /// # Errors
     /// Reports unsupported HID, malformed coordinates or native posting failure.
     pub fn apply(&mut self, event: &InputEvent) -> Result<()> {
-        self.0.apply(event)
+        if let (Some(display), InputEventKind::DesktopPointerPosition(position)) =
+            (self.desktop_display, event.event)
+        {
+            let (x, y) = display.quartz_position(position)?;
+            return self.state.motion(x, y, false);
+        }
+        self.state.apply(event)
+    }
+
+    /// Enables the explicit shared-layout adapter for desktop cursor events.
+    /// Relative motion, keys, buttons, wheel and release bookkeeping remain
+    /// unchanged.
+    pub fn set_desktop_display(&mut self, display: MacOsDesktopPointerDisplay) {
+        self.desktop_display = Some(display);
     }
 
     /// # Errors
     /// Failed releases remain held in the ledger for subsequent retries.
     pub fn release_all(&mut self) -> Result<()> {
-        self.0.release_all()
+        self.state.release_all()
     }
 }
 
@@ -435,9 +519,14 @@ mod tests {
             (4, 0),
             (0x1d, 6),
             (0x28, 36),
+            (0x32, 10),
             (0x4c, 117),
             (0x58, 76),
             (0x6f, 90),
+            (0x70, 131),
+            (0x71, 132),
+            (0x72, 134),
+            (0x73, 135),
             (0xe0, 59),
             (0xe3, 55),
             (0xe4, 62),
@@ -448,7 +537,42 @@ mod tests {
         assert_eq!(hid_to_keycode(0x0c, 0xcd), None);
         assert_eq!(hid_to_keycode(7, 0xffff), None);
         let codes: Vec<_> = (0..=255).filter_map(|u| hid_to_keycode(7, u)).collect();
-        assert_eq!(codes.len(), codes.iter().collect::<BTreeSet<_>>().len());
+        let distinct = codes.iter().collect::<BTreeSet<_>>();
+        // HID's two non-US key usages both name the same ISO physical key in
+        // Quartz; every other supported usage remains one-to-one.
+        assert_eq!(codes.len(), distinct.len() + 1);
+        assert_eq!(codes.iter().filter(|&&code| code == 10).count(), 2);
+    }
+
+    #[test]
+    fn quartz_adapter_handles_retina_scale_and_negative_shared_origin() {
+        let display = MacOsDesktopPointerDisplay {
+            bounds: DesktopRect {
+                x_millidip: -1_280_000,
+                y_millidip: -200_000,
+                width_millidip: 1_280_000,
+                height_millidip: 720_000,
+            },
+            native_x: -2_560,
+            native_y: 400,
+            scale_milli: 2_000,
+        };
+        assert_eq!(
+            display
+                .quartz_position(DesktopPointerPosition {
+                    x_millidip: -640_000,
+                    y_millidip: 160_000,
+                })
+                .unwrap(),
+            (-640.0, 560.0)
+        );
+        assert_eq!(
+            display.quartz_position(DesktopPointerPosition {
+                x_millidip: 0,
+                y_millidip: 160_000,
+            }),
+            Err(MacOsInputError::InvalidCoordinate)
+        );
     }
 
     #[test]

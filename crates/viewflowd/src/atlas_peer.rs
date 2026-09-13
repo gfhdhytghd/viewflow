@@ -96,6 +96,9 @@ pub struct AtlasSourceConfig {
     pub pointer: Option<AtlasSourcePointerConfig>,
     #[serde(default)]
     pub capture_provider: AtlasCaptureProvider,
+    /// Capture scheduling preference; image quality and session recovery are unchanged.
+    #[serde(default)]
+    pub performance_mode: AtlasPerformanceMode,
     #[serde(default)]
     pub disposition_recovery: bool,
     pub bind: SocketAddr,
@@ -145,6 +148,17 @@ pub enum AtlasCaptureProvider {
     Hyprcapture,
 }
 
+/// Local capture scheduling preference. Both modes retain full visual effects.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum AtlasPerformanceMode {
+    /// Pace captures on the common fixed-rate grid.
+    #[default]
+    FrameRate,
+    /// Capture newly committed content promptly, retaining periodic fallback.
+    Latency,
+}
+
 impl AtlasSourceConfig {
     /// # Errors
     /// Rejects invalid configuration before starting capture or networking.
@@ -158,6 +172,11 @@ impl AtlasSourceConfig {
     /// # Errors
     /// Validates authorized membership and deterministically packs capture pixels.
     pub fn layout(&self) -> Result<viewflow_core::AtlasSnapshot> {
+        ensure!(
+            self.performance_mode != AtlasPerformanceMode::Latency
+                || matches!(self.capture_provider, AtlasCaptureProvider::Viewflow),
+            "latency performance mode requires the Viewflow capture provider"
+        );
         if let Some(reverse) = &self.reverse {
             reverse.validate()?;
         }
@@ -645,12 +664,7 @@ mod receiver {
             let sample = crate::atlas_receiver_presenter::QpcSample::current()?;
             Ok((sample.ticks, sample.frequency))
         });
-        let endpoint = quinn::Endpoint::new(
-            Default::default(),
-            Some(tls),
-            socket,
-            runtime,
-        )?;
+        let endpoint = quinn::Endpoint::new(Default::default(), Some(tls), socket, runtime)?;
         eprintln!(
             "atlas-peer-listening address={} input_enabled={}",
             endpoint.local_addr()?,
@@ -692,7 +706,10 @@ mod receiver {
     ) -> Result<()> {
         let mut guard = crate::atlas_session::StartupGuard(Some(connection.clone()));
         let clock = Clock(Instant::now());
-        let _connection_sampler = crate::atlas_feedback::sample_connection(&connection, "receiver", move || Ok(clock.now()));
+        let _connection_sampler =
+            crate::atlas_feedback::sample_connection(&connection, "receiver", move || {
+                Ok(clock.now())
+            });
         if crate::atlas_feedback::trace_frame(0) {
             let before_ns = clock.now();
             if let Ok(sample) = crate::atlas_receiver_presenter::QpcSample::current() {
@@ -1191,6 +1208,7 @@ mod tests {
             desktop: None,
             pointer: None,
             capture_provider: AtlasCaptureProvider::Viewflow,
+            performance_mode: AtlasPerformanceMode::FrameRate,
             disposition_recovery: false,
             bind: receiver.bind,
             remote: "127.0.0.1:9000".parse().unwrap(),
@@ -1213,6 +1231,24 @@ mod tests {
                 })
                 .collect(),
         };
+        let mut encoded = serde_json::to_value(&source).unwrap();
+        encoded.as_object_mut().unwrap().remove("performance_mode");
+        let legacy: AtlasSourceConfig = serde_json::from_value(encoded.clone()).unwrap();
+        assert_eq!(legacy.performance_mode, AtlasPerformanceMode::FrameRate);
+        encoded["performance_mode"] = serde_json::json!("latency");
+        let mut latency: AtlasSourceConfig = serde_json::from_value(encoded.clone()).unwrap();
+        assert_eq!(latency.performance_mode, AtlasPerformanceMode::Latency);
+        assert!(latency.layout().is_ok());
+        latency.capture_provider = AtlasCaptureProvider::Hyprcapture;
+        assert!(
+            latency
+                .layout()
+                .unwrap_err()
+                .to_string()
+                .contains("Viewflow capture provider")
+        );
+        encoded["performance_mode"] = serde_json::json!("unknown-mode");
+        assert!(serde_json::from_value::<AtlasSourceConfig>(encoded).is_err());
         let mut overlapping = source.clone();
         overlapping.media.width = 1024;
         overlapping.media.height = 1024;

@@ -4,6 +4,129 @@ use std::collections::HashMap;
 
 use viewflow_protocol::{AudioRoute, DeviceId, WindowDescriptor, WindowFamilyId};
 
+/// User-selected playback policy. Device identifiers refer to paired machines,
+/// not sound cards. The selected machine uses its current normal output.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum AudioPlaybackMode {
+    #[default]
+    NoForwarding,
+    FollowWindow,
+    DesignatedDevice(DeviceId),
+}
+
+/// A resolved route never forwards a received stream again. System capture
+/// adapters must exclude Viewflow playback to prevent feedback between peers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AudioCaptureScope {
+    Application(WindowFamilyId),
+    System,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AudioForwardingDecision {
+    pub source: DeviceId,
+    pub target: DeviceId,
+    pub scope: AudioCaptureScope,
+}
+
+impl AudioPlaybackMode {
+    /// Resolve application audio using the application's owner and the current
+    /// committed window location. Hover and keyboard focus do not affect audio.
+    #[must_use]
+    pub fn for_window(
+        self,
+        source: DeviceId,
+        location: DeviceId,
+        family: WindowFamilyId,
+    ) -> Option<AudioForwardingDecision> {
+        match self {
+            Self::NoForwarding => None,
+            Self::FollowWindow if source != location => Some(AudioForwardingDecision {
+                source,
+                target: location,
+                scope: AudioCaptureScope::Application(family),
+            }),
+            // System mode produces one stream per source, never one duplicate
+            // system capture for each exported window.
+            Self::FollowWindow | Self::DesignatedDevice(_) => None,
+        }
+    }
+
+    /// Includes system sounds and applications without shared windows. The
+    /// destination's own audio keeps playing locally and is never looped back.
+    #[must_use]
+    pub fn for_system(self, source: DeviceId) -> Option<AudioForwardingDecision> {
+        match self {
+            Self::DesignatedDevice(target) if source != target => Some(AudioForwardingDecision {
+                source,
+                target,
+                scope: AudioCaptureScope::System,
+            }),
+            _ => None,
+        }
+    }
+}
+
+/// Application identity must be stable for a process lifetime (PID alone is
+/// reusable). Main-window moves choose one output for the entire application.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct AudioApplicationId {
+    pub source: DeviceId,
+    pub instance: u128,
+}
+
+#[derive(Debug, Default)]
+pub struct ApplicationAudioLocations {
+    locations: HashMap<AudioApplicationId, HashMap<WindowFamilyId, (u64, DeviceId)>>,
+}
+impl ApplicationAudioLocations {
+    /// Called for committed main-window moves, including moves back home.
+    /// The move order is source-wide and must increase for each real move;
+    /// replicated or delayed inventory must not override a more recent move.
+    pub fn main_window_moved(
+        &mut self,
+        app: AudioApplicationId,
+        family: WindowFamilyId,
+        location: DeviceId,
+        move_order: u64,
+    ) {
+        let windows = self.locations.entry(app).or_default();
+        if windows
+            .get(&family)
+            .is_some_and(|(order, _)| *order >= move_order)
+        {
+            return;
+        }
+        windows.insert(family, (move_order, location));
+    }
+
+    pub fn main_window_closed(&mut self, app: AudioApplicationId, family: WindowFamilyId) {
+        if let Some(windows) = self.locations.get_mut(&app) {
+            windows.remove(&family);
+            if windows.is_empty() {
+                self.locations.remove(&app);
+            }
+        }
+    }
+
+    pub fn application_stopped(&mut self, app: AudioApplicationId) {
+        self.locations.remove(&app);
+    }
+
+    #[must_use]
+    pub fn destination(&self, app: AudioApplicationId, mode: AudioPlaybackMode) -> DeviceId {
+        match mode {
+            AudioPlaybackMode::NoForwarding => app.source,
+            AudioPlaybackMode::DesignatedDevice(target) => target,
+            AudioPlaybackMode::FollowWindow => self
+                .locations
+                .get(&app)
+                .and_then(|windows| windows.values().max_by_key(|(order, _)| *order))
+                .map_or(app.source, |(_, device)| *device),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AudioRouteError {
     StaleGeneration,
@@ -123,6 +246,82 @@ impl AudioRouter {
 mod tests {
     use super::*;
     use viewflow_protocol::{Id128, Point, Rect, Size, WindowRole};
+
+    #[test]
+    fn playback_modes_distinguish_owner_location_and_system() {
+        let owner = Id128(1);
+        let location = Id128(2);
+        let selected = Id128(3);
+        let family = Id128(10);
+        assert_eq!(
+            AudioPlaybackMode::NoForwarding.for_window(owner, location, family),
+            None
+        );
+        assert_eq!(AudioPlaybackMode::NoForwarding.for_system(owner), None);
+        assert_eq!(
+            AudioPlaybackMode::FollowWindow.for_window(owner, owner, family),
+            None
+        );
+        assert_eq!(
+            AudioPlaybackMode::FollowWindow.for_window(owner, location, family),
+            Some(AudioForwardingDecision {
+                source: owner,
+                target: location,
+                scope: AudioCaptureScope::Application(family)
+            })
+        );
+        assert_eq!(AudioPlaybackMode::FollowWindow.for_system(owner), None);
+        let mode = AudioPlaybackMode::DesignatedDevice(selected);
+        assert_eq!(mode.for_window(owner, location, family), None);
+        assert_eq!(
+            mode.for_system(owner),
+            Some(AudioForwardingDecision {
+                source: owner,
+                target: selected,
+                scope: AudioCaptureScope::System
+            })
+        );
+        assert_eq!(mode.for_system(selected), None);
+    }
+
+    #[test]
+    fn application_follows_last_moved_main_window_including_return_home() {
+        let app = AudioApplicationId {
+            source: Id128(1),
+            instance: 123,
+        };
+        let mut locations = ApplicationAudioLocations::default();
+        let mode = AudioPlaybackMode::FollowWindow;
+        locations.main_window_moved(app, Id128(10), Id128(2), 1);
+        locations.main_window_moved(app, Id128(11), Id128(3), 2);
+        assert_eq!(locations.destination(app, mode), Id128(3));
+        locations.main_window_moved(app, Id128(10), Id128(1), 3);
+        assert_eq!(locations.destination(app, mode), Id128(1));
+        locations.main_window_moved(app, Id128(10), Id128(2), 1);
+        assert_eq!(locations.destination(app, mode), Id128(1));
+        locations.main_window_closed(app, Id128(10));
+        assert_eq!(locations.destination(app, mode), Id128(3));
+        assert_eq!(
+            locations.destination(app, AudioPlaybackMode::NoForwarding),
+            Id128(1)
+        );
+        assert_eq!(
+            locations.destination(app, AudioPlaybackMode::DesignatedDevice(Id128(4))),
+            Id128(4)
+        );
+        locations.application_stopped(app);
+        assert_eq!(locations.destination(app, mode), Id128(1));
+        assert_eq!(
+            locations.destination(
+                AudioApplicationId {
+                    instance: 124,
+                    ..app
+                },
+                mode
+            ),
+            Id128(1)
+        );
+    }
 
     fn route(family: u128, device: u128, output: &str) -> AudioRoute {
         AudioRoute {

@@ -1,0 +1,56 @@
+name: Unified Viewflow applications
+on:
+  push:
+    paths: ['platform/desktop-app/**', 'platform/macos-app/**', 'tools/build-*-app.py', 'tools/package-windows-msi.py', 'crates/**', 'platform/windows-*/**', 'Cargo.*', 'tools/export-app-connection.py', 'tools/tests/unified-apps-test.py', '.github/workflows/unified-apps.yml']
+  pull_request:
+    paths: ['platform/desktop-app/**', 'platform/macos-app/**', 'tools/build-*-app.py', 'tools/package-windows-msi.py', 'crates/**', 'platform/windows-*/**', 'Cargo.*', 'tools/export-app-connection.py', 'tools/tests/unified-apps-test.py', '.github/workflows/unified-apps.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/tests/unified-apps-test.py
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install build tooling
+        run: |
+          rustup toolchain install stable --profile minimal
+          python -m pip install pyinstaller==6.22.0
+          dotnet tool install --global wix --version 4.0.6
+      - name: Build complete Windows application and installer
+        shell: pwsh
+        run: |
+          $env:PATH = "${env:ProgramFiles(x86)}\Inno Setup 6;" + $env:PATH
+          python tools/build-desktop-app.py --output dist/Viewflow
+          python tools/package-windows-msi.py --app dist/Viewflow --output dist/Viewflow-0.1.0-x64.msi
+      - name: Verify MSI extraction and packaged file hashes
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path dist/Viewflow-0.1.0-x64.msi).Path
+          $extracted = Join-Path $env:RUNNER_TEMP 'viewflow-msi-check'
+          $process = Start-Process msiexec.exe -ArgumentList @('/a', "`"$msi`"", '/qn', "TARGETDIR=`"$extracted`"") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "MSI extraction failed: $($process.ExitCode)" }
+          $manifest = Get-ChildItem $extracted -Filter bundle-manifest.json -Recurse | Select-Object -First 1
+          if (-not $manifest) { throw 'Extracted MSI lacks its bundle manifest' }
+          $bundle = Get-Content $manifest.FullName -Raw | ConvertFrom-Json
+          foreach ($file in $bundle.files.PSObject.Properties) {
+            $path = Join-Path $manifest.DirectoryName $file.Name
+            if ((Get-FileHash $path -Algorithm SHA256).Hash.ToLower() -ne $file.Value) { throw "Hash mismatch: $($file.Name)" }
+          }
+          & (Join-Path $manifest.DirectoryName 'Viewflow.exe') --check-bundle
+          if ($LASTEXITCODE -ne 0) { throw 'Extracted bundle validation failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Viewflow-Windows-Installer-Unvalidated-Input
+          path: |
+            dist/Viewflow-0.1.0-x64.msi
+            dist/Viewflow-0.1.0-x64.msi.sha256
+            dist/Viewflow/bundle-manifest.json

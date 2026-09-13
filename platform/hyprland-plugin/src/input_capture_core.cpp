@@ -44,6 +44,7 @@ InputCaptureCore::InputCaptureCore(double edgeBandDip,
       m_outwardThresholdDip(std::max(0.0, outwardThresholdDip)) {}
 
 void InputCaptureCore::resetConnection() {
+  m_pendingReturnGeneration = 0;
   (void)release();
   m_lastGeneration = 0;
   m_remote.reset();
@@ -223,6 +224,7 @@ bool InputCaptureCore::activate(InputLeaseIdentity lease) {
       lease.generation <= m_lastGeneration || targetIsZero ||
       !m_physicalButtons.empty() || !m_physicalKeys.empty())
     return false;
+  m_pendingReturnGeneration = 0;
   m_lease = lease;
   m_lastGeneration = lease.generation;
   m_phase = CapturePhase::REMOTE_CAPTURED;
@@ -243,6 +245,7 @@ ReleaseState InputCaptureCore::release() {
 }
 
 bool InputCaptureCore::button(std::uint32_t code, bool pressed) {
+  if (code == 272) m_pendingReturnGeneration = 0;
   if (pressed) m_physicalButtons.insert(code);
   else m_physicalButtons.erase(code);
   if (!captured())

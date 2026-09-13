@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "platform": "windows",
+  "name": "My computers",
+  "components": [
+    {"id": "windows", "title": "接收窗口", "program": "vf-window-peer", "args": ["--config", "${profile}/windows.json"]},
+    {"id": "clipboard", "title": "剪贴板", "program": "vf-clipboard-peer", "args": ["--config", "${profile}/clipboard.json"]}
+  ],
+  "configs": {
+    "windows.json": {
+      "bind": "0.0.0.0:44220", "role": "presenter",
+      "certificate": "${profile}/device.pem", "private_key": "${profile}/device.key", "certificate_authority": "${profile}/ca.pem",
+      "backend": {"native": "${program:viewflow-windows-windows}", "args": []}
+    },
+    "clipboard.json": {
+      "bind": "0.0.0.0:44141",
+      "certificate": "${profile}/device.pem", "private_key": "${profile}/device.key", "certificate_authority": "${profile}/ca.pem"
+    }
+  },
+  "files": {}
+}

@@ -32,10 +32,14 @@ public:
   bool suppressConvenienceMotion() const { return m_windowPointer.suppressConvenienceMotion(); }
   [[nodiscard]] std::string captureStatusJson() const;
   bool captured() const { return m_core.captured(); }
+  bool forwardedMotion = false; // Synchronous compositor-thread cursor dispatch only.
+  void forwardedButton(uint32_t code, bool down, uint32_t time);
+  void forwardedAxis(uint32_t axis, double delta, int32_t discrete, uint32_t source, uint32_t time);
 
 private:
   struct PointerListeners {
     bool dead = false;
+    bool physical = false;
     CHyprSignalListener destroy;
     CHyprSignalListener motion;
     CHyprSignalListener button;
@@ -57,13 +61,18 @@ private:
   void reconcileDevices();
   void processCommands(std::uint64_t tickStarted, InputDispatchOrigin origin);
   void observePointerPosition(double x, double y);
-  void onPointerMotion(const IPointer::SMotionEvent &event);
-  void onPointerButton(const IPointer::SButtonEvent &event);
+  void onPointerMotion(const IPointer::SMotionEvent &event, bool external = false);
+  void onPointerButton(const IPointer::SButtonEvent &event, bool external = false);
   void onPointerAxis(const IPointer::SAxisEvent &event);
   void onPointerFrame();
   void drainTouchpad();
   bool remoteGesture() const;
-  bool rawTouchpad() const { return m_rawTouchpadEnabled && m_touchpad && m_touchpad->available(); }
+  enum class TouchpadMode : std::uint8_t { Derived = 0, QuicRaw = 1, ExternalNative = 2 };
+  bool suppressesDerivedTouchpad() const {
+    return m_touchpadMode != TouchpadMode::Derived && m_touchpad && m_touchpad->available();
+  }
+  bool rawTouchpad() const { return m_touchpadMode == TouchpadMode::QuicRaw && m_touchpad && m_touchpad->available(); }
+  bool externalTouchpad() const { return m_touchpadMode == TouchpadMode::ExternalNative && m_touchpad && m_touchpad->available(); }
   void onKey(const IKeyboard::SKeyEvent &event);
   void suppressKeyboard(KeyboardListeners &listeners);
   void suppressLocalKeyboards();
@@ -77,7 +86,9 @@ private:
   [[nodiscard]] bool physical(IPointer &pointer) const;
   [[nodiscard]] bool physical(IKeyboard &keyboard) const;
 
-  bool m_rawTouchpadEnabled{true};
+  TouchpadMode m_touchpadMode{TouchpadMode::QuicRaw};
+  bool m_buttonPhysical = true, m_axisPhysical = true, m_keyPhysical = true;
+  uint64_t m_returnedButtons = 0;
   std::unique_ptr<TouchpadCapture> m_touchpad;
   IPointer* m_touchpadPointer{};
   std::uint64_t m_touchpadFrames{}, m_suppressedGestureEvents{}, m_localGestureEvents{};

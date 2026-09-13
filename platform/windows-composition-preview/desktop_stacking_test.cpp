@@ -8,4 +8,23 @@ int main() {
   // Source activation raises only the newly active proxy before reconciliation.
   assert((InterleaveDesktopOrder<int>({2,10,1,20,30}, {2,1}) == std::vector<int>{2,10,1,20,30}));
   assert((InterleaveDesktopOrder<int>({1,10,2}, {2,1}) == std::vector<int>{2,10,1}));
+
+  viewflow::windows_preview::DesktopRaiseOrder<int> raises;
+  int local = 1;
+  raises.source_raised(2, local);
+  assert(local == 0);
+  auto stale = std::vector<int>{1, 2};
+  raises.reconcile(stale, local);
+  assert((stale == std::vector<int>{2, 1}));
+  // Repeated old snapshots cannot undo the new Linux click.
+  stale = {1, 2};
+  raises.reconcile(stale, local);
+  assert((stale == std::vector<int>{2, 1}));
+  auto acknowledged = std::vector<int>{2, 1};
+  raises.reconcile(acknowledged, local);
+  assert(raises.pending_source == 0);
+  // A later Windows click owns the order until its snapshot arrives.
+  local = 1;
+  raises.reconcile(acknowledged, local);
+  assert((acknowledged == std::vector<int>{1, 2}));
 }

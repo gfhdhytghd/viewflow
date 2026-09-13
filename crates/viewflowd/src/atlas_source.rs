@@ -68,11 +68,16 @@ async fn start_sources(
         let pid = config.compositor_pid;
         let timeout = deadline.saturating_duration_since(Instant::now());
         let provider = config.capture_provider;
+        let performance_mode = config.performance_mode;
         jobs.spawn(async move {
             let stream = match provider {
                 crate::atlas_peer::AtlasCaptureProvider::Viewflow => {
-                    crate::hyprcapture_runtime::start_viewflow_gpu_stream(
-                        &address, fps, pid, timeout,
+                    crate::hyprcapture_runtime::start_viewflow_gpu_stream_with_mode(
+                        &address,
+                        fps,
+                        pid,
+                        timeout,
+                        performance_mode,
                     )
                     .await
                 }
@@ -145,10 +150,18 @@ pub async fn run_until(
     let tls = viewflow_transport::build_client_config(&identity)
         .map_err(|e| anyhow::anyhow!("atlas client TLS configuration: {e}"))?;
     // No capture leases or clock stream exist during expensive GPU preparation.
-    let warm_encoder = prepare(plan)?;
-    let (mut endpoint, _socket_trace) = crate::atlas_socket_trace::client(
-        config.bind, || Ok((native_now()?, 1_000_000_000)),
-    )?;
+    let mut warm_encoder = prepare(plan)?;
+    if let Some(desktop) = &config.desktop {
+        let visible = desktop.remote_display.rect()?;
+        let resident = desktop.seam_cache_viewport()?;
+        warm_encoder.set_seam_cache(visible, resident);
+        eprintln!(
+            "atlas-seam-cache dip={} visible={visible:?} resident={resident:?}",
+            desktop.seam_cache_dip
+        );
+    }
+    let (mut endpoint, _socket_trace) =
+        crate::atlas_socket_trace::client(config.bind, || Ok((native_now()?, 1_000_000_000)))?;
     endpoint.set_default_client_config(tls);
     let (stop_tx, stop_rx) = watch::channel(false);
     let work = async {
@@ -208,7 +221,8 @@ pub async fn run_until(
                 };
             }
         };
-        let _connection_sampler = crate::atlas_feedback::sample_connection(&peer.connection, "source", native_now);
+        let _connection_sampler =
+            crate::atlas_feedback::sample_connection(&peer.connection, "source", native_now);
         let (_shared_writer, input) = match setup_input(&config, &mut peer, desktop_setup.clone()) {
             Ok(setup) => setup,
             Err(error) => {
@@ -242,6 +256,7 @@ pub async fn run_until(
                 lane,
                 config.desktop.as_ref().expect("desktop setup has config"),
                 config.capture_provider,
+                config.performance_mode,
                 u16::try_from(config.fps)?,
                 config.compositor_pid,
                 plan.policy.stream_id,
@@ -530,6 +545,7 @@ mod tests {
             pointer: None,
             desktop: None,
             capture_provider: crate::atlas_peer::AtlasCaptureProvider::Hyprcapture,
+            performance_mode: crate::atlas_peer::AtlasPerformanceMode::FrameRate,
             disposition_recovery: false,
             bind: "127.0.0.1:0".parse().unwrap(),
             remote: "127.0.0.1:9000".parse().unwrap(),

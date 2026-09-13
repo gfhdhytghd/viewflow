@@ -232,6 +232,21 @@ add_executable(viewflow_sparse_coalesce_test sparse_coalesce_test.cpp)
 target_compile_features(viewflow_sparse_coalesce_test PRIVATE cxx_std_20)
 add_test(NAME sparse_coalesce COMMAND viewflow_sparse_coalesce_test)
 
+# Manual oracle: real HostBackdrop with moving/resizing owned windows.
+add_executable(viewflow_native_background_cache_test WIN32 native_background_cache_test.cpp
+  ../windows-video-compositor/video_compositor.cpp)
+target_include_directories(viewflow_native_background_cache_test PRIVATE ../windows-video-compositor)
+target_compile_features(viewflow_native_background_cache_test PRIVATE cxx_std_20)
+target_compile_definitions(viewflow_native_background_cache_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+if(MSVC)
+  target_compile_options(viewflow_native_background_cache_test PRIVATE /EHsc)
+endif()
+target_link_libraries(viewflow_native_background_cache_test PRIVATE viewflow_vfgp_parser d3d11 d2d1 dxgi dwmapi windowsapp mfplat mfuuid ole32 wmcodecdspuuid d3dcompiler winmm advapi32 imm32 shell32 propsys gdi32)
+
+add_executable(viewflow_background_region_test background_region_test.cpp)
+target_compile_features(viewflow_background_region_test PRIVATE cxx_std_20)
+add_test(NAME background_region COMMAND viewflow_background_region_test)
+
 # Tests use assert for executable checks (some expressions perform setup).
 # Release must run those checks rather than compiling their bodies away.
 get_property(preview_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
@@ -278,3 +293,39 @@ add_executable(viewflow_windows_window_frame_observer WIN32 ../../tools/windows_
 target_compile_features(viewflow_windows_window_frame_observer PRIVATE cxx_std_20)
 target_compile_definitions(viewflow_windows_window_frame_observer PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(viewflow_windows_window_frame_observer PRIVATE d3d11 dxgi dwmapi shell32 user32 windowsapp winmm)
+
+# The message-only test includes the real WndProc and its timer dispatch.
+get_target_property(modal_timer_sources viewflow_windows_composition_preview SOURCES)
+list(REMOVE_ITEM modal_timer_sources main.cpp)
+add_executable(viewflow_atlas_modal_timer_test atlas_modal_timer_test.cpp ${modal_timer_sources})
+target_compile_features(viewflow_atlas_modal_timer_test PRIVATE cxx_std_20)
+target_compile_definitions(viewflow_atlas_modal_timer_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,COMPILE_DEFINITIONS>)
+target_include_directories(viewflow_atlas_modal_timer_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,INCLUDE_DIRECTORIES>)
+target_link_libraries(viewflow_atlas_modal_timer_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,LINK_LIBRARIES>)
+target_compile_options(viewflow_atlas_modal_timer_test PRIVATE /EHsc /UNDEBUG)
+add_test(NAME atlas_modal_timer COMMAND viewflow_atlas_modal_timer_test)
+
+add_executable(viewflow_atlas_surface_retirement_test atlas_surface_retirement_test.cpp ${modal_timer_sources})
+target_compile_features(viewflow_atlas_surface_retirement_test PRIVATE cxx_std_20)
+target_compile_definitions(viewflow_atlas_surface_retirement_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,COMPILE_DEFINITIONS>)
+target_include_directories(viewflow_atlas_surface_retirement_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,INCLUDE_DIRECTORIES>)
+target_link_libraries(viewflow_atlas_surface_retirement_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,LINK_LIBRARIES>)
+target_compile_options(viewflow_atlas_surface_retirement_test PRIVATE /EHsc /UNDEBUG)
+# Like sparse_surface_gpu_test, this oracle needs an interactive compositor.
+# Run it explicitly in the desktop session; SSH/session-0 lacks that capability.
+
+add_executable(viewflow_sparse_seam_capture_test sparse_seam_capture_test.cpp ${modal_timer_sources})
+target_compile_features(viewflow_sparse_seam_capture_test PRIVATE cxx_std_20)
+target_compile_definitions(viewflow_sparse_seam_capture_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,COMPILE_DEFINITIONS>)
+target_include_directories(viewflow_sparse_seam_capture_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,INCLUDE_DIRECTORIES>)
+target_link_libraries(viewflow_sparse_seam_capture_test PRIVATE
+  $<TARGET_PROPERTY:viewflow_windows_composition_preview,LINK_LIBRARIES>)
+target_compile_options(viewflow_sparse_seam_capture_test PRIVATE /EHsc /UNDEBUG)

@@ -8,6 +8,7 @@
 
 static LRESULT CALLBACK host_test_proc(HWND window,UINT message,WPARAM w,LPARAM l) {
   if(message==WM_MOUSEACTIVATE)return MA_NOACTIVATE;
+  if(message==WM_NCHITTEST)return HTTRANSPARENT;
   return DefWindowProcW(window,message,w,l);
 }
 static void host_require(bool value,const char* message) {if(!value)throw std::runtime_error(message);}
@@ -38,14 +39,16 @@ int wmain(int argc,wchar_t**) try {
   init_apartment(apartment_type::single_threaded);
   const HWND original_foreground=GetForegroundWindow();
   const auto active_monitor=MonitorFromWindow(original_foreground,MONITOR_DEFAULTTOPRIMARY);
-  struct Display { HMONITOR monitor;RECT work;bool primary; };
+  struct Display { HMONITOR monitor;RECT work;bool primary;RECT bounds; };
   std::vector<Display> displays;
   EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR monitor,HDC,LPRECT,LPARAM context)->BOOL {
     MONITORINFO info{sizeof(info)};
-    if(GetMonitorInfoW(monitor,&info))reinterpret_cast<std::vector<Display>*>(context)->push_back({monitor,info.rcWork,bool(info.dwFlags&MONITORINFOF_PRIMARY)});
+    if(GetMonitorInfoW(monitor,&info))reinterpret_cast<std::vector<Display>*>(context)->push_back({monitor,info.rcWork,bool(info.dwFlags&MONITORINFOF_PRIMARY),info.rcMonitor});
     return TRUE;
   },reinterpret_cast<LPARAM>(&displays));
-  auto selected=std::find_if(displays.begin(),displays.end(),[&](auto const& d){return d.monitor!=active_monitor && d.work.right-d.work.left>=1568 && d.work.bottom-d.work.top>=544;});
+  const auto exact4k=[](auto const& d){return d.bounds.right-d.bounds.left==3840 && d.bounds.bottom-d.bounds.top==2400;};
+  auto selected=std::find_if(displays.begin(),displays.end(),exact4k);
+  if(selected==displays.end())selected=std::find_if(displays.begin(),displays.end(),[&](auto const& d){return d.monitor!=active_monitor && d.work.right-d.work.left>=1568 && d.work.bottom-d.work.top>=544;});
   if(selected==displays.end())selected=std::find_if(displays.begin(),displays.end(),[](auto const& d){return d.work.right-d.work.left>=1568 && d.work.bottom-d.work.top>=544;});
   host_require(selected!=displays.end(),"no display fits owned test rectangle");
   const int bx=selected->work.right-1552,by=selected->work.top+16,x=bx+128,y=by+128;
@@ -59,7 +62,8 @@ int wmain(int argc,wchar_t**) try {
   auto control=foreground_on_device(owner,compositor,256,256);
   WNDCLASSW cls{};cls.lpfnWndProc=host_test_proc;cls.hInstance=GetModuleHandleW(nullptr);cls.lpszClassName=L"ViewflowHostBackdropOracle";
   host_require(RegisterClassW(&cls)!=0,"register owned test class");
-  constexpr DWORD extended=WS_EX_NOREDIRECTIONBITMAP|WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW;
+  constexpr DWORD extended=WS_EX_NOREDIRECTIONBITMAP|WS_EX_TOOLWINDOW|
+      viewflow::windows_preview::kDiagnosticMouseStyles;
   WindowOwner background{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned test background",WS_POPUP,bx,by,1536,512,nullptr,nullptr,cls.hInstance,nullptr)};
   host_require(background.value!=nullptr,"create test background");
   WindowOwner overlay{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned backdrop comparison",WS_POPUP,x,y,256,256,background.value,nullptr,cls.hInstance,nullptr)};
@@ -67,6 +71,11 @@ int wmain(int argc,wchar_t**) try {
   WindowOwner candidate_window{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned candidate",WS_POPUP,x+512,y,256,256,background.value,nullptr,cls.hInstance,nullptr)};
   WindowOwner control_window{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned control",WS_POPUP,x+1024,y,256,256,background.value,nullptr,cls.hInstance,nullptr)};
   host_require(candidate_window.value && control_window.value,"create comparison hosts");
+  const std::array<HWND,4> owned_windows{background.value,overlay.value,candidate_window.value,control_window.value};
+  for(const auto window:owned_windows)
+    viewflow::windows_preview::ConfigureDiagnosticMousePassthrough(window);
+  std::printf("host-test mouse_passthrough=1 no_activate=1 output=%ld,%ld,%ld,%ld exact4k=%u\n",
+      selected->bounds.left,selected->bounds.top,selected->bounds.right,selected->bounds.bottom,unsigned(exact4k(*selected)));
   BOOL yes=TRUE;
   check_hresult(DwmSetWindowAttribute(overlay.value,DWMWA_USE_HOSTBACKDROPBRUSH,&yes,sizeof(yes)));
   check_hresult(DwmSetWindowAttribute(candidate_window.value,DWMWA_USE_HOSTBACKDROPBRUSH,&yes,sizeof(yes)));
@@ -123,7 +132,19 @@ int wmain(int argc,wchar_t**) try {
     if(calibrate)reference_commit_sparse_visuals(candidate,reference_stage_sparse_visuals(candidate,compositor,surface.surface,patches,0,256,256,candidate_blurred),256,256);
     else commit_sparse_visuals(candidate,stage_sparse_visuals(candidate,compositor,surface.surface,patches,0,256,256,candidate_raw,12),256,256);
     reference_commit_sparse_visuals(control,reference_stage_sparse_visuals(control,compositor,surface.surface,patches,0,256,256,nullptr),256,256);
-    if(phase==0){ShowWindow(background.value,SW_SHOWNOACTIVATE);ShowWindow(overlay.value,SW_SHOWNOACTIVATE);ShowWindow(candidate_window.value,SW_SHOWNOACTIVATE);ShowWindow(control_window.value,SW_SHOWNOACTIVATE);}
+    if(phase==0){
+      for(const auto window:owned_windows)ShowWindow(window,SW_SHOWNOACTIVATE);
+      // Query hit testing without moving the pointer or delivering any input.
+      for(const auto window:owned_windows) {
+        RECT r{};host_require(GetWindowRect(window,&r)!=FALSE,"read owned window bounds");
+        const HWND hit=WindowFromPoint({(r.left+r.right)/2,(r.top+r.bottom)/2});
+        if(std::find(owned_windows.begin(),owned_windows.end(),hit)!=owned_windows.end()) {
+          for(const auto owned:owned_windows)ShowWindow(owned,SW_HIDE);
+          throw std::runtime_error("passive test still intercepts hit testing");
+        }
+      }
+      std::puts("host-test hit_queries=4 owned_hits=0 input_injected=0");
+    }
     bool valid=false;size_t mismatches=0;
     std::array<int,3> last_reference{},last_candidate{},last_control{};
     auto until=std::chrono::steady_clock::now()+std::chrono::seconds(3);
@@ -143,7 +164,14 @@ int wmain(int argc,wchar_t**) try {
       mismatches=0;for(unsigned py=0;py<256;++py)for(unsigned px=0;px<256;++px)for(unsigned c=0;c<3;++c)if(abs(sample(0,px,py,c)-sample(1,px,py,c))>2)++mismatches;
       if(mismatches)continue;
       if(phase<2)for(unsigned c=0;c<3;++c){reference_samples[phase][c]=sample(0,64,64,c);control_samples[phase][c]=sample(2,64,64,c);}
-      if(phase==2)for(unsigned py=32;py<224;++py)for(unsigned px=32;px<224;++px)for(unsigned c=0;c<3;++c)if(abs(sample(0,px,py,c)-sample(2,px,py,c))>5)++blurred_difference;
+      if(phase==2) {
+        for(unsigned py=32;py<224;++py)for(unsigned px=32;px<224;++px)for(unsigned c=0;c<3;++c)if(abs(sample(0,px,py,c)-sample(2,px,py,c))>5)++blurred_difference;
+        std::ofstream artifact("host-blur-panels.bgra",std::ios::binary);
+        const uint32_t dimensions[2]{768,256};
+        artifact.write(reinterpret_cast<const char*>(dimensions),sizeof(dimensions));
+        artifact.write(reinterpret_cast<const char*>(pixels.data()),std::streamsize(pixels.size()));
+        host_require(bool(artifact),"save actual desktop panel pixels");
+      }
       valid=true;break;
     }
     std::printf("host-test phase=%u verified=%u mismatched_channels=%zu foreground_unchanged=%u\n",phase,unsigned(valid),mismatches,unsigned(GetForegroundWindow()==original_foreground));std::fflush(stdout);

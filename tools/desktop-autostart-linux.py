@@ -6,11 +6,27 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import time
 
 stopping = False
 SPECIAL_WORKSPACE = 'viewflow'
 UNDERLAY_WORKSPACE = 'viewflow-underlay'
+
+def launch_command(prepared, monitor, peer, existing_output=None):
+    if getattr(sys, 'frozen', False):
+        bundle = Path(sys.executable).resolve().parent
+        helper = Path(__file__).resolve().with_name('desktop-drag-linux.sh')
+        plugins = ['--capture-plugin', str(bundle / 'plugins/viewflow-capture.so'),
+                   '--input-plugin', str(bundle / 'plugins/viewflow-hyprland.so')]
+    else:
+        helper = Path(__file__).resolve().with_name('desktop-drag-linux.sh')
+        plugins = []
+    command = [str(helper), 'start', '--config', str(prepared), '--monitor', monitor,
+               '--peer', str(peer), '--empty-desktop', *plugins]
+    if existing_output:
+        command.extend(['--existing-output', existing_output])
+    return command
 
 def stop(_signal, _frame):
     global stopping
@@ -40,11 +56,13 @@ def special_workspace_expression(output, workspace=SPECIAL_WORKSPACE,
                                  underlay=UNDERLAY_WORKSPACE):
     output_value = json.dumps(output)
     workspace_value = json.dumps(workspace)
-    underlay_value = json.dumps(f'name:{underlay}')
+    underlay_value = json.dumps(underlay)
     return (f'local monitor = hl.get_monitor({output_value}); '
             f'if not monitor then error("Viewflow output is unavailable") end; '
-            f'monitor:set_workspace({underlay_value}); '
-            f'monitor:set_special_workspace({workspace_value})')
+            f'hl.workspace_rule({{ workspace = "name:" .. {underlay_value}, monitor = {output_value}, persistent = true }}); '
+            f'monitor:set_workspace({{ workspace = {underlay_value} }}); '
+            f'if hl.get_workspace("special:" .. {workspace_value}) then '
+            f'monitor:set_special_workspace({{ workspace = "special:" .. {workspace_value} }}) end')
 
 
 def activate_special_workspace(output, workspace=SPECIAL_WORKSPACE,
@@ -54,16 +72,51 @@ def activate_special_workspace(output, workspace=SPECIAL_WORKSPACE,
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         monitors = read_json('hyprctl', '-j', 'monitors')
-        if any(m['name'] == output and m.get('activeWorkspace', {}).get('name') == underlay and
-               m.get('specialWorkspace', {}).get('name') == f'special:{workspace}'
+        if any(m['name'] == output and m.get('activeWorkspace', {}).get('name') == underlay
                for m in monitors):
             return
+        # Persistent workspaces may be materialized on a later compositor tick.
+        subprocess.run(['hyprctl', 'eval',
+                        'hl.get_monitor(' + json.dumps(output) + '):set_workspace({workspace=' + json.dumps(underlay) + '})'],
+                       check=True, timeout=5)
         time.sleep(0.1)
-    raise RuntimeError(f'Owned output did not activate special workspace special:{workspace}')
+    raise RuntimeError(f'Owned output did not activate Viewflow underlay workspace {underlay}')
+
+
+def restore_existing_output(output, remote):
+    """Recover an adopted output after a plugin/config reload reset its mode."""
+    expression = ('hl.monitor({ output = ' + json.dumps(output) +
+                  ', mode = ' + json.dumps(f'{remote["width"]}x{remote["height"]}@60') +
+                  ', position = ' + json.dumps(f'{remote["x"]}x{remote["y"]}') +
+                  ', scale = ' + json.dumps(remote['scale']) + ' })')
+    def apply_geometry():
+        subprocess.run(['hyprctl', '-q', 'eval', expression], check=True)
+
+    apply_geometry()
+    stable = 0
+    for _ in range(50):
+        monitors = read_json('hyprctl', '-j', 'monitors', 'all')
+        current = next((monitor for monitor in monitors if monitor['name'] == output), None)
+        if current is not None and all(current[key] == remote[key]
+                                       for key in ('x', 'y', 'width', 'height', 'scale')):
+            stable += 1
+            if stable >= 5:
+                return current
+        else:
+            stable = 0
+            # A mode-set may race the compositor's fallback update. Reapply
+            # only after a bad sample, then start the stability count again.
+            apply_geometry()
+        time.sleep(0.1)
+    raise RuntimeError(f'Existing output did not recover its configured geometry: {output}')
 
 
 def prepare(template, instance, monitor, runtime):
     config = json.loads(template.read_text())
+    if config.get("peer_discovery"):
+        from desktop_peer_discovery import resolve
+        config["remote"] = resolve(config)
+        config.pop("peer_discovery")
     config['compositor_pid'] = instance['pid']
     config['windows'] = []
     desktop = config['desktop']
@@ -83,6 +136,7 @@ def main():
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--monitor', required=True)
     parser.add_argument('--peer', type=Path, required=True)
+    parser.add_argument('--existing-output', help='reuse an existing output without creating or removing it')
     args = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
@@ -110,7 +164,7 @@ def main():
                 monitor = next(m for m in monitors if m['name'] == args.monitor)
                 config = prepare(args.config, selected, monitor, runtime)
                 break
-            except (OSError, ValueError, StopIteration, subprocess.SubprocessError) as error:
+            except (OSError, ValueError, RuntimeError, StopIteration, subprocess.SubprocessError) as error:
                 print(f'Waiting for Hyprland: {error}', flush=True)
                 time.sleep(1)
         if stopping:
@@ -129,7 +183,8 @@ def main():
             prepared = runtime / 'viewflow/autostart-source.json'
             prepared.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             save(prepared, config)
-            subprocess.run([str(root / 'tools/desktop-drag-linux.sh'), 'start', '--config', str(prepared), '--monitor', args.monitor, '--peer', str(args.peer), '--empty-desktop'], check=True)
+            command = launch_command(prepared, args.monitor, args.peer, args.existing_output)
+            subprocess.run(command, check=True)
         else:
             # Reuse this session's owned output/plugins without moving windows.
             previous = json.loads((state / 'config').read_text())
@@ -138,12 +193,23 @@ def main():
             output = (state / 'output').read_text().strip()
             owned = next(m for m in monitors if m['name'] == output)
             remote = config['desktop']['remote_display']
-            if any(owned[k] != remote[k] for k in ('x', 'y', 'width', 'height', 'scale')):
+            if args.existing_output:
+                # A reload may reset an adopted output after the initial monitor
+                # snapshot.  Always reapply it and require consecutive read-backs
+                # before attaching the cursor peer.
+                owned = restore_existing_output(output, remote)
+            elif any(owned[k] != remote[k] for k in ('x', 'y', 'width', 'height', 'scale')):
                 raise RuntimeError('Owned output differs from configured remote display')
-            activate_special_workspace(output)
+            if not args.existing_output:
+                activate_special_workspace(output)
             config['pointer']['cursor_monitor_id'] = owned['id']
             config['desktop']['native_control_dir'] = str(state / 'native-control')
             (state / 'native-control').mkdir(mode=0o700, exist_ok=True)
+            # Older peers open this request/reply file without O_CREAT.
+            # Preserve an existing exchange when adopting a running peer.
+            request_fd = os.open(state / 'native-control' / 'desktop-window.json',
+                                 os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+            os.close(request_fd)
             # Adopt a running manual launch only after checking PID/start/executable.
             if (state / 'daemon.pid').exists():
                 candidate = int((state / 'daemon.pid').read_text())
@@ -167,6 +233,16 @@ def main():
             if pid is None or identity(pid) != token:
                 if child is not None:
                     print(f'Desktop peer exited {child.returncode}; restarting', flush=True)
+                template_config = json.loads(args.config.read_text())
+                if template_config.get('peer_discovery'):
+                    from desktop_peer_discovery import resolve
+                    try:
+                        config['remote'] = resolve(template_config)
+                        save(state / 'config', config)
+                    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+                        print(f'Waiting for desktop peer: {error}', flush=True)
+                        time.sleep(1)
+                        continue
                 with (state / 'source.log').open('ab') as log:
                     child = subprocess.Popen([str(args.peer), 'send', '--config', str(state / 'config')], stdout=log, stderr=subprocess.STDOUT)
                 pid, token = child.pid, identity(child.pid)

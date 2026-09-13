@@ -57,6 +57,7 @@ pub struct Tile {
     pub atlas_y: u32,
     pub title: String,
     pub geometry_ack: u64,
+    pub flags: u32,
 }
 
 pub struct Frame<'a> {
@@ -71,6 +72,12 @@ pub struct Frame<'a> {
 
 impl Frame<'_> {
     pub fn encode(&self) -> Result<Vec<u8>> {
+        self.encode_with_blur(None)
+    }
+    pub fn encode_with_blur(
+        &self,
+        blur: Option<&crate::native_window_blur::BlurRecipe>,
+    ) -> Result<Vec<u8>> {
         ensure!(
             self.width > 0
                 && self.height > 0
@@ -113,11 +120,21 @@ impl Frame<'_> {
                 bytes.extend(n.to_le_bytes());
             }
             blob(&mut bytes, tile.title.as_bytes());
-            bytes.extend(0u32.to_le_bytes());
+            bytes.extend(tile.flags.to_le_bytes());
             bytes.extend(tile.geometry_ack.to_le_bytes());
         }
         blob(&mut bytes, &alpha(self.raw_alpha));
-        blob(&mut bytes, self.color);
+        if let Some(blur) = blur {
+            let mut color = blur.h264_sei()?;
+            color.extend(self.color);
+            ensure!(
+                color.len() <= 32 * 1024 * 1024,
+                "native color with blur metadata too large"
+            );
+            blob(&mut bytes, &color);
+        } else {
+            blob(&mut bytes, self.color);
+        }
         ensure!(bytes.len() <= MAX_RECORD, "native window record too large");
         Ok(bytes)
     }

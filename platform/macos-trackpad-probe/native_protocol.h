@@ -63,7 +63,7 @@ struct State {
     uint8_t last[wire_size] = {};
     uint16_t ids=0;
     uint64_t peak=0, clicks=0, frames=0;
-    uint32_t emitted_stamp=0;
+    uint32_t emitted_stamp=0, source_stamp=0;
     bool have_stamp=false;
     bool ending_pending=false;
     uint8_t ending[wire_size]={};
@@ -71,15 +71,22 @@ struct State {
     bool active() const { return ids || last[1]; }
     template<class Submit> int emit(uint8_t *hid,size_t n,Submit submit) {
         constexpr uint32_t mask=0x1fffff;
-        uint32_t stamp=(uint32_t(hid[9])|(uint32_t(hid[10])<<8)|(uint32_t(hid[11])<<16))>>3;
-        uint32_t delta=(stamp-emitted_stamp)&mask;
+        const uint32_t source=(uint32_t(hid[9])|(uint32_t(hid[10])<<8)|(uint32_t(hid[11])<<16))>>3;
+        uint32_t stamp=source;
         // Several lifecycle reports can share one physical SYN_REPORT. Keep
         // their native millisecond timestamps ordered, including at wrap.
-        if(have_stamp && (!delta || delta>mask/2))stamp=(emitted_stamp+1)&mask;
+        // Compare source time to source time, not to the adjusted output.
+        // A backwards producer-clock change costs one recovery tick only;
+        // subsequent physical reports keep their real cadence. Comparing to
+        // emitted_stamp repeatedly compressed a 10 ms stream into 1 ms steps.
+        if(have_stamp) {
+            const uint32_t delta=(source-source_stamp)&mask;
+            stamp=(emitted_stamp+((delta && delta<=mask/2)?delta:1))&mask;
+        }
         uint32_t packed=(stamp<<3)|4;
         hid[9]=packed;hid[10]=packed>>8;hid[11]=packed>>16;
         int r=submit(hid,n);
-        if(!r){emitted_stamp=stamp;have_stamp=true;}
+        if(!r){emitted_stamp=stamp;source_stamp=source;have_stamp=true;}
         return r;
     }
     template<class Submit> int finish(const uint8_t *p,Submit submit) {

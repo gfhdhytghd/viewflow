@@ -735,7 +735,8 @@ mod tests {
                 cx: &mut std::task::Context<'_>,
                 buf: &mut tokio::io::ReadBuf<'_>,
             ) -> std::task::Poll<std::io::Result<()>> {
-                self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.reads
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 std::pin::Pin::new(&mut self.bytes).poll_read(cx, buf)
             }
         }
@@ -979,7 +980,7 @@ mod tests {
         use viewflow_protocol::{AtlasFrame, FrameManifest, Id128};
         AdmittedAtlas {
             layout: AtlasFrame {
-            patches: None,
+                patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
                 geometry_epoch: 1,
@@ -1344,9 +1345,13 @@ mod tests {
                     alpha: viewflow_transport::encode_alpha_rle(1024, 1024, &vec![0; 1024 * 1024])
                         .unwrap(),
                 };
-                pipe.warmup(&[warmup.clone(), warmup.clone(), warmup], deadline, 128 << 20)
-                    .await
-                    .unwrap();
+                pipe.warmup(
+                    &[warmup.clone(), warmup.clone(), warmup],
+                    deadline,
+                    128 << 20,
+                )
+                .await
+                .unwrap();
                 for (index, (width, height)) in [(1024, 1024), (2048, 2048), (8192, 4096)]
                     .into_iter()
                     .enumerate()

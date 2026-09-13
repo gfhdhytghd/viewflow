@@ -30,14 +30,18 @@ async fn main() -> Result<()> {
     )
     .map_err(|error| anyhow::anyhow!("clipboard TLS identity: {error}"))?;
     let source = config.remote.is_some();
+    // Clipboard traffic can be idle indefinitely. Keep the connection alive so
+    // the first new copy does not race a reconnect and become its baseline.
+    let mut transport = quinn::TransportConfig::default();
+    transport.keep_alive_interval(Some(Duration::from_secs(5)));
+    let transport = std::sync::Arc::new(transport);
     let mut endpoint = if source {
         quinn::Endpoint::client(config.bind)?
     } else {
-        quinn::Endpoint::server(
-            build_server_config(&identity)
-                .map_err(|error| anyhow::anyhow!("clipboard TLS server: {error}"))?,
-            config.bind,
-        )?
+        let mut server = build_server_config(&identity)
+            .map_err(|error| anyhow::anyhow!("clipboard TLS server: {error}"))?;
+        server.transport_config(transport.clone());
+        quinn::Endpoint::server(server, config.bind)?
     };
     if source {
         ensure!(
@@ -47,10 +51,10 @@ async fn main() -> Result<()> {
                 .is_some_and(|name| !name.is_empty()),
             "client requires server_name"
         );
-        endpoint.set_default_client_config(
-            build_client_config(&identity)
-                .map_err(|error| anyhow::anyhow!("clipboard TLS client: {error}"))?,
-        );
+        let mut client = build_client_config(&identity)
+            .map_err(|error| anyhow::anyhow!("clipboard TLS client: {error}"))?;
+        client.transport_config(transport);
+        endpoint.set_default_client_config(client);
     }
     let run = async {
         loop {

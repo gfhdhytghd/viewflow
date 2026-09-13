@@ -28,10 +28,25 @@ impl PresentedInputGeometry {
     /// presentation and cannot map input or produce a window grant.
     #[must_use]
     pub fn unbound() -> Self {
-        let rect = viewflow_protocol::Rect { origin: Point::default(), size: Size { width: 1., height: 1. } };
+        let rect = viewflow_protocol::Rect {
+            origin: Point::default(),
+            size: Size {
+                width: 1.,
+                height: 1.,
+            },
+        };
         let capture = CaptureGeometry::new(rect, rect, 1, 1).expect("unit geometry");
-        Self { identity: PresentedInputIdentity { window: viewflow_protocol::Id128(0), geometry_epoch: 0, frame: 0 },
-            capture, slice: capture.slice_for_display(Point::default(), rect).expect("unit slice") }
+        Self {
+            identity: PresentedInputIdentity {
+                window: viewflow_protocol::Id128(0),
+                geometry_epoch: 0,
+                frame: 0,
+            },
+            capture,
+            slice: capture
+                .slice_for_display(Point::default(), rect)
+                .expect("unit slice"),
+        }
     }
 
     /// Identity of this immutable source-verified presentation, not authority.
@@ -59,12 +74,24 @@ pub struct WindowPointerGrant {
 impl WindowPointerGrant {
     /// Holds only the paired device identity until a real window is selected.
     pub fn idle(owner: DeviceId, target_device: DeviceId) -> Option<Self> {
-        if owner.0 == 0 || target_device.0 == 0 || owner == target_device { return None; }
-        Some(Self { owner, target_device, generation: 0, geometry: PresentedInputGeometry::unbound(),
-            presented_history: VecDeque::new(), expires_local_ns: 0, last_sequence: 0, revoked: true })
+        if owner.0 == 0 || target_device.0 == 0 || owner == target_device {
+            return None;
+        }
+        Some(Self {
+            owner,
+            target_device,
+            generation: 0,
+            geometry: PresentedInputGeometry::unbound(),
+            presented_history: VecDeque::new(),
+            expires_local_ns: 0,
+            last_sequence: 0,
+            revoked: true,
+        })
     }
 
-    pub fn devices(&self) -> (DeviceId, DeviceId) { (self.owner, self.target_device) }
+    pub fn devices(&self) -> (DeviceId, DeviceId) {
+        (self.owner, self.target_device)
+    }
 
     #[must_use]
     pub fn new(
@@ -74,7 +101,12 @@ impl WindowPointerGrant {
         geometry: PresentedInputGeometry,
         expires_local_ns: u64,
     ) -> Option<Self> {
-        if owner.0 == 0 || target_device.0 == 0 || generation == 0 || expires_local_ns == 0 || geometry.identity.window.0 == 0 {
+        if owner.0 == 0
+            || target_device.0 == 0
+            || generation == 0
+            || expires_local_ns == 0
+            || geometry.identity.window.0 == 0
+        {
             return None;
         }
         Some(Self {
@@ -232,11 +264,33 @@ mod tests {
     #[test]
     fn empty_desktop_has_no_window_authority_or_pointer_mapping() {
         let empty = PresentedInputGeometry::unbound();
-        let mut grant = WindowPointerGrant::idle(viewflow_protocol::Id128(1), viewflow_protocol::Id128(2)).unwrap();
+        let mut grant =
+            WindowPointerGrant::idle(viewflow_protocol::Id128(1), viewflow_protocol::Id128(2))
+                .unwrap();
         assert!(grant.authorization(0).is_none());
         assert!(!grant.advance_presented(grant_fixture().0.geometry));
-        assert!(WindowPointerGrant::new(viewflow_protocol::Id128(1), viewflow_protocol::Id128(2), 1, empty, 100).is_none());
-        assert!(empty.map_pointer(empty.identity(), Size { width: 1., height: 1. }, Point::default()).is_none());
+        assert!(
+            WindowPointerGrant::new(
+                viewflow_protocol::Id128(1),
+                viewflow_protocol::Id128(2),
+                1,
+                empty,
+                100
+            )
+            .is_none()
+        );
+        assert!(
+            empty
+                .map_pointer(
+                    empty.identity(),
+                    Size {
+                        width: 1.,
+                        height: 1.
+                    },
+                    Point::default()
+                )
+                .is_none()
+        );
     }
 
     fn grant_fixture() -> (WindowPointerGrant, WindowPointerMotion) {
