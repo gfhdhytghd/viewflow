@@ -216,7 +216,7 @@ static vf_gpu_dmabuf_status encode_impl(
     } else {
       valid_input = valid_input && frame != nullptr && valid_frame_flags(*frame);
     }
-    valid_input = valid_input && (!sparse || (atlas && (sparse->mode == 1 || sparse->mode == 2) &&
+    valid_input = valid_input && (!sparse || (atlas && (sparse->mode >= 1 && sparse->mode <= 4) &&
         sparse->source_count == atlas->tile_count && (!sparse->source_count || sparse->sources)));
     if (!valid_input) {
       encoder->terminal_failed = true;
@@ -236,7 +236,7 @@ static vf_gpu_dmabuf_status encode_impl(
       }
       std::optional<viewflow::gpu::SparseOptions> options;
       if (sparse) {
-        options = viewflow::gpu::SparseOptions{sparse->mode == 2, sparse->max_width, sparse->max_height, {}};
+        options = viewflow::gpu::SparseOptions{sparse->mode == 2 || sparse->mode == 4, sparse->max_width, sparse->max_height, {}, sparse->mode >= 3};
         for(uint32_t i=0;i<sparse->source_count;++i) {
           const auto& a=sparse->sources[i]; options->sources.push_back({a.x,a.y,a.z,a.grid,a.clip_enabled,a.clip_x,a.clip_y,a.clip_width,a.clip_height});
         }

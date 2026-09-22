@@ -1,4 +1,5 @@
-// Persistent, Linux-only FFmpeg/NVENC H.264 encoder shim.
+// Persistent Linux FFmpeg H.264 shim: NVENC or selected VA-API color.
+// Legacy paired alpha uses libx264 on VA-API; external alpha stays unchanged.
 //
 // The caller supplies straight (not premultiplied) RGBA pixels.  A frame is
 // emitted as paired Annex-B H.264 access units: color and, unless explicitly

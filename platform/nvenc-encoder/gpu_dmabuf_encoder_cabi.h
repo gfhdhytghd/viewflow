@@ -95,7 +95,7 @@ typedef struct vf_gpu_dmabuf_sparse_source {
   uint32_t clip_enabled, clip_x, clip_y, clip_width, clip_height;
 } vf_gpu_dmabuf_sparse_source;
 typedef struct vf_gpu_dmabuf_sparse_scene {
-  uint32_t mode; // 1: opaque culling, 2: transparent precomposition
+  uint32_t mode; // 1: opaque culling, 2: precomposition; 3/4: same with stable source placement
   uint32_t max_width, max_height, source_count;
   const vf_gpu_dmabuf_sparse_source* sources;
 } vf_gpu_dmabuf_sparse_scene;

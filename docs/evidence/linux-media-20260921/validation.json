@@ -1,0 +1,134 @@
+{
+  "time_utc": "2026-09-22T01:05:06.238150+00:00",
+  "app": "/home/wilf/data/viewflow/dist/Viewflow-linux-20260921-media-r2",
+  "package": "/home/wilf/data/viewflow/dist/arch/viewflow-0.1.0.r20260921.g3a2f8bb.5-1-x86_64.pkg.tar.zst",
+  "package_sha256": "ccb152c2de416b860683c19e729aed7acd8ed54eb3bb25a44a8eb3ef87da7f80",
+  "native_hashes": {
+    "bin/vf-window-peer": "aa77e7ec78a20bdebbf086516b8c4b6d9bf35f19abe74a3b5ada996f20aee238",
+    "bin/viewflow_linux_reverse": "615dd4e1afe77c5f51124dd81ab6fbeac3adc7896fe0853ed493bbfb07c86cad",
+    "bin/viewflow-media-probe": "bc7e6c723b2497787d5b32ef3843caea58f0524c0dc3dc87e81ec4c2ba06ac92",
+    "lib/libviewflow-cuda-encoder.so": "8cc4664a12317d82625f489708b5e2e49e600e71f6786828e66a6e879b5011b4"
+  },
+  "elf_dependencies": {
+    "bin/vf-window-peer": [
+      "0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [ld-linux-x86-64.so.2]"
+    ],
+    "bin/viewflow_linux_reverse": [
+      "0x0000000000000001 (NEEDED)             Shared library: [libpng16.so.16]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libavcodec.so.63]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libavutil.so.61]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libEGL.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libGLESv2.so.2]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libdrm.so.2]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libwayland-egl.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libwayland-client.so.0]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libxkbcommon.so.0]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libz.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]"
+    ],
+    "bin/viewflow-media-probe": [
+      "0x0000000000000001 (NEEDED)             Shared library: [libavcodec.so.63]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libavutil.so.61]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libEGL.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libGLESv2.so.2]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libdrm.so.2]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]"
+    ],
+    "lib/libviewflow-cuda-encoder.so": [
+      "0x0000000000000001 (NEEDED)             Shared library: [libcudart.so.13]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libcuda.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libavcodec.so.63]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libavutil.so.61]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libEGL.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libGLESv2.so.2]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libstdc++.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libm.so.6]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libgcc_s.so.1]",
+      "0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]"
+    ]
+  },
+  "nvidia_full_synthetic": {
+    "ok": true,
+    "backend": "nvidia",
+    "render_node": "/dev/dri/renderD128",
+    "codec": "h264",
+    "frames": 8,
+    "hardware_encode": true,
+    "hardware_decode": true,
+    "egl_import": true,
+    "alpha_atlas": true,
+    "portable_capture": true,
+    "synthetic_only": true
+  },
+  "nvidia_log": "Viewflow decoder backend=nvidia device=/dev/dri/renderD128 codec=1 initialization=ok\nViewflow media backend=nvidia device=/dev/dri/renderD128 preparation=cuda initialization=ok\nGPU import-cache frame=1 enabled=1 hit=0 imports=1 hits=0 misses=1 evictions=0 entries=1 capacity=4\n",
+  "vaapi_encode_on_nvidia": {
+    "ok": false,
+    "backend": "vaapi",
+    "render_node": "/dev/dri/renderD128",
+    "error": "open hardware VA-API encoder: Function not implemented"
+  },
+  "vaapi_log": "Viewflow decoder backend=vaapi device=/dev/dri/renderD128 codec=1 initialization=ok\n[h264_vaapi @ 0x55a4f98d1040] No usable encoding entrypoint found for profile VAProfileH264High (7).\n",
+  "vaapi_decode_on_nvidia": {
+    "codecs": [
+      "h264",
+      "hevc"
+    ],
+    "frames_each": 60,
+    "shader_sample_nv12": [
+      81,
+      90,
+      240
+    ],
+    "gl_errors": 0
+  },
+  "tests": {
+    "desktop": {
+      "passed": 26
+    },
+    "rust_gpu_compatible": {
+      "passed": 17,
+      "ignored": 1
+    },
+    "encoder_native": {
+      "passed": 8
+    },
+    "reverse_native": {
+      "passed": 9
+    },
+    "portable_cuda_oracle_cases": 8,
+    "sparse_modes": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "no_cuda": {
+      "native_build": true,
+      "cargo_check": true
+    },
+    "existing_failure": "unified-apps Mac payload helpers: expected 6, actual 7"
+  },
+  "pci": "00:02.0 VGA compatible controller [0300]: Intel Corporation Arrow Lake-S [Intel Graphics] [8086:7d67] (rev 06)\n\tDeviceName: Onboard IGD\n\tSubsystem: ASUSTeK Computer Inc. Device [1043:88ef]\n\tKernel driver in use: vfio-pci\n\tKernel modules: i915, xe\n02:00.0 VGA compatible controller [0300]: NVIDIA Corporation GB202GL [RTX PRO 6000 Blackwell Workstation Edition] [10de:2bb1] (rev a1)\n\tSubsystem: NVIDIA Corporation Device [10de:204b]\n\tKernel driver in use: nvidia\n\tKernel modules: nouveau, nvidia_drm, nvidia\n",
+  "limitations": [
+    "AMD/Intel hardware encode/decode/import not validated; no accessible AMD/Intel render node",
+    "VA-API encoding uses CPU preparation and NV12 upload",
+    "Cross-device input/performance acceptance remains user-operated"
+  ],
+  "boundaries": {
+    "installed_gui_replaced": false,
+    "forwarding_services_restarted": false,
+    "input_injected": false,
+    "focus_changed": false,
+    "vfio_changed": false
+  }
+}

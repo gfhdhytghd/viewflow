@@ -1,6 +1,7 @@
 #include "gpu_sparse_atlas.cuh"
 #include "alpha_copy_profile.hpp"
-#include "gpu_dmabuf_encoder.cuh"
+#include "cuda_dmabuf_encoder.hpp"
+#include "../linux-media/device_selection.hpp"
 #include "gpu_import_cleanup.hpp"
 #include "gpu_rgba_prepare.cuh"
 #include "gpu_shadow_repair.cuh"
@@ -140,7 +141,7 @@ __global__ void nv12(const unsigned char *rgba, size_t rp, unsigned char *y,
 }
 } // namespace
 
-struct GpuDmabufEncoder::Impl {
+struct CudaDmabufEncoder::Impl {
   std::vector<SparsePatch> lastSparsePatches;
   GpuDmabufEncoderConfig config;
   std::thread::id owner;
@@ -261,10 +262,25 @@ struct GpuDmabufEncoder::Impl {
       fail(error, "output dimensions must be positive even");
       return false;
     }
-    display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    const char* selectedNode=std::getenv("VIEWFLOW_MEDIA_RENDER_NODE");
+    if(selectedNode && *selectedNode) {
+      auto query=reinterpret_cast<PFNEGLQUERYDEVICESEXTPROC>(eglGetProcAddress("eglQueryDevicesEXT"));
+      auto get=reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(eglGetProcAddress("eglGetPlatformDisplayEXT"));
+      auto name=reinterpret_cast<PFNEGLQUERYDEVICESTRINGEXTPROC>(eglGetProcAddress("eglQueryDeviceStringEXT"));
+      EGLint count=0;
+      if(query && get && name && query(0,nullptr,&count) && count>0) {
+        std::vector<EGLDeviceEXT> devices(count);
+        if(query(count,devices.data(),&count)) for(int i=0;i<count;++i) {
+          const char* node=name(devices[i],EGL_DRM_RENDER_NODE_FILE_EXT);
+          if(node && media::sameDevice(node,selectedNode)) { display=get(EGL_PLATFORM_DEVICE_EXT,devices[i],nullptr);break; }
+        }
+      }
+      if(display==EGL_NO_DISPLAY) { fail(error,"selected NVIDIA render node has no EGL device");return false; }
+    } else display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     EGLint ma = 0, mi = 0;
     if (display == EGL_NO_DISPLAY ||
         eglInitialize(display, &ma, &mi) != EGL_TRUE) {
+      if(selectedNode && *selectedNode) { fail(error,"selected NVIDIA EGL initialization failed");return false; }
       auto query = reinterpret_cast<PFNEGLQUERYDEVICESEXTPROC>(
           eglGetProcAddress("eglQueryDevicesEXT"));
       auto get = reinterpret_cast<PFNEGLGETPLATFORMDISPLAYEXTPROC>(
@@ -469,18 +485,18 @@ struct GpuDmabufEncoder::Impl {
   }
 };
 
-GpuDmabufEncoder::GpuDmabufEncoder(const GpuDmabufEncoderConfig &c,
+CudaDmabufEncoder::CudaDmabufEncoder(const GpuDmabufEncoderConfig &c,
                                    std::string *e)
     : impl_(new Impl) {
   impl_->config = c;
   impl_->init(e);
 }
-GpuDmabufEncoder::~GpuDmabufEncoder() = default;
-GpuDmabufEncoder::GpuDmabufEncoder(GpuDmabufEncoder &&) noexcept = default;
-GpuDmabufEncoder &
-GpuDmabufEncoder::operator=(GpuDmabufEncoder &&) noexcept = default;
-bool GpuDmabufEncoder::ready() const { return impl_ && impl_->good; }
-bool GpuDmabufEncoder::encode(const DmabufFrame &input, bool forceIdr,
+CudaDmabufEncoder::~CudaDmabufEncoder() = default;
+CudaDmabufEncoder::CudaDmabufEncoder(CudaDmabufEncoder &&) noexcept = default;
+CudaDmabufEncoder &
+CudaDmabufEncoder::operator=(CudaDmabufEncoder &&) noexcept = default;
+bool CudaDmabufEncoder::ready() const { return impl_ && impl_->good; }
+bool CudaDmabufEncoder::encode(const DmabufFrame &input, bool forceIdr,
                               std::int64_t deadline, EncodedDmabufFrame &output,
                               std::string *error, EncodeDisposition *disposition) {
   // Preserve the original single-window resize contract.
@@ -495,7 +511,7 @@ bool GpuDmabufEncoder::encode(const DmabufFrame &input, bool forceIdr,
                      deadline, output, error, disposition);
 }
 
-bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
+bool CudaDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
                               FrameMetadata metadata, bool forceIdr,
                               std::int64_t deadline, EncodedDmabufFrame &output,
                               std::string *error, EncodeDisposition *disposition,
@@ -542,7 +558,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
       size_t(input.stride) < size_t(input.imageWidth) * 4 || input.cropX < 0 ||
       input.cropY < 0 || input.cropWidth <= 0 || input.cropHeight <= 0 ||
       input.cropWidth > impl_->config.outputWidth || input.cropHeight > impl_->config.outputHeight ||
-      (!sparse && (tile.x < 0 || tile.y < 0 || tile.x > impl_->config.outputWidth - input.cropWidth ||
+      ((!sparse || sparse->stablePlacement) && (tile.x < 0 || tile.y < 0 || tile.x > impl_->config.outputWidth - input.cropWidth ||
       tile.y > impl_->config.outputHeight - input.cropHeight)) ||
       input.cropX > int(input.imageWidth) - input.cropWidth ||
       input.cropY > int(input.imageHeight) - input.cropHeight ||
@@ -552,7 +568,7 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     fail(error, "unsupported DMA-BUF frame or resize; make a new encoder");
     return false;
   }
-  for (size_t j = 0; !sparse && j < i; ++j) {
+  for (size_t j = 0; (!sparse || sparse->stablePlacement) && j < i; ++j) {
     const auto& other = inputs[j];
     if (tile.x < other.x + other.frame.cropWidth && other.x < tile.x + input.cropWidth &&
         tile.y < other.y + other.frame.cropHeight && other.y < tile.y + input.cropHeight) {
@@ -957,6 +973,14 @@ bool GpuDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     if (!cudaOk(classifySparseCells(prepared.tiles.data(), prepared.tiles.size(), cells, impl_->stream),
                 error, "classify sparse alpha")) return false;
     auto plan = planSparseAtlas(cells, impl_->config.outputWidth, impl_->config.outputHeight, sparse->prerender, 256);
+    if (sparse->stablePlacement) {
+      std::vector<std::pair<uint32_t, uint32_t>> origins;
+      for (const auto& tile : prepared.tiles)
+        origins.emplace_back(uint32_t(tile.x), uint32_t(tile.y));
+      placeSparseAtlasStable(plan, origins, impl_->config.outputWidth, impl_->config.outputHeight);
+      // Input validation already proves every reserved source fits the canvas.
+      if (!plan.fits) { fail(error, "stable sparse placement outside canvas"); return false; }
+    }
     sparseResult = SparseResult{{}, plan.requiredWidth, plan.requiredHeight, plan.inputPixels + clippedPixels,
                                plan.storedPixels, plan.occludedPixels + clippedPixels, plan.emptyPixels, 0};
     if (!plan.fits) {

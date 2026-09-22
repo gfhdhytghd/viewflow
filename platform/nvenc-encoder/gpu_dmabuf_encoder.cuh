@@ -35,6 +35,7 @@ struct SparseOptions {
   bool prerender = false;
   uint32_t maxWidth{}, maxHeight{};
   std::vector<SparseSource> sources;
+  bool stablePlacement = false;
 };
 struct SparseResult {
   std::vector<SparsePatch> patches;
@@ -76,9 +77,10 @@ enum class EncodeDisposition {
   NeedsCanvas,
 };
 
+// Runtime facade: NVIDIA CUDA/NVENC or VA-API with portable preparation.
 // Construction, encode(), and destruction must all occur on one worker thread.
-// output dimensions are immutable; make a new instance for resize. No fallback
-// path exists: success means exactly one Annex-B access unit was admitted.
+// Output dimensions are immutable; make a new instance for resize. There is no
+// software color-codec fallback: success means one access unit was admitted.
 // A false return alone never proves capture/GPU cleanup has completed: HCGR callers
 // must not send that frame and must disconnect/retire the capture path rather
 // than automatically retrying it on this encoder instance. Opt-in callers may

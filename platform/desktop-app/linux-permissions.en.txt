@@ -1,0 +1,32 @@
+Viewflow Linux permissions
+
+1. Open Viewflow in your user's Hyprland session.
+   The Permissions page checks versions and can load the two bundled plugins.
+   Their build commit must match Hyprland. Rebuild the package after upgrading
+   Hyprland. Loading affects only the current session. For persistent loading,
+   add the two absolute plugin paths to your existing Hyprland configuration.
+   The installer does not rewrite your desktop configuration.
+
+2. Windows and normal touchpad routing use Hyprland plugins and do not require
+   running the app as root. Native Magic Trackpad forwarding reads Linux evdev
+   devices (/dev/input/eventN or /dev/input/by-id/...-event-mouse), not hidraw.
+   Check that your local session user can read the selected device.
+   To grant temporary access, replace the device path and run this yourself:
+     sudo setfacl -m "u:$(id -un):r" /dev/input/eventN
+   This ACL may be lost when the device reconnects. Persistent rules should
+   match only your selected device. Do not run the whole app as root.
+
+3. Native touchpad forwarding to a Mac uses your authorized SSH connection.
+   The default receiver is:
+     /Applications/ViewflowHIDReceiver.app/Contents/MacOS/ViewflowHIDReceiver
+   Install the signed CoreHID receiver on the Mac first. Installing this Linux
+   package does not connect to a Mac or create or copy SSH private keys.
+
+4. This Linux GUI targets Hyprland. Select NVIDIA NVENC/NVDEC or AMD/Intel
+   VA-API and a specific render device. The host supplies its GPU driver,
+   Wayland session and the Hyprland build matching the bundled plugins.
+   The GUI does not install drivers or system components. Run the hardware
+   media check; installed dependencies do not prove a working media pipeline.
+   VA-API currently prepares pixels on the CPU and uploads them for hardware
+   encoding. AMD/Intel hardware validation is still pending. Synthetic checks
+   do not replace cross-device acceptance or add support for every desktop.

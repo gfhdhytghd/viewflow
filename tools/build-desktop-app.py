@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the complete Windows/Linux Viewflow application and installation archive.
 
-Requires native build dependencies plus PyInstaller. Builds locally, never
+Requires native build dependencies plus platform/desktop-app/requirements.txt. Builds locally, never
 connects to another computer, installs services, loads plugins or starts input.
 """
 import argparse
@@ -19,12 +19,12 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 COMMON = ['viewflowd', 'vf-media-peer', 'vf-window-peer', 'vf-clipboard-peer', 'vf-cursor-peer']
 PROGRAMS = {
-    'linux': COMMON + ['vf-hyprland-windows', 'viewflow_linux_reverse', 'viewflow-linux-window-input'],
+    'linux': COMMON + ['vf-hyprland-windows', 'viewflow_linux_reverse', 'viewflow-linux-window-input', 'viewflow-media-probe'],
     'windows': COMMON + ['vf-input-service', 'viewflow_windows_reverse', 'viewflow_windows_composition_preview',
                         'viewflow-windows-windows', 'viewflow_virtual_display'],
 }
 NATIVE = {
-    'linux': {'linux-reverse': ['viewflow_linux_reverse'], 'linux-window-input': ['viewflow-linux-window-input'],
+    'linux': {'linux-media': ['viewflow-media-probe'], 'linux-reverse': ['viewflow_linux_reverse'], 'linux-window-input': ['viewflow-linux-window-input'],
               'hyprland-plugin': ['viewflow-hyprland'], 'viewflow-capture': ['viewflow-capture']},
     'windows': {'windows-reverse': ['viewflow_windows_reverse', 'viewflow_virtual_display'],
                 'windows-composition-preview': ['viewflow_windows_composition_preview'],
@@ -69,7 +69,7 @@ def native_build(target, work):
     (payload / 'plugins').mkdir(exist_ok=True)
     rust = COMMON + (['vf-input-service'] if target == 'windows' else ['vf-hyprland-windows'])
     argv = ['cargo', 'build', '--locked', '--release', '-p', 'viewflowd']
-    if target == 'linux': argv += ['--features', 'native-gpu-nvenc']
+    if target == 'linux': argv += ['--features', 'native-gpu-media']
     for name in rust: argv += ['--bin', name]
     run(argv, cwd=ROOT)
     extension = '.exe' if target == 'windows' else ''
@@ -78,6 +78,7 @@ def native_build(target, work):
     for project, targets in NATIVE[target].items():
         build = work / project
         args = ['cmake', '-S', ROOT / 'platform' / project, '-B', build, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_TESTING=OFF']
+        if target == 'linux' and project in ('linux-media', 'linux-reverse'): args += ['-DVIEWFLOW_ENABLE_CUDA=' + os.environ.get('VIEWFLOW_ENABLE_CUDA', 'ON')]
         if target == 'windows': args += ['-A', 'x64', '-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded']
         run(args)
         run(['cmake', '--build', build, '--config', 'Release', '--parallel', '4', '--target', *targets])
@@ -86,7 +87,14 @@ def native_build(target, work):
             filename = name + ('.so' if plugin else extension)
             source = build / filename if target == 'linux' else build / 'Release' / filename
             shutil.copy2(source, payload / ('plugins' if plugin else 'bin') / filename)
-    if target == 'linux': (payload / 'hyprland-build.json').write_text(json.dumps(hyprland_build()))
+    if target == 'linux':
+        libraries = payload / 'lib'; libraries.mkdir(exist_ok=True)
+        module = work / 'linux-media/encoder/libviewflow-cuda-encoder.so'
+        target_module = libraries / module.name
+        if module.exists() and os.environ.get('VIEWFLOW_ENABLE_CUDA', 'ON').upper() not in ('OFF', '0', 'FALSE'):
+            shutil.copy2(module, target_module)
+        elif target_module.exists(): target_module.unlink()
+        (payload / 'hyprland-build.json').write_text(json.dumps(hyprland_build()))
     return payload
 
 
@@ -98,9 +106,11 @@ def linux_dependencies(app):
     host_prefixes = ('libc.so', 'libm.so', 'libpthread.so', 'libdl.so', 'librt.so', 'ld-linux',
                      'libcuda.so', 'libnvidia-', 'libGLX_nvidia', 'libEGL_nvidia')
     dependencies = {}
-    for binary in (app / 'bin').iterdir():
+    for binary in [*(app / 'bin').iterdir(), *libraries.glob('libviewflow-*.so')]:
         result = output(['ldd', binary])
-        if 'not found' in result: raise ValueError(f'unresolved dependency for {binary.name}: {result}')
+        missing = [line.strip().split()[0] for line in result.splitlines() if 'not found' in line]
+        if any(not name.startswith(host_prefixes) for name in missing):
+            raise ValueError(f'unresolved dependency for {binary.name}: {result}')
         for line in result.splitlines():
             match = re.search(r'^\s*(\S+) => (/\S+) \(', line)
             if not match: continue
@@ -174,12 +184,14 @@ def package(args):
         run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--name', 'Viewflow',
              '--distpath', work / 'dist', '--workpath', work / 'freeze', '--specpath', work,
              '--paths', ROOT / 'platform/desktop-app', '--add-data', str(scripts) + os.pathsep + 'scripts',
+             '--add-data', str(ROOT / 'platform/desktop-app/qml') + os.pathsep + 'qml',
+             '--hidden-import', 'PySide6.QtQuick', '--hidden-import', 'PySide6.QtSvg',
              '--hidden-import', 'fcntl' if target == 'linux' else 'ctypes.wintypes',
              '--hidden-import', 'shlex', '--hidden-import', 'select',
              *(['--windowed'] if target == 'windows' else []),
              ROOT / 'platform/desktop-app/main.py'])
         app = work / 'dist/Viewflow'
-        for directory in ('bin', 'plugins'):
+        for directory in ('bin', 'plugins', 'lib'):
             if (payload / directory).exists(): shutil.copytree(payload / directory, app / directory)
         # Optional runtime DLLs are explicit payload files, not searched on PATH.
         dll_directory = args.runtime_dlls or payload / 'dll'
@@ -188,6 +200,8 @@ def package(args):
         setup = app / 'setup'; setup.mkdir()
         shutil.copy2(ROOT / 'tools/install-windows-input-service.ps1', setup / 'install-windows-input-service.ps1')
         shutil.copy2(ROOT / 'platform/desktop-app/linux-permissions.txt', setup / 'linux-permissions.txt')
+        shutil.copy2(ROOT / 'platform/desktop-app/linux-permissions.en.txt', setup / 'linux-permissions.en.txt')
+        if target == 'linux': shutil.copy2(ROOT / 'docs/linux-media-backends.md', setup / 'linux-media-backends.md')
         shutil.copy2(ROOT / 'platform/desktop-app/install-linux.sh', app / 'install.sh')
         os.chmod(app / 'install.sh', 0o755)
         shutil.copy2(ROOT / 'LICENSE', app / 'LICENSE')
@@ -212,6 +226,7 @@ def package(args):
         if target == 'linux':
             metadata = payload / 'hyprland-build.json'
             if args.payload and not metadata.is_file(): raise ValueError('prebuilt Linux payload requires hyprland-build.json for its actual plugin ABI')
+            manifest['media'] = {'vaapi': True, 'nvidia_module': (app / 'lib/libviewflow-cuda-encoder.so').is_file(), 'hardware_verified': False}
             manifest['hyprland_build'] = json.loads(metadata.read_text(encoding='utf-8')) if metadata.exists() else hyprland_build()
         manifest['files'] = {str(x.relative_to(app)): hashlib.sha256(x.read_bytes()).hexdigest() for x in app.rglob('*') if x.is_file()}
         (app / 'bundle-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')

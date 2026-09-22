@@ -17,10 +17,13 @@ Viewflow Linux 权限设置
 
 3. 原生触控板跨 Mac 转发仍使用已授权的 SSH 连接。
    在配对参数中把 --receiver 设置为：
-     /Applications/Viewflow.app/Contents/MacOS/Viewflow
-   Mac 上需先打开统一 App、安装驱动并启动“原生触控板 HID”。
+     /Applications/ViewflowHIDReceiver.app/Contents/MacOS/ViewflowHIDReceiver
+   Mac 上需先安装已签名的 CoreHID 接收器。
    安装 Linux 包不会连接 Mac，也不会生成或复制 SSH 私钥。
 
-4. 此 Linux 图形实现面向 Hyprland + NVIDIA EGL/CUDA。
-   包含 Viewflow 运行库；主机仍需提供匹配的 NVIDIA 驱动、Wayland 会话
-   和与插件构建一致的 Hyprland。它不是任意桌面环境的通用包。
+4. 此 Linux 图形实现面向 Hyprland，媒体后端可选择 NVIDIA NVENC/NVDEC
+   或 AMD/Intel VA-API，并指定具体 render device。主机需提供对应驱动、
+   Wayland 会话和与插件构建一致的 Hyprland；GUI 不安装驱动或系统组件。
+   请运行“检查硬件媒体链路”，依赖存在不代表硬件链路可用。
+   VA-API 当前使用 CPU 准备像素再上传硬编码，AMD/Intel 实机验收仍待完成。
+   合成检查不替代跨设备验收；它不是任意桌面环境的通用包。

@@ -44,6 +44,7 @@ struct SparsePlan {
   uint64_t inputPixels{}, storedPixels{}, occludedPixels{}, emptyPixels{};
   uint32_t requiredWidth{}, requiredHeight{};
   bool fits = true;
+  bool stablePlacement = false;
 };
 inline bool containsCell(const SparseCell& a, const SparseCell& b) {
   return a.grid == b.grid && a.sceneX <= b.sceneX && a.sceneY <= b.sceneY &&
@@ -152,4 +153,25 @@ inline SparsePlan planSparseAtlas(std::vector<SparseCell> cells, uint32_t width,
   }
   return plan;
 }
+// Keep source-local pixels at their reserved atlas positions across promotion,
+// visibility changes and source enumeration changes. Culling stays enabled.
+inline void placeSparseAtlasStable(SparsePlan& plan,
+    const std::vector<std::pair<uint32_t, uint32_t>>& origins,
+    uint32_t width, uint32_t height) {
+  plan.stablePlacement = true;
+  plan.requiredWidth = plan.requiredHeight = 1;
+  for (auto& draw : plan.draws) {
+    auto& p = draw.patch;
+    const auto& origin = origins.at(p.source);
+    const uint64_t x = uint64_t(origin.first) + p.sourceX;
+    const uint64_t y = uint64_t(origin.second) + p.sourceY;
+    if (x + p.width > UINT32_MAX || y + p.height > UINT32_MAX)
+      throw std::invalid_argument("stable sparse placement overflow");
+    p.x = uint32_t(x); p.y = uint32_t(y);
+    plan.requiredWidth = std::max(plan.requiredWidth, p.x + p.width);
+    plan.requiredHeight = std::max(plan.requiredHeight, p.y + p.height);
+  }
+  plan.fits = plan.requiredWidth <= width && plan.requiredHeight <= height;
+}
+
 }

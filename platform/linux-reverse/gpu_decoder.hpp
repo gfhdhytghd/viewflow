@@ -6,7 +6,7 @@
 struct AVFrame;
 namespace viewflow::reverse {
 using DecodedFrame=std::shared_ptr<AVFrame>;
-// Owner must keep an EGL/GLES context current on the selected NVIDIA device.
+// Owner must keep an EGL/GLES context current on the selected rendering device; VA-API surfaces are imported through DMA-BUF.
 class GpuDecoder {
 public:
     GpuDecoder();

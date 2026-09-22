@@ -1,4 +1,6 @@
 #include "nvenc_encoder.hpp"
+#include "../linux-media/vaapi_encoder.hpp"
+#include "../linux-media/device_selection.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -55,7 +57,7 @@ namespace {
                                       const char* value, std::string* error) {
   const int result = av_opt_set(context->priv_data, name, value, 0);
   if (result >= 0) return true;
-  *error = std::string("could not set NVENC option ") + name + "=" + value + ": " +
+  *error = std::string("could not set media encoder option ") + name + "=" + value + ": " +
            ffmpeg_error(result);
   return false;
 }
@@ -64,7 +66,7 @@ namespace {
                                           std::int64_t value, std::string* error) {
   const int result = av_opt_set_int(context->priv_data, name, value, 0);
   if (result >= 0) return true;
-  *error = std::string("could not set NVENC option ") + name + ": " + ffmpeg_error(result);
+  *error = std::string("could not set media encoder option ") + name + ": " + ffmpeg_error(result);
   return false;
 }
 
@@ -74,15 +76,15 @@ struct ContextDeleter {
 using Context = std::unique_ptr<AVCodecContext, ContextDeleter>;
 
 [[nodiscard]] Context make_context(const EncoderConfig& config, AVPixelFormat format,
-                                   bool alpha, std::string* error) {
-  const AVCodec* codec = avcodec_find_encoder_by_name("h264_nvenc");
+                                   bool alpha, std::string* error, bool softwareAlpha = false) {
+  const AVCodec* codec = avcodec_find_encoder_by_name(softwareAlpha ? "libx264" : "h264_nvenc");
   if (codec == nullptr) {
-    *error = "h264_nvenc is unavailable in the installed libavcodec";
+    *error = softwareAlpha ? "libx264 is required for the legacy lossless alpha stream" : "h264_nvenc is unavailable in the installed libavcodec";
     return nullptr;
   }
   Context context(avcodec_alloc_context3(codec));
   if (!context) {
-    *error = "could not allocate an NVENC codec context";
+    *error = "could not allocate a media codec context";
     return nullptr;
   }
   context->width = static_cast<int>(config.width);
@@ -93,6 +95,23 @@ using Context = std::unique_ptr<AVCodecContext, ContextDeleter>;
   context->max_b_frames = 0;
   context->gop_size = 120;
   context->flags |= AV_CODEC_FLAG_LOW_DELAY;
+  if (softwareAlpha) {
+    // Legacy paired H264 alpha requires full-range 4:4:4 lossless semantics.
+    // VA-API color stays in hardware; alpha uses the compatible CPU codec.
+    context->color_range = AVCOL_RANGE_JPEG;
+    if (!set_encoder_option(context.get(), "preset", "ultrafast", error) ||
+        !set_encoder_option(context.get(), "tune", "zerolatency", error) ||
+        !set_encoder_option(context.get(), "profile", "high444", error) ||
+        !set_encoder_option_int(context.get(), "forced-idr", 1, error) ||
+        !set_encoder_option(context.get(), "x264-params", "repeat-headers=1:annexb=1:scenecut=0", error) ||
+        !set_encoder_option_int(context.get(), "qp", config.alpha_fidelity.kind == AlphaFidelityKind::Lossless ? 0 : config.alpha_fidelity.max_quantizer, error)) return nullptr;
+    const int opened=avcodec_open2(context.get(),codec,nullptr);
+    if(opened<0) { *error="could not open legacy alpha codec: "+ffmpeg_error(opened);return nullptr; }
+    return context;
+  }
+  // Match CPU-input NVENC to the same explicit render-node selection as DMA-BUF.
+  const auto selected=media::selection(false);
+  if(!selected.renderNode.empty() && !set_encoder_option_int(context.get(), "gpu", media::nvidiaOrdinal(selected.renderNode), error)) return nullptr;
   // Do not request AV_CODEC_FLAG_GLOBAL_HEADER: packet output must be Annex B.
   if (!set_encoder_option(context.get(), "preset", alpha ? "p7" : "p1", error) ||
       !set_encoder_option(context.get(), "tune",
@@ -184,6 +203,7 @@ struct Encoder::Impl {
   explicit Impl(EncoderConfig value) : config(value) {}
   EncoderConfig config;
   Context color;
+  std::unique_ptr<media::VaapiEncoder> vaapi;
   Context alpha;
   AVFrame* color_frame = nullptr;
   AVFrame* alpha_frame = nullptr;
@@ -208,10 +228,16 @@ std::unique_ptr<Encoder> Encoder::create(const EncoderConfig& config, std::strin
   if (error == nullptr) return nullptr;
   if (!valid_config(config, error)) return nullptr;
   auto impl = std::make_unique<Impl>(config);
-  impl->color = make_context(config, AV_PIX_FMT_RGBA, false, error);
-  if (!impl->color) return nullptr;
+  try {
+    const auto selected=media::selection(false);
+    if(selected.vaapi) impl->vaapi=std::make_unique<media::VaapiEncoder>(config.width,config.height,2,selected.renderNode);
+    else {
+      impl->color = make_context(config, AV_PIX_FMT_RGBA, false, error);
+      if (!impl->color) return nullptr;
+    }
+  } catch(const std::exception& failure) { *error=failure.what();return nullptr; }
   if (config.alpha_policy != AlphaPolicy::ColorOnlyExternalAlpha) {
-    impl->alpha = make_context(config, AV_PIX_FMT_YUV444P, true, error);
+    impl->alpha = make_context(config, AV_PIX_FMT_YUV444P, true, error, bool(impl->vaapi));
     if (!impl->alpha) return nullptr;
   }
   impl->color_frame = allocate_frame(config, AV_PIX_FMT_RGBA, error);
@@ -276,7 +302,7 @@ enum class Stream { Color, Alpha };
     return false;
   }
   bool success = true;
-  for (;;) {
+  for (;context;) {
     const int received = avcodec_receive_packet(context, packet);
     if (received == AVERROR(EAGAIN) || received == AVERROR_EOF) break;
     if (received < 0) {
@@ -394,15 +420,28 @@ bool Encoder::submit(std::span<const std::uint8_t> rgba, FrameMetadata metadata,
     *error = "internal PTS collision";
     return false;
   }
-  if (!fill_color(impl_.get(), rgba, pts, idr, error)) {
-    impl_->pending.erase(pts);
-    return false;
-  }
-  int sent = avcodec_send_frame(impl_->color.get(), impl_->color_frame);
-  if (sent < 0) {
-    *error = "could not submit color frame to NVENC: " + ffmpeg_error(sent);
-    impl_->pending.erase(pts);
-    return false;
+  int sent=0;
+  if(impl_->vaapi) {
+    try {
+      bool keyframe=false;
+      entry->second.color_annex_b=impl_->vaapi->encode(rgba,idr,keyframe);
+      entry->second.color_is_idr=keyframe;
+      if(entry->second.color_annex_b.size()>impl_->config.max_access_unit_bytes)
+        throw std::runtime_error("VA-API access unit exceeds configured bound");
+    } catch(const std::exception& failure) {
+      *error=failure.what();impl_->pending.erase(pts);impl_->failed=true;return false;
+    }
+  } else {
+    if (!fill_color(impl_.get(), rgba, pts, idr, error)) {
+      impl_->pending.erase(pts);
+      return false;
+    }
+    sent = avcodec_send_frame(impl_->color.get(), impl_->color_frame);
+    if (sent < 0) {
+      *error = "could not submit color frame to NVENC: " + ffmpeg_error(sent);
+      impl_->pending.erase(pts);
+      return false;
+    }
   }
   if (!omit_alpha) {
     if (!fill_alpha(impl_.get(), *alpha_planes, pts, alpha_idr, error)) {

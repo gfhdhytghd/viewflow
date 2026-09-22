@@ -28,6 +28,8 @@ viewflow-transport = { path = "../viewflow-transport" }
 [features]
 native-nvenc = []
 native-gpu-nvenc = ["native-nvenc"]
+# The old feature remains an alias for callers; CUDA itself is optional.
+native-gpu-media = ["native-gpu-nvenc"]
 
 [build-dependencies]
 cc = "1.4.4"

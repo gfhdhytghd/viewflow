@@ -1,4 +1,6 @@
 #include "gpu_decoder.hpp"
+#include "../linux-media/probe_texture.hpp"
+#include <cstdlib>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
@@ -54,6 +56,15 @@ int main(int argc,char** argv) {
                         if(expected_width && (width!=expected_width || height!=expected_height))
                             throw std::runtime_error("decoded dimensions differ from requested fixture");
                         decoder.upload(frame);glFinish();++decoded;
+                        if(const char* expected=std::getenv("VIEWFLOW_PROBE_EXPECT_NV12")) {
+                            int y{},u{},v{};
+                            if(std::sscanf(expected,"%d,%d,%d",&y,&u,&v)!=3) throw std::runtime_error("invalid expected probe sample");
+                            const auto luma=viewflow::media::sampleTexture(decoder.y_texture(),.5f,.5f);
+                            const auto chroma=viewflow::media::sampleTexture(decoder.uv_texture(),.5f,.5f);
+                            if(decoded==1) std::fprintf(stderr,"sampled NV12=%u,%u,%u\n",luma[0],chroma[0],chroma[1]);
+                            if(std::abs(int(luma[0])-y)>4 || std::abs(int(chroma[0])-u)>4 || std::abs(int(chroma[1])-v)>4)
+                                throw std::runtime_error("decoded sampler pixels differ from fixture");
+                        }
                         decode_upload_ms.push_back(std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count());
                         started=std::chrono::steady_clock::now();
                     }

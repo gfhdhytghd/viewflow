@@ -1,0 +1,14 @@
+..F......s
+======================================================================
+FAIL: test_full_mac_payload_requires_driver_and_every_helper (__main__.PackagingTests.test_full_mac_payload_requires_driver_and_every_helper)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/wilf/data/viewflow/tools/tests/unified-apps-test.py", line 38, in test_full_mac_payload_requires_driver_and_every_helper
+    self.assertEqual(len(mac.inspect_bundle(app, require_driver=False)), 6)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 7 != 6
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.061s
+
+FAILED (failures=1, skipped=1)

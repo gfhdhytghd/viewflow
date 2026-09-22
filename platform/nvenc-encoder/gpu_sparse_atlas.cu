@@ -98,7 +98,7 @@ cudaError_t composeSparseAtlas(const AtlasTile* sources,size_t n,
   for(const auto& draw:plan.draws) {
     const auto& p=draw.patch;
     if(draw.layers.empty() || uint64_t(p.x)+p.width>uint64_t(out.width) ||
-        uint64_t(p.y)+p.height>uint64_t(out.height) || p.x%128 || p.y%128 ||
+        uint64_t(p.y)+p.height>uint64_t(out.height) || (!plan.stablePlacement && (p.x%128 || p.y%128)) ||
         !slots.emplace(p.x,p.y).second || layers.size()+draw.layers.size()>262144)return cudaErrorInvalidValue;
     draws.push_back({p,unsigned(layers.size()),unsigned(draw.layers.size())});
     for(const auto& c:draw.layers) {

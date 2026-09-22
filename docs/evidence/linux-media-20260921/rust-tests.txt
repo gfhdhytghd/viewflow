@@ -1,0 +1,21 @@
+running 18 tests
+test gpu_compatible_encoder::sparse_viewport_tests::fractional_boundary_rounds_outward_without_losing_visible_pixels ... ok
+test gpu_compatible_encoder::sparse_viewport_tests::scroll_out_partial_and_back_preserves_source_coordinates ... ok
+test gpu_compatible_encoder::sparse_viewport_tests::seam_residency_contains_pixels_revealed_before_the_next_source_frame ... ok
+test gpu_compatible_encoder::tests::descriptor_changes_require_new_generation ... ok
+test gpu_compatible_encoder::tests::atlas_stream_identity_and_timestamp_cannot_disguise_window_freshness ... ok
+test gpu_compatible_encoder::tests::atlas_continues_warmup_identity_without_resetting_source_floors ... ok
+test gpu_compatible_encoder::tests::atlas_batch_requires_exact_membership_geometry_and_nonoverlap ... ok
+test gpu_compatible_encoder::tests::atlas_batch_consumes_each_source_and_fences_layout_generations ... ok
+test gpu_compatible_encoder::tests::drained_late_packet_consumes_lineage_and_repairs_both_reference_chains ... ok
+test gpu_compatible_encoder::tests::atlas_wire_manifest_binds_planes_and_maps_each_source_clock ... ok
+test gpu_compatible_encoder::tests::clean_expiry_consumes_lineage_without_changing_pending_idr_or_alpha ... ok
+test gpu_compatible_encoder::tests::gpu_transport_keeps_alpha_and_session_lineage ... ok
+test gpu_compatible_encoder::tests::invalid_atlas_batch_retires_adapter_before_gpu_initialization ... ok
+test gpu_compatible_encoder::tests::lossless_alpha_cache_invalidates_generation_dimensions_and_config ... ok
+test gpu_compatible_encoder::tests::lossless_alpha_cache_reencodes_changed_samples_exactly ... ok
+test gpu_compatible_encoder::tests::owned_atlas_grows_to_8192_by_4096 ... ignored, requires NVIDIA GPU; owned empty canvases only, no desktop input
+test gpu_compatible_encoder::tests::lossless_alpha_cache_reuses_bytes_but_preserves_new_frame_metadata ... ok
+test gpu_compatible_encoder::tests::native_geometry_epoch_change_requires_a_new_atlas_placement ... ok
+
+test result: ok. 17 passed; 0 failed; 1 ignored; 0 measured; 658 filtered out; finished in 0.00s

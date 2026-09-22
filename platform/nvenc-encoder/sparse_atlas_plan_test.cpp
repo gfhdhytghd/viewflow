@@ -38,4 +38,25 @@ int main() {
   // Unknown/mixed coverage and separated grids cannot authorize occlusion.
   bottom.alpha=CellAlpha::Mixed; top.sceneX=0; top.alpha=CellAlpha::Mixed;
   assert(planSparseAtlas({bottom,top},256,128,false).draws.size()==2);
+  // Promoting/removing a source must not move another source's pixels.
+  bottom.alpha=CellAlpha::Opaque; top.alpha=CellAlpha::Opaque; top.sceneX=128;
+  p=planSparseAtlas({bottom,top},512,256,false);
+  placeSparseAtlasStable(p, {{0,0},{256,128}},512,256);
+  assert(p.fits && p.draws[1].patch.x==256 && p.draws[1].patch.y==128);
+  top.source=0;
+  auto promoted=planSparseAtlas({top},512,256,false);
+  placeSparseAtlasStable(promoted, {{256,128}},512,256);
+  assert(promoted.draws[0].patch.x==p.draws[1].patch.x);
+  assert(promoted.draws[0].patch.y==p.draws[1].patch.y);
+  // Opaque culling and optional transparent precomposition still work.
+  top.source=1; top.sceneX=0;
+  p=planSparseAtlas({bottom,top},512,256,false);
+  placeSparseAtlasStable(p, {{0,0},{256,128}},512,256);
+  assert(p.draws.size()==1 && p.occludedPixels==16384 && p.draws[0].patch.x==256);
+  top.alpha=CellAlpha::Mixed;
+  p=planSparseAtlas({bottom,top},512,256,true);
+  placeSparseAtlasStable(p, {{0,0},{256,128}},512,256);
+  assert(p.draws.size()==1 && p.draws[0].layers.size()==2 && p.draws[0].patch.x==256);
+  placeSparseAtlasStable(p, {{0,0},{500,128}},512,256);
+  assert(!p.fits);
 }

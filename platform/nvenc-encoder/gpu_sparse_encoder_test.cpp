@@ -141,8 +141,9 @@ int main(int argc,char** argv) {
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,size,size,0,GL_RGBA,GL_UNSIGNED_BYTE,colors[i].data());
   }
   Export exports[2];for(unsigned i=0;i<2;++i)require(exportFrame(egl,textures[i],exports[i]),"export owned texture");
-  for(unsigned mode:{1u,2u}) {
-    vf_gpu_dmabuf_encoder_config config{256,256,4U<<20};vf_gpu_dmabuf_encoder* encoder=nullptr;
+  for(unsigned mode:{1u,2u,3u,4u}) {
+    const bool opaque = mode == 1 || mode == 3;
+    vf_gpu_dmabuf_encoder_config config{mode >= 3 ? 512u : 256u,256,4U<<20};vf_gpu_dmabuf_encoder* encoder=nullptr;
     require(vf_gpu_dmabuf_encoder_create_with_codec(&config,4,&encoder)==VF_GPU_DMABUF_OK,"AV1 encoder");
     vf_gpu_dmabuf_atlas_tile tiles[2]{};
     auto stamp=nowNs();
@@ -152,6 +153,7 @@ int main(int argc,char** argv) {
       f.stride=e.stride;f.offset=e.offset;f.modifier=e.modifier;f.fourcc=0x34324241;
       f.crop_width=size;f.crop_height=size;f.frame_id=mode;f.capture_timestamp_ns=stamp;f.geometry_epoch=1;
       tiles[i].deadline_monotonic_ns=stamp+10000000000LL;
+      if (mode >= 3) tiles[i].x = i * size;
     }
     vf_gpu_dmabuf_atlas atlas{sizeof(vf_gpu_dmabuf_atlas),1,2,0,tiles,mode,uint64_t(stamp),1};
     vf_gpu_dmabuf_sparse_source scene_sources[2]={{0,0,1,1},{0,0,2,1}};
@@ -170,15 +172,18 @@ int main(int argc,char** argv) {
     if(status!=0){char error[256]{};size_t count{};vf_gpu_dmabuf_encoder_copy_last_error(encoder,error,sizeof(error),&count);std::fprintf(stderr,"native sparse status=%u %s\n",unsigned(status),error);}
     require(status==0 && output,"sparse encode completion");
     require(vf_gpu_dmabuf_output_get_sparse_info(output,&sparse)==0,"sparse info");
-    require(sparse.patch_count==(mode==1?8:4) && sparse.stored_pixels==(mode==1?131072:65536),"actual encoded residency");
+    require(sparse.patch_count==(opaque?8:4) && sparse.stored_pixels==(opaque?131072:65536),"actual encoded residency");
     vf_gpu_dmabuf_output_info info{};require(vf_gpu_dmabuf_output_get_info(output,&info)==0 && info.idr==1,"paired keyframe");
     std::vector<unsigned char> color(info.color_annex_b_bytes),alpha(info.raw_alpha_bytes);size_t required{};
     require(vf_gpu_dmabuf_output_copy_color(output,color.data(),color.size(),&required)==0,"color output");
     require(vf_gpu_dmabuf_output_copy_raw_alpha(output,alpha.data(),alpha.size(),&required)==0,"alpha output");
     std::vector<vf_gpu_dmabuf_sparse_patch> patches(sparse.patch_count);
     require(vf_gpu_dmabuf_output_copy_sparse_patches(output,patches.data(),patches.size(),&required)==0 && required==patches.size(),"patch output");
+    if (mode >= 3) for (const auto& p : patches)
+      require(p.x == p.source * size + p.source_x && p.y == p.source_y,
+              "stable native sparse source placement");
     for(const auto& p:patches)for(unsigned y=0;y<p.height;++y)for(unsigned x=0;x<p.width;++x)
-      require(alpha[(p.y+y)*config.width+p.x+x]==(mode==1 && p.source==1?128:255),"exact composed alpha");
+      require(alpha[(p.y+y)*config.width+p.x+x]==(opaque && p.source==1?128:255),"exact composed alpha");
     if(argc==2) {
       const std::string prefix=std::string(argv[1])+"/mode-"+std::to_string(mode);
       writeFile(prefix+".av1",color);writeFile(prefix+".alpha",alpha);
@@ -234,9 +239,13 @@ int main(int argc,char** argv) {
       }
       output=nullptr;
       status=vf_gpu_dmabuf_encoder_encode_sparse_recoverable(encoder,&atlas,&scene,1,stamp+10000000000LL,&output);
+      if(status!=0) { char error[256]{}; size_t count{};
+        vf_gpu_dmabuf_encoder_copy_last_error(encoder,error,sizeof(error),&count);
+        std::fprintf(stderr,"viewport mode=%u width=%u status=%u %s\n",mode,visibleWidth,unsigned(status),error);
+      }
       require(status==0 && output,"viewport encode completion");
       require(vf_gpu_dmabuf_output_get_sparse_info(output,&sparse)==0,"viewport info");
-      require(sparse.stored_pixels==uint64_t(visibleWidth)*256*(mode==1?2:1),"viewport residency exact");
+      require(sparse.stored_pixels==uint64_t(visibleWidth)*256*(opaque?2:1),"viewport residency exact");
       require(vf_gpu_dmabuf_output_get_info(output,&info)==0 && info.idr==1,"viewport paired keyframe");
       alpha.resize(info.raw_alpha_bytes);
       require(vf_gpu_dmabuf_output_copy_raw_alpha(output,alpha.data(),alpha.size(),&required)==0,"viewport alpha");

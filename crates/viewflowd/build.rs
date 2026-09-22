@@ -18,6 +18,9 @@ fn main() {
         "nvenc_encoder_cabi.cpp",
         "nvenc_encoder.hpp",
         "nvenc_encoder_cabi.h",
+        "../linux-media/vaapi_encoder.cpp",
+        "../linux-media/vaapi_encoder.hpp",
+        "../linux-media/device_selection.hpp",
     ] {
         println!("cargo:rerun-if-changed={}", root.join(file).display());
     }
@@ -39,6 +42,7 @@ fn main() {
         .cpp(true)
         .std("c++20")
         .file(root.join("nvenc_encoder.cpp"))
+        .file(root.join("../linux-media/vaapi_encoder.cpp"))
         .file(root.join("nvenc_encoder_cabi.cpp"))
         .include(&root);
     for flag in String::from_utf8(cflags.stdout)
@@ -55,7 +59,7 @@ fn main() {
         .flag_if_supported("-Wpedantic")
         .flag_if_supported("-Werror")
         .compile("viewflow_nvenc_encoder");
-    for library in ["avcodec", "avutil"] {
+    for library in ["avcodec", "avutil", "EGL", "GLESv2", "dl"] {
         println!("cargo:rustc-link-lib={library}");
     }
 }
@@ -64,7 +68,7 @@ fn build_gpu_encoder() {
     assert_eq!(
         env::var("CARGO_CFG_TARGET_OS").as_deref(),
         Ok("linux"),
-        "native-gpu-nvenc requires Linux EGL/CUDA"
+        "native GPU media requires Linux EGL/FFmpeg"
     );
     assert_eq!(
         env::var("HOST").ok(),
@@ -78,6 +82,19 @@ fn build_gpu_encoder() {
     for name in [
         "CMakeLists.txt",
         "gpu_dmabuf_encoder.cu",
+        "gpu_dmabuf_encoder.cpp",
+        "cuda_dmabuf_encoder.hpp",
+        "cuda_encoder_backend.cpp",
+        "media_encoder_backend.hpp",
+        "vaapi_dmabuf_encoder.cpp",
+        "vaapi_dmabuf_encoder.hpp",
+        "portable_rgba.hpp",
+        "portable_dmabuf_import.cpp",
+        "portable_dmabuf_import.hpp",
+        "../linux-media/device_selection.hpp",
+        "../linux-media/egl_device.hpp",
+        "../linux-media/vaapi_encoder.cpp",
+        "../linux-media/vaapi_encoder.hpp",
         "gpu_dmabuf_encoder.cuh",
         "alpha_copy_profile.hpp",
         "gpu_import_cleanup.hpp",
@@ -87,13 +104,19 @@ fn build_gpu_encoder() {
         "gpu_rgba_prepare.cuh",
         "gpu_atlas_compose.cu",
         "gpu_atlas_compose.cuh",
+        "gpu_sparse_atlas.cu",
+        "gpu_sparse_atlas.cuh",
+        "sparse_atlas_plan.hpp",
         "gpu_shadow_math.cuh",
         "gpu_shadow_repair.cu",
         "gpu_shadow_repair.cuh",
     ] {
         println!("cargo:rerun-if-changed={}", source.join(name).display());
     }
+    println!("cargo:rerun-if-env-changed=VIEWFLOW_ENABLE_CUDA");
+    let cuda = env::var("VIEWFLOW_ENABLE_CUDA").unwrap_or_else(|_| "ON".into());
     let status = Command::new("cmake")
+        .arg(format!("-DVIEWFLOW_ENABLE_CUDA={cuda}"))
         .arg("-S")
         .arg(&source)
         .arg("-B")
@@ -117,14 +140,9 @@ fn build_gpu_encoder() {
     assert!(status.success(), "GPU encoder native build failed");
     println!("cargo:rustc-link-search=native={}", output.display());
     println!("cargo:rustc-link-lib=static=viewflow-gpu-dmabuf-encoder");
-    for directory in ["/opt/cuda/lib64", "/usr/local/cuda/lib64"] {
-        if std::path::Path::new(directory).is_dir() {
-            println!("cargo:rustc-link-search=native={directory}");
-        }
-    }
-    for library in [
-        "stdc++", "avcodec", "avutil", "EGL", "GLESv2", "cudart", "cuda",
-    ] {
+    // The CUDA implementation is an optional DSO loaded only for NVIDIA.
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", output.display());
+    for library in ["stdc++", "avcodec", "avutil", "EGL", "GLESv2", "dl"] {
         println!("cargo:rustc-link-lib={library}");
     }
 }

@@ -1,3 +1,9 @@
+> Linux now selects between the existing NVIDIA implementation and a VA-API
+> implementation at runtime. See [Linux media backends](../../docs/linux-media-backends.md)
+> for render-device selection, optional CUDA builds, validation status and the
+> portable path's CPU preparation costs. The NVIDIA-specific details below
+> still describe its unchanged color/alpha implementation.
+
 # Viewflow NVENC encoder shim
 
 This Linux-only C++20 shim keeps two `h264_nvenc` contexts alive: straight-RGBA
