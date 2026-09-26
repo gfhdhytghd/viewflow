@@ -39,8 +39,30 @@ receiver's `--probe` returned exit 0 with these results:
 
 This confirms device creation, the feature handshake and serial-specific native
 multitouch attachment. The probe sent no input reports. The subsequent live
-forwarding trial was user-operated and accepted ("非常好用"); concurrent producer
-integration and notarized distribution remain unverified.
+forwarding trial was user-operated and accepted ("非常好用"). This historical
+acceptance applies to the standalone receiver. The integrated shared service
+below has fake-device coverage; its live acceptance and notarized distribution
+must be verified separately.
+
+## Integrated application service
+
+The macOS app builder now selects CoreHID by default and embeds this receiver in
+`Viewflow.app/Contents/Helpers`. The app owns its `--serve --socket PATH
+--status-file PATH` process and retries component failures independently. One
+virtual device and ordered report history serve desktop and proxy producers.
+Idle streams do not own the device; a producer releases ownership on lift or
+disconnect. Failed native releases are retried before ownership passes to a new
+producer. Stopping the GUI shuts down its socket clients and receiver.
+
+The GUI's `--driver-status` reads the running service's diagnostic file and does
+not create a virtual device. This differs from the standalone receiver's
+historical `--driver-status` probe described below. The CoreHID permission page
+does not offer DriverKit installation. Existing standalone deployments are not
+automatically migrated by a build.
+
+See [public packaging](../../tools/macos-dmg/README.md) for Developer ID profile,
+signature, notarization and Gatekeeper requirements. Development profile
+acceptance on one registered Mac does not establish public distributability.
 
 ## Current default deployment (2026-09-21)
 
@@ -113,10 +135,9 @@ and prints the VFTP ABI/profile status JSON to stdout. Preserve the
 sender's normal device selection and routing settings. Do not send the same
 physical stream to both this receiver and the DriverKit receiver during a trial.
 
-Each process owns one virtual trackpad and consumes one ordered stream. This
-standalone receiver does not yet replace the GUI's shared `hid.sock` arbitration
-for concurrent desktop and window producers. Do not select it as that shared
-backend until those paths are integrated and tested.
+In standalone `--receive-stdin` mode, each process owns one virtual trackpad and
+consumes one ordered stream. Integrated applications use the shared service
+described above instead of starting one receiver per producer.
 
 EOF or malformed input follows the existing stream release path; a failed
 release is retried before process exit. Device teardown on process exit removes

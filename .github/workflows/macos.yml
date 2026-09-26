@@ -12,6 +12,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust
         run: rustup toolchain install stable --profile minimal
+      - name: Test public distribution validation without signing credentials
+        run: |
+          python3 tools/tests/macos-distribution-test.py
+          python3 platform/macos-hid-receiver/test_build.py
       - name: Check portable daemon
         run: cargo +stable check --locked -p viewflowd --lib --bins
       - name: Test portable foundation
@@ -25,7 +29,10 @@ jobs:
       - name: Check native codecs and CLI without desktop permissions
         run: ctest --test-dir build/macos --output-on-failure
       - name: Build unified macOS app (explicit development build without HID)
-        run: python3 tools/build-macos-app.py --without-driver --output dist/Viewflow-Development-No-HID.app --zip
+        run: |
+          python3 -m venv build/pairing-venv
+          build/pairing-venv/bin/python -m pip install pyinstaller==6.22.0 -r platform/desktop-app/requirements-pairing.txt
+          build/pairing-venv/bin/python tools/build-macos-app.py --without-driver --output dist/Viewflow-Development-No-HID.app --zip
       - name: Upload macOS development artifact (HID activation not verified)
         uses: actions/upload-artifact@v4
         with:
