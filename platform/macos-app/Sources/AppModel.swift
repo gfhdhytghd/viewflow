@@ -51,7 +51,7 @@ import Combine
         pairing.start()
         permissions.refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+            Task { @MainActor [weak self] in self?.tick() }
         }
     }
     private func reconcileGroup(_ incoming: ConnectionProfile?, reason: String) {
@@ -279,7 +279,7 @@ import Combine
                 let json = try NativeProbe.json(BundleTools.executable("viewflow-macos-windows"), ["--list-windows"])
                 return try JSONDecoder().decode(WindowInventory.self, from: JSONSerialization.data(withJSONObject: json))
             }
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 guard let self else { return }; self.inventoryBusy = false
                 guard self.running, self.enabled.contains(.windowsShare), token == self.generation else { return }
                 do { try self.updateWindows(result.get(), profile) }
