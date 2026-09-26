@@ -59,20 +59,17 @@ std::optional<bool> remote_window_needed(CGRect bounds) {
 CGPoint backing_position(CGPoint requested, CGSize size) {
     CGDirectDisplayID displays[32]; uint32_t count = 0;
     if (CGGetOnlineDisplayList(32, displays, &count) != kCGErrorSuccess) return requested;
-    CGRect parking = CGRectNull;
+    std::vector<reverse::ScopeRect> parking;
     const CGRect proposed{requested, size};
     for (uint32_t i = 0; i < count; ++i) {
         const CGRect bounds = CGDisplayBounds(displays[i]);
-        if (is_parking_display(displays[i])) parking = bounds;
+        if (is_parking_display(displays[i])) parking.push_back({bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height});
         else if (CGRectIntersectsRect(bounds, proposed)) return requested;
     }
-    if (CGRectIsNull(parking)) return requested;
-    return CGPointMake(std::clamp(requested.x, parking.origin.x,
-                           parking.origin.x + std::max(0., parking.size.width - size.width)),
-                       std::clamp(requested.y, parking.origin.y,
-                           parking.origin.y + std::max(0., parking.size.height - size.height)));
+    const auto target = reverse::parking_position({requested.x, requested.y, size.width, size.height}, parking);
+    return CGPointMake(target.x, target.y);
 }
-int run_parking_display(int width, int height, int x, int y) {
+int run_parking_display(int width, int height, int x, int y, unsigned serial) {
     Class descriptor_class = NSClassFromString(@"CGVirtualDisplayDescriptor");
     Class display_class = NSClassFromString(@"CGVirtualDisplay");
     Class settings_class = NSClassFromString(@"CGVirtualDisplaySettings");
@@ -83,19 +80,20 @@ int run_parking_display(int width, int height, int x, int y) {
     if (CGGetOnlineDisplayList(32, physical, &count) != kCGErrorSuccess || !count)
         throw std::runtime_error("physical display inventory unavailable");
     for (uint32_t i = 0; i < count; ++i) {
-        if (is_parking_display(physical[i])) throw std::runtime_error("Viewflow parking display already owned");
+        if (is_parking_display(physical[i]) && CGDisplaySerialNumber(physical[i]) == serial) throw std::runtime_error("Viewflow parking display already owned");
     }
     const auto original_main = CGMainDisplayID();
     VFVirtualDescriptor* descriptor = [(id)descriptor_class new];
     descriptor.vendorID = parking_vendor; descriptor.productID = parking_product;
-    descriptor.serialNum = 1; descriptor.serialNumber = 1;
-    descriptor.name = @"Viewflow Remote Windows";
+    descriptor.serialNum = serial; descriptor.serialNumber = serial;
+    descriptor.name = serial == 1 ? @"Viewflow Remote Windows" : [NSString stringWithFormat:@"Viewflow Remote Windows %u", serial];
     descriptor.maxPixelsWide = width * 2; descriptor.maxPixelsHigh = height * 2;
     descriptor.sizeInMillimeters = CGSizeMake(800, 422);
     descriptor.redPrimary = CGPointMake(.64, .33); descriptor.greenPrimary = CGPointMake(.30, .60);
     descriptor.bluePrimary = CGPointMake(.15, .06); descriptor.whitePoint = CGPointMake(.3127, .3290);
     descriptor.queue = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
-    VFVirtualDisplay* display = [[(id)display_class alloc] initWithDescriptor:descriptor];
+    // The virtual display must outlive the run loop even in optimized builds.
+    __attribute__((objc_precise_lifetime)) VFVirtualDisplay* display = [[(id)display_class alloc] initWithDescriptor:descriptor];
     if (!display) throw std::runtime_error("create Viewflow parking display failed");
     VFVirtualSettings* settings = [(id)settings_class new];
     // Virtual modes are in points; the descriptor holds the 2x pixel limits.

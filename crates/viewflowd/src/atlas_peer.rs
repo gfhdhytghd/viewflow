@@ -87,6 +87,8 @@ pub struct AtlasSourceWindow {
 #[serde(deny_unknown_fields)]
 pub struct AtlasSourceConfig {
     #[serde(default)]
+    pub activity_priority: crate::activity_priority::ActivityPriorityMode,
+    #[serde(default)]
     pub occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
     #[serde(default)]
     pub reverse: Option<crate::reverse_bridge::ReverseBridgeConfig>,
@@ -392,6 +394,8 @@ impl AtlasReceiverPointerConfig {
 #[serde(deny_unknown_fields)]
 pub struct AtlasReceiverConfig {
     #[serde(default)]
+    pub activity_priority: crate::activity_priority::ActivityPriorityMode,
+    #[serde(default)]
     pub reverse: Option<crate::reverse_bridge::ReverseBridgeConfig>,
     #[serde(default)]
     pub color_codec: AtlasColorCodec,
@@ -557,6 +561,7 @@ impl AtlasMediaPolicyConfig {
             config_generation: self.config_generation,
         };
         let plan = AtlasSessionPlan {
+            activity_priority_version: 0,
             policy: AtlasReceiverPolicy {
                 stream_id: Id128(u128::from_str_radix(&self.stream_id, 16)?),
                 geometry_epoch: self.geometry_epoch,
@@ -644,7 +649,9 @@ mod receiver {
 
     pub async fn run(config: AtlasReceiverConfig, stop: impl Future<Output = ()>) -> Result<()> {
         let _timer_resolution = crate::coded_peer::enable_windows_timer_resolution()?;
-        let plan = config.plan()?;
+        let mut plan = config.plan()?;
+        plan.activity_priority_version = u32::from(config.activity_priority == crate::activity_priority::ActivityPriorityMode::Auto
+            && (config.desktop.is_some() || config.input_recovery));
         let identity = viewflow_transport::PeerIdentity::from_pem(
             &read_bounded(&config.certificate, 1 << 20)?,
             &read_bounded(&config.private_key, 1 << 20)?,
@@ -919,7 +926,7 @@ mod receiver {
             };
             match result {
                 Ok(crate::atlas_feedback::AtlasFrameDisposition::Committed) => submitted = submitted.saturating_add(1),
-                Ok(crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound) => expired = expired.saturating_add(1),
+                Ok(crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound | crate::atlas_feedback::AtlasFrameDisposition::Superseded) => expired = expired.saturating_add(1),
                 Err(error) if error.is::<crate::atlas_session::AtlasWaitExpired>() => continue,
                 Err(error) => return Err(error.context(format!(
                     "atlas receiver stopped after {submitted} native visual submissions (not physical receipts), expired_unbound={expired}"
@@ -962,10 +969,7 @@ mod receiver {
             }
             match requests.try_recv() {
                 Ok(request) => {
-                    ensure!(
-                        fence.is_armed(),
-                        "atlas recovery request arrived before its media fence"
-                    );
+                    request.confirmation.validate_media_fence(fence.is_armed())?;
                     owner
                         .handle_input_recovery_with_clock(request, || {
                             let sample = crate::atlas_receiver_presenter::QpcSample::current()?;
@@ -995,7 +999,7 @@ mod receiver {
                 Ok(crate::atlas_feedback::AtlasFrameDisposition::Committed) => {
                     submitted = submitted.saturating_add(1);
                 }
-                Ok(crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound) => {
+                Ok(crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound | crate::atlas_feedback::AtlasFrameDisposition::Superseded) => {
                     expired = expired.saturating_add(1);
                 }
                 Err(error) if error.is::<crate::atlas_receiver_presenter::AtlasMediaFenced>() => {
@@ -1064,6 +1068,7 @@ mod tests {
     fn config() -> AtlasReceiverConfig {
         let root = std::env::temp_dir();
         AtlasReceiverConfig {
+            activity_priority: Default::default(),
             max_width: None,
             max_height: None,
             reverse: None,
@@ -1203,7 +1208,8 @@ mod tests {
     fn source_layout_rejects_aliases_and_is_order_independent() {
         let receiver = config();
         let mut source = AtlasSourceConfig {
-            occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
+                        activity_priority: Default::default(),
+occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
             reverse: None,
             desktop: None,
             pointer: None,

@@ -11,14 +11,16 @@ private func runBackdropProbe(_ argc: Int32, _ argv: UnsafeMutablePointer<Unsafe
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let model else { return .terminateNow }
         if termination.isWaiting { return .terminateLater }
+        model.recall.stop()
+        model.pairing.stop()
         model.stop(persist: false)
-        if model.fullyStopped { return .terminateNow }
+        if model.fullyStopped && model.recall.isStopped { return .terminateNow }
         termination.begin(poll: { [weak model] elapsed in
             guard let model else { return true }
             model.pollTermination(elapsed: elapsed)
             // Only an explicit application exit uses this cleanup watchdog.
             // OS teardown releases the driver's remaining user-client handles.
-            return model.fullyStopped || elapsed >= 6
+            return (model.fullyStopped && model.recall.isStopped) || elapsed >= 6
         }, finish: { sender.reply(toApplicationShouldTerminate: true) })
         return .terminateLater
     }
@@ -43,7 +45,9 @@ private func runBackdropProbe(_ argc: Int32, _ argv: UnsafeMutablePointer<Unsafe
         if args.first == "--menu-backdrop-probe" {
             exit(runBackdropProbe(CommandLine.argc - 1, CommandLine.unsafeArgv.advanced(by: 1)))
         }
-        if args.first == "--driver-status" { exit(TrackpadBridge.run("--driver-status")) }
+        if args.first == "--driver-status" {
+            exit(BundleTools.usesCoreHID ? CoreHIDStatus.printStatus() : TrackpadBridge.run("--driver-status"))
+        }
         if args.first == "--receive-stdin" { exit(HIDServer.relay()) }
         do { instance = try AppInstance() }
         catch { FileHandle.standardError.write(Data((error.localizedDescription + "\n").utf8)); exit(1) }
@@ -55,8 +59,11 @@ private func runBackdropProbe(_ argc: Int32, _ argv: UnsafeMutablePointer<Unsafe
                 .onAppear { delegate.model = model }
                 .onOpenURL { model.importProfile(from: $0) }
         }.defaultSize(width: 840, height: 620)
-        MenuBarExtra("Viewflow", systemImage: "rectangle.connected.to.line.below") {
+        MenuBarExtra {
             MenuContent(model: model)
+        } label: {
+            Image(nsImage: Branding.menuIcon).renderingMode(.original)
+                .accessibilityLabel("Viewflow")
         }
     }
 }
@@ -67,19 +74,21 @@ private struct MenuContent: View {
     var body: some View {
         Button("打开 Viewflow") { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
         Button(model.running ? "停止全部连接" : "启动 Viewflow") { if model.running { model.stop() } else { model.start() } }
+        Button("收回本机窗口") { model.recall.perform() }
         Divider()
         Button("退出 Viewflow") { NSApp.terminate(nil) }
     }
 }
 
 private enum Page: String, CaseIterable, Identifiable {
-    case overview = "连接", permissions = "权限设置", pairing = "配对", diagnostics = "诊断"
+    case overview = "连接", permissions = "权限设置", pairing = "配对", displays = "显示器", diagnostics = "诊断"
     var id: String { rawValue }
     var symbol: String {
         switch self {
         case .overview: return "rectangle.connected.to.line.below"
         case .permissions: return "hand.raised"
         case .pairing: return "link"
+        case .displays: return "display.2"
         case .diagnostics: return "stethoscope"
         }
     }
@@ -91,8 +100,14 @@ private struct MainView: View {
     @State private var page: Page? = .overview
     var body: some View {
         NavigationSplitView {
-            List(Page.allCases, selection: $page) { item in Label(item.rawValue, systemImage: item.symbol).tag(item) }
-                .navigationTitle("Viewflow").navigationSplitViewColumnWidth(180)
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 8) {
+                    Image(nsImage: Branding.applicationIcon).resizable().frame(width: 28, height: 28)
+                        .accessibilityHidden(true)
+                    Text("Viewflow").font(.headline)
+                }.padding(.horizontal, 16).padding(.vertical, 14)
+                List(Page.allCases, selection: $page) { item in Label(item.rawValue, systemImage: item.symbol).tag(item) }
+            }.navigationTitle("Viewflow").navigationSplitViewColumnWidth(180)
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -101,6 +116,7 @@ private struct MainView: View {
                     case .overview: overview
                     case .permissions: permissionPage
                     case .pairing: pairing
+                    case .displays: DisplayLayoutView(controller: model.pairing)
                     case .diagnostics: diagnostics
                     }
                     if !model.message.isEmpty { Text(model.message).font(.callout).textSelection(.enabled) }
@@ -116,16 +132,20 @@ private struct MainView: View {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("首次使用").font(.headline)
-                        Text("1. 导入配对文件\n2. 按需要开启屏幕录制、辅助功能和 HID 驱动\n3. 启动连接")
-                        Button("导入配对文件") { model.importProfile() }
+                        Text("先选择本机作为主机或从机，再建立或加入连接组。")
+                        Button("设置连接组") { page = .pairing }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
                 }
             }
             HStack {
                 Label(model.profile?.name ?? "尚未配对", systemImage: "desktopcomputer")
                 Spacer()
-                Button(model.running ? "停止全部" : "启动") { if model.running { model.stop() } else { model.start() } }
+                Button { model.pairing.send("disconnect") } label: { Image(systemName: "xmark.circle") }
+                    .help("断开连接").accessibilityLabel("断开连接")
+                Button { model.pairing.send("reconnect") } label: { Image(systemName: "arrow.clockwise") }
+                    .help("断开并重新连接").accessibilityLabel("断开并重新连接")
                     .buttonStyle(.borderedProminent)
+                    .disabled(model.pairing.groupID.isEmpty || model.pairing.busy)
             }
             ForEach(Component.allCases) { component in
                 GroupBox {
@@ -141,6 +161,7 @@ private struct MainView: View {
                     }.padding(6)
                 }
             }
+            WindowRecallSettings(recall: model.recall)
             Text("“正在运行”表示组件已启动；实际连接和操作效果仍需在两端确认。").font(.caption).foregroundStyle(.secondary)
         }
     }
@@ -151,8 +172,17 @@ private struct MainView: View {
                           detail: permissions.screenMessage, action: "打开屏幕录制设置", perform: permissions.requestScreen)
             permissionRow("辅助功能", purpose: "用于接收远程鼠标、键盘和窗口操作。", granted: permissions.canPostInput,
                           detail: permissions.inputMessage, action: "打开辅助功能设置", perform: permissions.requestAccessibility)
-            permissionRow("原生触控板驱动", purpose: "用于原生多指手势和 HID 触控板输入。", granted: permissions.driverAttached,
-                          detail: permissions.driverMessage, action: "安装 / 更新驱动", perform: permissions.installDriver)
+            if BundleTools.usesCoreHID {
+                GroupBox("原生触控板") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("用于原生多指手势。连接启动时自动启用，无需安装系统扩展。")
+                        Text(permissions.driverMessage).font(.caption).foregroundStyle(.secondary)
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(6)
+                }
+            } else {
+                permissionRow("原生触控板驱动", purpose: "用于原生多指手势和 HID 触控板输入。", granted: permissions.driverAttached,
+                              detail: permissions.driverMessage, action: "安装 / 更新驱动", perform: permissions.installDriver)
+            }
             GroupBox("本地网络") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("首次连接时，如 macOS 询问是否允许访问本地网络，请允许 Viewflow。")
@@ -177,17 +207,7 @@ private struct MainView: View {
         }
     }
     private var pairing: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("配对文件把设备身份与连接地址一起导入。").foregroundStyle(.secondary)
-            if let profile = model.profile {
-                LabeledContent("当前配对", value: profile.name)
-                LabeledContent("窗口接收端", value: "\(profile.windowDestinations.count) 台")
-                LabeledContent("设备标识", value: profile.deviceID).textSelection(.enabled)
-            }
-            Text("在已配对电脑上使用导出工具生成 .viewflowconnection 文件，然后在这里导入。更换配对时会先结束旧连接。")
-            Button("导入配对文件") { model.importProfile() }.buttonStyle(.borderedProminent)
-            Text("配对文件包含设备私钥，请只通过你信任的方式传送。").font(.caption).foregroundStyle(.secondary)
-        }
+        PairingView(controller: model.pairing)
     }
     private var diagnostics: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -202,5 +222,22 @@ private struct MainView: View {
             }
             Text("诊断报告包含组件状态与权限结果，不包含配对私钥、窗口内容或截图。").foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct WindowRecallSettings: View {
+    @ObservedObject var recall: WindowRecallController
+    @State private var draft = ""
+    var body: some View {
+        GroupBox("收回本机窗口") {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    TextField("Ctrl+Alt+Shift+H", text: $draft)
+                    Button("应用快捷键") { recall.configure(draft) }
+                    Button("立即收回") { recall.perform() }
+                }
+                Text(recall.status).font(.caption).foregroundStyle(.secondary)
+            }.padding(6)
+        }.onAppear { draft = recall.shortcut }
     }
 }

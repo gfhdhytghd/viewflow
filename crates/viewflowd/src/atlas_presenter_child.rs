@@ -14,8 +14,11 @@ use tokio::{
 
 type NativeWriter = std::pin::Pin<Box<dyn tokio::io::AsyncWrite + Send>>;
 
+pub(crate) type ActivityPresenterHandle = std::sync::Arc<crate::atlas_activity_presenter::ActivityAtlasPresenter<NativeWriter>>;
+
 struct Active {
-    pipe: AtlasPresenterPipe<NativeWriter, std::pin::Pin<Box<dyn tokio::io::AsyncRead + Send>>>,
+    pipe: Option<AtlasPresenterPipe<NativeWriter, std::pin::Pin<Box<dyn tokio::io::AsyncRead + Send>>>>,
+    activity: Option<ActivityPresenterHandle>,
     child: Child,
     stdout_worker: Option<StdoutWorker>,
 }
@@ -41,6 +44,7 @@ struct InputModeChild {
 
 #[derive(Clone, Copy)]
 struct InputModeOptions {
+    activity: bool,
     color_codec: viewflow_transport::VideoCodec,
     wheel: bool,
     keyboard: bool,
@@ -68,6 +72,38 @@ fn append_color_codec(command: &mut Command, codec: viewflow_transport::VideoCod
 }
 
 impl AtlasPresenterChild {
+    #[cfg(test)]
+    pub(crate) async fn spawn_activity_fixture(command: Command, deadline: Instant) -> Result<Self> {
+        Self::spawn_command_capabilities(command, deadline, NativeInputCapabilities {
+            dispositions: true, pointers: None, notices: None, desktop_moves: None,
+            input: InputModeOptions { activity: true, color_codec: viewflow_transport::VideoCodec::H264,
+                wheel: false, keyboard: false, recovery: false, desktop: None },
+        }).await
+    }
+
+    pub(crate) fn activity_capable(&self) -> bool {
+        self.active.as_ref().is_some_and(|active| active.activity.is_some()
+            || active.pipe.as_ref().is_some_and(AtlasPresenterPipe::activity_capable))
+    }
+
+    pub(crate) fn enable_activity(&mut self,
+        clock: impl Fn() -> Result<(u64, u64)> + Send + Sync + 'static,
+    ) -> Result<ActivityPresenterHandle> {
+        let active = self.active.as_mut().context("native activity child retired")?;
+        if let Some(pipe) = &active.activity { return Ok(pipe.clone()); }
+        let pipe = active.pipe.take().context("native activity pipe unavailable")?;
+        let pipe = std::sync::Arc::new(pipe.into_activity(clock)?);
+        active.activity = Some(pipe.clone());
+        Ok(pipe)
+    }
+
+    pub(crate) async fn check_activity_health(&mut self) -> Result<()> {
+        let active = self.active.as_mut().context("native activity child retired")?;
+        ensure_stdout_worker_alive(active).await?;
+        anyhow::ensure!(active.child.try_wait()?.is_none(), "native activity child exited");
+        Ok(())
+    }
+
     /// Launch native per-window mouse output. The input supervisor must consume
     /// the returned queue continuously and retire its connection on queue EOF.
     /// # Errors
@@ -154,6 +190,7 @@ impl AtlasPresenterChild {
             proxy_capacity,
             deadline,
             InputModeOptions {
+                activity: false,
                 color_codec,
                 wheel,
                 keyboard,
@@ -204,12 +241,28 @@ impl AtlasPresenterChild {
         tokio::sync::mpsc::Receiver<crate::atlas_pointer::AtlasNativePointer>,
         tokio::sync::mpsc::Receiver<crate::atlas_input_recovery::NativeRecoveryNotice>,
     )> {
+        Self::spawn_with_input_recovery_codec_activity(executable, max_frame_bytes, proxy_capacity, deadline, color_codec, false).await
+    }
+
+    pub(crate) async fn spawn_with_input_recovery_codec_activity(
+        executable: &Path,
+        max_frame_bytes: usize,
+        proxy_capacity: usize,
+        deadline: Instant,
+        color_codec: viewflow_transport::VideoCodec,
+        activity: bool,
+    ) -> Result<(
+        Self,
+        tokio::sync::mpsc::Receiver<crate::atlas_pointer::AtlasNativePointer>,
+        tokio::sync::mpsc::Receiver<crate::atlas_input_recovery::NativeRecoveryNotice>,
+    )> {
         let spawned = Self::spawn_input_mode(
             executable,
             max_frame_bytes,
             proxy_capacity,
             deadline,
             InputModeOptions {
+                activity,
                 color_codec,
                 wheel: true,
                 keyboard: true,
@@ -244,12 +297,30 @@ impl AtlasPresenterChild {
         tokio::sync::mpsc::Receiver<crate::atlas_input_recovery::NativeRecoveryNotice>,
         tokio::sync::mpsc::Receiver<crate::desktop_pointer::AtlasDesktopMove>,
     )> {
+        Self::spawn_with_desktop_activity(executable, max_frame_bytes, proxy_capacity, desktop, color_codec, deadline, false).await
+    }
+
+    pub(crate) async fn spawn_with_desktop_activity(
+        executable: &Path,
+        max_frame_bytes: usize,
+        proxy_capacity: usize,
+        desktop: crate::desktop_config::AtlasReceiverDesktopConfig,
+        color_codec: viewflow_transport::VideoCodec,
+        deadline: Instant,
+        activity: bool,
+    ) -> Result<(
+        Self,
+        tokio::sync::mpsc::Receiver<crate::atlas_pointer::AtlasNativePointer>,
+        tokio::sync::mpsc::Receiver<crate::atlas_input_recovery::NativeRecoveryNotice>,
+        tokio::sync::mpsc::Receiver<crate::desktop_pointer::AtlasDesktopMove>,
+    )> {
         let spawned = Self::spawn_input_mode(
             executable,
             max_frame_bytes,
             proxy_capacity,
             deadline,
             InputModeOptions {
+                activity,
                 color_codec,
                 wheel: true,
                 keyboard: true,
@@ -278,6 +349,7 @@ impl AtlasPresenterChild {
         options: InputModeOptions,
     ) -> Result<InputModeChild> {
         let InputModeOptions {
+            activity,
             color_codec,
             wheel,
             keyboard,
@@ -360,6 +432,7 @@ impl AtlasPresenterChild {
                 dispositions: true,
                 pointers: Some(sender),
                 input: InputModeOptions {
+                    activity,
                     color_codec,
                     wheel,
                     keyboard,
@@ -393,7 +466,7 @@ impl AtlasPresenterChild {
         if let Err(error) = ensure_stdout_worker_alive(&mut active).await {
             return Err(retire_after_error(active, error).await);
         }
-        match active.pipe.warmup(frames, deadline, max_record_bytes).await {
+        match active.pipe.as_mut().context("legacy warmup pipe unavailable")?.warmup(frames, deadline, max_record_bytes).await {
             Ok(()) => {
                 self.active = Some(active);
                 Ok(())
@@ -578,6 +651,7 @@ impl AtlasPresenterChild {
                 dispositions,
                 pointers,
                 input: InputModeOptions {
+                    activity: false,
                     color_codec: viewflow_transport::VideoCodec::H264,
                     wheel: false,
                     keyboard: false,
@@ -604,6 +678,7 @@ impl AtlasPresenterChild {
             desktop_moves,
         } = capabilities;
         let InputModeOptions {
+            activity,
             color_codec: _,
             wheel,
             keyboard,
@@ -639,6 +714,7 @@ impl AtlasPresenterChild {
         let writer = prepare_windows_stdin(&mut command)?;
         #[cfg(not(windows))]
         command.stdin(Stdio::piped());
+        if activity { command.arg("--atlas-activity-v11"); }
         let mut child = command
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
@@ -668,7 +744,7 @@ impl AtlasPresenterChild {
                 (Box::pin(reader), None)
             };
         let mut active = Active {
-            pipe: if desktop.is_some() {
+            pipe: Some(if desktop.is_some() {
                 AtlasPresenterPipe::with_desktop(writer, reader)
             } else if recovery {
                 AtlasPresenterPipe::with_input_recovery(writer, reader)
@@ -682,11 +758,15 @@ impl AtlasPresenterChild {
                 AtlasPresenterPipe::with_dispositions(writer, reader)
             } else {
                 AtlasPresenterPipe::new(writer, reader)
-            },
+            }),
+            activity: None,
             child,
             stdout_worker,
         };
-        if let Err(error) = active.pipe.wait_ready(deadline).await {
+        if activity {
+            active.pipe = active.pipe.take().map(AtlasPresenterPipe::request_activity);
+        }
+        if let Err(error) = active.pipe.as_mut().context("native startup pipe unavailable")?.wait_ready(deadline).await {
             return Err(retire_after_error(active, error).await);
         }
         Ok(Self {
@@ -712,7 +792,7 @@ impl AtlasPresenterChild {
             return Err(retire_after_error(active, error).await);
         }
         match active
-            .pipe
+            .pipe.as_mut().context("legacy native pipe unavailable")?
             .submit(frame, native_deadline, deadline, max_record_bytes)
             .await
         {
@@ -734,6 +814,10 @@ impl AtlasPresenterChild {
         max_record_bytes: usize,
         clock: impl FnMut() -> Result<(u64, u64)>,
     ) -> Result<AtlasDisposition> {
+        if let Some(pipe) = self.active.as_ref().and_then(|active| active.activity.clone()) {
+            self.check_activity_health().await?;
+            return pipe.submit(frame, native_deadline, deadline, max_record_bytes).await;
+        }
         let mut active = self
             .active
             .take()
@@ -742,7 +826,7 @@ impl AtlasPresenterChild {
             return Err(retire_after_error(active, error).await);
         }
         match active
-            .pipe
+            .pipe.as_mut().context("legacy native pipe unavailable")?
             .submit_disposition(frame, native_deadline, deadline, max_record_bytes, clock)
             .await
         {
@@ -751,6 +835,18 @@ impl AtlasPresenterChild {
                 Ok(result)
             }
             Err(error) => Err(retire_after_error(active, error).await),
+        }
+    }
+
+    pub async fn desktop_geometry_ack(&mut self, ack: viewflow_protocol::DesktopWindowMoveAck,
+        native_sequence: u64, deadline: Instant) -> Result<u64> {
+        let active = self.active.as_mut().context("atlas presenter child is retired")?;
+        ensure_stdout_worker_alive(active).await?;
+        if let Some(pipe) = &active.activity {
+            pipe.desktop_geometry_ack(ack, native_sequence, deadline).await
+        } else {
+            active.pipe.as_mut().context("legacy native pipe unavailable")?
+                .desktop_geometry_ack(ack, native_sequence, deadline).await
         }
     }
 
@@ -764,6 +860,10 @@ impl AtlasPresenterChild {
         deadline: Instant,
         clock: impl FnMut() -> Result<(u64, u64)>,
     ) -> Result<u64> {
+        if let Some(pipe) = self.active.as_ref().and_then(|active| active.activity.clone()) {
+            self.check_activity_health().await?;
+            return pipe.recover_input(confirmation, deadline).await;
+        }
         let mut active = self
             .active
             .take()
@@ -772,7 +872,7 @@ impl AtlasPresenterChild {
             return Err(retire_after_error(active, error).await);
         }
         match active
-            .pipe
+            .pipe.as_mut().context("legacy native pipe unavailable")?
             .recover_input(confirmation, deadline, clock)
             .await
         {
@@ -824,10 +924,12 @@ async fn ensure_stdout_worker_alive(active: &mut Active) -> Result<()> {
 async fn retire(active: Active) -> Result<()> {
     let Active {
         pipe,
+        activity,
         mut child,
         stdout_worker,
     } = active;
     drop(pipe);
+    drop(activity);
     drop(stdout_worker);
     timeout(Duration::from_secs(2), child.kill())
         .await
@@ -1038,6 +1140,7 @@ mod tests {
                 dispositions: true,
                 pointers: Some(pointer_sender),
                 input: InputModeOptions {
+                    activity: false,
                     color_codec: viewflow_transport::VideoCodec::H264,
                     wheel: true,
                     keyboard: true,
@@ -1098,6 +1201,7 @@ mod tests {
                 dispositions: true,
                 pointers: Some(pointer_sender),
                 input: InputModeOptions {
+                    activity: false,
                     color_codec: viewflow_transport::VideoCodec::H264,
                     wheel: true,
                     keyboard: true,
@@ -1187,6 +1291,7 @@ mod tests {
                 dispositions: true,
                 pointers: Some(sender),
                 input: InputModeOptions {
+                    activity: false,
                     color_codec: viewflow_transport::VideoCodec::H264,
                     wheel,
                     keyboard,

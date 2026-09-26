@@ -1,3 +1,4 @@
+pub mod managed_owner;
 use std::{
     collections::BTreeMap,
     error::Error,
@@ -37,18 +38,25 @@ use viewflow_transport::{
 
 #[cfg(unix)]
 mod acceptance_runtime;
+pub mod activity_priority;
+mod activity_atlas_scheduler;
+pub mod activity_frame;
+mod activity_media;
+mod activity_relay;
 pub mod alpha_reference;
 pub mod atlas_clock;
 #[cfg(target_os = "linux")]
 mod atlas_cursor_handoff;
 mod atlas_cursor_receiver;
 pub mod atlas_feedback;
+pub(crate) mod atlas_activity_feedback;
 #[cfg(target_os = "linux")]
 pub mod atlas_input_policy;
 pub mod atlas_input_recovery;
 pub mod atlas_peer;
 pub mod atlas_pointer;
 pub mod atlas_presenter;
+mod atlas_activity_presenter;
 pub mod atlas_presenter_child;
 pub mod atlas_preview_input;
 pub mod atlas_receiver_presenter;
@@ -83,6 +91,8 @@ pub mod gpu_atlas_capture;
 pub mod gpu_atlas_device;
 #[cfg(all(target_os = "linux", feature = "native-gpu-nvenc"))]
 pub mod gpu_atlas_sender;
+#[cfg(all(target_os = "linux", feature = "native-gpu-nvenc"))]
+pub(crate) mod gpu_atlas_worker;
 #[cfg(all(target_os = "linux", feature = "native-gpu-nvenc"))]
 pub mod gpu_atlas_session;
 #[cfg(all(target_os = "linux", feature = "native-gpu-nvenc"))]

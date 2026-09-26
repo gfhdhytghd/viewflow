@@ -41,6 +41,9 @@ pub use reliable::{BlobChunk, MAX_BLOB_CHUNK_BYTES, ReliableCodecError, Reliable
 pub use tls::{PeerIdentity, build_client_config, build_server_config};
 
 pub const ALPN: &[u8] = b"viewflow/1";
+/// Same base protocol, with opt-in native activity capability negotiation.
+/// Legacy peers still select `ALPN` and never receive extension bytes.
+pub const ACTIVITY_ALPN: &[u8] = b"viewflow/1+activity/1";
 pub const MAX_CONTROL_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RELIABLE_STREAM_BYTES: usize = reliable::RELIABLE_HEADER_LEN
     + if MAX_CONTROL_BYTES > reliable::BLOB_HEADER_LEN + MAX_BLOB_CHUNK_BYTES {

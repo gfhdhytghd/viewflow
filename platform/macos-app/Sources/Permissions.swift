@@ -53,7 +53,13 @@ import SystemExtensions
                 switch driver {
                 case .success(let report):
                     self.driverAttached = report["native_multitouch_attached"] as? Bool == true
-                    self.driverMessage = self.driverAttached ? "原生触控板已就绪" : "驱动可读取，等待原生触控板注册"
+                    if BundleTools.usesCoreHID {
+                        if !BundleTools.coreHIDSupported { self.driverMessage = "需要 macOS 26 或更新版本" }
+                        else if !FileManager.default.fileExists(atPath: BundleTools.coreHIDURL.path) { self.driverMessage = "安装包缺少原生触控板组件" }
+                        else { self.driverMessage = self.driverAttached ? "原生触控板已就绪" : "随连接自动启动；无需安装驱动" }
+                    } else {
+                        self.driverMessage = self.driverAttached ? "原生触控板已就绪" : "驱动可读取，等待原生触控板注册"
+                    }
                 case .failure(let error):
                     self.driverAttached = false
                     if !self.driverPending { self.driverMessage = error.localizedDescription }
@@ -86,6 +92,7 @@ import SystemExtensions
         loginEnabled = SMAppService.mainApp.status == .enabled
     }
     func installDriver() {
+        guard !BundleTools.usesCoreHID else { refresh(); return }
         guard !driverPending else { return }
         guard FileManager.default.fileExists(atPath: BundleTools.driverURL.path) else {
             driverMessage = "此构建没有包含 HID 驱动，请使用完整安装包"; return

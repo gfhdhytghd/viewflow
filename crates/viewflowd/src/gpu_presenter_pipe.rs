@@ -34,7 +34,7 @@ pub fn encode_atlas_record(
         bail!("VFGP native deadline and frequency must be nonzero");
     }
     let desktop = layout.desktop.as_ref();
-    let desktop_bytes = desktop.map_or(0, |desktop| 48 + desktop.windows.len() * 56);
+    let desktop_bytes = desktop.map_or(0, |desktop| 48 + desktop.windows.len() * if desktop.windows.iter().any(|p| p.body_bounds.is_some()) {88} else {56});
     let patch_bytes = layout
         .patches
         .as_ref()
@@ -83,7 +83,8 @@ pub fn encode_atlas_record(
             extension.extend_from_slice(&value.to_be_bytes());
         }
         extension.extend_from_slice(&u32::try_from(desktop.windows.len())?.to_be_bytes());
-        extension.extend_from_slice(&0_u32.to_be_bytes());
+        let bodies=desktop.windows.iter().any(|placement| placement.body_bounds.is_some());
+        extension.extend_from_slice(&u32::from(bodies).to_be_bytes());
         for placement in &desktop.windows {
             extension.extend_from_slice(&placement.window_id.0.to_be_bytes());
             for value in [placement.bounds.x_millidip, placement.bounds.y_millidip] {
@@ -99,6 +100,13 @@ pub fn encode_atlas_record(
                 &(u32::from(placement.movable) | (placement.raise_serial << 1)).to_be_bytes(),
             );
             extension.extend_from_slice(&placement.z_order.to_be_bytes());
+            if bodies {
+                let body=placement.body_bounds.unwrap_or(placement.bounds);
+                extension.extend_from_slice(&body.x_millidip.to_be_bytes());
+                extension.extend_from_slice(&body.y_millidip.to_be_bytes());
+                extension.extend_from_slice(&body.width_millidip.to_be_bytes());
+                extension.extend_from_slice(&body.height_millidip.to_be_bytes());
+            }
         }
     }
     if let Some(patches) = &layout.patches {
@@ -118,6 +126,15 @@ pub fn encode_atlas_record(
             }
         }
     }
+    if let Some(activity)=&layout.activity {
+        extension.extend_from_slice(&activity.lane.to_be_bytes());
+        extension.extend_from_slice(&(activity.members.len() as u32).to_be_bytes());
+        extension.extend_from_slice(&activity.epoch.to_be_bytes());
+        extension.extend_from_slice(&activity.preferred.map_or(0,|id|id.0).to_be_bytes());
+        extension.extend_from_slice(&activity.focus.map_or(0,|id|id.0).to_be_bytes());
+        for member in &activity.members { extension.extend_from_slice(&member.0.to_be_bytes()); }
+        extension.extend_from_slice(&(48u32+16*activity.members.len() as u32).to_be_bytes());
+    }
     let version = if layout.patches.is_some() {
         8
     } else if desktop.is_some() {
@@ -125,7 +142,7 @@ pub fn encode_atlas_record(
     } else {
         5
     };
-    encode_compressed_alpha_with_extension(
+    let mut record=encode_compressed_alpha_with_extension(
         version,
         layout.frame_id,
         layout.width,
@@ -134,7 +151,9 @@ pub fn encode_atlas_record(
         alpha,
         &extension,
         max_record_bytes,
-    )
+    )?;
+    if let Some(activity)=&layout.activity {record[4]=11;record[5]=version;record[6]=activity.lane as u8;}
+    Ok(record)
 }
 
 /// Same-Windows-host absolute QPC deadline, never a cross-host timestamp.
@@ -461,6 +480,7 @@ mod tests {
         use viewflow_protocol::{AtlasFrame, AtlasTile, FrameManifest, Id128};
         let mut admitted = crate::atlas_runtime::AdmittedAtlas {
             layout: AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 9,
@@ -558,6 +578,7 @@ mod tests {
 
         let mut admitted = crate::atlas_runtime::AdmittedAtlas {
             layout: AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 9,
@@ -613,7 +634,8 @@ mod tests {
             },
             windows: vec![
                 AtlasWindowPlacement {
-                    window_id: Id128(1),
+                    body_bounds: None,
+                window_id: Id128(1),
                     bounds: DesktopRect {
                         x_millidip: -100,
                         y_millidip: 200,
@@ -625,7 +647,8 @@ mod tests {
                     raise_serial: 1,
                 },
                 AtlasWindowPlacement {
-                    window_id: Id128(2),
+                    body_bounds: None,
+                window_id: Id128(2),
                     bounds: DesktopRect {
                         x_millidip: 100,
                         y_millidip: 200,
@@ -664,6 +687,12 @@ mod tests {
         assert_eq!(&v7[second + 48..second + 52], &[0; 4]);
         assert_eq!(&v7[400..], &v5[240..]);
         assert!(encode_atlas_record(&admitted, deadline, v7.len() - 1).is_err());
+        let placement=&mut admitted.layout.desktop.as_mut().unwrap().windows[0];
+        placement.body_bounds=Some(placement.bounds);
+        let body_record=encode_atlas_record(&admitted,deadline,4096).unwrap();
+        assert_eq!(body_record.len(),v7.len()+64);
+        assert_eq!(&body_record[desktop+44..desktop+48],&1u32.to_be_bytes());
+        assert_eq!(&body_record[first+56..first+88],&v7[first+16..first+48]);
     }
 
     #[test]

@@ -85,12 +85,16 @@ pub(crate) fn sample_connection(
 pub enum AtlasFrameDisposition {
     Committed,
     ExpiredUnbound,
+    /// Decoded for reference continuity, but a newer activity epoch owns pixels.
+    Superseded,
 }
 
 /// Exact immutable identity of the pending frame is echoed, not a new timestamp.
 /// # Errors
 /// Invalid manifests are never eligible for recovery feedback.
 pub fn encode(frame: &AtlasFrame, result: AtlasFrameDisposition) -> Result<[u8; RECORD_BYTES]> {
+    ensure!(result != AtlasFrameDisposition::Superseded || frame.activity.is_some(),
+        "superseded feedback requires activity scheduling");
     frame
         .validate()
         .map_err(|error| anyhow::anyhow!("invalid feedback frame: {error:?}"))?;
@@ -114,6 +118,7 @@ pub fn encode(frame: &AtlasFrame, result: AtlasFrameDisposition) -> Result<[u8; 
     bytes[72] = match result {
         AtlasFrameDisposition::Committed => 1,
         AtlasFrameDisposition::ExpiredUnbound => 2,
+        AtlasFrameDisposition::Superseded => 3,
     };
     Ok(bytes)
 }
@@ -125,6 +130,7 @@ pub fn decode(bytes: &[u8], pending: &AtlasFrame) -> Result<AtlasFrameDispositio
     let result = match bytes[72] {
         1 => AtlasFrameDisposition::Committed,
         2 => AtlasFrameDisposition::ExpiredUnbound,
+        3 => AtlasFrameDisposition::Superseded,
         _ => anyhow::bail!("unknown atlas feedback outcome"),
     };
     ensure!(
@@ -140,7 +146,8 @@ mod tests {
 
     #[test]
     fn exact_identity_and_reserved_bits_are_required() {
-        let frame = AtlasFrame {
+        let mut frame = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: viewflow_protocol::Id128(99),
             frame_id: 4,
@@ -173,5 +180,11 @@ mod tests {
             }
             assert!(decode(&bytes[..72], &frame).is_err());
         }
+        assert!(encode(&frame, AtlasFrameDisposition::Superseded).is_err());
+        frame.activity = Some(viewflow_protocol::AtlasActivity {
+            lane: 0, epoch: 1, preferred: None, focus: None, members: vec![],
+        });
+        let bytes = encode(&frame, AtlasFrameDisposition::Superseded).unwrap();
+        assert_eq!(decode(&bytes, &frame).unwrap(), AtlasFrameDisposition::Superseded);
     }
 }

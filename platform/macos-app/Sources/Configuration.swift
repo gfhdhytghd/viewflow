@@ -40,6 +40,11 @@ struct ConnectionProfile: Codable, Equatable {
     var version = 1
     var name: String
     var deviceID: String
+    var pairingDeviceID: String?
+    var groupID: String?
+    var groupRole: String?
+    var groupHostID: String?
+    var groupConnections: [ConnectionProfile]?
     var certificatePEM: String
     var privateKeyPEM: String
     var authorityPEM: String
@@ -49,7 +54,19 @@ struct ConnectionProfile: Codable, Equatable {
     var windowDestinations: [WindowDestination] = []
     var clipboardRemote: Endpoint?
     var windowParking: WindowParking?
+    var windowParkingDisplays: [WindowParking]?
+    // Each source desktop has its own coordinate origin. Older pairing files
+    // retain the primary receiver; extra listeners are optional.
+    var windowReceivers: [WindowReceiver]?
+    struct WindowReceiver: Codable, Equatable {
+        var id: String
+        var bind: String
+        var scale: Int
+        var originX: Int
+        var originY: Int
+    }
     struct WindowParking: Codable, Equatable {
+        var serial: UInt32?
         var width: Int
         var height: Int
         var x: Int
@@ -72,9 +89,34 @@ struct ConnectionProfile: Codable, Equatable {
         var serverName: String
         var captureScale = 2
         var codec: String?
+        var viewport: WindowParking?
+        func accepts(_ window: NativeWindow) -> Bool {
+            guard let viewport else { return true }
+            guard window.framePoints.count == 4 else { return false }
+            let frame = CGRect(x: window.framePoints[0], y: window.framePoints[1], width: window.framePoints[2], height: window.framePoints[3])
+            return frame.midX > Double(viewport.x) && frame.midX < Double(viewport.x + viewport.width) &&
+                frame.midY > Double(viewport.y) && frame.midY < Double(viewport.y + viewport.height)
+        }
     }
 
     func validate() throws {
+        if let groupID {
+            let validID: (String) -> Bool = { $0.count == 32 && $0.allSatisfy({ $0.isASCII && $0.isHexDigit }) }
+            guard validID(groupID), ["host", "client"].contains(groupRole ?? ""),
+                  validID(groupHostID ?? ""), let links = groupConnections, (1...2).contains(links.count),
+                  Set(links.compactMap(\.pairingDeviceID)).count == links.count,
+                  links.allSatisfy({ $0.groupConnections == nil && $0.groupID == nil && $0.deviceID == deviceID && validID($0.pairingDeviceID ?? "") }),
+                  (groupRole == "host" ? groupHostID == deviceID : (links.count == 1 && links[0].pairingDeviceID == groupHostID)) else {
+                throw ViewflowError.invalid("连接组必须包含一台主机和最多两台从机")
+            }
+            let binds = links.flatMap { [$0.inputBind, $0.windowsBind, $0.clipboardBind] }
+            guard Set(binds).count == binds.count else { throw ViewflowError.invalid("连接组成员监听地址重复") }
+            let parking = links.flatMap { ($0.windowParking.map { [$0] } ?? []) + ($0.windowParkingDisplays ?? []) }.map { $0.serial ?? 1 }
+            guard Set(parking).count == parking.count else { throw ViewflowError.invalid("连接组成员显示器标识重复") }
+            for link in links { try link.validate() }
+        } else if groupConnections != nil {
+            throw ViewflowError.invalid("连接记录不属于任何连接组")
+        }
         guard version == 1 else { throw ViewflowError.invalid("不支持的配对文件版本") }
         guard !name.isEmpty, name.count <= 120 else { throw ViewflowError.invalid("配对名称无效") }
         guard deviceID.count == 32, deviceID.allSatisfy({ $0.isHexDigit && $0.isASCII }) else {
@@ -109,8 +151,29 @@ struct ConnectionProfile: Codable, Equatable {
                 throw ViewflowError.invalid("窗口接收端配置无效")
             }
             try Self.validateAddress(peer.address)
+            if let viewport = peer.viewport {
+                guard viewport.width > 0, viewport.height > 0 else { throw ViewflowError.invalid("窗口目标区域无效") }
+            }
         }
-        if let screen = windowParking {
+        var receiverBinds = Set([inputBind, windowsBind, clipboardBind])
+        var receiverIDs = Set<String>()
+        for receiver in windowReceivers ?? [] {
+            guard !receiver.id.isEmpty, receiver.id.count <= 32,
+                  receiver.id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }),
+                  receiverIDs.insert(receiver.id).inserted,
+                  receiverBinds.insert(receiver.bind).inserted,
+                  (1...4).contains(receiver.scale),
+                  (-1_000_000...1_000_000).contains(receiver.originX),
+                  (-1_000_000...1_000_000).contains(receiver.originY) else {
+                throw ViewflowError.invalid("窗口接收端标识、监听地址或坐标无效")
+            }
+            try Self.validateAddress(receiver.bind)
+        }
+        var parkingIDs = Set<UInt32>()
+        for screen in (windowParking.map { [$0] } ?? []) + (windowParkingDisplays ?? []) {
+            guard parkingIDs.insert(screen.serial ?? 1).inserted, (screen.serial ?? 1) > 0 else {
+                throw ViewflowError.invalid("远程显示器标识重复或无效")
+            }
             guard (64...8192).contains(screen.width), (64...8192).contains(screen.height),
                   (-100_000...100_000).contains(screen.x), (-100_000...100_000).contains(screen.y) else {
                 throw ViewflowError.invalid("远程窗口显示区域超出支持范围")
@@ -134,7 +197,9 @@ struct ConnectionProfile: Codable, Equatable {
         var v4 = in_addr(), v6 = in6_addr()
         let valid: Bool
         if host.hasPrefix("[") && host.hasSuffix("]") {
-            valid = String(host.dropFirst().dropLast()).withCString { inet_pton(AF_INET6, $0, &v6) } == 1
+            let parts = host.dropFirst().dropLast().split(separator: "%", omittingEmptySubsequences: false)
+            let scopeValid = parts.count == 1 || (parts.count == 2 && UInt32(parts[1]) != nil)
+            valid = scopeValid && String(parts[0]).withCString { inet_pton(AF_INET6, $0, &v6) } == 1
         } else {
             valid = host.withCString { inet_pton(AF_INET, $0, &v4) } == 1
         }
@@ -170,33 +235,27 @@ struct WindowInventory: Decodable {
     var schemaVersion: Int
     var enumeration: String
     var windows: [NativeWindow]?
+    var pointerPoints: [Double]? = nil
+    var leftButtonDown: Bool? = nil
     var physicalDisplays: [[Double]]? = nil
     var remoteDisplays: [[Double]]? = nil
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version", enumeration, windows
+        case pointerPoints = "pointer_points", leftButtonDown = "left_button_down"
         case physicalDisplays = "physical_displays", remoteDisplays = "remote_displays"
     }
-    // Subtract physical rectangles rather than comparing against their bounding
-    // box: gaps between monitors are not local display area.
+    // Match native Mac ownership: touching an edge is insufficient; the center
+    // must cross into a remote display. Physical displays win any overlap.
     func needsRemote(_ window: NativeWindow) -> Bool {
         guard let physicalDisplays, let remoteDisplays else { return false }
         func rect(_ values: [Double]) -> CGRect? {
             guard values.count == 4, values.allSatisfy(\.isFinite), values[2] > 0, values[3] > 0 else { return nil }
             return CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
         }
-        guard let frame = rect(window.framePoints), remoteDisplays.compactMap(rect).contains(where: { $0.intersects(frame) }) else { return false }
-        var uncovered = [frame]
-        for display in physicalDisplays.compactMap(rect) {
-            uncovered = uncovered.flatMap { part -> [CGRect] in
-                let hit = part.intersection(display)
-                if hit.isNull || hit.isEmpty { return [part] }
-                return [CGRect(x: part.minX, y: part.minY, width: part.width, height: hit.minY - part.minY),
-                        CGRect(x: part.minX, y: hit.maxY, width: part.width, height: part.maxY - hit.maxY),
-                        CGRect(x: part.minX, y: hit.minY, width: hit.minX - part.minX, height: hit.height),
-                        CGRect(x: hit.maxX, y: hit.minY, width: part.maxX - hit.maxX, height: hit.height)].filter { !$0.isEmpty }
-            }
-        }
-        return !uncovered.isEmpty
+        guard let frame = rect(window.framePoints) else { return false }
+        let x = frame.midX, y = frame.midY
+        if physicalDisplays.compactMap(rect).contains(where: { x >= $0.minX && x <= $0.maxX && y >= $0.minY && y <= $0.maxY }) { return false }
+        return remoteDisplays.compactMap(rect).contains { x > $0.minX && x < $0.maxX && y > $0.minY && y < $0.maxY }
     }
     func selected(existing: Set<String>, limit: Int) throws -> [NativeWindow] {
         guard schemaVersion == 1, enumeration == "ok" else {
@@ -259,5 +318,32 @@ enum ProfileStore {
             fields[field] = url.path
         }
         return fields
+    }
+}
+
+// Metadata observer shared by all source launches. A source often starts after
+// HID routing released the Mac button, so it cannot reconstruct this itself.
+struct NativeDragInventory {
+    private var previous: WindowInventory?
+    private(set) var grabs: [String: [Int]] = [:]
+    mutating func observe(_ inventory: WindowInventory) {
+        defer { previous = inventory }
+        guard let pointer = inventory.pointerPoints, pointer.count == 2,
+              pointer.allSatisfy(\.isFinite), let held = inventory.leftButtonDown else { return }
+        if held && previous?.leftButtonDown != true { grabs.removeAll() }
+        if !held && previous?.leftButtonDown != true { grabs.removeAll() }
+        guard let previous else { return }
+        let old = Dictionary(uniqueKeysWithValues: (previous.windows ?? []).map { ($0.key, $0) })
+        for window in inventory.windows ?? [] where window.eligible && window.layer == 0 {
+            guard let before = old[window.key], before.framePoints.count == 4,
+                  before.framePoints[2] == window.framePoints[2], before.framePoints[3] == window.framePoints[3],
+                  before.framePoints[0] != window.framePoints[0] || before.framePoints[1] != window.framePoints[1],
+                  held || previous.leftButtonDown == true else { continue }
+            if grabs[window.key] != nil { continue }
+            let point = held ? pointer : (previous.pointerPoints ?? pointer)
+            let frame = held ? window.framePoints : before.framePoints
+            guard point.count == 2 else { continue }
+            grabs[window.key] = [Int((point[0] - frame[0]).rounded()), Int((point[1] - frame[1]).rounded())]
+        }
     }
 }

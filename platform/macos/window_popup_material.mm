@@ -1,10 +1,15 @@
 #include "window_popup_material.hpp"
 #include "window_parking.hpp"
+#include "../reverse-common/popup_capture_budget.hpp"
 #include <map>
 #include <array>
 #include <deque>
 #include <cstdio>
 #include <cmath>
+#include <dlfcn.h>
+#include <set>
+#include <vector>
+#include <algorithm>
 
 @interface VFPopupBackdropWindow : NSWindow
 @end
@@ -16,6 +21,8 @@
 @interface VFPopupMaterialOutput : NSObject <SCStreamOutput, SCStreamDelegate>
 @property(copy) void (^frame)(CVPixelBufferRef, double);
 @property(copy) void (^failure)(NSError*);
+@property CGRect expectedBounds;
+@property BOOL reportedMapping;
 @end
 @implementation VFPopupMaterialOutput
 - (void)stream:(SCStream*)stream didOutputSampleBuffer:(CMSampleBufferRef)sample ofType:(SCStreamOutputType)type {
@@ -26,11 +33,23 @@
     if (!status || status.integerValue != SCFrameStatusComplete) return;
     CVPixelBufferRef pixels = CMSampleBufferGetImageBuffer(sample);
     if (!pixels) return;
+    CGRect actual = CGRectNull;
+    NSDictionary* screen = nil;
+    if (@available(macOS 13.1, *)) screen = attachments.firstObject[SCStreamFrameInfoScreenRect];
+    const bool mapped = screen && CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)screen, &actual) &&
+        std::abs(actual.origin.x-self.expectedBounds.origin.x)<1 && std::abs(actual.origin.y-self.expectedBounds.origin.y)<1 &&
+        std::abs(actual.size.width-self.expectedBounds.size.width)<1 && std::abs(actual.size.height-self.expectedBounds.size.height)<1;
+    if (!self.reportedMapping) {
+        self.reportedMapping = YES;
+        std::fprintf(stderr,"popup-display-map expected=%s actual=%s matched=%d\n",NSStringFromRect(self.expectedBounds).UTF8String,NSStringFromRect(actual).UTF8String,mapped);
+    }
     const double timestamp = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sample));
     CVPixelBufferRetain(pixels);
     VFPopupMaterialOutput* output = self;
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (output.frame) output.frame(pixels, timestamp);
+        // A virtual display can be substituted by SCK. Keep the popup's own
+        // window capture usable instead of compositing unrelated screen RGB.
+        if (output.frame) output.frame(mapped ? pixels : nullptr, timestamp);
         CVPixelBufferRelease(pixels);
     });
 }
@@ -42,6 +61,10 @@
 @end
 
 namespace viewflow::macos {
+// Main-run-loop owned. Do not keep capturing an unrelated full display after
+// its mapping has been disproved; menus on it use bounded region capture.
+static std::set<CGDirectDisplayID> region_displays;
+static reverse::PopupCaptureBudget region_budget;
 struct PopupPreview::State : std::enable_shared_from_this<PopupPreview::State> {
     SCDisplay* __strong display;
     SCStream* __strong stream = nil;
@@ -71,8 +94,12 @@ struct PopupPreview::State : std::enable_shared_from_this<PopupPreview::State> {
         config.colorSpaceName=kCGColorSpaceSRGB;config.showsCursor=NO;config.capturesAudio=NO;config.queueDepth=6;
         if(@available(macOS 14.0,*))config.ignoreShadowsDisplay=YES;
         output=[VFPopupMaterialOutput new];
+        output.expectedBounds=display.frame;
         output.frame=^(CVPixelBufferRef pixels,double time){
-            if(auto s=weak.lock();s&&!s->stopped&&s->generation==epoch&&s->frame)s->frame([CIImage imageWithCVPixelBuffer:pixels],s->display.frame,time);
+            if(auto s=weak.lock();s&&!s->stopped&&s->generation==epoch){
+                if(s->frame)s->frame(pixels ? [CIImage imageWithCVPixelBuffer:pixels] : nil,s->display.frame,time);
+                if(!pixels){region_displays.insert(s->display.displayID);s->stop_stream();}
+            }
         };
         output.failure=^(NSError* error){
             if(auto s=weak.lock();s&&!s->stopped&&s->generation==epoch){s->failed=true;s->retry_after=NSProcessInfo.processInfo.systemUptime+1;std::fprintf(stderr,"popup preview retry: %s\n",error.localizedDescription.UTF8String);}
@@ -101,7 +128,7 @@ struct PopupMaterial::State : std::enable_shared_from_this<PopupMaterial::State>
     CGRect rect;
     unsigned width, height, fps;
     std::function<void()> changed;
-    dispatch_queue_t queue = dispatch_queue_create("org.viewflow.popup-material", DISPATCH_QUEUE_SERIAL);
+    dispatch_queue_t queue = dispatch_queue_create("org.viewflow.popup-material", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL,QOS_CLASS_USER_INITIATED,0));
     std::array<SCStream* __strong, 2> streams{};
     std::array<VFPopupMaterialOutput* __strong, 2> outputs{};
     std::array<std::deque<Sample>, 2> samples;
@@ -110,8 +137,13 @@ struct PopupMaterial::State : std::enable_shared_from_this<PopupMaterial::State>
     CIImage* __strong published = nil;
     CIColorKernel* __strong kernel = nil;
     uint64_t sequence{}, published_sequence{}, generation{}, paired{}, waiting{};
-    double retry_after{}, report_at{};
-    bool stopped{}, failed{};
+    double retry_after{}, report_at{}, next_region{};
+    bool stopped{}, failed{}, region_requested{}, region_mode{}, region_busy{};
+    using RegionCapture=CGImageRef(*)(CGRect,CGWindowListOption,CGWindowID,CGWindowImageOption);
+    RegionCapture region_capture=reinterpret_cast<RegionCapture>(dlsym(RTLD_DEFAULT,"CGWindowListCreateImage"));
+    double region_report_at{};
+    unsigned region_completed{}, region_skipped{};
+    std::vector<double> region_costs, region_delivery_costs;
     State(SCDisplay* d, SCWindow* w, CGRect bounds, unsigned x, unsigned y, unsigned hz, std::function<void()> notify)
         : display(d), window(w), rect(bounds), width(x), height(y), fps(hz), changed(std::move(notify)) {
         // Core Image executes this small point-wise operation on its Metal
@@ -132,6 +164,12 @@ struct PopupMaterial::State : std::enable_shared_from_this<PopupMaterial::State>
     void start() {
         if (stopped || !kernel) return;
         clear_streams(); failed = false;
+        if(region_capture && region_displays.contains(display.displayID)){
+            region_mode=true;
+            region_budget.add(window.windowID);
+            std::fprintf(stderr,"popup-material window=%u native-region capture enabled\n",window.windowID);
+            return;
+        }
         const auto epoch = generation;
         std::weak_ptr<State> weak = shared_from_this();
         for (unsigned i = 1; i < 2; ++i) {
@@ -151,9 +189,20 @@ struct PopupMaterial::State : std::enable_shared_from_this<PopupMaterial::State>
             config.queueDepth = 8;
             if (@available(macOS 14.0, *)) { config.shouldBeOpaque = NO; config.ignoreShadowsDisplay = YES; }
             outputs[i] = [VFPopupMaterialOutput new];
+            outputs[i].expectedBounds=display.frame;
             outputs[i].frame = ^(CVPixelBufferRef pixels, double timestamp) {
                 auto state = weak.lock();
                 if (!state || state->stopped || state->generation != epoch || !std::isfinite(timestamp)) return;
+                if (!pixels) {
+                    // Some macOS virtual-display streams silently return the
+                    // main display. Capture this menu's global rectangle and
+                    // the windows below it instead; both keep native material.
+                    state->region_requested=true;
+                    const bool had_material = state->published != nil;
+                    state->samples[i].clear();state->published=nil;
+                    if(had_material && state->changed)state->changed();
+                    return;
+                }
                 CIImage* image=[CIImage imageWithCVPixelBuffer:pixels];
                 const CGRect display_bounds=state->display.frame;
                 const double sx=image.extent.size.width/display_bounds.size.width;
@@ -189,6 +238,64 @@ struct PopupMaterial::State : std::enable_shared_from_this<PopupMaterial::State>
             }];
         }
     }
+    void capture_region(double now) {
+        if(stopped || now<next_region || !region_capture)return;
+        if(region_busy){++region_skipped;return;}
+        if(!region_budget.begin(window.windowID,now)){++region_skipped;return;}
+        if(!region_report_at)region_report_at=now;
+        region_busy=true;next_region=now+1.0/std::min(reverse::PopupCaptureBudget::frames_per_second,fps);
+        const auto epoch=generation;
+        const auto capture=region_capture;
+        const auto bounds=rect;
+        const auto native=window.windowID;
+        std::weak_ptr<State> weak=shared_from_this();
+        dispatch_async(queue,^{
+            @autoreleasepool {
+                const double started=NSProcessInfo.processInfo.systemUptime;
+                // IncludingWindow anchors the composition to the requested
+                // menu, excluding unrelated windows above it. No window is
+                // hidden, moved or activated to obtain either image.
+                __block CGImageRef scene=nullptr,behind=nullptr;
+                auto group=dispatch_group_create();
+                const auto capture_queue=dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0);
+                dispatch_group_async(group,capture_queue,^{scene=capture(bounds,kCGWindowListOptionOnScreenBelowWindow|kCGWindowListOptionIncludingWindow,native,kCGWindowImageBoundsIgnoreFraming|kCGWindowImageBestResolution);});
+                dispatch_group_async(group,capture_queue,^{behind=capture(bounds,kCGWindowListOptionOnScreenBelowWindow,native,kCGWindowImageBoundsIgnoreFraming|kCGWindowImageBestResolution);});
+                dispatch_group_wait(group,DISPATCH_TIME_FOREVER);
+                const double completed=NSProcessInfo.processInfo.systemUptime;
+                dispatch_async(dispatch_get_main_queue(),^{
+                    region_budget.complete();
+                    auto state=weak.lock();
+                    if(state && !state->stopped && state->generation==epoch){
+                        state->region_busy=false;
+                        if(scene && behind){
+                            for(unsigned i=0;i<2;++i){
+                                CIImage* image=[CIImage imageWithCGImage:i==0?scene:behind];
+                                image=[image imageByApplyingTransform:CGAffineTransformMakeScale(state->width/image.extent.size.width,state->height/image.extent.size.height)];
+                                auto& history=state->samples[i];
+                                history.push_back({image,completed,++state->sequence});
+                                while(history.size()>2)history.pop_front();
+                            }
+                            state->pair();
+                            ++state->region_completed;
+                            state->region_costs.push_back((completed-started)*1000);
+                            state->region_delivery_costs.push_back((NSProcessInfo.processInfo.systemUptime-started)*1000);
+                            if(state->region_costs.size()>120){state->region_costs.erase(state->region_costs.begin());state->region_delivery_costs.erase(state->region_delivery_costs.begin());}
+                            if(completed-state->region_report_at>=2){
+                                auto costs=state->region_costs;std::sort(costs.begin(),costs.end());
+                                auto delivery=state->region_delivery_costs;std::sort(delivery.begin(),delivery.end());
+                                const auto p95=std::min(costs.size()-1,costs.size()*95/100);
+                                std::fprintf(stderr,"popup-region window=%u fps=%.2f capture-p50-ms=%.2f capture-p95-ms=%.2f delivery-p95-ms=%.2f budget-skips=%u queue=1 total-fps-limit=30 bounds=%.0f,%.0f %.0fx%.0f\n",native,state->region_completed/(completed-state->region_report_at),costs[costs.size()/2],costs[p95],delivery[p95],state->region_skipped,bounds.origin.x,bounds.origin.y,bounds.size.width,bounds.size.height);
+                                state->region_report_at=completed;state->region_completed=0;state->region_skipped=0;state->region_costs.clear();state->region_delivery_costs.clear();
+                            }
+                        }
+                    }
+                    if(scene)CGImageRelease(scene);
+                    if(behind)CGImageRelease(behind);
+                    if(state && !state->stopped && state->generation==epoch)state->capture_region(NSProcessInfo.processInfo.systemUptime);
+                });
+            }
+        });
+    }
     void pair() {
         if (stopped || samples[0].empty() || samples[1].empty() || !mask.image || CGRectIsNull(mask_body)) return;
         // A mask from the opening animation is not the expanded menu's
@@ -216,15 +323,18 @@ struct PopupMaterial::State : std::enable_shared_from_this<PopupMaterial::State>
         published = [body imageByCroppingToRect:mask.image.extent];
         published_sequence = scene.sequence; ++paired;
         if (paired == 10 && [[NSFileManager defaultManager] fileExistsAtPath:@"/tmp/viewflow-popup-diagnostic"]) {
-            CIContext* diagnostic = [CIContext context];
-            CGColorSpaceRef color = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
             NSArray* images = @[scene.image, behind->image, mask.image, published];
             NSArray* labels = @[@"scene", @"behind", @"mask", @"material"];
-            for (NSUInteger i=0;i<images.count;++i) {
-                NSString* path=[NSString stringWithFormat:@"/tmp/viewflow-popup-%u-%@.png",window.windowID,labels[i]];
-                [diagnostic writePNGRepresentationOfImage:images[i] toURL:[NSURL fileURLWithPath:path] format:kCIFormatRGBA8 colorSpace:color options:@{} error:nil];
-            }
-            CGColorSpaceRelease(color);
+            const auto native=window.windowID;
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0),^{
+                CIContext* diagnostic = [CIContext context];
+                CGColorSpaceRef color = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+                for (NSUInteger i=0;i<images.count;++i) {
+                    NSString* path=[NSString stringWithFormat:@"/tmp/viewflow-popup-%u-%@.png",native,labels[i]];
+                    [diagnostic writePNGRepresentationOfImage:images[i] toURL:[NSURL fileURLWithPath:path] format:kCIFormatRGBA8 colorSpace:color options:@{} error:nil];
+                }
+                CGColorSpaceRelease(color);
+            });
             std::fprintf(stderr,"popup diagnostic window=%u rect=%.1f,%.1f %.1fx%.1f output=%ux%u mask=%s\n",window.windowID,rect.origin.x,rect.origin.y,rect.size.width,rect.size.height,width,height,NSStringFromRect(mask_body).UTF8String);
         }
         if (changed) changed();
@@ -239,7 +349,7 @@ struct PopupMaterial::State : std::enable_shared_from_this<PopupMaterial::State>
 PopupMaterial::PopupMaterial(SCDisplay* display, SCWindow* window, CGRect bounds, unsigned width, unsigned height, unsigned fps, std::function<void()> changed)
     : state_(std::make_shared<State>(display, window, bounds, width, height, fps, std::move(changed))) { state_->start(); }
 PopupMaterial::~PopupMaterial() { stop(); }
-void PopupMaterial::stop() { if (state_ && !state_->stopped) { state_->stopped = true; state_->changed = {}; state_->clear_streams(); } }
+void PopupMaterial::stop() { if (state_ && !state_->stopped) { state_->stopped = true; if(state_->region_mode)region_budget.remove(state_->window.windowID);state_->changed = {}; state_->clear_streams(); } }
 void PopupMaterial::shape(CVPixelBufferRef pixels, CGRect body, double timestamp) {
     if (state_->stopped || !pixels || !std::isfinite(timestamp)) return;
     state_->mask = {[CIImage imageWithCVPixelBuffer:pixels], timestamp, 0};
@@ -248,6 +358,8 @@ void PopupMaterial::shape(CVPixelBufferRef pixels, CGRect body, double timestamp
     state_->pair();
 }
 void PopupMaterial::scene(CIImage* image, CGRect display_bounds, double timestamp) {
+    if(state_->region_requested || state_->region_mode)return;
+    if (!image) { state_->samples[0].clear();state_->published=nil;return; }
     if(state_->stopped || !CGRectContainsRect(display_bounds,state_->rect))return;
     const double sx=image.extent.size.width/display_bounds.size.width, sy=image.extent.size.height/display_bounds.size.height;
     CGRect crop=CGRectMake((state_->rect.origin.x-display_bounds.origin.x)*sx,
@@ -258,7 +370,15 @@ void PopupMaterial::scene(CIImage* image, CGRect display_bounds, double timestam
 }
 CIImage* PopupMaterial::image() const { return state_->published; }
 CGRect PopupMaterial::bounds() const { return state_->rect; }
-void PopupMaterial::recover(double now) { if (state_->failed && now >= state_->retry_after) state_->start(); }
+void PopupMaterial::recover(double now) {
+    if(state_->region_requested && !state_->region_mode && state_->region_capture){
+        state_->clear_streams();state_->region_mode=true;state_->failed=false;
+        region_budget.add(state_->window.windowID);
+        std::fprintf(stderr,"popup-material window=%u native-region capture enabled\n",state_->window.windowID);
+    }
+    if(state_->region_mode)state_->capture_region(now);
+    else if(state_->failed && now>=state_->retry_after)state_->start();
+}
 struct DesktopBackdrop::State {
     struct Screen {
         VFPopupBackdropWindow* __strong window = nil;

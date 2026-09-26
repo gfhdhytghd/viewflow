@@ -17,6 +17,7 @@ struct Config {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    viewflowd::managed_owner::watch()?;
     let args: Vec<String> = std::env::args().collect();
     ensure!(
         args.len() == 3 && args[1] == "--config",

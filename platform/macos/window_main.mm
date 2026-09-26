@@ -73,11 +73,43 @@ static constexpr auto usage =
     "       viewflow-macos-windows --write-fixture PATH\n"
     "Media/input records use stdin/stdout; launch through vf-window-peer. Diagnostics use stderr.\n";
 
+// Passive, bounded button observation. Never changes or posts an event.
+static CGEventRef trace_button(CGEventTapProxy, CGEventType type, CGEventRef event, void* label) {
+    if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) return event;
+    std::fprintf(stderr,"secondary-trace tap=%s at=%.6f type=%u timestamp=%llu tag=%lld source-pid=%lld number=%lld clicks=%lld target=%lld\n",
+        static_cast<const char*>(label),NSProcessInfo.processInfo.systemUptime,unsigned(type),
+        static_cast<unsigned long long>(CGEventGetTimestamp(event)),
+        static_cast<long long>(CGEventGetIntegerValueField(event,kCGEventSourceUserData)),
+        static_cast<long long>(CGEventGetIntegerValueField(event,kCGEventSourceUnixProcessID)),
+        static_cast<long long>(CGEventGetIntegerValueField(event,kCGMouseEventNumber)),
+        static_cast<long long>(CGEventGetIntegerValueField(event,kCGMouseEventClickState)),
+        static_cast<long long>(CGEventGetIntegerValueField(event,kCGMouseEventWindowUnderMousePointer)));
+    return event;
+}
+static int trace_secondary_events() {
+    const CGEventMask mask=CGEventMaskBit(kCGEventLeftMouseDown)|CGEventMaskBit(kCGEventLeftMouseUp)|CGEventMaskBit(kCGEventRightMouseDown)|CGEventMaskBit(kCGEventRightMouseUp);
+    std::vector<CFMachPortRef> taps; std::vector<CFRunLoopSourceRef> sources;
+    for(const auto point:{kCGHIDEventTap,kCGSessionEventTap}) {
+        const char* label=point==kCGHIDEventTap?"hid":"session";
+        auto tap=CGEventTapCreate(point,kCGHeadInsertEventTap,kCGEventTapOptionListenOnly,mask,trace_button,const_cast<char*>(label));
+        if(!tap)continue;
+        taps.push_back(tap);auto source=CFMachPortCreateRunLoopSource(kCFAllocatorDefault,tap,0);sources.push_back(source);
+        CFRunLoopAddSource(CFRunLoopGetCurrent(),source,kCFRunLoopCommonModes);
+    }
+    std::fprintf(stderr,"secondary-trace ready taps=%zu seconds=180\n",taps.size());
+    if(!taps.empty())CFRunLoopRunInMode(kCFRunLoopDefaultMode,180,false);
+    for(auto source:sources){CFRunLoopRemoveSource(CFRunLoopGetCurrent(),source,kCFRunLoopCommonModes);CFRelease(source);}
+    for(auto tap:taps){CFMachPortInvalidate(tap);CFRelease(tap);}
+    return taps.empty()?1:0;
+}
+
 int main(int argc, const char* argv[]) {
+    if(argc==2 && std::string_view(argv[1])=="--activity-priority-capabilities") { std::puts("activity-priority-v1"); return 0; }
     @autoreleasepool {
         std::signal(SIGPIPE, SIG_IGN);
         try {
             PresenterExecutable isolated(argc,argv);
+            if(argc==2 && std::string_view(argv[1])=="--trace-secondary-events")return trace_secondary_events();
             if (argc >= 3 && std::string_view(argv[1]) == "--owner-pid") {
                 const std::string_view text = argv[2];
                 int owner = 0;
@@ -105,7 +137,7 @@ int main(int argc, const char* argv[]) {
                 std::fclose(file);
                 argc -= 2; argv += 2;
             }
-            if (argc == 6 && std::string_view(argv[1]) == "--parking-display") {
+            if ((argc == 6 || argc == 7) && std::string_view(argv[1]) == "--parking-display") {
                 int values[4]{};
                 for (int i = 0; i < 4; ++i) {
                     const std::string_view text = argv[i+2];
@@ -115,7 +147,13 @@ int main(int argc, const char* argv[]) {
                 if (values[0] < 64 || values[1] < 64 || values[0] > 8192 || values[1] > 8192 ||
                     values[2] < -100000 || values[2] > 100000 || values[3] < -100000 || values[3] > 100000)
                     throw std::runtime_error("virtual display geometry unsupported");
-                return viewflow::macos::run_parking_display(values[0], values[1], values[2], values[3]);
+                unsigned serial = 1;
+                if (argc == 7) {
+                    const std::string_view text = argv[6];
+                    const auto [end, error] = std::from_chars(text.data(), text.data()+text.size(), serial);
+                    if (error != std::errc{} || end != text.data()+text.size() || !serial) throw std::runtime_error("invalid virtual display identity");
+                }
+                return viewflow::macos::run_parking_display(values[0], values[1], values[2], values[3], serial);
             }
             if (argc == 2 && std::string_view(argv[1]) == "--help") { std::puts(usage); return 0; }
             if (argc == 2 && (std::string_view(argv[1]) == "--permissions" || std::string_view(argv[1]) == "--list-windows"))
@@ -157,6 +195,24 @@ int main(int argc, const char* argv[]) {
                 if (name == "--linux-shortcut" && !options.source) {
                     options.linux_shortcuts.emplace_back(value); continue;
                 }
+                if (name == "--activity-coordinator" && options.source) { options.activity_coordinator=value;continue; }
+                if (name == "--native-drag-seed" && options.source) {
+                    // The controller creates this once per worker. Only the
+                    // process that removes it may consume the bootstrap; a
+                    // helper/transport restart cannot replay an old gesture.
+                    NSString* path = [NSString stringWithUTF8String:argv[i + 1]];
+                    NSData* data = [NSData dataWithContentsOfFile:path];
+                    if (data && unlink(argv[i + 1]) == 0) {
+                        id seed = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                        if ([seed isKindOfClass:NSDictionary.class] &&
+                            [seed[@"grab_x"] isKindOfClass:NSNumber.class] && [seed[@"grab_y"] isKindOfClass:NSNumber.class]) {
+                            options.native_drag = true;
+                            options.native_drag_grab_x = [seed[@"grab_x"] intValue];
+                            options.native_drag_grab_y = [seed[@"grab_y"] intValue];
+                        }
+                    }
+                    continue;
+                }
                 if (name == "--evidence-dir" && !options.source) {
                     options.evidence_dir=value;continue;
                 }
@@ -166,6 +222,9 @@ int main(int argc, const char* argv[]) {
                 if (name == "--window" && options.source && number > 0) options.windows.push_back(static_cast<unsigned>(number));
                 else if (name == "--scale" && number >= 1 && number <= 4) options.scale = number;
                 else if (name == "--native-decorations" && options.source && (number == 0 || number == 1)) options.native_decorations = number;
+                else if (name == "--native-drag" && options.source && (number == 0 || number == 1)) options.native_drag = number;
+                else if (name == "--native-drag-grab-x" && options.source) options.native_drag_grab_x = number;
+                else if (name == "--native-drag-grab-y" && options.source) options.native_drag_grab_y = number;
                 else if (name == "--fps" && number >= 1 && number <= 120) options.fps = static_cast<unsigned>(number);
                 else if (name == "--origin-x") options.origin_x = number;
                 else if (name == "--origin-y") options.origin_y = number;

@@ -146,7 +146,7 @@ Encoder::Ticket Encoder::submit(CVPixelBufferRef color, reverse::Frame frame) {
     output->frame = std::move(frame);
     impl_->pending.push_back(output);
     const auto status = VTCompressionSessionEncodeFrame(impl_->session, color, pts, kCMTimeInvalid,
-        nullptr, output.get(), nullptr);
+        output->frame.keyframe?(__bridge CFDictionaryRef)@{(__bridge NSString*)kVTEncodeFrameOptionKey_ForceKeyFrame:@YES}:nullptr, output.get(), nullptr);
     if (status != noErr) {
         std::lock_guard lock(output->mutex);
         output->status = status; output->done = true;

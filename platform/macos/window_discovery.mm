@@ -5,6 +5,7 @@
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
 #include <cstdio>
+#include <libproc.h>
 
 namespace viewflow::macos {
 int discover_windows(bool enumerate) {
@@ -16,6 +17,12 @@ int discover_windows(bool enumerate) {
         @"bundle_identifier": NSBundle.mainBundle.bundleIdentifier ?: @"unbundled",
         @"enumeration": @"not_requested"
     } mutableCopy];
+    if (CGEventRef event = CGEventCreate(nullptr)) {
+        const auto pointer = CGEventGetLocation(event);
+        report[@"pointer_points"] = @[@(pointer.x), @(pointer.y)];
+        report[@"left_button_down"] = @(CGEventSourceButtonState(kCGEventSourceStateHIDSystemState, kCGMouseButtonLeft));
+        CFRelease(event);
+    }
     NSMutableArray* physical = [NSMutableArray array];
     NSMutableArray* remote = [NSMutableArray array];
     CGDirectDisplayID displays[32]; uint32_t display_count = 0;
@@ -39,6 +46,12 @@ int discover_windows(bool enumerate) {
             for (NSDictionary* item in (__bridge NSArray*)items) {
                 const auto pid = [item[(__bridge NSString*)kCGWindowOwnerPID] intValue];
                 NSRunningApplication* app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+                // Unbundled presenters can adopt the remote application name/icon.
+                // Query their actual executable rather than LaunchServices identity.
+                char executable_path[PROC_PIDPATHINFO_MAXSIZE]{};
+                NSString* executable_name = app.executableURL.lastPathComponent ?: @"";
+                if (proc_pidpath(pid, executable_path, sizeof(executable_path)) > 0)
+                    executable_name = [NSString stringWithUTF8String:executable_path].lastPathComponent;
                 CGRect bounds{};
                 NSDictionary* geometry = item[(__bridge NSString*)kCGWindowBounds];
                 if (!geometry || !CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)geometry, &bounds)) continue;
@@ -47,7 +60,7 @@ int discover_windows(bool enumerate) {
                     @"window_id": item[(__bridge NSString*)kCGWindowNumber] ?: @0,
                     @"pid": @(pid), @"bundle_id": app.bundleIdentifier ?: @"",
                     @"application_name": app.localizedName ?: item[(__bridge NSString*)kCGWindowOwnerName] ?: @"",
-                    @"executable_name": app.executableURL.lastPathComponent ?: @"",
+                    @"executable_name": executable_name ?: @"",
                     @"on_screen": item[(__bridge NSString*)kCGWindowIsOnscreen] ?: @NO,
                     @"layer": item[(__bridge NSString*)kCGWindowLayer] ?: @0,
                     @"title": item[(__bridge NSString*)kCGWindowName] ?: @"",

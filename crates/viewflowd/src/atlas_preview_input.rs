@@ -289,6 +289,7 @@ mod tests {
         for notice_ahead in [false, true] {
             let origin = Instant::now();
             let old = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 100,
@@ -472,10 +473,10 @@ mod tests {
             let resume = requests.recv().await.unwrap();
             assert_eq!(
                 (
-                    resume.confirmation.atlas_frame,
-                    resume.confirmation.source_frame,
-                    resume.confirmation.geometry_epoch,
-                    resume.confirmation.previous_epoch
+                    resume.confirmation.input().atlas_frame,
+                    resume.confirmation.input().source_frame,
+                    resume.confirmation.input().geometry_epoch,
+                    resume.confirmation.input().previous_epoch
                 ),
                 (150, 69, 9, 7)
             );
@@ -492,6 +493,7 @@ mod tests {
         };
         let origin = Instant::now();
         let frame = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 100,
@@ -586,10 +588,10 @@ mod tests {
             .unwrap();
         let cancel = requests.recv().await.unwrap();
         assert_eq!(
-            cancel.confirmation.rejection.unwrap().kind,
+            cancel.confirmation.input().rejection.unwrap().kind,
             InputRejectionKind::Cancel
         );
-        assert_eq!(cancel.confirmation.grant_generation, 0);
+        assert_eq!(cancel.confirmation.input().grant_generation, 0);
         assert!(
             !preview.authorized_presented(viewflow_core::PresentedInputIdentity {
                 window: Id128(8),
@@ -622,7 +624,7 @@ mod tests {
             observed_qpc: 110,
             frequency: 1000,
             rejection: Some(NativeRejectedGesture {
-                cancel_sequence: cancel.confirmation.sequence,
+                cancel_sequence: cancel.confirmation.input().sequence,
                 ingress_boundary: 1,
             }),
         };
@@ -803,11 +805,11 @@ mod tests {
             .unwrap();
         let resume = requests.recv().await.unwrap();
         assert_eq!(
-            resume.confirmation.rejection.unwrap().kind,
+            resume.confirmation.input().rejection.unwrap().kind,
             InputRejectionKind::Resume
         );
-        assert_eq!(resume.confirmation.grant_generation, 8);
-        assert_eq!(resume.confirmation.atlas_frame, 102);
+        assert_eq!(resume.confirmation.input().grant_generation, 8);
+        assert_eq!(resume.confirmation.input().atlas_frame, 102);
         resume.response.send(Ok(111)).unwrap();
         input
             .progress_rejected_gesture(3, Some(clock), Some(&mut preview), &mut sequence)
@@ -934,6 +936,7 @@ mod tests {
         let source = source.unwrap();
         let origin = Instant::now();
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 100,
@@ -1283,10 +1286,10 @@ mod tests {
                 .unwrap()
                 .unwrap();
                 assert_eq!(
-                    cancel.confirmation.rejection.unwrap().kind,
+                    cancel.confirmation.input().rejection.unwrap().kind,
                     crate::atlas_input_recovery::InputRejectionKind::Cancel
                 );
-                assert_eq!(cancel.confirmation.window, window);
+                assert_eq!(cancel.confirmation.input().window, window);
                 assert!(observations.try_recv().is_err());
                 work.abort();
                 assert!(work.await.unwrap_err().is_cancelled());
@@ -1614,7 +1617,7 @@ impl AtlasPreviewInput {
         recovery
             .submit
             .try_send(AtlasInputRecoveryRequest {
-                confirmation,
+                confirmation: confirmation.into(),
                 deadline: tokio::time::Instant::now()
                     + Duration::from_nanos(RECOVERY_NATIVE_BUDGET_NS),
                 response,
@@ -2120,7 +2123,7 @@ impl AtlasPreviewInput {
             }
         };
         let request = AtlasInputRecoveryRequest {
-            confirmation,
+            confirmation: confirmation.into(),
             deadline,
             response: sender,
         };
@@ -2356,7 +2359,19 @@ impl AtlasPreviewInput {
                         DomainControl::DesktopWindowMoveAck(ack) => {
                             ensure!(self.desktop_moves.is_some(), "desktop ACK on disabled route");
                             eprintln!("desktop-receiver-ack drag={:?} sequence={} outcome={:?}", ack.drag_id, ack.sequence, ack.result);
+                            let native_sequence = desktop.native_sequence();
+                            let terminal = desktop.acknowledgement_finishes(ack);
                             desktop.acknowledge(ack, clock.now_ns())?;
+                            if terminal {
+                                if let Some(recovery) = &self.recovery {
+                                    let (response, _receipt) = oneshot::channel();
+                                    recovery.submit.send(AtlasInputRecoveryRequest {
+                                        confirmation: crate::atlas_receiver_presenter::NativeGeometryControl::Desktop { ack, native_sequence },
+                                        deadline: tokio::time::Instant::now() + Duration::from_secs(5),
+                                        response,
+                                    }).await.context("desktop native receipt owner unavailable")?;
+                                }
+                            }
                         }
                         DomainControl::ClockSyncReply(reply) => crate::dispatch_clock_reply(&replies, reply).await?,
                         DomainControl::ClockSyncProbe(probe) => {

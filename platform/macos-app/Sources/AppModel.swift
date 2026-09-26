@@ -3,6 +3,9 @@ import Combine
 
 @MainActor final class AppModel: ObservableObject {
     let permissions = Permissions()
+    let recall = WindowRecallController()
+    let pairing = PairingController()
+    private var startAfterPairing = false
     @Published private(set) var profile: ConnectionProfile?
     @Published private(set) var running = false
     @Published var message = ""
@@ -11,11 +14,18 @@ import Combine
     private var workers: [String: ManagedWorker] = [:]
     private var selected: Set<String> = []
     private var inventoryBusy = false
+    private var nativeDragInventory = NativeDragInventory()
     private var identity: [String: Any] = [:]
+    private var linkIdentities: [String: [String: Any]] = [:]
+    private var pendingRetained: Set<String> = []
+    private var pendingClear = false
+    private let activityCoordinator = ActivityCoordinator(directory: ProfileStore.root.appendingPathComponent("run/activity"))
     private var timer: Timer?
     private let hid = HIDServer()
     private var hidStarted = false
     private var pendingProfile: ConnectionProfile?
+    private var configuredProfile: ConnectionProfile?
+    private var displayTopology: DisplayTopology?
     private var refreshTicks = 0
     private var generation = UUID()
 
@@ -23,13 +33,60 @@ import Combine
         if let stored = UserDefaults.standard.stringArray(forKey: "components") {
             enabled = Set(stored.compactMap(Component.init(rawValue:)))
         }
-        do { profile = try ProfileStore.load() }
+        do {
+            let stored = try ProfileStore.load()
+            if stored.groupID == nil {
+                let archive = ProfileStore.root.appendingPathComponent("legacy/connection-\(UUID().uuidString).json")
+                try FileManager.default.createDirectory(at: archive.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.moveItem(at: ProfileStore.root.appendingPathComponent("connection.json"), to: archive)
+                UserDefaults.standard.set(false, forKey: "running")
+                message = "旧版连接已归档。请选择主机或从机，建立唯一连接组。"
+            }
+            // The pairing service is authoritative; never autostart a cached
+            // profile before it has confirmed the local group membership.
+        }
         catch { if FileManager.default.fileExists(atPath: ProfileStore.root.appendingPathComponent("connection.json").path) { message = error.localizedDescription } }
+        configuredProfile = profile
+        pairing.connected = { [weak self] incoming, reason in self?.reconcileGroup(incoming, reason: reason) }
+        pairing.start()
         permissions.refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }
-        if UserDefaults.standard.bool(forKey: "running") { start() }
+    }
+    private func reconcileGroup(_ incoming: ConnectionProfile?, reason: String) {
+        guard let incoming else {
+            pendingProfile = nil; pendingRetained = []; startAfterPairing = false
+            pendingClear = true; stop()
+            message = "请选择主机或从机，或等待从机加入当前连接组。"
+            return
+        }
+        if configuredProfile == incoming && pendingProfile == nil {
+            if (reason == "joined" || reason == "connected") && !running { start() }
+            return
+        }
+        let shouldStart = running || (reason == "joined" || reason == "connected") || (reason == "restored" && UserDefaults.standard.bool(forKey: "running"))
+        let sameGroup = configuredProfile?.groupID == incoming.groupID && incoming.groupID != nil
+        let old = Dictionary(uniqueKeysWithValues: (configuredProfile?.groupConnections ?? []).map { ($0.pairingDeviceID!, $0) })
+        let preserved = Set((incoming.groupConnections ?? []).filter { old[$0.pairingDeviceID!] == $0 }.compactMap(\.pairingDeviceID))
+        pendingRetained = sameGroup ? Set(workers.values.filter { preserved.contains($0.groupPeerID ?? "") && !$0.stopping }.map(\.id)) : []
+        if sameGroup, let sharedHID = workers["corehid"], !sharedHID.stopping, enabled.contains(.hid) {
+            pendingRetained.insert(sharedHID.id)
+        }
+        for worker in workers.values where !pendingRetained.contains(worker.id) { worker.stop() }
+        if !sameGroup { hid.stop(); hidStarted = false; running = false }
+        generation = UUID()
+        pendingProfile = incoming; startAfterPairing = shouldStart; pendingClear = false
+        message = "正在同步当前连接组。"
+    }
+    private func prepareIdentities(_ profile: ConnectionProfile) throws {
+        linkIdentities = [:]
+        for link in profile.groupConnections ?? [profile] {
+            let root = profile.groupID.map { ProfileStore.root.appendingPathComponent("groups/\($0)/\(link.pairingDeviceID!)") } ?? ProfileStore.root
+            let material = try ProfileStore.identity(link, at: root)
+            linkIdentities[link.pairingDeviceID ?? ""] = material
+        }
+        identity = linkIdentities[profile.pairingDeviceID ?? ""] ?? [:]
     }
     func setEnabled(_ component: Component, _ value: Bool) {
         if value { enabled.insert(component) } else { enabled.remove(component) }
@@ -39,46 +96,40 @@ import Combine
     func start() {
         guard pendingProfile == nil else { message = "正在切换配对，请稍候"; return }
         do {
-            if let profile { identity = try ProfileStore.identity(profile) }
+            guard let profile else { message = "请先建立或加入连接组。"; return }
+            try prepareIdentities(profile)
             running = true; UserDefaults.standard.set(true, forKey: "running"); tick()
         } catch { message = error.localizedDescription }
     }
     func stop(persist: Bool = true) {
+        startAfterPairing = false
         running = false; generation = UUID()
         if persist { UserDefaults.standard.set(false, forKey: "running") }
         for worker in workers.values { worker.stop() }
         hid.stop(); hidStarted = false; selected = []
+        nativeDragInventory = NativeDragInventory()
         for component in Component.allCases { statuses[component] = "已停止" }
     }
     var fullyStopped: Bool { hid.isStopped && workers.values.allSatisfy { $0.process == nil } }
     func pollTermination(elapsed: TimeInterval) {
+        recall.pollTermination(elapsed: elapsed)
         for worker in workers.values { worker.pollTermination(elapsed: elapsed) }
     }
     func importProfile() {
-        let panel = NSOpenPanel()
-        panel.title = "导入 Viewflow 配对文件"; panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        importProfile(from: url)
+        message = "请在配对页面选择主机或从机；旧版配对文件不能与连接组同时使用。"
     }
     func importProfile(from url: URL) {
-        do {
-            let data = try Data(contentsOf: url)
-            guard data.count < 512 * 1024 else { throw ViewflowError.invalid("配对文件过大") }
-            let incoming = try JSONDecoder().decode(ConnectionProfile.self, from: data)
-            try incoming.validate()
-            stop(); pendingProfile = incoming
-            message = "正在结束旧连接并保存新配对"; tick()
-        } catch { message = error.localizedDescription }
+        importProfile()
     }
     private func configuration(_ id: String, fields: [String: Any]) throws -> URL {
         let url = ProfileStore.root.appendingPathComponent("run/\(id).json")
         try ProfileStore.writePrivate(JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]), to: url)
         return url
     }
-    private func worker(_ id: String, component: Component, binary: String, arguments: () throws -> [String]) throws {
+    private func worker(_ id: String, component: Component, binary: String, peerID: String? = nil, arguments: () throws -> [String]) throws {
         if workers[id] == nil {
             let new = try ManagedWorker(id: id, component: component, executable: BundleTools.executable(binary), arguments: arguments())
+            new.groupPeerID = peerID
             new.changed = { [weak self] in self?.objectWillChange.send() }
             workers[id] = new
         }
@@ -93,21 +144,56 @@ import Combine
         statuses[component] = reason
     }
     private func tick() {
+        recall.poll()
+        activityCoordinator.poll(active: Set(workers.values.filter { $0.desired && $0.process != nil && $0.id.hasPrefix("source-") }.map(\.id)))
         // Reap retired workers before reusing configuration files or identity.
         for (id, worker) in workers where !worker.desired && worker.process == nil { workers.removeValue(forKey: id) }
-        if let incoming = pendingProfile, fullyStopped {
+        if pendingClear && fullyStopped {
+            pendingClear = false; profile = nil; configuredProfile = nil; identity = [:]; linkIdentities = [:]
+            try? FileManager.default.removeItem(at: ProfileStore.root.appendingPathComponent("connection.json"))
+        }
+        if let incoming = pendingProfile, workers.values.allSatisfy({ $0.process == nil || pendingRetained.contains($0.id) }) && (running || hid.isStopped) {
             do {
                 try ProfileStore.save(incoming)
-                profile = incoming; pendingProfile = nil; identity = [:]
-                message = "已保存配对：\(incoming.name)。点击启动即可连接。"
+                profile = incoming; configuredProfile = incoming; displayTopology = nil; pendingProfile = nil; pendingRetained = []
+                try prepareIdentities(incoming)
+                message = "当前连接组已同步。"
+                if startAfterPairing { startAfterPairing = false; start(); return }
             } catch { pendingProfile = nil; message = error.localizedDescription }
         }
         refreshTicks += 1
         if refreshTicks % 100 == 0 { permissions.refresh() }
-        guard running else { return }
+        guard running, pendingProfile == nil, !pendingClear else { return }
+        if configuredProfile?.pairingDeviceID == nil, let topology = DisplayTopology.load(), topology != displayTopology, let configuredProfile {
+            let updated = topology.applying(to: configuredProfile)
+            generation = UUID() // Discard an inventory completed for the old coordinates.
+            if updated.presentationOriginX != profile?.presentationOriginX || updated.presentationOriginY != profile?.presentationOriginY || updated.windowReceivers != profile?.windowReceivers {
+                stopComponent(.windowsReceive, reason: "正在更新屏幕布局")
+            }
+            let parkingIDs = Set(((updated.windowParking.map { [$0] } ?? []) + (updated.windowParkingDisplays ?? [])).map { ($0.serial ?? 1) == 1 ? "window-parking" : "window-parking-\($0.serial ?? 1)" })
+            for worker in workers.values where worker.id.hasPrefix("window-parking") && !parkingIDs.contains(worker.id) { worker.stop() }
+            for worker in workers.values where worker.id.hasPrefix("source-") && !updated.windowDestinations.contains(where: { worker.id.hasSuffix("-" + $0.id) }) { worker.stop() }
+            profile = updated; displayTopology = topology
+        }
         for component in Component.allCases {
+            if displayTopology?.connected == false && component != .input && component != .hid {
+                stopComponent(component, reason: "当前仅连接 Windows"); continue
+            }
             guard enabled.contains(component) else { stopComponent(component, reason: "已关闭"); continue }
             if component == .hid {
+                if BundleTools.usesCoreHID {
+                    guard BundleTools.coreHIDSupported else { statuses[component] = "原生触控板需要 macOS 26 或更新版本"; continue }
+                    do {
+                        try worker("corehid", component: .hid, binary: "ViewflowHIDReceiver") {
+                            ["--serve", "--socket", HIDServer.path, "--status-file", CoreHIDStatus.url.path]
+                        }
+                        if workers["corehid"]?.process?.isRunning == true {
+                            let ready = CoreHIDStatus.read()["native_multitouch_attached"] as? Bool == true
+                            statuses[component] = ready ? "原生触控板已就绪，等待输入" : "正在初始化原生触控板"
+                        }
+                    } catch { statuses[component] = error.localizedDescription }
+                    continue
+                }
                 // Once running, a failed diagnostic must not sever HID input.
                 if !hidStarted {
                     guard permissions.driverAttached else { statuses[component] = "等待 HID 驱动就绪"; continue }
@@ -119,38 +205,67 @@ import Combine
             do {
                 switch component {
                 case .input:
-                    if !permissions.canPostInput && workers["input"] == nil { statuses[component] = "等待辅助功能权限"; continue }
-                    try worker("input", component: component, binary: "viewflowd") {
-                        ["serve", "--bind", profile.inputBind, "--cert", identity["certificate"] as! String,
-                         "--key", identity["private_key"] as! String, "--ca", identity["certificate_authority"] as! String,
-                         "--input-backend", "native", "--device-id", profile.deviceID]
+                    for link in profile.groupConnections ?? [profile] {
+                        let peer = link.pairingDeviceID ?? ""
+                        let id = peer.isEmpty ? "input" : "input-" + peer
+                        if !permissions.canPostInput && workers[id] == nil { statuses[component] = "等待辅助功能权限"; continue }
+                        let material = linkIdentities[peer] ?? identity
+                        try worker(id, component: component, binary: "viewflowd", peerID: peer) {
+                            ["serve", "--bind", link.inputBind, "--cert", material["certificate"] as! String,
+                             "--key", material["private_key"] as! String, "--ca", material["certificate_authority"] as! String,
+                             "--input-backend", "native", "--device-id", link.deviceID]
+                        }
                     }
                 case .windowsReceive:
-                    try worker("windows-receive", component: component, binary: "vf-window-peer") {
-                        var fields = identity; fields["bind"] = profile.windowsBind; fields["role"] = "presenter"
-                        fields["backend"] = ["native": try BundleTools.executable("viewflow-macos-windows").path,
-                            "args": ["present", "--scale", String(Int(profile.presentationScale)),
-                                     "--origin-x", String(profile.presentationOriginX), "--origin-y", String(profile.presentationOriginY),
-                                     "--performance-mode", profile.performanceMode]]
-                        return ["--config", try configuration("windows-receive", fields: fields).path]
+                    for link in profile.groupConnections ?? [profile] {
+                        let peer = link.pairingDeviceID ?? ""
+                        let receivers = [ConnectionProfile.WindowReceiver(id: "", bind: link.windowsBind,
+                            scale: Int(link.presentationScale), originX: link.presentationOriginX,
+                            originY: link.presentationOriginY)] + (link.windowReceivers ?? [])
+                        for receiver in receivers {
+                            let id = "windows-receive" + (peer.isEmpty ? "" : "-" + peer) + (receiver.id.isEmpty ? "" : "-" + receiver.id)
+                            try worker(id, component: component, binary: "vf-window-peer", peerID: peer) {
+                                var fields = linkIdentities[peer] ?? identity
+                                fields["bind"] = receiver.bind; fields["role"] = "presenter"
+                                fields["backend"] = ["native": try BundleTools.executable("viewflow-macos-windows").path,
+                                    "args": ["present", "--scale", String(receiver.scale),
+                                             "--origin-x", String(receiver.originX), "--origin-y", String(receiver.originY),
+                                             "--performance-mode", link.performanceMode]]
+                                return ["--config", try configuration(id, fields: fields).path]
+                            }
+                        }
                     }
                 case .clipboard:
-                    try worker("clipboard", component: component, binary: "vf-clipboard-peer") {
-                        var fields = identity; fields["bind"] = profile.clipboardBind
-                        if let remote = profile.clipboardRemote { fields["remote"] = remote.address; fields["server_name"] = remote.serverName }
-                        return ["--config", try configuration("clipboard", fields: fields).path]
+                    for link in profile.groupConnections ?? [profile] {
+                        let peer = link.pairingDeviceID ?? ""
+                        let id = peer.isEmpty ? "clipboard" : "clipboard-" + peer
+                        try worker(id, component: component, binary: "vf-clipboard-peer", peerID: peer) {
+                            var fields = linkIdentities[peer] ?? identity; fields["bind"] = link.clipboardBind
+                            if let remote = link.clipboardRemote { fields["remote"] = remote.address; fields["server_name"] = remote.serverName }
+                            return ["--config", try configuration(id, fields: fields).path]
+                        }
                     }
                 case .windowsShare:
-                    guard !profile.windowDestinations.isEmpty else { statuses[component] = "配对文件未设置窗口接收端"; continue }
+                    guard !profile.windowDestinations.isEmpty else { statuses[component] = "等待连接组成员"; continue }
                     if !permissions.canCapture && selected.isEmpty { statuses[component] = "等待屏幕录制权限"; continue }
-                    if let screen = profile.windowParking {
-                        try worker("window-parking", component: .windowsShare, binary: "viewflow-macos-windows") {
-                            ["--owner-pid", String(ProcessInfo.processInfo.processIdentifier), "--parking-display",
-                             String(screen.width), String(screen.height), String(screen.x), String(screen.y)]
+                    for link in profile.groupConnections ?? [profile] {
+                        for screen in (link.windowParking.map { [$0] } ?? []) + (link.windowParkingDisplays ?? []) {
+                            let serial = screen.serial ?? 1
+                            let id = serial == 1 ? "window-parking" : "window-parking-\(serial)"
+                            try worker(id, component: .windowsShare, binary: "viewflow-macos-windows", peerID: link.pairingDeviceID) {
+                                ["--owner-pid", String(ProcessInfo.processInfo.processIdentifier), "--parking-display",
+                                 String(screen.width), String(screen.height), String(screen.x), String(screen.y), String(serial)]
+                            }
                         }
                     }
                     for worker in workers.values where worker.component == .windowsShare && worker.desired { worker.reconcile() }
-                    enumerate(profile)
+                    var sharing = profile
+                    if let links = profile.groupConnections {
+                        sharing.windowDestinations = links.flatMap(\.windowDestinations)
+                        let screens = links.flatMap { ($0.windowParking.map { [$0] } ?? []) + ($0.windowParkingDisplays ?? []) }
+                        sharing.windowParking = screens.first; sharing.windowParkingDisplays = Array(screens.dropFirst())
+                    }
+                    enumerate(sharing)
                 case .hid: break
                 }
             } catch { statuses[component] = error.localizedDescription }
@@ -173,26 +288,37 @@ import Combine
         }
     }
     private func updateWindows(_ inventory: WindowInventory, _ profile: ConnectionProfile) throws {
-        let live = try inventory.selected(existing: selected, limit: profile.maxWindows)
+        nativeDragInventory.observe(inventory)
+        // Native-decoration streams include their owned popup windows. Creating
+        // another menu stream duplicates the same menu and its input target.
+        let live = try inventory.selected(existing: selected, limit: profile.maxWindows).filter { $0.layer == 0 }
         selected = Set(live.map(\.key))
-        let desiredIDs = Set(["window-parking"]).union(live.flatMap { window in profile.windowDestinations.filter { window.layer != 101 || $0.id != "linux" }.map { "source-\(window.key)-\($0.id)" } })
+        let parkingIDs = Set(((profile.windowParking.map { [$0] } ?? []) + (profile.windowParkingDisplays ?? [])).map {
+            ($0.serial ?? 1) == 1 ? "window-parking" : "window-parking-\($0.serial ?? 1)"
+        })
+        let desiredIDs = parkingIDs.union(live.flatMap { window in profile.windowDestinations.filter { $0.accepts(window) }.map { "source-\(window.key)-\($0.id)" } })
         for (id, worker) in workers where worker.component == .windowsShare && !desiredIDs.contains(id) { worker.stop() }
         // Include retiring processes in the worker budget; never oversubscribe
         // the capture pool while an old stream is still releasing resources.
         for window in live {
-            for peer in profile.windowDestinations {
-                if window.layer == 101 && peer.id == "linux" { continue }
+            for peer in profile.windowDestinations where peer.accepts(window) {
                 let id = "source-\(window.key)-\(peer.id)"
                 if workers[id] == nil && workers.values.filter({ $0.component == .windowsShare && $0.id.hasPrefix("source-") }).count >= (profile.maxWindows + 8) * profile.windowDestinations.count { continue }
-                try worker(id, component: .windowsShare, binary: "vf-window-peer") {
-                    var fields = identity
+                try worker(id, component: .windowsShare, binary: "vf-window-peer", peerID: peer.id) {
+                    var fields = linkIdentities[peer.id] ?? identity
                     fields["bind"] = peer.address.hasPrefix("[") ? "[::]:0" : "0.0.0.0:0"
                     fields["remote"] = peer.address; fields["server_name"] = peer.serverName; fields["role"] = "source"
-                    fields["backend"] = ["native": try BundleTools.captureExecutable(for: id).path,
-                        "args": ["source", "--window", String(window.windowID), "--scale", String(peer.id == "linux" ? max(2, peer.captureScale) : peer.captureScale),
+                    var sourceArgs = ["source", "--window", String(window.windowID), "--scale", String(peer.id == "linux" ? max(2, peer.captureScale) : peer.captureScale),
                                  "--fps", String(profile.frameRate), "--codec", peer.codec ?? "h264",
                                  "--performance-mode", profile.performanceMode,
-                                 "--native-decorations", peer.id == "linux" ? "1" : "0"]]
+                                 "--native-decorations", "1",
+                                 "--activity-coordinator", try activityCoordinator.reportPath(id)]
+                    if let grab = nativeDragInventory.grabs[window.key] {
+                        let seed = ProfileStore.root.appendingPathComponent("run/\(id)-drag.json")
+                        try ProfileStore.writePrivate(JSONSerialization.data(withJSONObject: ["grab_x": grab[0], "grab_y": grab[1]]), to: seed)
+                        sourceArgs += ["--native-drag-seed", seed.path]
+                    }
+                    fields["backend"] = ["native": try BundleTools.captureExecutable(for: id).path, "args": sourceArgs]
                     return ["--config", try configuration(id, fields: fields).path]
                 }
             }

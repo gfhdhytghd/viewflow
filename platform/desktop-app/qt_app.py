@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+import queue
 
 from PySide6.QtCore import QObject, Property, QTimer, QUrl, Signal, Slot, Qt, QLocale
 from PySide6.QtGui import QIcon
@@ -20,6 +21,8 @@ from i18n import EN, resolve_language, translate, status_text
 from permissions import permission_rows
 import linux_setup
 import media_settings
+from pairing_service import PairingService
+from pairing_profiles import build_group_profile
 
 
 class ApplicationModel(QObject):
@@ -44,6 +47,11 @@ class ApplicationModel(QObject):
         self.media_devices = media_settings.render_devices() if PLATFORM == 'linux' else []
         self.media_report = {}
         self.profile = None
+        self.pairing = None
+        self.pairing_error = ''
+        self.pending_start = False
+        self.pending_reuse = {}
+        self.pending_clear = False
         self.language_preference = self.settings.get('language', 'system')
         if self.language_preference not in ('system', 'en', 'zh-CN'):
             self.language_preference = 'system'
@@ -65,9 +73,38 @@ class ApplicationModel(QObject):
         self.next_recall_poll = 0
         self.completed.connect(self.complete, Qt.ConnectionType.QueuedConnection)
         if not passive:
+            try:
+                screen = QApplication.primaryScreen()
+                size, scale = screen.size(), screen.devicePixelRatio()
+                self.pairing = PairingService(DATA / 'pairing', PLATFORM,
+                    dict(width=round(size.width() * scale), height=round(size.height() * scale), scale=scale))
+                if PLATFORM == 'windows':
+                    from pairing_display import windows_share_bounds
+                    try: self.pairing.device['share_bounds'] = windows_share_bounds(ROOT / self.manifest['programs']['viewflow_virtual_display'])
+                    except (OSError, KeyError, subprocess.SubprocessError): pass
+            except Exception as error: self.pairing_error = str(error)
             path = DATA / 'connection.json'
+            stored = {}
             if path.exists():
-                try: self.activate(json.loads(path.read_text(encoding='utf-8')))
+                try:
+                    stored = json.loads(path.read_text(encoding='utf-8'))
+                    current = self.pairing.connection_state() if self.pairing else None
+                    if not stored.get('groupID') or not current or not current['group'] or stored['groupID'] != current['group']['id']:
+                        archive = DATA / 'legacy' / ('connection-' + str(time.time_ns()) + '.json')
+                        archive.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                        path.replace(archive)
+                        self.settings['running'] = False
+                        self.save_settings()
+                        self.message = '旧版连接已归档。请选择主机或从机，建立唯一连接组。'
+                except Exception as error: self.message = str(error)
+            if self.pairing:
+                try:
+                    profile = build_group_profile(self.pairing.connection_state())
+                    if profile:
+                        previous = {item['id']: item for item in stored.get('components', [])} if stored.get('groupID') == profile.get('groupID') else {}
+                        for item in profile['components']:
+                            if item['id'] in previous: item['enabled'] = previous[item['id']].get('enabled', True)
+                        self.activate(profile)
                 except Exception as error: self.message = str(error)
         self.publish()
         self.timer = QTimer(self)
@@ -83,11 +120,24 @@ class ApplicationModel(QObject):
     def components(self):
         return self._components
 
+    def component_presentation(self, worker):
+        item = worker.item
+        title = item.get('title', item['id'])
+        parts = title.rsplit(' · ', 1)
+        kind = next((k for k in ('windows-receive', 'windows-share', 'desktop-share', 'desktop-receive', 'clipboard') if item['id'].endswith(k)), '')
+        icons = {'windows-receive':'windows-receive.svg', 'windows-share':'windows-share.svg',
+                 'desktop-share':'keyboard.svg', 'desktop-receive':'keyboard.svg', 'clipboard':'clipboard.svg'}
+        labels = {'windows-receive':'接收其他电脑的窗口', 'windows-share':'共享本机窗口',
+                  'desktop-share':'共享桌面与输入', 'desktop-receive':'接收桌面与输入', 'clipboard':'剪贴板同步'}
+        return dict(displayTitle=self.tr_text(labels.get(kind,parts[-1])),
+                    order={'desktop-share':0,'desktop-receive':0,'windows-receive':1,'windows-share':2,'clipboard':3}.get(kind,4),
+                    deviceName=parts[0] if len(parts)>1 else '', icon=icons.get(kind,'connection.svg'))
+
     def publish(self):
         state = dict(platform=PLATFORM, paired=self.profile is not None,
-                     profileName=self.profile['name'] if self.profile else self.tr_text('尚未配对'),
+                     profileName=self.profile['name'] if self.profile else (self.pairing.snapshot()['members'][0]['name'] + ' · Viewflow' if self.pairing and self.pairing.snapshot().get('members') else self.tr_text('尚未配对')),
                      running=self.running, busy=self.busy, quitting=self.quitting,
-                     transitioning=self.pending is not None or any(w.stopping is not None for w in self.workers),
+                     transitioning=self.pending is not None or self.pending_clear or any(w.stopping is not None for w in self.workers),
                      message=status_text(self.message, self.language), login=self.login, lockInput=self.lock_input,
                      recallShortcut=self.recall.shortcut, recallStatus=status_text(self.recall.status, self.language),
                      language=self.language, languagePreference=self.language_preference,
@@ -96,13 +146,16 @@ class ApplicationModel(QObject):
                      mediaDevices=self.media_devices, mediaReport=self.media_report,
                      mediaEditable=not self.running and self.pending is None and not self.busy and not any(w.process is not None for w in self.workers),
                      permissionDetails=self.permission_details,
+                     discovery=self.pairing.snapshot() if self.pairing else dict(role='', groupID='', members=[], count=0, maximum=3,
+                         machines=[], code='', addresses=[], warning=self.pairing_error),
                      permissionRows=permission_rows(self.permission_report, self.language),
                      pluginCommands=linux_setup.plugin_commands(ROOT, self.manifest, self.permission_report or {}) if PLATFORM == 'linux' else '',
                      linuxSetup=(self.permission_report or {}).get('linux_setup', {}),
                      dependencyHints=linux_setup.dependency_hints((self.permission_report or {}).get('linux_setup', {}), self.language),
                      version=self.manifest.get('build', {}).get('version', self.tr_text('开发版')),
-                     components=[dict(id=w.item['id'], title=w.item.get('title', w.item['id']),
-                                      enabled=w.item.get('enabled', True), status=status_text(w.status, self.language)) for w in self.workers])
+                     components=[dict(id=w.item['id'], title=' · '.join(self.tr_text(part) for part in w.item.get('title', w.item['id']).split(' · ')),
+                                      enabled=w.item.get('enabled', True), status=status_text(w.status, self.language), **self.component_presentation(w)) for w in self.workers])
+        state['components'].sort(key=lambda c:(c['deviceName'],c['order']))
         if state['components'] != self._components:
             self._components = state['components']
             self.componentsChanged.emit()
@@ -153,17 +206,104 @@ class ApplicationModel(QObject):
             self.completed.emit(done, value, error)
         threading.Thread(target=task, daemon=True).start()
 
-    def activate(self, profile):
+    def activate(self, profile, reuse=None):
         validate_profile(profile, self.manifest)
-        materialize(profile, self.manifest, ROOT, DATA)
-        workers = [Worker(item, command(item, self.manifest, ROOT, DATA), DATA,
-                          expand(item.get('environment', {}), ROOT, DATA, self.manifest))
+        from pairing_protocol import valid_id
+        data = DATA / 'groups' / valid_id(profile['groupID']) if profile.get('groupID') else DATA
+        materialize(profile, self.manifest, ROOT, data)
+        workers = [(reuse or {}).get(item['id']) or Worker(item, command(item, self.manifest, ROOT, data), data,
+                          expand(item.get('environment', {}), ROOT, data, self.manifest))
                    for item in profile['components']]
+        for worker, item in zip(workers, profile['components']): worker.item = item
         if PLATFORM == 'linux':
             for worker in workers:
                 worker.environment.update(media_settings.environment(self.media_backend, self.media_node))
         self.profile, self.workers = profile, workers
         self.publish()
+
+    @Slot()
+    def showPairingCode(self):
+        if self.passive or self.quitting or not self.pairing: return
+        try: self.pairing.show_code()
+        except Exception as error: self.set_message(str(error))
+        self.publish()
+
+    @Slot(str)
+    def setPairingRole(self, role):
+        if self.passive or self.quitting or not self.pairing: return
+        self.background(lambda: self.pairing.set_role(role), lambda _: None)
+
+    @Slot()
+    def leaveGroup(self):
+        if self.passive or self.quitting or not self.pairing: return
+        self.background(self.pairing.leave_group, lambda _: None)
+
+    @Slot(str)
+    def removeGroupMember(self, identity):
+        if self.passive or self.quitting or not self.pairing: return
+        self.background(lambda: self.pairing.remove_member(identity), lambda _: None)
+
+    @Slot()
+    def reconnectGroup(self):
+        if self.passive or self.quitting or not self.pairing: return
+        self.background(self.pairing.restart_connection, lambda _: None)
+
+    @Slot()
+    def disconnectGroup(self):
+        if self.passive or self.quitting or not self.pairing: return
+        self.background(self.pairing.disconnect, lambda _: None)
+
+    @Slot(str, int, int)
+    def setDisplayPosition(self, identity, x, y):
+        if self.passive or self.quitting or not self.pairing: return
+        self.background(lambda: self.pairing.set_display_position(identity, x, y), lambda _: None)
+
+    @Slot()
+    def cancelPairingCode(self):
+        if self.pairing: self.pairing.cancel_code()
+        self.publish()
+
+    @Slot(str, str, str)
+    def connectMachine(self, target, code, identity):
+        if self.passive or self.quitting or not self.pairing: return
+        self.background(lambda: self.pairing.connect(target, code, identity or None), lambda _: None)
+
+    @staticmethod
+    def link_signature(profile, item):
+        prefix = item.get('peerID', '') + '-'
+        return (item, {k: v for k, v in profile.get('configs', {}).items() if k.startswith(prefix)},
+                {k: v for k, v in profile.get('files', {}).items() if k.startswith(prefix)})
+
+    def paired_connection(self, event):
+        profile = build_group_profile(event)
+        if profile is None:
+            self.pending = None; self.pending_reuse = {}; self.pending_start = False
+            self.pending_clear = True
+            self.stop()
+            self.set_message('连接已断开，配对关系保留。' if event.get('paused') else '等待从机自动连接。' if event.get('group') else '请选择主机或从机，或等待从机加入当前连接组。')
+            return
+        same_group = self.profile and self.profile.get('groupID') == profile['groupID']
+        old = {worker.item['id']: worker for worker in self.workers} if same_group else {}
+        for item in profile['components']:
+            if item['id'] in old: item['enabled'] = old[item['id']].item.get('enabled', True)
+        auto_start = event.get('reason') in ('joined', 'connected')
+        if (self.profile == profile and self.pending is None and not self.pending_clear
+                and not any(worker.stopping is not None for worker in self.workers)):
+            if auto_start and not self.running: self.start()
+            return
+        validate_profile(profile, self.manifest)
+        reuse = {}
+        for item in profile['components']:
+            worker = old.get(item['id'])
+            if worker and worker.stopping is None and self.link_signature(self.profile, worker.item) == self.link_signature(profile, item):
+                reuse[item['id']] = worker
+        for worker in self.workers:
+            if worker.item['id'] not in reuse: worker.stop()
+        self.pending, self.pending_reuse = profile, reuse
+        # A later layout/status update must not consume a queued reconnect.
+        self.pending_start = self.pending_start or auto_start or self.running or (event.get('reason') == 'restored' and self.settings.get('running', False))
+        self.pending_clear = False
+        self.set_message('正在同步当前连接组。')
 
     @Slot(str)
     def action(self, name):
@@ -256,17 +396,10 @@ class ApplicationModel(QObject):
         self.background(lambda: media_settings.probe(program, backend, node), show)
 
     def import_profile(self):
-        path, _ = QFileDialog.getOpenFileName(None, self.tr_text('导入配对文件'), '',
-                                            'Viewflow (*.viewflowconnection);;JSON (*.json)')
-        if path: self.import_path(Path(path))
+        self.set_message('请在配对页面选择主机或从机；旧版配对文件不能与连接组同时使用。')
 
     def import_path(self, path):
-        with path.open('rb') as stream: data = stream.read(4 * 1024 * 1024 + 1)
-        if len(data) > 4 * 1024 * 1024: raise ValueError('配对文件过大')
-        profile = validate_profile(json.loads(data), self.manifest)
-        self.stop()
-        self.pending = profile
-        self.set_message('正在结束旧连接并保存新配对。')
+        self.import_profile()
 
     def selection_changed(self):
         for worker in self.workers:
@@ -275,7 +408,7 @@ class ApplicationModel(QObject):
         if self.profile: private_write(DATA / 'connection.json', json.dumps(self.profile).encode())
 
     def start(self):
-        if not self.profile: self.set_message('请先导入配对文件。'); return
+        if not self.profile: self.set_message('请先建立或加入连接组。'); return
         if self.pending is not None or any(w.stopping is not None for w in self.workers):
             self.set_message('正在结束旧连接，请稍候。'); return
         for worker in self.workers:
@@ -285,9 +418,11 @@ class ApplicationModel(QObject):
         self.settings['running'] = True
         self.save_settings()
         self.selection_changed()
-        self.set_message('正在启动已启用的组件。')
+        self.set_message('正在启动当前连接组。')
+        if self.profile.get('notice'): self.set_message(self.profile['notice'])
 
     def stop(self, persist=True):
+        self.pending_start = False
         self.running = False
         if persist: self.settings['running'] = False; self.save_settings()
         for worker in self.workers: worker.stop()
@@ -295,6 +430,12 @@ class ApplicationModel(QObject):
 
     def tick(self):
         if self.passive: return
+        if self.pairing and not self.quitting:
+            while True:
+                try: event = self.pairing.events.get_nowait()
+                except queue.Empty: break
+                try: self.paired_connection(event)
+                except Exception as error: self.set_message(str(error))
         if self.initial_check_pending and not self.busy and not self.quitting:
             self.initial_check_pending = False
             self.check_permissions()
@@ -307,11 +448,27 @@ class ApplicationModel(QObject):
                     self.save_settings()
             self.background(self.recall.poll, recalled)
         for worker in self.workers:
-            if self.running and worker.item.get('enabled', True) and worker.stopping is None:
+            retained = self.pending is None or worker.item['id'] in self.pending_reuse
+            if self.running and not self.pending_clear and retained and worker.item.get('enabled', True) and worker.stopping is None:
                 worker.desired = True
             try: worker.tick()
             except Exception as error: worker.status = str(error)
+        if self.pending is not None and all(w.process is None or w.item['id'] in self.pending_reuse for w in self.workers):
+            profile, reuse = self.pending, self.pending_reuse
+            self.pending = None; self.pending_reuse = {}
+            try:
+                self.activate(profile, reuse)
+                private_write(DATA / 'connection.json', json.dumps(profile).encode())
+                if self.pending_start:
+                    self.pending_start = False
+                    self.start()
+                else: self.set_message('连接组已同步，点击启动即可连接。')
+            except Exception as error: self.set_message(str(error))
         if all(w.process is None for w in self.workers):
+            if self.pending_clear:
+                self.pending_clear = False
+                self.profile = None; self.workers = []
+                (DATA / 'connection.json').unlink(missing_ok=True)
             if self.quitting:
                 if self.busy: return
                 self.recall.stop()
@@ -319,13 +476,12 @@ class ApplicationModel(QObject):
                 self.timer.stop()
                 self.finished.emit()
                 return
-            if self.pending is not None:
-                profile, self.pending = self.pending, None
-                try:
-                    self.activate(profile)
-                    private_write(DATA / 'connection.json', json.dumps(profile).encode())
-                    self.set_message('配对已保存，点击启动即可连接。')
-                except Exception as error: self.set_message(str(error))
+        if self.running and self.message in ('正在启动当前连接组。', '组件进程已启动；正在建立设备连接。', '部分组件正在恢复，请查看下方状态或日志。'):
+            active = [w for w in self.workers if w.item.get('enabled', True)]
+            if any(w.status.startswith(('启动失败', '组件已退出')) for w in active):
+                self.message = '部分组件正在恢复，请查看下方状态或日志。'
+            elif active and all(w.process is not None for w in active):
+                self.message = '组件进程已启动；正在建立设备连接。'
         self.publish()
 
     @Slot()
@@ -336,11 +492,14 @@ class ApplicationModel(QObject):
             return
         if self.quitting: return
         self.quitting = True
+        if self.pairing:
+            threading.Thread(target=self.pairing.close, daemon=True).start()
         self.stop(persist=False)
 
     def open_logs(self):
-        (DATA / 'logs').mkdir(parents=True, exist_ok=True, mode=0o700)
-        open_path(DATA / 'logs')
+        root = DATA / 'groups' / self.profile['groupID'] if self.profile and self.profile.get('groupID') else DATA
+        (root / 'logs').mkdir(parents=True, exist_ok=True, mode=0o700)
+        open_path(root / 'logs')
 
     def export_diagnostics(self):
         path, _ = QFileDialog.getSaveFileName(None, self.tr_text('导出诊断报告'), 'Viewflow-diagnostics.json', 'JSON (*.json)')
@@ -404,11 +563,18 @@ class ApplicationModel(QObject):
 
 
 def run_application(manifest, *, smoke=False):
+    if PLATFORM == 'windows' and not smoke:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('org.viewflow.app')
     app = QApplication.instance() or QApplication(sys.argv[:1])
+    if PLATFORM == 'linux':
+        app.setDesktopFileName('org.viewflow.app')
     app.setApplicationName('Viewflow')
     app.setOrganizationName('Viewflow')
     app.setQuitOnLastWindowClosed(False)
     QQuickStyle.setStyle('Basic')
+    icon = QIcon(str(resources() / 'qml/viewflow.svg'))
+    app.setWindowIcon(icon)
     model = ApplicationModel(manifest, passive=smoke)
     engine = QQmlApplicationEngine()
     engine.setInitialProperties({'backend': model})
@@ -418,8 +584,6 @@ def run_application(manifest, *, smoke=False):
         raise RuntimeError('无法加载 Viewflow QML 界面')
     window = engine.rootObjects()[0]
     model.finished.connect(app.quit)
-    icon = QIcon(str(resources() / 'qml/viewflow.svg'))
-    app.setWindowIcon(icon)
     tray = None
     if not smoke and QSystemTrayIcon.isSystemTrayAvailable():
         tray = QSystemTrayIcon(icon, app)

@@ -1,6 +1,19 @@
 #pragma once
 #include <cmath>
+#include <cstdint>
+#include <optional>
 namespace viewflow::macos {
+struct GeometryRequest { std::uint64_t sequence; int x, y, width, height; };
+struct PendingGeometry {
+    std::optional<GeometryRequest> latest;
+    void queue(GeometryRequest request) {
+        if (!latest || request.sequence > latest->sequence) latest = request;
+    }
+    bool complete(std::uint64_t sequence) {
+        if (!latest || latest->sequence != sequence) return false;
+        latest.reset(); return true;
+    }
+};
 struct WindowPlacement {
     double native_x{}, native_y{}, x{}, y{};
     bool placed{}, backing_pending{};

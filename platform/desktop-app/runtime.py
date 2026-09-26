@@ -14,7 +14,9 @@ import time
 PLATFORM = 'windows' if sys.platform == 'win32' else 'linux'
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 DATA = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'Viewflow' if PLATFORM == 'windows' else Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'viewflow/app'
-SCRIPTS = {'desktop-autostart-linux': 'desktop-autostart-linux.py', 'native-trackpad-forward': 'linux_native_forward.py'}
+SCRIPTS = {'desktop-autostart-linux': 'desktop-autostart-linux.py', 'native-trackpad-forward': 'linux_native_forward.py',
+           'paired-linux-session': 'paired-linux-session.py', 'linux-window-share': 'macos-window-share-linux.py',
+           'group-input-route': 'multiscreen-input-linux.py'}
 
 
 def private_write(path, data):

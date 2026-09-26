@@ -26,8 +26,12 @@ if role == 'source':
     # Valid VFRV record framing; synthetic codec bytes aren't decoded here.
     frame = struct.pack('<IIIIqII', 1, 1, 2, 2, 1, 1, 0)
     frame += struct.pack('<I', 5) + bytes(5) + struct.pack('<I', 5) + b'\0\0\0\1\x65'
-    record(frame)
+    if os.environ.get('VIEWFLOW_ACTIVITY_PRIORITY') == '1':
+        for lane in [0, 1]:
+            record(struct.pack('<IIQQQIQQ', 4, lane, 1, 2, 2, 2, 1, 2) + frame[4:])
+    else: record(frame)
     event = read()
+    while event is not None and struct.unpack_from('<I',event)[0] == 5: event = read()
     assert struct.unpack_from('<I', event)[0] == 2
     assert struct.unpack_from('<Q', event, 12)[0] == 1
     with (root / 'roundtrips').open('a') as log: log.write('ordered\n')
@@ -35,7 +39,11 @@ if role == 'source':
     while read() is not None: pass
 else:
     frame = read()
-    assert struct.unpack_from('<I', frame)[0] == 1
+    if os.environ.get('VIEWFLOW_ACTIVITY_PRIORITY') == '1':
+        second = read()
+        assert all(struct.unpack_from('<I', f)[0] == 4 for f in [frame,second])
+        assert {struct.unpack_from('<I', f,4)[0] for f in [frame,second]} == {0,1}
+    else: assert struct.unpack_from('<I', frame)[0] == 1
     # A normal scheduling delay larger than 33 ms doesn't revoke the session.
     time.sleep(0.080)
     record(struct.pack('<IQQIiiii', 2, 1, 1, 1, -50, 40, 0, 0))
@@ -46,6 +54,7 @@ with (root / (role + '-cleaned')).open('a') as log: log.write('eof\n')
 fn config(root: &Path, source: bool, restart: bool) -> ReverseBridgeConfig {
     ReverseBridgeConfig {
         native: Path::new("/usr/bin/python3").into(),
+        activity_priority: Default::default(),
         args: vec![
             root.join("native.py").to_str().unwrap().into(),
             if source { "source" } else { "presenter" }.into(),
@@ -56,6 +65,10 @@ fn config(root: &Path, source: bool, restart: bool) -> ReverseBridgeConfig {
 }
 
 async fn trial(server_is_source: bool, restart: bool) {
+    trial_mode(server_is_source,restart,false,false).await;
+}
+
+async fn trial_mode(server_is_source: bool, restart: bool, capable: bool, off: bool) {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("native.py"), NATIVE_FIXTURE).unwrap();
     let identity = PeerIdentity::from_pem(
@@ -77,8 +90,19 @@ async fn trial(server_is_source: bool, restart: bool) {
     let (sent, received) = tokio::join!(connecting, async { server.accept().await.unwrap().await });
     let sent = sent.unwrap();
     let received = received.unwrap();
-    let source_config = config(root.path(), true, restart);
-    let presenter_config = config(root.path(), false, restart);
+    let mut source_config = config(root.path(), true, restart);
+    let mut presenter_config = config(root.path(), false, restart);
+    if capable {
+        use std::os::unix::fs::PermissionsExt;
+        let path = root.path().join("capable-native.py");
+        let fixture = format!("#!/usr/bin/python3\nimport sys\nif sys.argv[1:] == ['--activity-priority-capabilities']:\n    print('activity-priority-v1'); sys.exit(0)\n{}", NATIVE_FIXTURE);
+        std::fs::write(&path, fixture).unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        for config in [&mut source_config, &mut presenter_config] {
+            config.native = path.clone(); config.args.remove(0);
+        }
+    }
+    if off { presenter_config.activity_priority = viewflowd::activity_priority::ActivityPriorityMode::Off; }
     let (source, presenter) = if server_is_source {
         (received.clone(), sent.clone())
     } else {
@@ -207,4 +231,14 @@ async fn listener_presents_two_sources_without_waiting_for_first_to_close() {
         2
     );
     client.close(0u32.into(), b"done");
+}
+
+#[tokio::test]
+async fn negotiated_two_lanes_keep_ordered_input_and_restart() {
+    trial_mode(false, true, true, false).await;
+    trial_mode(true, false, true, false).await;
+}
+#[tokio::test]
+async fn activity_off_retains_legacy_native_records() {
+    trial_mode(false, false, true, true).await;
 }

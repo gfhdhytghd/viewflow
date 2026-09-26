@@ -21,7 +21,7 @@ impl Input {
         let u32_at = |i| u32::from_le_bytes(bytes[i..i + 4].try_into().unwrap());
         let u64_at = |i| u64::from_le_bytes(bytes[i..i + 8].try_into().unwrap());
         ensure!(
-            u32_at(0) == 2 && u64_at(12) > 0 && (1..=11).contains(&u32_at(20)),
+            u32_at(0) == 2 && u64_at(12) > 0 && (1..=16).contains(&u32_at(20)),
             "native window input identity"
         );
         Ok(Self {
@@ -58,6 +58,13 @@ pub struct Tile {
     pub title: String,
     pub geometry_ack: u64,
     pub flags: u32,
+    pub resident: Option<[u32; 4]>,
+    pub application_icon: Option<(String, Vec<u8>)>,
+}
+
+#[cfg(unix)]
+pub fn source_application_icon(app_id: &str) -> Option<(String, Vec<u8>)> {
+    crate::window_icon::resolve(viewflow_protocol::Id128(1), app_id).map(|icon| (icon.app_id, icon.png))
 }
 
 pub struct Frame<'a> {
@@ -100,15 +107,17 @@ impl Frame<'_> {
         bytes.extend(u32::from(self.keyframe).to_le_bytes());
         bytes.extend((self.tiles.len() as u32).to_le_bytes());
         for tile in self.tiles {
+            let [rx, ry, rw, rh] = tile.resident.unwrap_or([0, 0, tile.width, tile.height]);
             ensure!(
                 tile.id > 0
                     && seen.insert(tile.id)
                     && tile.width > 0
                     && tile.height > 0
-                    && tile.width <= self.width
-                    && tile.height <= self.height
-                    && tile.atlas_x <= self.width - tile.width
-                    && tile.atlas_y <= self.height - tile.height
+                    && rx <= tile.width && rw <= tile.width - rx
+                    && ry <= tile.height && rh <= tile.height - ry
+                    && rw <= self.width && rh <= self.height
+                    && tile.atlas_x <= self.width - rw
+                    && tile.atlas_y <= self.height - rh
                     && tile.title.len() <= 4096,
                 "native window tile extent"
             );
@@ -120,8 +129,16 @@ impl Frame<'_> {
                 bytes.extend(n.to_le_bytes());
             }
             blob(&mut bytes, tile.title.as_bytes());
-            bytes.extend(tile.flags.to_le_bytes());
+            bytes.extend(((tile.flags & !(256 | 1024)) | if tile.resident.is_some() {256} else {0} | if tile.application_icon.is_some() {1024} else {0}).to_le_bytes());
             bytes.extend(tile.geometry_ack.to_le_bytes());
+            if tile.resident.is_some() {
+                for value in [rx, ry, rw, rh] { bytes.extend(value.to_le_bytes()); }
+            }
+            if let Some((app_id, png)) = &tile.application_icon {
+                viewflow_protocol::ApplicationIcon { window_id: viewflow_protocol::Id128(tile.id.into()), app_id: app_id.clone(), png: png.clone() }
+                    .dimensions().map_err(|e| anyhow::anyhow!("native application icon: {e:?}"))?;
+                blob(&mut bytes, app_id.as_bytes());blob(&mut bytes, png);
+            }
         }
         blob(&mut bytes, &alpha(self.raw_alpha));
         if let Some(blur) = blur {
@@ -190,6 +207,30 @@ pub fn write_record(writer: &mut impl Write, record: &[u8]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn visibility_and_geometry_control_roundtrip() {
+        for kind in [15, 16] {
+            let event = super::Input { id: 1, sequence: 1, kind, a: 200, b: 10, c: 400, d: 300 };
+            assert_eq!(super::Input::decode(&event.encode()).unwrap(), event);
+        }
+    }
+    #[test]
+    fn cropped_tile_keeps_full_geometry_and_appends_resident_fields() {
+        let mut tile = super::Tile { id: 1, x: -20, y: 30, width: 800, height: 600,
+            atlas_x: 0, atlas_y: 0, title: String::new(), geometry_ack: 1, flags: 0,
+            resident: Some([400, 300, 2, 2]), application_icon: None };
+        let encode = |tile: &super::Tile| super::Frame { width: 2, height: 2, pts: 1, keyframe: true,
+            tiles: std::slice::from_ref(tile), raw_alpha: &[255; 4], color: &[0, 0, 1, 0x65] }.encode();
+        let bytes = encode(&tile).unwrap();
+        assert_eq!(u32::from_le_bytes(bytes[56..60].try_into().unwrap()), 800);
+        assert_eq!(u32::from_le_bytes(bytes[76..80].try_into().unwrap()), 256);
+        assert_eq!(u32::from_le_bytes(bytes[88..92].try_into().unwrap()), 400);
+        tile.resident = Some([0; 4]);
+        assert!(encode(&tile).is_ok());
+        tile.resident = Some([799, 0, 2, 1]);
+        assert!(encode(&tile).is_err());
+    }
+
     use super::*;
     #[test]
     fn input_preserves_negative_coordinates_and_sequence() {

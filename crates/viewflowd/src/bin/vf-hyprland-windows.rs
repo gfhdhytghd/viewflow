@@ -50,8 +50,17 @@ mod native {
         native_window_blur::BlurRecipe,
         native_window_wire::{self as wire, Frame, Input, Tile},
     };
+    type Residency = Arc<Mutex<Option<((u32, u32), [u32; 4])>>>;
     type Snapshot = Arc<Mutex<Option<(HcgfFrame, InputGeometry)>>>;
 
+    fn clipped_crop(width: u32, height: u32, event: Input) -> [u32; 4] {
+        if event.c <= 0 || event.d <= 0 { return [0; 4]; }
+        let x = i64::from(event.a).clamp(0, i64::from(width));
+        let y = i64::from(event.b).clamp(0, i64::from(height));
+        let right = (i64::from(event.a) + i64::from(event.c)).clamp(x, i64::from(width));
+        let bottom = (i64::from(event.b) + i64::from(event.d)).clamp(y, i64::from(height));
+        [x as u32, y as u32, (right-x) as u32, (bottom-y) as u32]
+    }
     fn now() -> Result<i64> {
         let time = nix::time::clock_gettime(nix::time::ClockId::CLOCK_MONOTONIC)?;
         Ok(time
@@ -242,6 +251,7 @@ mod native {
         snapshot: Snapshot,
         stopped: Arc<AtomicBool>,
         ack: Arc<AtomicU64>,
+        residency: Residency,
     ) {
         std::thread::spawn(move || {
             let mut helper: Option<InputHelper> = None;
@@ -257,6 +267,13 @@ mod native {
                     }
                     sequence = event.sequence;
                     if event.id != 1 && !(event.id == 0 && event.kind == 8) {
+                        continue;
+                    }
+                    if event.kind == 16 {
+                        if let Some((frame, _)) = snapshot.lock().unwrap().as_ref() {
+                            let crop = clipped_crop(frame.crop_width, frame.crop_height, event);
+                            *residency.lock().unwrap() = Some(((frame.crop_width, frame.crop_height), crop));
+                        }
                         continue;
                     }
                     let mut translated = event;
@@ -371,6 +388,9 @@ mod native {
             .chars()
             .take(512)
             .collect::<String>();
+        let application_icon=wire::source_application_icon(client["class"].as_str().unwrap_or(""));
+        let mut icon_sent=false;
+        let residency: Residency = Arc::new(Mutex::new(None));
         let snapshot: Snapshot = Arc::new(Mutex::new(None));
         let stopped = Arc::new(AtomicBool::new(false));
         let blur: Arc<Mutex<Option<BlurRecipe>>> = Arc::new(Mutex::new(None));
@@ -425,6 +445,7 @@ mod native {
             snapshot.clone(),
             stopped.clone(),
             ack.clone(),
+            residency.clone(),
         );
         let stream = start_viewflow_gpu_stream_with_mode(
             &address,
@@ -475,10 +496,14 @@ mod native {
                     }
                     published_binding=Some((input.window,input.surface,input.pid));
                 }
-                let wanted = (
-                    metadata.crop_width.div_ceil(2) * 2,
-                    metadata.crop_height.div_ceil(2) * 2,
-                );
+                let resident = {
+                    let mut requested = residency.lock().unwrap();
+                    if requested.as_ref().is_some_and(|(size, _)| *size != (metadata.crop_width, metadata.crop_height)) { *requested = None; }
+                    requested.as_ref().map(|(_, crop)| *crop)
+                };
+                let crop = resident.unwrap_or([0, 0, metadata.crop_width, metadata.crop_height]);
+                // Keep an encoder-compatible floor for empty/tiny resident regions.
+                let wanted = (crop[2].max(192).div_ceil(2) * 2, crop[3].max(192).div_ceil(2) * 2);
                 if wanted.0 > 8192
                     || wanted.1 > 8192
                     || u64::from(wanted.0) * u64::from(wanted.1) > 32 * 1024 * 1024
@@ -510,13 +535,12 @@ mod native {
                 let watchdog = start
                     .checked_add(5_000_000_000)
                     .context("GPU watchdog overflow")?;
-                let outcome = encoder.as_mut().unwrap().encode_atlas_recoverable(
-                    &[GpuAtlasTile {
-                        frame,
-                        x: 0,
-                        y: 0,
-                        deadline_monotonic_ns: watchdog,
-                    }],
+                let tiles = if crop[2] == 0 || crop[3] == 0 { Vec::new() } else {
+                    vec![GpuAtlasTile { frame, x: 0, y: 0, deadline_monotonic_ns: watchdog }]
+                };
+                let crops = if tiles.is_empty() { Vec::new() } else { vec![crop] };
+                let outcome = encoder.as_mut().unwrap().encode_atlas_with_crops(
+                    &tiles,
                     GpuAtlasIdentity {
                         frame_id: metadata.sequence,
                         capture_monotonic_ns: metadata.capture_monotonic_ns,
@@ -524,6 +548,8 @@ mod native {
                     },
                     force_idr,
                     watchdog,
+                    None,
+                    Some(&crops),
                 )?;
                 let captured = metadata.clone();
                 receiver.release_after_source_reads(frame)?;
@@ -534,7 +560,7 @@ mod native {
                         let sx = f64::from(captured.crop_width) / captured.logical_width;
                         let sy = f64::from(captured.crop_height) / captured.logical_height;
                         let tile = Tile {
-                            flags: (if fullscreen.load(Ordering::Acquire) {32} else {0}) | (if raised.load(Ordering::Acquire) {64} else {0}),
+                            flags: 512 | (if fullscreen.load(Ordering::Acquire) {32} else {0}) | (if raised.load(Ordering::Acquire) {64} else {0}),
                             id: 1,
                             x: (captured.logical_x * sx).round() as i32,
                             y: (captured.logical_y * sy).round() as i32,
@@ -544,6 +570,8 @@ mod native {
                             atlas_y: 0,
                             title: title.clone(),
                             geometry_ack: ack.load(Ordering::Acquire),
+                            resident,
+                            application_icon: if icon_sent {None} else {application_icon.clone()},
                         };
                         let blur_recipe=*blur.lock().unwrap();
                         let record = Frame {
@@ -559,6 +587,10 @@ mod native {
                         *snapshot.lock().unwrap() = Some((captured, input));
                         let packed_at = now()?;
                         wire::write_record(&mut std::io::stdout().lock(), &record)?;
+                        if !icon_sent {
+                            if let Some((app,png))=&application_icon {eprintln!("application-icon-sent app={app} bytes={}",png.len());}
+                            icon_sent=true;
+                        }
                         let sent_at = now()?;
                         if sent_at.saturating_sub(start) > 100_000_000 {
                             eprintln!("window-source-slow encode-ms={:.1} pack-ms={:.1} pipe-ms={:.1} bytes={}",

@@ -37,12 +37,19 @@ def package(args):
     if destination.exists() or destination.suffix != '.dmg':
         raise ValueError('--output must be a new .dmg path')
     run(['codesign', '--verify', '--deep', '--strict', source])
+    if args.notary_profile and not args.distribution:
+        raise ValueError('--notary-profile requires --distribution checks')
+    if args.distribution and not args.notary_profile:
+        raise ValueError('--distribution requires --notary-profile to notarize and staple the release')
+    if args.distribution:
+        from macos_distribution import verify_public_app
+        verify_public_app(source)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.viewflow-dmg-', dir=destination.parent) as temp:
         work = Path(temp)
         assets = work / 'assets'
         run(['swift', args.artwork, assets])
-        run(['iconutil', '-c', 'icns', assets / 'Viewflow.iconset', '-o', assets / 'Viewflow.icns'])
+        shutil.copy2(ROOT / 'platform/branding/Viewflow.icns', assets / 'Viewflow.icns')
         prepared = work / 'Viewflow.app'
         run(['ditto', source, prepared])
         info_path = prepared / 'Contents/Info.plist'
@@ -66,6 +73,17 @@ def package(args):
         run(['codesign', '--force', '--sign', args.identity, '--options', 'runtime', '--timestamp',
              '--entitlements', entitlements, prepared])
         run(['codesign', '--verify', '--deep', '--strict', prepared])
+        if args.distribution:
+            verify_public_app(prepared)
+        if args.notary_profile:
+            from macos_distribution import notarize
+            archive = work / 'Viewflow-notarize.zip'
+            run(['ditto', '-c', '-k', '--keepParent', prepared, archive])
+            report = notarize(archive, args.notary_profile)
+            destination.with_suffix('.app-notary.json').write_text(json.dumps(report, indent=2) + '\n')
+            run(['xcrun', 'stapler', 'staple', prepared])
+            run(['xcrun', 'stapler', 'validate', prepared])
+            run(['spctl', '--assess', '--type', 'execute', '--verbose=2', prepared])
         size = sum(p.stat().st_size for p in prepared.rglob('*') if p.is_file() and not p.is_symlink())
         writable = work / 'layout.dmg'
         run(['hdiutil', 'create', '-size', f'{max(128, size // (1024 * 1024) + 80)}m',
@@ -80,6 +98,8 @@ def package(args):
             background = mount / '.background'
             background.mkdir()
             shutil.copy2(assets / 'background.tiff', background / 'background.tiff')
+            shutil.copy2(assets / 'Viewflow.icns', mount / '.VolumeIcon.icns')
+            run(['xcrun', 'SetFile', '-a', 'C', mount])
             with DSStore.open(str(mount / '.DS_Store'), 'w+') as store:
                 store['.']['bwsp'] = {'ShowStatusBar': False, 'ShowToolbar': False, 'ShowPathbar': False,
                     'ShowSidebar': False, 'ShowTabView': False, 'ContainerShowSidebar': False,
@@ -104,6 +124,11 @@ def package(args):
         run(['hdiutil', 'convert', writable, '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-o', destination], stdout=subprocess.DEVNULL)
         run(['codesign', '--sign', args.identity, '--timestamp', destination])
         run(['hdiutil', 'verify', destination], stdout=subprocess.DEVNULL)
+        if args.notary_profile:
+            notarize(destination, args.notary_profile)
+            run(['xcrun', 'stapler', 'staple', destination])
+            run(['xcrun', 'stapler', 'validate', destination])
+            run(['spctl', '--assess', '--type', 'open', '--context', 'context:primary-signature', '--verbose=2', destination])
         # Save an optional finalized app for atomic installation; never overwrite it here.
         if args.prepared_app:
             if args.prepared_app.exists():
@@ -121,5 +146,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--identity', required=True)
     parser.add_argument('--prepared-app', type=Path)
+    parser.add_argument('--distribution', action='store_true', help='reject development signing/profiles')
+    parser.add_argument('--notary-profile', help='existing notarytool Keychain profile; notarize and staple app and DMG')
     parser.add_argument('--artwork', type=Path, default=ROOT / 'tools/macos-dmg/render-assets.swift')
     package(parser.parse_args())

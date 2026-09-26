@@ -29,9 +29,10 @@ enum BundleTools {
     }
     static func executable(_ name: String) throws -> URL {
         let allowed: Set<String> = ["viewflowd", "vf-window-peer", "vf-clipboard-peer",
-                                    "viewflow-macos-windows", "viewflow-macos-probe"]
+                                    "viewflow-macos-windows", "viewflow-macos-probe", "viewflow-window-recall", "viewflow-pairing", "ViewflowHIDReceiver"]
         guard allowed.contains(name) else { throw ViewflowError.invalid("未知组件") }
-        let url = appURL.appendingPathComponent("Contents/Helpers/\(name)")
+        let url = name == "ViewflowHIDReceiver" ? coreHIDURL.appendingPathComponent("Contents/MacOS/ViewflowHIDReceiver")
+            : appURL.appendingPathComponent("Contents/Helpers/\(name)")
         guard FileManager.default.isExecutableFile(atPath: url.path) else {
             throw ViewflowError.invalid("安装包缺少组件：\(name)")
         }
@@ -39,6 +40,13 @@ enum BundleTools {
     }
     static var driverURL: URL {
         appURL.appendingPathComponent("Contents/Library/SystemExtensions/org.viewflow.trackpad-probe.dext")
+    }
+    static var coreHIDURL: URL { appURL.appendingPathComponent("Contents/Helpers/ViewflowHIDReceiver.app") }
+    static var usesCoreHID: Bool {
+        Bundle(url: appURL)?.object(forInfoDictionaryKey: "ViewflowHIDBackend") as? String == "corehid"
+    }
+    static var coreHIDSupported: Bool {
+        if #available(macOS 26.0, *) { return true }; return false
     }
     static var logs: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Viewflow")
@@ -97,8 +105,10 @@ enum NativeProbe {
     private(set) var lastExit: Int32?
     private(set) var stopping = false
     var desired = false
+    var groupPeerID: String?
     var changed: (() -> Void)?
     private var retry = RestartPolicy()
+    private let ownership = ServiceOwnership()
     private var nextStart = Date.distantPast
     private var started = Date.distantPast
     private var output: FileHandle?
@@ -110,6 +120,9 @@ enum NativeProbe {
     func reconcile() {
         guard desired, process == nil, Date() >= nextStart else { return }
         do {
+            guard try ownership.ready(executable: executable, arguments: arguments) else {
+                status = "正在回收旧连接"; changed?(); return
+            }
             try FileManager.default.createDirectory(at: BundleTools.logs, withIntermediateDirectories: true,
                                                    attributes: [.posixPermissions: 0o700])
             let log = BundleTools.logs.appendingPathComponent("\(id).log")
@@ -128,6 +141,7 @@ enum NativeProbe {
             child.standardOutput = handle; child.standardError = handle
             var environment = ProcessInfo.processInfo.environment
             environment["VIEWFLOW_CURSOR_FEEDBACK"] = "1"
+            environment["VIEWFLOW_OWNER_PID"] = String(getpid())
             child.environment = environment
             child.terminationHandler = { [weak self] child in
                 DispatchQueue.main.async {

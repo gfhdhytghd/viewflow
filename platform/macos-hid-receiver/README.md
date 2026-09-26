@@ -9,8 +9,8 @@ This receives Viewflow **VFTP v2 trackpad snapshots**, using the existing native
 descriptor, feature handshake, contact encoder, timestamp ordering and
 lift/inactive/empty release sequence. It is not arbitrary USB passthrough or a
 new keyboard forwarding protocol. Viewflow's existing keyboard path remains
-separate. Apple native multitouch attachment and physical gestures on this
-backend are unverified until the signed receiver runs on the target Mac.
+separate. Apple native multitouch attachment has been verified on the target
+Mac, and the user accepted the live forwarding trial on 2026-09-21.
 
 Validation on 2026-09-21: the receiver compiled successfully for arm64 on
 `linhaikuo@172.16.105.83` (macOS 27, Xcode-beta), in the isolated directory
@@ -26,8 +26,39 @@ and expires on 2027-09-21 at 16:56:59 UTC. Use
 The subsequent SSH build compiled but codesign returned
 `errSecInternalComponent`; querying the login keychain in that SSH session
 returned `User interaction is not allowed`. Repeating the build through the
-Mac Codex shell reproduced both errors and produced no signed app. Device
-initialization remains unverified until signing is completed.
+Mac Codex shell reproduced both errors and produced no signed app.
+
+The user subsequently completed the signed build in the Mac's local terminal.
+An independent SSH `codesign --verify --strict` check passed, then the signed
+receiver's `--probe` returned exit 0 with these results:
+
+```json
+{"event":"activated","input_submitted":0,"serial":"Viewflow-UserHID-MT-v1"}
+{"counters":{"feature_errors":0,"feature_gets":5,"feature_sets":4},"event":"probe_complete","input_submitted":0,"native_multitouch_attached":true}
+```
+
+This confirms device creation, the feature handshake and serial-specific native
+multitouch attachment. The probe sent no input reports. The subsequent live
+forwarding trial was user-operated and accepted ("非常好用"); concurrent producer
+integration and notarized distribution remain unverified.
+
+## Current default deployment (2026-09-21)
+
+At the user's request, the accepted signed bundle was copied to
+`/Applications/ViewflowHIDReceiver.app` and its signature was verified again.
+The Linux `viewflow-macos-hid.service` now selects that executable via the
+persistent user-unit drop-in
+`~/.config/systemd/user/viewflow-macos-hid.service.d/zzzz-corehid-default.conf`.
+The temporary runtime trial override was removed. The enabled display topology
+supervisor retains startup and route selection ownership; normal Linux/Mac
+route switching and both configured Mac viewports are preserved.
+
+This changes the configured physical trackpad sender's default receiver. It
+does not replace `/Applications/Viewflow.app`, its keyboard/window helpers, or
+its shared socket backend. To roll back, remove only the CoreHID default drop-in,
+reload user systemd and restart `viewflow-macos-hid.service`; the older topology
+drop-in then selects the original GUI receiver, which must be running with HID
+enabled. The existing app and DriverKit installation are retained for rollback.
 
 ## Provision and build
 

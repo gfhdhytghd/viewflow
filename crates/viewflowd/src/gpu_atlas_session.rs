@@ -18,9 +18,14 @@ pub struct GpuAtlasSession {
     device: Option<GpuAtlasDevice>,
     stops: GpuStreamShutdown,
     stopping: bool,
+    deferred_stops: std::collections::BTreeSet<WindowId>,
 }
 
 impl GpuAtlasSession {
+    pub(crate) async fn enable_activity(&mut self, handle: crate::activity_priority::ActivityHandle, target_fps: u32) -> Result<()> {
+        self.device.as_mut().context("atlas device unavailable")?.enable_activity(handle, target_fps).await
+    }
+
     /// Cancel-safe readiness wait; periodic source housekeeping remains in
     /// the caller. This never reads, releases, or retimestamps a capture.
     pub(crate) async fn capture_readable(&mut self) {
@@ -136,6 +141,7 @@ impl GpuAtlasSession {
                 device: Some(device),
                 stops,
                 stopping: false,
+                deferred_stops: Default::default(),
             }),
             Err(error) => match stops.shutdown(Duration::from_secs(2)).await {
                 Ok(()) => Err(error),
@@ -204,10 +210,19 @@ impl GpuAtlasSession {
             .as_mut()
             .context("atlas capture device missing")?
             .remove_at_frame_boundary(window)?;
-        self.stops.begin_remove(window, Duration::from_secs(2))
+        if self.device.as_ref().is_some_and(|device| device.source_reads_pending(window)) {
+            self.deferred_stops.insert(window);
+            Ok(())
+        } else { self.stops.begin_remove(window, Duration::from_secs(2)) }
     }
 
     pub(crate) async fn poll_removed(&mut self) -> Result<Vec<WindowId>> {
+        let ready: Vec<_> = self.deferred_stops.iter().copied().filter(|window|
+            self.device.as_ref().is_none_or(|device| !device.source_reads_pending(*window))).collect();
+        for window in ready {
+            self.stops.begin_remove(window, Duration::from_secs(2))?;
+            self.deferred_stops.remove(&window);
+        }
         self.stops.poll_removals().await
     }
 
@@ -252,6 +267,7 @@ impl GpuAtlasSession {
             "invalid atlas stop timeout"
         );
         self.stopping = true;
+        if let Some(device) = &mut self.device { device.retire_activity_workers().await?; }
         let result = self.stops.shutdown(per_stream_timeout).await;
         self.device = None;
         result

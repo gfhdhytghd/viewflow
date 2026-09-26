@@ -22,9 +22,45 @@ use tokio::{sync::oneshot, time::Instant};
 /// owns the native child, so it independently binds the control to its newest
 /// successfully committed layout before touching the child pipe.
 pub struct AtlasInputRecoveryRequest {
-    pub confirmation: crate::atlas_input_recovery::InputRecoveryConfirmation,
+    pub confirmation: NativeGeometryControl,
     pub deadline: Instant,
     pub response: oneshot::Sender<Result<u64>>,
+}
+
+/// Ordered native controls share the media pipe so geometry receipts cannot
+/// interleave bytes with a frame submission.
+pub enum NativeGeometryControl {
+    Input(crate::atlas_input_recovery::InputRecoveryConfirmation),
+    Desktop { ack: viewflow_protocol::DesktopWindowMoveAck, native_sequence: u64 },
+}
+impl NativeGeometryControl {
+    /// The shared queue carries two different operations. Only input authority
+    /// recovery arms the admission fence. A desktop geometry receipt is written
+    /// by the same sole media owner between complete frame submissions.
+    fn native_write_deadline(&self, requested: Instant) -> Instant {
+        match self {
+            // Queue delay is not an expiry of geometry ownership. Start the
+            // transport watchdog only when this complete record can be written.
+            Self::Desktop { .. } => Instant::now() + Duration::from_secs(5),
+            Self::Input(_) => requested,
+        }
+    }
+    pub(crate) fn validate_media_fence(&self, armed: bool) -> Result<()> {
+        ensure!(
+            !matches!(self, Self::Input(_)) || armed,
+            "atlas recovery request arrived before its media fence"
+        );
+        Ok(())
+    }
+}
+#[cfg(test)]
+impl NativeGeometryControl {
+    pub(crate) fn input(&self) -> crate::atlas_input_recovery::InputRecoveryConfirmation {
+        match self { Self::Input(value) => *value, Self::Desktop { .. } => panic!("expected input recovery") }
+    }
+}
+impl From<crate::atlas_input_recovery::InputRecoveryConfirmation> for NativeGeometryControl {
+    fn from(value: crate::atlas_input_recovery::InputRecoveryConfirmation) -> Self { Self::Input(value) }
 }
 
 /// One-way local fence from the recovery supervisor to the sole media owner.
@@ -202,6 +238,7 @@ mod tests {
 
     fn committed() -> AtlasFrame {
         AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(2),
             frame_id: 9,
@@ -226,6 +263,39 @@ mod tests {
             alpha_keyframe: true,
             desktop: None,
         }
+    }
+
+    #[tokio::test]
+    async fn desktop_receipt_queue_does_not_require_or_clear_input_media_fence() {
+        use viewflow_protocol::{DesktopWindowMoveAck, DesktopWindowMoveResult, DesktopRect, Id128};
+        let fence=AtlasInputRecoveryFence::default();
+        let (sender,mut receiver)=tokio::sync::mpsc::channel(2);
+        let ack=DesktopWindowMoveAck {
+            source_device:Id128(1),owner_device:Id128(2),stream_id:Id128(3),
+            config_generation:1,topology_generation:1,window_id:Id128(4),drag_id:Id128(5),sequence:2,
+            result:DesktopWindowMoveResult::Ended,
+            actual_bounds:DesktopRect { x_millidip:0,y_millidip:0,width_millidip:640000,height_millidip:480000 },
+        };
+        let (response,_)=oneshot::channel();
+        sender.send(AtlasInputRecoveryRequest {
+            confirmation:NativeGeometryControl::Desktop { ack,native_sequence:3 },
+            deadline:Instant::now()+Duration::from_secs(5),response,
+        }).await.unwrap();
+        // This is the exact queue-admission check used by the Windows receive
+        // loop after it finishes the current frame. Desktop never arms a fence.
+        let request=receiver.try_recv().unwrap();
+        request.confirmation.validate_media_fence(fence.is_armed()).unwrap();
+        let expired=Instant::now()-Duration::from_secs(30);
+        assert!(request.confirmation.native_write_deadline(expired)>Instant::now());
+        assert_eq!(NativeGeometryControl::Input(confirmation()).native_write_deadline(expired),expired);
+        let forward=fence.begin_media_forward().await.unwrap();
+        drop(forward);
+        let input=NativeGeometryControl::Input(confirmation());
+        assert!(input.validate_media_fence(fence.is_armed()).is_err());
+        fence.arm().await;
+        input.validate_media_fence(fence.is_armed()).unwrap();
+        request.confirmation.validate_media_fence(fence.is_armed()).unwrap();
+        assert!(fence.is_armed()); // A geometry receipt must not clear recovery.
     }
 
     fn confirmation() -> crate::atlas_input_recovery::InputRecoveryConfirmation {
@@ -406,7 +476,27 @@ mod tests {
     }
 }
 
+type ActivityCompletion = (viewflow_protocol::AtlasFrame, Result<crate::atlas_presenter::AtlasDisposition>, Instant);
+type ActivityHandoff = std::pin::Pin<Box<dyn std::future::Future<Output = ActivityCompletion> + Send>>;
+
+async fn next_activity_completion(pending: &mut Vec<ActivityHandoff>) -> ActivityCompletion {
+    let (index, completion) = std::future::poll_fn(|cx| {
+        for (index, handoff) in pending.iter_mut().enumerate() {
+            if let std::task::Poll::Ready(completion) = handoff.as_mut().poll(cx) {
+                return std::task::Poll::Ready((index, completion));
+            }
+        }
+        std::task::Poll::Pending
+    }).await;
+    drop(pending.remove(index));
+    completion
+}
+
 pub struct AtlasReceiverPresenter {
+    activity: Option<crate::atlas_presenter_child::ActivityPresenterHandle>,
+    activity_pending: Vec<ActivityHandoff>,
+    activity_boundary: Option<tokio::sync::OwnedMutexGuard<()>>,
+    activity_committed: std::collections::VecDeque<viewflow_protocol::AtlasFrame>,
     active: Option<(AtlasReceiverSession, AtlasPresenterChild)>,
     committed: Option<
         tokio::sync::watch::Sender<std::collections::VecDeque<viewflow_protocol::AtlasFrame>>,
@@ -448,6 +538,122 @@ pub struct AtlasReceiverDesktopInput {
 }
 
 impl AtlasReceiverPresenter {
+    pub(crate) fn enable_activity(&mut self,
+        clock: impl Fn() -> Result<(u64, u64)> + Send + Sync + 'static,
+    ) -> Result<()> {
+        let (receiver, child) = self.active.as_mut().context("atlas owner retired")?;
+        ensure!(receiver.activity_enabled(), "atlas activity was not negotiated");
+        self.activity = Some(child.enable_activity(clock)?);
+        Ok(())
+    }
+
+    async fn finish_activity(&mut self, completion: ActivityCompletion)
+        -> Result<crate::atlas_feedback::AtlasFrameDisposition> {
+        use crate::{atlas_presenter::AtlasDisposition, atlas_feedback::AtlasFrameDisposition};
+        let (frame, result, delivery) = completion;
+        let disposition = match result? {
+            AtlasDisposition::ExpiredUnbound => AtlasFrameDisposition::ExpiredUnbound,
+            AtlasDisposition::Superseded => AtlasFrameDisposition::Superseded,
+            AtlasDisposition::CommittedWithinDeadline { .. } | AtlasDisposition::CommittedLate { .. } => AtlasFrameDisposition::Committed,
+        };
+        self.active.as_mut().context("atlas owner retired")?.0
+            .report_disposition(&frame, disposition, delivery + Duration::from_millis(125)).await?;
+        if disposition == AtlasFrameDisposition::Committed {
+            self.last_committed = Some(frame.clone());
+            self.activity_committed.push_back(frame.clone());
+            if self.activity_committed.len() > 32 { self.activity_committed.pop_front(); }
+            if let Some(committed) = &self.committed {
+                ensure!(!committed.is_closed(), "atlas input layout owner disappeared");
+                committed.send_modify(|history| {
+                    history.push_back(frame);
+                    if history.len() > 32 { history.pop_front(); }
+                });
+            }
+        }
+        if self.activity_pending.is_empty() { self.activity_boundary.take(); }
+        Ok(disposition)
+    }
+
+    async fn drain_activity(&mut self) -> Result<()> {
+        while !self.activity_pending.is_empty() {
+            let completion = next_activity_completion(&mut self.activity_pending).await;
+            if let Err(error) = self.finish_activity(completion).await {
+                return Err(self.retire(error).await);
+            }
+        }
+        self.activity_boundary.take();
+        Ok(())
+    }
+
+    async fn forward_activity(&mut self, mut now: impl FnMut() -> u64,
+        mut qpc: impl FnMut() -> Result<QpcSample>, deadline: Instant, max_record_bytes: usize,
+    ) -> Result<crate::atlas_feedback::AtlasFrameDisposition> {
+        ensure!(!self.recovery_fenced, "atlas recovery transaction is active");
+        let result = async {
+            loop {
+                self.active.as_mut().context("atlas owner retired")?.1.check_activity_health().await?;
+                if self.recovery_fence.is_armed() {
+                    if self.activity_pending.is_empty() {
+                        self.activity_boundary.take();
+                        return Err(AtlasMediaFenced.into());
+                    }
+                    let completion = next_activity_completion(&mut self.activity_pending).await;
+                    return self.finish_activity(completion).await;
+                }
+                if self.activity_boundary.is_none() {
+                    self.activity_boundary = Some(self.recovery_fence.begin_media_forward().await?);
+                }
+                let receiver = &mut self.active.as_mut().context("atlas owner retired")?.0;
+                let frame = tokio::select! {
+                    // Poll existing handoffs before admitting more work, so a
+                    // completed background lane also gets its feedback promptly.
+                    biased;
+                    completion = next_activity_completion(&mut self.activity_pending), if !self.activity_pending.is_empty() => {
+                        return self.finish_activity(completion).await;
+                    },
+                    frame = receiver.next_frame_with_fence(&mut now, deadline, Some(&self.recovery_fence)) => frame,
+                };
+                let frame = match frame {
+                    Ok(frame) => frame,
+                    Err(error) if error.is::<AtlasMediaFenced>() && !self.activity_pending.is_empty() => continue,
+                    Err(error) if error.is::<AtlasWaitExpired>() && !self.activity_pending.is_empty() => {
+                        // The receive cadence elapsed, but native work owns its
+                        // separate watchdog and must still finish.
+                        let completion = next_activity_completion(&mut self.activity_pending).await;
+                        return self.finish_activity(completion).await;
+                    }
+                    Err(error) => return Err(error),
+                };
+                ensure!(self.activity_pending.len() < 2, "atlas native lane capacity exceeded");
+                let sample = qpc()?;
+                let remaining = receiver.admission.remaining_budget_ns(&frame.layout, now())
+                    .or_else(|error| match error {
+                        crate::atlas_runtime::AtlasAdmissionError::Expired => Ok(0),
+                        error => Err(anyhow::anyhow!("atlas activity handoff invalid: {error:?}")),
+                    })?;
+                let native = if u128::from(remaining) * u128::from(sample.frequency) < 1_000_000_000 {
+                    // A sub-tick performance target is already missed at this
+                    // clock's precision; it is not a connection failure.
+                    NativePresentationDeadline { ticks: sample.ticks.max(1), frequency: sample.frequency }
+                } else { NativePresentationDeadline::from_remaining_budget(sample.ticks, sample.frequency, remaining)? };
+                let delivery = Instant::now() + Duration::from_secs(5);
+                let pipe = self.activity.as_ref().context("atlas activity pipe unavailable")?.clone();
+                self.activity_pending.push(Box::pin(async move {
+                    let result = pipe.submit(&frame, native, delivery, max_record_bytes).await;
+                    (frame.layout, result, delivery)
+                }));
+            }
+        }.await;
+        if result.as_ref().is_err_and(|error| error.is::<AtlasWaitExpired>() || error.is::<AtlasMediaFenced>()) {
+            if self.activity_pending.is_empty() { self.activity_boundary.take(); }
+            return result;
+        }
+        match result {
+            Ok(result) => Ok(result),
+            Err(error) => Err(self.retire(error).await),
+        }
+    }
+
     /// Prepare the real native pointer producer and the sole media/control
     /// reader together. Returned input receivers must be supervised with media.
     /// # Errors
@@ -537,19 +743,21 @@ impl AtlasReceiverPresenter {
     /// native child and the admitted receiver together.
     pub async fn accept_warmed_input_recovery(
         connection: &quinn::Connection,
-        plan: crate::atlas_session::AtlasSessionPlan,
+        mut plan: crate::atlas_session::AtlasSessionPlan,
         executable: &std::path::Path,
         deadline: Instant,
     ) -> Result<(Self, AtlasReceiverRecoveryInput)> {
         let mut guard = crate::atlas_session::StartupGuard(Some(connection.clone()));
-        let (mut child, native, notices) = AtlasPresenterChild::spawn_with_input_recovery_codec(
+        let (mut child, native, notices) = AtlasPresenterChild::spawn_with_input_recovery_codec_activity(
             executable,
             native_record_limit(plan)?,
             plan.policy.max_tiles,
             deadline,
             plan.color.codec,
+            plan.activity_priority_version == 1,
         )
         .await?;
+        if !child.activity_capable() { plan.activity_priority_version = 0; }
         let max_record = crate::atlas_session::warmup_limit(plan)?;
         let child_ref = &mut child;
         let result = crate::atlas_session::accept_warmed_atlas_dispositions(
@@ -572,6 +780,13 @@ impl AtlasReceiverPresenter {
             tokio::sync::watch::channel(std::collections::VecDeque::new());
         let mut owner = Self::new(receiver, child);
         owner.committed = Some(send_committed);
+        #[cfg(windows)]
+        if owner.active.as_ref().is_some_and(|(receiver, _)| receiver.activity_enabled()) {
+            owner.enable_activity(|| {
+                let sample = QpcSample::current()?;
+                Ok((sample.ticks, sample.frequency))
+            })?;
+        }
         let fence = owner.recovery_fence.clone();
         guard.0 = None;
         Ok((
@@ -597,21 +812,23 @@ impl AtlasReceiverPresenter {
     /// startup failure retires the native child before returning.
     pub async fn accept_warmed_desktop(
         connection: &quinn::Connection,
-        plan: crate::atlas_session::AtlasSessionPlan,
+        mut plan: crate::atlas_session::AtlasSessionPlan,
         executable: &std::path::Path,
         desktop: crate::desktop_config::AtlasReceiverDesktopConfig,
         deadline: Instant,
     ) -> Result<(Self, AtlasReceiverDesktopInput)> {
         let mut guard = crate::atlas_session::StartupGuard(Some(connection.clone()));
-        let (mut child, native, notices, moves) = AtlasPresenterChild::spawn_with_desktop(
+        let (mut child, native, notices, moves) = AtlasPresenterChild::spawn_with_desktop_activity(
             executable,
             native_record_limit(plan)?,
             plan.policy.max_tiles,
             desktop,
             plan.color.codec,
             deadline,
+            plan.activity_priority_version == 1,
         )
         .await?;
+        if !child.activity_capable() { plan.activity_priority_version = 0; }
         let max_record = crate::atlas_session::warmup_limit(plan)?;
         let child_ref = &mut child;
         let result = crate::atlas_session::accept_warmed_atlas_dispositions(
@@ -634,6 +851,13 @@ impl AtlasReceiverPresenter {
             tokio::sync::watch::channel(std::collections::VecDeque::new());
         let mut owner = Self::new(receiver, child);
         owner.committed = Some(send_committed);
+        #[cfg(windows)]
+        if owner.active.as_ref().is_some_and(|(receiver, _)| receiver.activity_enabled()) {
+            owner.enable_activity(|| {
+                let sample = QpcSample::current()?;
+                Ok((sample.ticks, sample.frequency))
+            })?;
+        }
         let fence = owner.recovery_fence.clone();
         guard.0 = None;
         Ok((
@@ -701,6 +925,9 @@ impl AtlasReceiverPresenter {
         deadline: Instant,
         max_record_bytes: usize,
     ) -> Result<crate::atlas_feedback::AtlasFrameDisposition> {
+        if self.activity.is_some() {
+            return self.forward_activity(&mut now, &mut sample_qpc, deadline, max_record_bytes).await;
+        }
         ensure!(
             !self.recovery_fenced,
             "atlas native recovery transaction is active"
@@ -747,7 +974,7 @@ impl AtlasReceiverPresenter {
             )
             .unwrap_or(u64::MAX);
             let remaining = source_remaining.min(call_remaining);
-            let native = if remaining == 0 {
+            let native = if u128::from(remaining) * u128::from(qpc.frequency) < 1_000_000_000 {
                 // Already missed: preserve that fact in QPC while completing
                 // the sole latest frame under the separate operation watchdog.
                 NativePresentationDeadline { ticks: qpc.ticks.max(1), frequency: qpc.frequency }
@@ -770,6 +997,9 @@ impl AtlasReceiverPresenter {
                 ))
                 .await?;
             let result = match result {
+                crate::atlas_presenter::AtlasDisposition::Superseded => {
+                    crate::atlas_feedback::AtlasFrameDisposition::Superseded
+                }
                 crate::atlas_presenter::AtlasDisposition::ExpiredUnbound => {
                     crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound
                 }
@@ -881,6 +1111,10 @@ impl AtlasReceiverPresenter {
 
     pub fn new(receiver: AtlasReceiverSession, presenter: AtlasPresenterChild) -> Self {
         Self {
+            activity: None,
+            activity_pending: Vec::with_capacity(2),
+            activity_boundary: None,
+            activity_committed: Default::default(),
             active: Some((receiver, presenter)),
             committed: None,
             last_committed: None,
@@ -918,9 +1152,11 @@ impl AtlasReceiverPresenter {
         // A mismatched request is terminal just like a malformed control
         // record.  Taking ownership before validation prevents a supervisor
         // from probing stale historical tiles and then continuing this child.
-        let result = self
-            .last_committed
-            .as_ref()
+        let committed = if self.activity.is_some() {
+            self.activity_committed.iter().rev().find(|frame|
+                frame.tiles.iter().any(|tile| tile.window_id.0 == confirmation.window))
+        } else { self.last_committed.as_ref() };
+        let result = committed
             .context("atlas input recovery has no committed native layout")
             .and_then(|committed| {
                 ensure!(
@@ -967,6 +1203,7 @@ impl AtlasReceiverPresenter {
         if !self.recovery_fence.is_armed() {
             return Ok(None);
         }
+        self.drain_activity().await?;
         let fence = self.recovery_fence.clone();
         let waiting = async {
             tokio::time::timeout_at(deadline, async {
@@ -1000,9 +1237,14 @@ impl AtlasReceiverPresenter {
         request: AtlasInputRecoveryRequest,
         clock: impl FnMut() -> Result<(u64, u64)>,
     ) -> Result<()> {
-        let result = self
-            .recover_input_with_clock(request.confirmation, request.deadline, clock)
-            .await;
+        let deadline=request.confirmation.native_write_deadline(request.deadline);
+        let result = match request.confirmation {
+            NativeGeometryControl::Input(confirmation) => self.recover_input_with_clock(confirmation, deadline, clock).await,
+            NativeGeometryControl::Desktop { ack, native_sequence } => {
+                let (_, child) = self.active.as_mut().context("atlas owner retired")?;
+                child.desktop_geometry_ack(ack, native_sequence, deadline).await
+            }
+        };
         // Both supervisors may race to report termination. Preserve the full
         // cause here even when the input owner cannot consume its response.
         let failure = result.as_ref().err().map(|error| format!("{error:#}"));
@@ -1108,6 +1350,9 @@ impl AtlasReceiverPresenter {
     }
 
     async fn retire(&mut self, error: anyhow::Error) -> anyhow::Error {
+        self.activity_pending.clear();
+        self.activity.take();
+        self.activity_boundary.take();
         if let Some((receiver, child)) = self.active.take() {
             drop(receiver);
             if let Err(stop) = child.shutdown().await {
@@ -1138,6 +1383,11 @@ pub fn native_record_limit(plan: crate::atlas_session::AtlasSessionPlan) -> Resu
         .checked_mul(64)
         .and_then(|v| v.checked_add(112))
         .context("atlas header limit overflow")?;
+    let header = if plan.activity_priority_version == 1 {
+        header.checked_add(plan.policy.max_tiles.checked_mul(16)
+            .and_then(|v| v.checked_add(52)).context("atlas activity header limit overflow")?)
+            .context("atlas activity record limit overflow")?
+    } else { header };
     let encoded = plan
         .policy
         .max_encoded_bytes
@@ -1149,4 +1399,128 @@ pub fn native_record_limit(plan: crate::atlas_session::AtlasSessionPlan) -> Resu
         "native atlas limit out of range"
     );
     Ok(limit)
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod activity_pipeline_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn activity_owner_advances_priority_while_background_native_receipt_is_pending() {
+        activity_owner_pipeline(false).await;
+    }
+
+    #[tokio::test]
+    async fn activity_recovery_fence_drains_both_native_lanes_before_arming_completes() {
+        activity_owner_pipeline(true).await;
+    }
+
+    async fn activity_owner_pipeline(fenced: bool) {
+        use crate::atlas_session::{tests::{pair, plan, warmup_frames}, offer_warmed_atlas_dispositions,
+            accept_warmed_atlas_dispositions};
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(4);
+        let mut policy = plan();
+        policy.activity_priority_version = 1;
+        let frames = warmup_frames();
+        // This fixture exercises pipe ownership and transport only. It never
+        // creates windows, decodes pixels, or produces synthetic user input.
+        let script = r#"
+import sys, struct, os, time
+def record():
+    prefix = sys.stdin.buffer.read(16)
+    if len(prefix) != 16: raise RuntimeError('missing record')
+    size = sum(struct.unpack('>II', prefix[8:16]))
+    data = prefix + sys.stdin.buffer.read(size-16)
+    if len(data) != size: raise RuntimeError('partial record')
+    return data
+def identity(data): return struct.unpack('>Q', data[16:24])[0]
+def receipt(data, outcome):
+    ticks, frequency = struct.unpack('>QQ', data[40:56])
+    commit = 100 if outcome == 'committed' else 0
+    print(f'atlas-disposition-v1 frame_identity={identity(data)} tile_count=0 outcome={outcome} deadline_ticks={ticks} frequency={frequency} commit_ticks={commit} physical_present_receipt=false', flush=True)
+print('atlas-native-ready disposition=v1 input_enabled=false activity=v11', flush=True)
+for i in range(1, 4):
+    data = record()
+    print(f'atlas-warmup-completed identity={i} width=64 height=64', flush=True)
+first, second = record(), record()
+both = {identity(first): first, identity(second): second}
+if os.environ.get('VF_TEST_FENCE') == '1':
+    gate = os.environ['VF_TEST_GATE']
+    open(gate + '/ready', 'w').close()
+    while not os.path.exists(gate + '/resume'): time.sleep(0.001)
+    receipt(both[5], 'committed')
+    receipt(both[4], 'committed')
+else:
+    receipt(both[5], 'committed')
+    third = record()
+    assert identity(third) == 7
+    receipt(both[4], 'superseded')
+    receipt(third, 'committed')
+sys.stdin.buffer.read()
+"#;
+        let mut command = tokio::process::Command::new("python3");
+        command.args(["-u", "-c", script]);
+        let gates = tempfile::tempdir().unwrap();
+        command.env("VF_TEST_FENCE", if fenced { "1" } else { "0" }).env("VF_TEST_GATE", gates.path());
+        let mut child = AtlasPresenterChild::spawn_activity_fixture(command, deadline).await.unwrap();
+        let child_ref = &mut child;
+        let (sender, receiver) = tokio::join!(
+            offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+            accept_warmed_atlas_dispositions(&inbound, policy, deadline,
+                |frames| async move { child_ref.warmup(&frames, deadline, 8192).await })
+        );
+        let mut background = sender.unwrap();
+        let writer = crate::shared_control::SharedControlWriter::start(&outbound).unwrap();
+        background.attach_shared_control(writer.sender()).unwrap();
+        let mut priority = background.fork_activity_lane().unwrap();
+        let mut owner = AtlasReceiverPresenter::new(receiver.unwrap(), child);
+        owner.enable_activity(|| Ok((100, 1000))).unwrap();
+        let manifest = |id| viewflow_protocol::AtlasFrame {
+            activity: Some(viewflow_protocol::AtlasActivity {
+                lane: (id % 2) as u32, epoch: 1, preferred: None, focus: None, members: vec![],
+            }),
+            patches: None, stream_id: viewflow_protocol::Id128(99), frame_id: id,
+            geometry_epoch: 1, config_generation: 1, layout_revision: 0, width: 64, height: 64,
+            source_submitted_ns: 100 + id, tiles: vec![], color_keyframe: true, alpha_keyframe: true, desktop: None,
+        };
+        let priority_work = async {
+            for &id in if fenced { &[5][..] } else { &[5, 7][..] } {
+                priority.send_frame(manifest(id), frames[0].color.clone(), frames[0].alpha.clone(), id, deadline).await?;
+            }
+            Ok::<_, anyhow::Error>(())
+        };
+        let fence = owner.recovery_fence.clone();
+        let arm_work = async {
+            if !fenced { return; }
+            while !gates.path().join("ready").exists() { tokio::time::sleep(Duration::from_millis(1)).await; }
+            let arm = fence.arm();
+            tokio::pin!(arm);
+            // The native process has both full records and has emitted no
+            // receipts. Arming must stay pending behind their shared boundary.
+            std::future::poll_fn(|cx| {
+                assert!(std::future::Future::poll(arm.as_mut(), cx).is_pending());
+                std::task::Poll::Ready(())
+            }).await;
+            assert!(fence.is_armed());
+            std::fs::write(gates.path().join("resume"), b"").unwrap();
+            arm.await;
+        };
+        let receive_work = async {
+            for _ in 0..if fenced { 1 } else { 3 } {
+                owner.forward_next_disposition_with_clock(|| 110, || Ok(QpcSample { ticks: 100, frequency: 1000 }), deadline, 8192).await.unwrap();
+            }
+            if fenced { owner.drain_activity().await.unwrap(); }
+            assert_eq!(owner.activity_committed.iter().map(|frame| frame.frame_id).collect::<Vec<_>>(), if fenced { vec![5, 4] } else { vec![5, 7] });
+            assert!(owner.activity_pending.is_empty() && owner.activity_boundary.is_none());
+        };
+        let all = async { tokio::join!(
+            background.send_frame(manifest(4), frames[0].color.clone(), frames[0].alpha.clone(), 4, deadline),
+            priority_work, receive_work, arm_work,
+        ) };
+        let (background, priority, (), ()) = tokio::time::timeout_at(deadline, all).await.unwrap();
+        background.unwrap();
+        priority.unwrap();
+        owner.shutdown().await.unwrap();
+    }
 }
