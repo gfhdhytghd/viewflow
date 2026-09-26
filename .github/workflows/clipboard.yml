@@ -19,4 +19,5 @@ jobs:
       - name: Build portable clipboard peer
         run: cargo +stable build --locked -p viewflowd --bin vf-clipboard-peer
       - name: Test clipboard protocol and synchronization without desktop access
-        run: cargo +stable test --locked -p viewflowd --lib clipboard_sync::
+        run: |
+          cargo +stable test --locked -p viewflowd --lib clipboard_sync::

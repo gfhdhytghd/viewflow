@@ -21,7 +21,8 @@ jobs:
       - name: Test portable foundation
         run: cargo +stable test --locked -p viewflow-protocol -p viewflow-core -p viewflow-platform -p viewflow-transport
       - name: Test input receiver without posting desktop events
-        run: cargo +stable test --locked -p viewflowd --lib input_runtime::
+        run: |
+          cargo +stable test --locked -p viewflowd --lib input_runtime::
       - name: Test window bridge without desktop events
         run: cargo +stable test --locked -p viewflowd --bin vf-window-peer --test window_bridge_quic
       - name: Build native backends for Apple Silicon and Intel
