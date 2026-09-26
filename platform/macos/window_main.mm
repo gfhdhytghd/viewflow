@@ -163,7 +163,7 @@ int main(int argc, const char* argv[]) {
                 viewflow::macos::codec_self_test(); viewflow::macos::pixel_self_test(); return 0;
             }
             if (argc == 2 && std::string_view(argv[1]) == "--pixel-self-test") {
-                viewflow::macos::pixel_self_test(); return 0;
+                viewflow::macos::pixel_self_test(false); return 0;
             }
             if (argc == 2 && std::string_view(argv[1]) == "--presenter-self-test") {
                 viewflow::macos::presenter_self_test(); return 0;

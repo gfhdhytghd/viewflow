@@ -210,7 +210,7 @@ CIImage* join_planes(CVPixelBufferRef color, CIImage* mask) {
 CIImage* join_planes(CVPixelBufferRef color, std::shared_ptr<const std::vector<uint8_t>> alpha) {
     return join_planes(color, make_alpha_mask(CVPixelBufferGetWidth(color), CVPixelBufferGetHeight(color), std::move(alpha)));
 }
-void pixel_self_test() {
+void pixel_self_test(bool with_codec) {
     constexpr unsigned width = 64, height = 64;
     CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     CIContext* context = [CIContext contextWithMTLDevice:MTLCreateSystemDefaultDevice() options:@{kCIContextWorkingColorSpace: (__bridge id)space}];
@@ -233,11 +233,16 @@ void pixel_self_test() {
         const unsigned a = y < 32 ? (x < 32 ? 255 : 128) : (x < 32 ? 64 : 0);
         if (planes.alpha[y * width + x] != a) throw std::runtime_error("source alpha must remain exact");
     }
-    Encoder encoder; Decoder decoder;
-    reverse::Frame frame; frame.codec = 1; frame.width = width; frame.height = height; frame.pts = 1;
-    frame.alpha = reverse::encode_alpha(planes.alpha);
-    frame = encoder.encode(planes.color, std::move(frame));
-    PixelOwner decoded{decoder.decode(frame)};
+    PixelOwner decoded;
+    if (with_codec) {
+        Encoder encoder; Decoder decoder;
+        reverse::Frame frame; frame.codec = 1; frame.width = width; frame.height = height; frame.pts = 1;
+        frame.alpha = reverse::encode_alpha(planes.alpha);
+        frame = encoder.encode(planes.color, std::move(frame));
+        decoded.pixels = decoder.decode(frame);
+    } else {
+        decoded.pixels = CVPixelBufferRetain(planes.color);
+    }
     if (!decoded.pixels) throw std::runtime_error("fixture decode missing");
     PixelOwner output{allocate(width, height)};
     auto owned_alpha = std::make_shared<const std::vector<uint8_t>>(std::move(planes.alpha));
@@ -298,6 +303,6 @@ void pixel_self_test() {
         if (!valid) throw std::runtime_error("GPU unpremultiplied color mismatch");
     }
     CGColorSpaceRelease(space);
-    std::fprintf(stderr, "macos-window Metal color/alpha/orientation self-test passed; no windows/capture/input\n");
+    std::fprintf(stderr, "macos-window Metal color/alpha/orientation self-test passed; codec=%d; no windows/capture/input\n", int(with_codec));
 }
 }
