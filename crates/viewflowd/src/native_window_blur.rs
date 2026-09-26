@@ -98,7 +98,7 @@ impl BlurRecipe {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     #[test]
     fn reads_effective_runtime_values_again_after_configuration_changes() {
         use std::io::{Read, Write};
