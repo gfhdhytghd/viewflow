@@ -243,7 +243,7 @@ def package(args):
                      corehid=corehid, hid_backend=args.hid_backend)
         binaries = inspect_bundle(app, require_driver=args.hid_backend == 'driverkit', app_id=args.bundle_id)
         for binary in binaries:
-            run(['lipo', '-verify_arch', args.arch, binary])
+            run(['lipo', binary, '-verify_arch', args.arch])
             # Reject accidentally linking a developer's Homebrew/build directory.
             for line in output(['otool', '-L', binary]).splitlines()[1:]:
                 dependency = line.strip().split(' (', 1)[0]
