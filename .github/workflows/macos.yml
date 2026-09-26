@@ -27,13 +27,15 @@ jobs:
         run: cargo +stable test --locked -p viewflowd --bin vf-window-peer --test window_bridge_quic
       - name: Build native backends for Apple Silicon and Intel
         run: cmake -S platform/macos -B build/macos -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" && cmake --build build/macos
-      - name: Check native codecs and CLI without desktop permissions
-        run: ctest --test-dir build/macos --output-on-failure
+      - name: Check native pixels and CLI without desktop permissions
+        # VideoToolbox hardware sessions fail on this hosted VM. Full release
+        # builds run all tests on a hardware-capable Mac before signing.
+        run: ctest --test-dir build/macos --output-on-failure -LE hardware-codec
       - name: Build unified macOS app (explicit development build without HID)
         run: |
           python3 -m venv build/pairing-venv
           build/pairing-venv/bin/python -m pip install pyinstaller==6.22.0 -r platform/desktop-app/requirements-pairing.txt
-          build/pairing-venv/bin/python tools/build-macos-app.py --without-driver --output dist/Viewflow-Development-No-HID.app --zip
+          build/pairing-venv/bin/python tools/build-macos-app.py --without-driver --skip-hardware-tests --output dist/Viewflow-Development-No-HID.app --zip
       - name: Upload macOS development artifact (HID activation not verified)
         uses: actions/upload-artifact@v4
         with:

@@ -142,7 +142,8 @@ def build(args, work):
     run(['cmake', '-S', ROOT / 'platform/macos', '-B', native,
          f'-DCMAKE_OSX_ARCHITECTURES={arch}', '-DCMAKE_BUILD_TYPE=Release'])
     run(['cmake', '--build', native, '--config', 'Release', '--parallel'])
-    run(['ctest', '--test-dir', native, '--output-on-failure'])
+    run(['ctest', '--test-dir', native, '--output-on-failure',
+         *(['-LE', 'hardware-codec'] if args.skip_hardware_tests else [])])
     for helper in HELPERS[3:6]:
         shutil.copy2(native / helper, helper_dir / helper)
     # The native UI talks JSON-lines to a self-contained helper; users do not
@@ -206,6 +207,8 @@ def package(args):
     if destination.suffix != '.app' or destination.exists():
         raise ValueError('--output must be a new .app path (existing app is never overwritten)')
     args.hid_backend = 'none' if args.without_driver else args.hid_backend
+    if args.skip_hardware_tests and (not args.without_driver or args.identity or args.distribution):
+        raise ValueError('--skip-hardware-tests is only for unsigned --without-driver CI builds; release builds require every test')
     if args.hid_backend != 'driverkit' and args.driver_bundle:
         raise ValueError('--driver-bundle requires --hid-backend driverkit')
     if args.hid_backend == 'corehid' and (not args.identity or not (args.corehid_profile or args.corehid_bundle)):
@@ -287,6 +290,7 @@ def package(args):
                     'signing': 'identity' if args.identity else 'ad-hoc',
                     'hid_included': args.hid_backend != 'none', 'hid_backend': args.hid_backend,
                     'distribution': args.distribution, 'native_permissions_verified': False,
+                    'hardware_codec_tested': not args.skip_hardware_tests,
                     'git_revision': source['revision'],
                     'workspace_dirty': source['dirty'],
                     'helpers': {name: hashlib.sha256((contents / 'Helpers' / name).read_bytes()).hexdigest() for name in HELPERS}}
@@ -327,6 +331,7 @@ def main():
     parser.add_argument('--notary-profile', help='existing notarytool Keychain profile, used with --distribution --dmg')
     parser.add_argument('--driver-bundle', type=Path)
     parser.add_argument('--without-driver', action='store_true', help='explicit incomplete development build; cannot validate HID')
+    parser.add_argument('--skip-hardware-tests', action='store_true', help='unsigned no-HID CI only: omit hardware-codec tests; never a release validation')
     parser.add_argument('--identity', help='codesign identity; public releases require Developer ID Application')
     parser.add_argument('--app-profile', type=Path)
     parser.add_argument('--bundle-id', default=APP_ID, help='stable provisioned app identity, including an existing Viewflow host identity')

@@ -69,6 +69,7 @@ static constexpr auto usage =
     "       viewflow-macos-windows present [--scale 1|2] [--origin-x POINTS] [--origin-y POINTS] [--performance-mode frame-rate|latency] [--linux-shortcut RULE ...] [--validate]\n"
     "       viewflow-macos-windows --performance-status [frame-rate|latency]\n"
     "       viewflow-macos-windows --codec-self-test\n"
+    "       viewflow-macos-windows --pixel-self-test\n"
     "       viewflow-macos-windows --permissions | --list-windows\n"
     "       viewflow-macos-windows --write-fixture PATH\n"
     "Media/input records use stdin/stdout; launch through vf-window-peer. Diagnostics use stderr.\n";
@@ -160,6 +161,9 @@ int main(int argc, const char* argv[]) {
                 return viewflow::macos::discover_windows(std::string_view(argv[1]) == "--list-windows");
             if (argc == 2 && std::string_view(argv[1]) == "--codec-self-test") {
                 viewflow::macos::codec_self_test(); viewflow::macos::pixel_self_test(); return 0;
+            }
+            if (argc == 2 && std::string_view(argv[1]) == "--pixel-self-test") {
+                viewflow::macos::pixel_self_test(); return 0;
             }
             if (argc == 2 && std::string_view(argv[1]) == "--presenter-self-test") {
                 viewflow::macos::presenter_self_test(); return 0;

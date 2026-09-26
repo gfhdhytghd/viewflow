@@ -32,6 +32,8 @@ target_link_libraries(viewflow-macos-windows PRIVATE
   "-framework VideoToolbox" "-framework QuartzCore" "-framework Metal" "-framework MetalPerformanceShaders")
 add_test(NAME windows-help COMMAND viewflow-macos-windows --help)
 add_test(NAME windows-codec COMMAND viewflow-macos-windows --codec-self-test)
+set_tests_properties(windows-codec PROPERTIES LABELS "hardware-codec")
+add_test(NAME windows-pixels COMMAND viewflow-macos-windows --pixel-self-test)
 add_test(NAME windows-presenter COMMAND viewflow-macos-windows --presenter-self-test)
 add_test(NAME windows-performance-status COMMAND viewflow-macos-windows --performance-status latency)
 add_executable(viewflow-window-frame-schedule-test window_frame_schedule_test.cpp)

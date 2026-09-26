@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
@@ -50,6 +51,14 @@ class DistributionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'expired'): validate_distribution_profile(profile, 'org.viewflow.hid')
         profile = self.profile(); del profile['ProvisionsAllDevices']
         with self.assertRaisesRegex(ValueError, 'all-devices'): validate_distribution_profile(profile, 'org.viewflow.hid')
+
+    def test_hardware_tests_cannot_be_skipped_for_signed_or_public_packages(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(mac.sys, 'platform', 'darwin'):
+            for without_driver, identity, distribution in [(False, None, False), (True, 'Developer ID', False), (True, None, True)]:
+                args = SimpleNamespace(output=Path(temp) / 'Viewflow.app', without_driver=without_driver,
+                    hid_backend='corehid', skip_hardware_tests=True, identity=identity, distribution=distribution)
+                with self.assertRaisesRegex(ValueError, 'release builds require every test'):
+                    mac.package(args)
 
     def test_corehid_bundle_requires_provisioned_shared_receiver_and_no_dext(self):
         with tempfile.TemporaryDirectory() as temp:

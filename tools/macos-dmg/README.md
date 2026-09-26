@@ -59,6 +59,14 @@ testing and is not a public release. Legacy DriverKit packaging requires
 `--hid-backend driverkit` explicitly. Do not replace an active installation as
 part of building or inspecting an artifact.
 
+Hosted macOS CI validates native pixels and portable behavior but omits the
+`hardware-codec` CTest label: the hosted VM returned VideoToolbox session error
+`-12903`, while the actual Mac passed the hardware codec fixture. CI's unsigned
+no-HID build uses `--skip-hardware-tests` and records
+`hardware_codec_tested: false` in its manifest. Signed builds reject that flag
+and run the complete suite, including H.264/HEVC encode/decode. CI artifacts
+therefore cannot stand in for the public release checks.
+
 `tools/cleanup-macos-legacy.py` prints its migration plan by default. `--apply`
 disables the explicitly listed legacy jobs, archives retired Viewflow bundles
 and launch agents, verifies the archive, and removes their original install
