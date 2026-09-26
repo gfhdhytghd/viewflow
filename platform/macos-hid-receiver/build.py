@@ -54,7 +54,7 @@ def build(args):
         binaries.mkdir(parents=True)
         info = {'CFBundleIdentifier': args.bundle_id, 'CFBundleExecutable': 'ViewflowHIDReceiver',
                 'CFBundleName': 'Viewflow HID Receiver', 'CFBundlePackageType': 'APPL',
-                'CFBundleVersion': '1', 'CFBundleShortVersionString': '0.1.0',
+                'CFBundleVersion': '2', 'CFBundleShortVersionString': '0.2.0',
                 'LSMinimumSystemVersion': '26.0', 'LSUIElement': True}
         info['ViewflowHIDServiceVersion'] = 1
         (contents / 'Info.plist').write_bytes(plistlib.dumps(info))
