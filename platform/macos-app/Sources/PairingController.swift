@@ -66,10 +66,10 @@ struct GroupDisplay: Decodable, Identifiable {
             stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
                 let data = handle.availableData
                 if data.isEmpty { handle.readabilityHandler = nil; return }
-                Task { @MainActor in self?.consume(data) }
+                Task { @MainActor [weak self] in self?.consume(data) }
             }
             child.terminationHandler = { [weak self] child in
-                Task { @MainActor in
+                Task { @MainActor [weak self] in
                     guard let self else { return }
                     self.process = nil; self.busy = false
                     if !self.stopping { self.warning = "设备发现服务已停止，可重试。" }

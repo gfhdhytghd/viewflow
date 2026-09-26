@@ -39,7 +39,7 @@ import SystemExtensions
                 guard let executable else { throw ViewflowError.invalid("应用路径不可用") }
                 return try NativeProbe.json(executable, ["--driver-status"])
             }
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.refreshing = false
                 switch windows {
