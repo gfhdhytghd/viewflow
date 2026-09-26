@@ -264,7 +264,7 @@ void pixel_self_test() {
     }
     // Odd extents exercise dispatch edges and CV row padding; every alpha byte
     // must survive GPU extraction exactly, including low-opacity shadows.
-    for (const auto extent : {std::pair{259u, 67u}, std::pair{71u, 31u}, std::pair{259u, 67u}}) {
+    for (const auto& extent : {std::pair{259u, 67u}, std::pair{71u, 31u}, std::pair{259u, 67u}}) {
         PixelOwner ramp{allocate(extent.first, extent.second)};
         if (CVPixelBufferLockBaseAddress(ramp.pixels, 0) != kCVReturnSuccess) throw std::runtime_error("alpha ramp lock");
         auto* data = static_cast<uint8_t*>(CVPixelBufferGetBaseAddress(ramp.pixels));
