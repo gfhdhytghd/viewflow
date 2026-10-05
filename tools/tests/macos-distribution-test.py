@@ -39,7 +39,10 @@ class DistributionTests(unittest.TestCase):
 
     def test_actual_signer_must_be_authorized_by_profile(self):
         def extract(args, **kwargs):
-            Path(str(args[3]) + '0').write_bytes(b'actual signing certificate')
+            self.assertEqual(args[:2], ['codesign', '-d'])
+            self.assertTrue(args[2].startswith('--extract-certificates='))
+            self.assertEqual(args[3], Path('receiver.app'))
+            Path(args[2].split('=', 1)[1] + '0').write_bytes(b'actual signing certificate')
         with patch('macos_distribution.run', side_effect=extract):
             verify_profile_certificate({'DeveloperCertificates': [b'actual signing certificate']}, Path('receiver.app'))
             with self.assertRaisesRegex(ValueError, 'signing certificate'):

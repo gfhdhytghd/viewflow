@@ -59,7 +59,7 @@ def verify_developer_id(path):
 def verify_profile_certificate(profile, app):
     with tempfile.TemporaryDirectory(prefix='viewflow-certificate-') as temporary:
         prefix = Path(temporary) / 'certificate'
-        run(['codesign', '-d', '--extract-certificates', prefix, app], stderr=subprocess.PIPE)
+        run(['codesign', '-d', f'--extract-certificates={prefix}', app], stderr=subprocess.PIPE)
         certificate = prefix.with_name(prefix.name + '0').read_bytes()
         if certificate not in profile.get('DeveloperCertificates', []):
             raise ValueError('CoreHID signing certificate is not included in its provisioning profile')
