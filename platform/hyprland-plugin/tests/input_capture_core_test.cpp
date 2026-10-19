@@ -83,6 +83,37 @@ int main() {
   if (enabled)
     return 13; // A keyboard that was disabled before capture stays disabled.
 
+  // Two routes can consume the same shortcut or IME event. Neither may save
+  // the other's temporary suppression as the configured state.
+  for (const bool original : {false, true}) {
+    for (const bool reverse : {false, true}) {
+      enabled = original;
+      EnabledStateLease first, second;
+      first.suppress(enabled);
+      second.suppress(enabled);
+      if (enabled || first.permitted(enabled) != original || second.permitted(enabled) != original)
+        return 133;
+      auto& early = reverse ? second : first;
+      auto& late = reverse ? first : second;
+      early.restore(enabled);
+      if (enabled || early.active() || !late.active()) return 134;
+      late.suppress(enabled);
+      late.restore(enabled);
+      if (enabled != original || late.active()) return 135;
+    }
+  }
+  // Device destruction drops all leases without touching the dead flag. A
+  // new keyboard at the same address must get a fresh original state.
+  enabled = false;
+  {
+    EnabledStateLease destroyed;
+    destroyed.suppress(enabled);
+  }
+  enabled = true;
+  enabledState.suppress(enabled);
+  enabledState.restore(enabled);
+  if (!enabled) return 136;
+
   // Explicit owned rectangle bypasses only that output's shared seam.
   InputCaptureCore spatial;
   const std::array desktop{

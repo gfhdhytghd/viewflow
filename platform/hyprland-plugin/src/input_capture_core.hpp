@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <set>
 #include <span>
@@ -53,13 +54,18 @@ struct ReleaseState {
 
 class EnabledStateLease {
 public:
-  bool permitted(bool enabled) const { return m_original.value_or(enabled); }
+  EnabledStateLease() = default;
+  EnabledStateLease(const EnabledStateLease&) = delete;
+  EnabledStateLease& operator=(const EnabledStateLease&) = delete;
+  bool permitted(bool enabled) const { return m_original ? *m_original : enabled; }
   void suppress(bool &enabled);
   void restore(bool &enabled);
   [[nodiscard]] bool active() const noexcept;
 
 private:
-  std::optional<bool> m_original;
+  // All routes suppressing the same keyboard share its original state.
+  // Weak registry entries never retain a destroyed device or dereference it.
+  std::shared_ptr<const bool> m_original;
 };
 
 class InputCaptureCore {

@@ -3,9 +3,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_map>
 
 namespace viewflow::hyprland {
 namespace {
+
+std::unordered_map<bool*, std::weak_ptr<const bool>> keyboardEnabledStates;
 
 bool contains(const InputRect &rect, double x, double y) {
   return x >= rect.x && x < rect.x + rect.width && y >= rect.y &&
@@ -22,20 +25,28 @@ double normalized(double value, double origin, double length) {
 } // namespace
 
 void EnabledStateLease::suppress(bool &enabled) {
-  if (!m_original)
-    m_original = enabled;
+  if (!m_original) {
+    std::erase_if(keyboardEnabledStates, [](const auto& entry) { return entry.second.expired(); });
+    auto& original = keyboardEnabledStates[&enabled];
+    m_original = original.lock();
+    if (!m_original) {
+      m_original = std::make_shared<const bool>(enabled);
+      original = m_original;
+    }
+  }
   enabled = false;
 }
 
 void EnabledStateLease::restore(bool &enabled) {
   if (!m_original)
     return;
-  enabled = *m_original;
+  // An idle route must not re-enable a keyboard still owned by another route.
+  enabled = m_original.use_count() == 1 ? *m_original : false;
   m_original.reset();
 }
 
 bool EnabledStateLease::active() const noexcept {
-  return m_original.has_value();
+  return bool(m_original);
 }
 
 InputCaptureCore::InputCaptureCore(double edgeBandDip,
