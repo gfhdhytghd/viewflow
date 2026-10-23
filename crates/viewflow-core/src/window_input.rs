@@ -178,6 +178,33 @@ impl WindowPointerGrant {
         conservative_deadline_local_ns: Option<u64>,
         now_local_ns: u64,
     ) -> Option<Point> {
+        let point = self.admit_bound(authenticated_owner, event)?;
+        let deadline = conservative_deadline_local_ns?;
+        if now_local_ns >= self.expires_local_ns || now_local_ns >= deadline {
+            return None;
+        }
+        Some(point)
+    }
+
+    /// Buttons and wheel steps are applied in sequence even when they arrive
+    /// after their sample's freshness target; dropping a late release would
+    /// leave input held. Peer, target, generation, sequence, presented frame
+    /// and the lease expiry are still enforced exactly as for motion.
+    pub fn admit_ordered(
+        &mut self,
+        authenticated_owner: DeviceId,
+        event: WindowPointerMotion,
+        now_local_ns: u64,
+    ) -> Option<Point> {
+        let point = self.admit_bound(authenticated_owner, event)?;
+        (now_local_ns < self.expires_local_ns).then_some(point)
+    }
+
+    fn admit_bound(
+        &mut self,
+        authenticated_owner: DeviceId,
+        event: WindowPointerMotion,
+    ) -> Option<Point> {
         if self.revoked
             || authenticated_owner != self.owner
             || event.target_device != self.target_device
@@ -213,10 +240,6 @@ impl WindowPointerGrant {
         // when timing cannot be proven. A later clock correction must not make
         // a replay of this same event eligible for native injection.
         self.last_sequence = event.sequence;
-        let deadline = conservative_deadline_local_ns?;
-        if now_local_ns >= self.expires_local_ns || now_local_ns >= deadline {
-            return None;
-        }
         Some(point)
     }
 }
@@ -398,6 +421,28 @@ mod tests {
             event.sequence += 1;
             assert!(grant.admit_motion(Id128(1), event, Some(95), 81).is_some());
         }
+    }
+
+    #[test]
+    fn late_ordered_input_is_admitted_but_keeps_binding_and_replay_checks() {
+        let (mut grant, mut event) = grant_fixture();
+        // A dropped stale motion does not disturb the following button.
+        assert!(grant.admit_motion(Id128(1), event, Some(80), 80).is_none());
+        event.sequence += 1;
+        assert_eq!(
+            grant.admit_ordered(Id128(1), event, 95),
+            Some(Point { x: 50.0, y: 20.0 })
+        );
+        assert!(grant.admit_ordered(Id128(1), event, 95).is_none());
+        event.sequence += 1;
+        assert!(grant.admit_ordered(Id128(9), event, 95).is_none());
+        let mut wrong = event;
+        wrong.presented_frame += 1;
+        assert!(grant.admit_ordered(Id128(1), wrong, 95).is_none());
+        assert!(grant.admit_ordered(Id128(1), event, 100).is_none());
+        grant.revoke();
+        event.sequence += 1;
+        assert!(grant.admit_ordered(Id128(1), event, 95).is_none());
     }
 
     #[test]
