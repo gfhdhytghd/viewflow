@@ -124,10 +124,13 @@ impl AtlasDesktopMove {
         Ok(result)
     }
 
-    /// Convert the original native QPC deadline without extending it. The
-    /// caller supplies a same-process QPC sample taken before `receiver_now_ns`.
+    /// Convert the native QPC deadline into an operation watchdog. The caller
+    /// supplies a same-process QPC sample taken before `receiver_now_ns`.
+    /// Ordered WM moves are delivered late rather than retiring the route (an
+    /// End must always reach the source so the drag releases), so an expired
+    /// or oversized native deadline becomes the ordinary operation budget.
     /// # Errors
-    /// Rejects a stale/mismatched QPC sample or conversion overflow.
+    /// Rejects a mismatched QPC clock or conversion overflow.
     pub fn sender_not_after_ns(
         self,
         sample_qpc: u64,
@@ -135,19 +138,18 @@ impl AtlasDesktopMove {
         receiver_now_ns: u64,
     ) -> Result<u64> {
         ensure!(
-            sample_qpc > 0 && frequency == self.frequency && sample_qpc < self.deadline_qpc,
-            "desktop move deadline clock mismatch or expiry"
+            sample_qpc > 0 && frequency == self.frequency,
+            "desktop move deadline clock mismatch"
         );
-        let remaining_ns =
-            u128::from(self.deadline_qpc - sample_qpc) * 1_000_000_000 / u128::from(frequency);
-        ensure!(
-            remaining_ns > 0,
-            "desktop move deadline has no whole-nanosecond budget"
-        );
-        ensure!(
-            remaining_ns <= u128::from(crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS),
-            "desktop move deadline exceeds event budget"
-        );
+        let budget_ns = u128::from(crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS);
+        let remaining_ns = u128::from(self.deadline_qpc.saturating_sub(sample_qpc))
+            * 1_000_000_000
+            / u128::from(frequency);
+        let remaining_ns = if remaining_ns == 0 || remaining_ns > budget_ns {
+            budget_ns
+        } else {
+            remaining_ns
+        };
         receiver_now_ns
             .checked_add(u64::try_from(remaining_ns)?)
             .ok_or_else(|| anyhow::anyhow!("desktop move deadline overflow"))
@@ -161,7 +163,7 @@ mod tests {
     const MOVE: &str = "desktop-move-v1 stream_hi=0 stream_lo=99 atlas_frame=100 atlas_epoch=2 config_generation=3 layout_revision=4 window_hi=0 window_lo=8 placement_generation=4 source_epoch=7 source_frame=19 topology_generation=5 drag_id=6 sequence=9 phase=update deadline_qpc=120 qpc_frequency=1000 x_millidip=-100 y_millidip=200 width_millidip=640 height_millidip=480";
 
     #[test]
-    fn native_wm_operation_budget_converts_without_extension() {
+    fn native_wm_operation_budget_clamps_instead_of_failing() {
         let ordered =
             AtlasDesktopMove::parse(&MOVE.replace("deadline_qpc=120", "deadline_qpc=5100"))
                 .unwrap();
@@ -169,7 +171,11 @@ mod tests {
             ordered.sender_not_after_ns(100, 1000, 1_000).unwrap(),
             5_000_001_000
         );
-        assert!(ordered.sender_not_after_ns(99, 1000, 1_000).is_err());
+        // A native deadline beyond the operation budget is clamped, not fatal.
+        assert_eq!(
+            ordered.sender_not_after_ns(99, 1000, 1_000).unwrap(),
+            5_000_001_000
+        );
         let event =
             AtlasDesktopMove::parse(&MOVE.replace("deadline_qpc=120", "deadline_qpc=350")).unwrap();
         assert_eq!(
@@ -199,7 +205,15 @@ mod tests {
             move_event.sender_not_after_ns(110, 1000, 1_000).unwrap(),
             10_001_000
         );
-        assert!(move_event.sender_not_after_ns(120, 1000, 1_000).is_err());
+        // Late Update/End moves still reach the source with a fresh watchdog.
+        assert_eq!(
+            move_event.sender_not_after_ns(120, 1000, 1_000).unwrap(),
+            5_000_001_000
+        );
+        assert_eq!(
+            move_event.sender_not_after_ns(500, 1000, 1_000).unwrap(),
+            5_000_001_000
+        );
         assert!(move_event.sender_not_after_ns(110, 999, 1_000).is_err());
         assert_eq!(
             move_event.sender_not_after_ns(80, 1000, 1_000).unwrap(),

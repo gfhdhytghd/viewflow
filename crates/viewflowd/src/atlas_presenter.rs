@@ -4,6 +4,10 @@ use anyhow::{Context, Result, ensure};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::{Instant, timeout_at};
 
+// Bounds a hung native child, not presentation latency: a legacy frame that
+// missed its target is still written and presented late.
+const LEGACY_SUBMISSION_WATCHDOG: std::time::Duration = std::time::Duration::from_secs(5);
+
 use crate::{
     atlas_runtime::AdmittedAtlas,
     gpu_presenter_pipe::{NativePresentationDeadline, encode_atlas_record},
@@ -382,7 +386,11 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
     /// receipt as one exclusive pipe transaction. The caller must first verify
     /// the source lease and the committed tile; this pipe knows only frame IDs.
     /// # Errors
-    /// Any attempted recovery failure/cancellation permanently retires the pipe.
+    /// A request rejected before its record is written (stale frame, expired
+    /// native deadline, clock mismatch) leaves the pipe usable so the input
+    /// route can resynchronize and retry. Once the record is written the pipe
+    /// is retired only on a real fault: an I/O error, a hung native child past
+    /// the operation watchdog, or a receipt that does not match the request.
     pub async fn recover_input(
         &mut self,
         confirmation: crate::atlas_input_recovery::InputRecoveryConfirmation,
@@ -390,11 +398,9 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
         mut clock: impl FnMut() -> Result<(u64, u64)>,
     ) -> Result<u64> {
         ensure!(
-            self.ready && !self.poisoned,
+            self.ready && !self.poisoned && self.io.is_some(),
             "recovery presenter not ready or retired"
         );
-        self.poisoned = true;
-        let mut io = self.io.take().context("atlas recovery pipe missing")?;
         ensure!(
             matches!(
                 self.input_mode,
@@ -425,8 +431,9 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
             "atlas recovery frame mismatch or replay"
         );
         let record = confirmation.encode()?;
-        let local_before = Instant::now();
         let (sent, frequency) = clock()?;
+        // The native child rejects a confirmation past its QPC deadline, so a
+        // late one is not written; the caller abandons this attempt instead.
         ensure!(
             sent > 0
                 && sent < confirmation.deadline_qpc
@@ -434,37 +441,38 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
                 && Instant::now() < deadline,
             "atlas recovery expired before write or clock mismatch"
         );
-        let remaining_ns =
-            u128::from(confirmation.deadline_qpc - sent) * 1_000_000_000 / u128::from(frequency);
-        let budget = std::time::Duration::from_nanos(u64::try_from(remaining_ns)?);
-        ensure!(
-            !budget.is_zero(),
-            "atlas recovery has no complete clock budget"
-        );
-        let deadline = deadline.min(
-            local_before
-                .checked_add(budget)
-                .context("atlas recovery deadline overflow")?,
-        );
-        let line = timeout_at(deadline, async {
+        self.poisoned = true;
+        let mut io = self.io.take().context("atlas recovery pipe missing")?;
+        // A partially written record or an unread receipt would desynchronize
+        // the pipe, so the written transaction completes under the operation
+        // watchdog rather than the native acceptance window.
+        let watchdog = Instant::now()
+            + std::time::Duration::from_nanos(crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS);
+        let line = timeout_at(watchdog, async {
             io.0.write_all(&record).await?;
             io.0.flush().await?;
             read_line_bounded(&mut io.1, 1024).await
         })
         .await
-        .context("atlas recovery transaction deadline expired")??;
+        .context("atlas recovery transaction watchdog expired")??;
         let (observed, frequency) = clock()?;
         ensure!(
-            Instant::now() < deadline
-                && frequency == confirmation.frequency
-                && observed < confirmation.deadline_qpc,
-            "atlas recovery receipt expired or clock mismatch"
+            frequency == confirmation.frequency,
+            "atlas recovery receipt clock mismatch"
         );
+        // The receipt carries the native application time, which must precede
+        // the native deadline; reading it late here is only a scheduling delay.
         let recovered = confirmation.validate_receipt(&line, sent, observed)?;
         self.last_recovery = confirmation.sequence;
         self.io = Some(io);
         self.poisoned = false;
         Ok(recovered)
+    }
+
+    /// Whether a failed request left the pipe framing intact.
+    #[must_use]
+    pub fn is_usable(&self) -> bool {
+        self.ready && !self.poisoned && self.io.is_some()
     }
 
     /// # Errors
@@ -606,26 +614,26 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
                 == (self.input_mode == NativeInputMode::RecoverableDesktop),
             "atlas desktop layout capability mismatch"
         );
+        // Encode before taking the pipe so a rejected record leaves it intact.
+        let record = encode_atlas_record(frame, native_deadline, max_record_bytes)?;
+        // The codec already consumed this frame, so it is presented even when
+        // late: `deadline` is the performance target and the native child
+        // counts late commits. A partial write or unread receipt would break
+        // the pipe framing, so the transaction is bounded only by the
+        // operation watchdog that detects a hung child.
         self.poisoned = true;
         let mut io = self
             .io
             .take()
             .ok_or_else(|| anyhow::anyhow!("atlas pipe missing"))?;
-        let record = encode_atlas_record(frame, native_deadline, max_record_bytes)?;
-        ensure!(
-            Instant::now() < deadline,
-            "atlas source deadline expired before pipe write"
-        );
-        let result = timeout_at(deadline, async {
+        let watchdog = deadline.max(Instant::now() + LEGACY_SUBMISSION_WATCHDOG);
+        let result = timeout_at(watchdog, async {
             io.0.write_all(&record).await?;
             io.0.flush().await?;
             submission(&read_line(&mut io.1).await?)
         })
-        .await??;
-        ensure!(
-            Instant::now() < deadline,
-            "atlas source deadline expired during submission"
-        );
+        .await
+        .context("atlas legacy submission watchdog expired")??;
         ensure!(
             result.frame_id == frame.layout.frame_id
                 && result.tile_count == frame.layout.tiles.len(),
@@ -962,15 +970,17 @@ pub(crate) mod tests {
         assert_eq!(pipe.last_frame, 9);
         assert_eq!(pipe.last_recovery, 1);
         assert!(!pipe.poisoned);
+        // A replayed control is rejected before any byte is written, so the
+        // pipe (and every proxy window it serves) stays usable.
         assert!(
             pipe.recover_input(recovery_control(), deadline, || Ok((115, 1000)))
                 .await
                 .is_err()
         );
-        assert!(pipe.poisoned && pipe.io.is_none());
+        assert!(pipe.is_usable());
     }
     #[tokio::test]
-    async fn recovery_failures_close_the_pipe_without_retry() {
+    async fn recovery_rejected_before_write_keeps_pipe_and_written_faults_retire_it() {
         for case in 0..8 {
             let (client, mut native) = tokio::io::duplex(2048);
             let (reader, writer) = tokio::io::split(client);
@@ -1005,8 +1015,19 @@ pub(crate) mod tests {
                     })
                 })
                 .await;
-            assert!(result.is_err(), "case {case}");
-            assert!(pipe.poisoned && pipe.io.is_none());
+            if case == 5 {
+                // A receipt applied before the native deadline but read late
+                // is a scheduling delay, not a failed transaction.
+                assert_eq!(result.unwrap(), 110);
+                assert!(pipe.is_usable());
+            } else if case <= 4 {
+                assert!(result.is_err(), "case {case}");
+                assert!(pipe.is_usable(), "case {case}");
+            } else {
+                assert!(result.is_err(), "case {case}");
+                assert!(pipe.poisoned && pipe.io.is_none());
+            }
+            drop(pipe);
             let mut emitted = Vec::new();
             native.read_to_end(&mut emitted).await.unwrap();
             assert_eq!(emitted.len(), if case <= 4 { 0 } else { 152 });
@@ -1034,8 +1055,11 @@ pub(crate) mod tests {
                 }
                 drop(pending);
             } else {
+                // Passing the caller deadline mid-write does not abandon the
+                // record; only the operation watchdog or cancellation does.
+                let pending = pipe.recover_input(recovery_control(), deadline, || Ok((100, 1000)));
                 assert!(
-                    pipe.recover_input(recovery_control(), deadline, || Ok((100, 1000)))
+                    tokio::time::timeout(std::time::Duration::from_millis(50), pending)
                         .await
                         .is_err()
                 );
@@ -1409,6 +1433,40 @@ pub(crate) mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn legacy_frame_past_its_target_is_still_presented_and_keeps_the_pipe() {
+        let (client, mut native) = tokio::io::duplex(1 << 20);
+        let (reader, writer) = tokio::io::split(client);
+        let mut pipe = AtlasPresenterPipe::new(writer, reader);
+        native
+            .write_all(b"atlas-native-ready input_enabled=false\n")
+            .await
+            .unwrap();
+        pipe.wait_ready(Instant::now() + std::time::Duration::from_secs(1))
+            .await
+            .unwrap();
+        native
+            .write_all(b"atlas-submitted frame_identity=1 tile_count=0 physical_present_receipt=false\n")
+            .await
+            .unwrap();
+        // The performance target passed before the write began.
+        let missed = Instant::now() - std::time::Duration::from_millis(50);
+        let submitted = pipe
+            .submit(
+                &test_frame(),
+                NativePresentationDeadline { ticks: 200, frequency: 1000 },
+                missed,
+                4096,
+            )
+            .await
+            .unwrap();
+        assert_eq!(submitted.frame_id, 1);
+        assert!(pipe.is_usable());
+        assert_eq!(pipe.last_committed_frame, 1);
+        let mut header = [0; 40];
+        native.read_exact(&mut header).await.unwrap();
     }
 
     #[tokio::test]
@@ -1816,7 +1874,8 @@ pub(crate) mod tests {
                 .await
                 .unwrap_err();
             assert!(error.to_string().contains("frame mismatch"));
-            assert!(pipe.poisoned && pipe.io.is_none());
+            // Rejected before any byte was written: the pipe stays usable.
+            assert!(pipe.is_usable());
         }
     }
 

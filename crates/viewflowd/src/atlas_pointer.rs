@@ -160,11 +160,14 @@ impl AtlasNativePointer {
         Ok(result)
     }
 
-    /// Sample the input process clock before sampling same-host QPC, so this
-    /// conversion cannot extend the original OS event deadline. An expired
-    /// motion may be dropped; an expired button or wheel retires the route.
+    /// Sample the input process clock before sampling same-host QPC. Motion is
+    /// replaceable: an expired motion is dropped and an oversized deadline is
+    /// clamped to the frame-rate target. Buttons, wheel and keys are ordered
+    /// state changes, so a late one is still delivered with a fresh operation
+    /// watchdog instead of retiring the route (a lost button-up would leave the
+    /// remote button held).
     /// # Errors
-    /// Rejects clock mismatch, future budgets, sequence/clock overflow.
+    /// Rejects clock mismatch and sequence/clock overflow.
     pub fn into_event(
         self,
         sequence: u64,
@@ -179,23 +182,15 @@ impl AtlasNativePointer {
         ensure!(!self.release, "input release must be routed as cleanup");
         let remaining = self.deadline_qpc.saturating_sub(qpc_now);
         let ns = u128::from(remaining) * 1_000_000_000 / u128::from(frequency);
-        if ns == 0 {
-            ensure!(
-                self.button.is_none() && self.wheel.is_none() && self.key.is_none(),
-                "atlas button or wheel expired; retire input route"
-            );
+        let ordered = self.button.is_some() || self.wheel.is_some() || self.key.is_some();
+        let ns = if ordered {
+            let budget = u128::from(crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS);
+            if ns == 0 || ns > budget { budget } else { ns }
+        } else if ns == 0 {
             return Ok(None);
-        }
-        let event_budget_ns = if self.button.is_some() || self.wheel.is_some() || self.key.is_some()
-        {
-            crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
         } else {
-            33_333_334
+            ns.min(33_333_334)
         };
-        ensure!(
-            ns <= u128::from(event_budget_ns),
-            "atlas pointer deadline exceeds event budget"
-        );
         let deadline = local_sample_ns
             .checked_add(u64::try_from(ns)?)
             .ok_or_else(|| anyhow::anyhow!("atlas pointer deadline overflow"))?;
@@ -542,7 +537,7 @@ pub(crate) mod tests {
     const KEYBOARD: &str = "atlas-keyboard-v1 stream_hi=0 stream_lo=99 atlas_frame=100 atlas_epoch=2 config_generation=3 layout_revision=4 window_hi=0 window_lo=8 placement_generation=4 source_epoch=7 source_frame=19 frame_identity=100 not_after_qpc=120 qpc_frequency=1000 usage_page=7 usage_id=4 state=1 repeat=0";
 
     #[test]
-    fn native_ordered_operation_budget_survives_conversion_without_extension() {
+    fn native_ordered_operation_budget_clamps_instead_of_failing() {
         for (kind, suffix) in [
             ("button", " button=1 state=1"),
             ("button", " button=1 state=2"),
@@ -562,12 +557,31 @@ pub(crate) mod tests {
                 converted.sample.sender_not_after_ns,
                 selection.sender_not_after_ns
             );
-            assert!(event.into_event(9, 1_000, 99, 1000).is_err());
+            // Oversized native budgets clamp to the operation watchdog.
+            let (selection, _) = event.into_event(9, 1_000, 99, 1000).unwrap().unwrap();
+            assert_eq!(selection.sender_not_after_ns, 5_000_001_000);
         }
         let motion =
             AtlasNativePointer::parse(&MOTION.replace("not_after_qpc=120", "not_after_qpc=5100"))
                 .unwrap();
-        assert!(motion.into_event(9, 1_000, 140, 1000).is_err());
+        let (selection, _) = motion.into_event(9, 1_000, 140, 1000).unwrap().unwrap();
+        assert_eq!(selection.sender_not_after_ns, 33_334_334);
+    }
+
+    #[test]
+    fn late_button_and_wheel_are_delivered_while_late_motion_is_dropped() {
+        for suffix in [" button=1 state=1", " button=1 state=2", " wheel_vertical_120=120 wheel_horizontal_120=0"] {
+            let kind = if suffix.contains("wheel") { "wheel" } else { "button" };
+            let line = format!("{}{suffix}", MOTION.replace("kind=motion", &format!("kind={kind}")));
+            let event = AtlasNativePointer::parse(&line).unwrap();
+            // The native deadline (qpc 120) passed long ago.
+            let (selection, converted) = event.into_event(9, 1_000, 10_000, 1000).unwrap().unwrap();
+            assert_eq!(selection.sender_not_after_ns, 5_000_001_000);
+            assert_eq!(converted.sample.sender_not_after_ns, 5_000_001_000);
+            assert!(converted.button.is_some() || converted.wheel.is_some());
+        }
+        let motion = AtlasNativePointer::parse(MOTION).unwrap();
+        assert!(motion.into_event(9, 1_000, 10_000, 1000).unwrap().is_none());
     }
 
     #[test]
@@ -582,7 +596,9 @@ pub(crate) mod tests {
         assert_eq!(event.sample.viewport_width, 0);
         assert!(event.button.is_none() && event.wheel.is_none() && !event.is_motion());
         assert_eq!(event.key.unwrap().usage_id, 4);
-        assert!(parsed.into_event(9, 1000, 120, 1000).is_err());
+        // An expired key is still delivered in order with a fresh watchdog.
+        let (late, _) = parsed.into_event(9, 1000, 120, 1000).unwrap().unwrap();
+        assert_eq!(late.sender_not_after_ns, 5_000_001_000);
         assert!(parsed.into_event(9, 1000, 110, 1001).is_err());
         assert!(parsed.into_event(9, 1000, 10, 1000).unwrap().is_some());
         let fields: Vec<_> = KEYBOARD.split(' ').collect();
@@ -653,14 +669,16 @@ pub(crate) mod tests {
         assert!(event.into_event(10, 1000, 120, 1000).unwrap().is_none());
         assert!(event.into_event(10, 1000, 121, 1000).unwrap().is_none());
         assert!(event.into_event(10, 1000, 110, 1001).is_err());
-        assert!(event.into_event(10, 1000, 10, 1000).is_err());
+        // Motion beyond the frame-rate target is clamped, not fatal.
+        let (clamped, _) = event.into_event(10, 1000, 10, 1000).unwrap().unwrap();
+        assert_eq!(clamped.sender_not_after_ns, 33_334_334);
         assert!(event.into_event(0, 1000, 110, 1000).is_err());
         let button = format!(
             "{} button=1 state=1",
             MOTION.replace("kind=motion", "kind=button")
         );
         let event = AtlasNativePointer::parse(&button).unwrap();
-        assert!(event.into_event(10, 1000, 120, 1000).is_err());
+        assert!(event.into_event(10, 1000, 120, 1000).unwrap().is_some());
         assert_eq!(
             event
                 .into_event(10, 1000, 110, 1000)
@@ -699,8 +717,10 @@ pub(crate) mod tests {
                 horizontal_delta_detents: -0.5,
             }
         );
-        assert!(parsed.into_event(10, 1000, 120, 1000).is_err());
-        assert!(parsed.into_event(10, 1000, 121, 1000).is_err());
+        for late in [120, 121] {
+            let (selection, _) = parsed.into_event(10, 1000, late, 1000).unwrap().unwrap();
+            assert_eq!(selection.sender_not_after_ns, 5_000_001_000);
+        }
         for invalid in ["+30", "030", "-0", "", "1.5", "32768", "-32769", "NaN"] {
             assert!(
                 AtlasNativePointer::parse(&line.replace("=30", &format!("={invalid}"))).is_err(),

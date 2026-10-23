@@ -128,6 +128,12 @@ impl AtlasInputRecoveryFence {
         self.0.changed.notify_waiters();
     }
 
+    /// The input owner reopens media after abandoning one window's recovery.
+    /// No native input is resumed; that window's route waits for a new notice.
+    pub(crate) fn release_abandoned_recovery(&self) {
+        self.clear();
+    }
+
     /// The input owner may reopen media after an exact rejected recovery
     /// selection only while native Cancel remains confirmed and drained.
     /// This does not resume native input or authorize the rejected event.
@@ -1125,18 +1131,18 @@ impl AtlasReceiverPresenter {
 
     /// Submit one already-authorized native recovery control.  This is an
     /// exclusive media-owner operation: callers must not attempt it from the
-    /// pointer/control task, and a failure retires the owned child.  Do not
-    /// race this with, or cancel, a `forward_next_*` future in `select!`;
-    /// drain the admitted handoff first, then service this request on the same
-    /// owner task.
+    /// pointer/control task.  Do not race this with, or cancel, a
+    /// `forward_next_*` future in `select!`; drain the admitted handoff first,
+    /// then service this request on the same owner task.
     ///
     /// `confirmation` is intentionally not a source authorization.  It is
     /// accepted only when every visual identity field names the exact newest
     /// native committed tile retained by this owner.
     /// # Errors
-    /// A stale/mismatched request or any child failure retires the presenter;
-    /// the caller must treat the response as terminal and retire its input
-    /// route rather than retrying a control record.
+    /// A stale or late request is rejected before it reaches the native pipe:
+    /// the child and its proxy windows stay up and the input owner retries or
+    /// abandons that window's recovery.  Only a broken native pipe
+    /// retires the child (`self.is_retired()` then reports it).
     pub async fn recover_input_with_clock(
         &mut self,
         confirmation: crate::atlas_input_recovery::InputRecoveryConfirmation,
@@ -1147,11 +1153,8 @@ impl AtlasReceiverPresenter {
             !self.recovery_fenced,
             "atlas input recovery transaction is already active"
         );
-        self.recovery_fenced = true;
         let (receiver, mut child) = self.active.take().context("atlas owner retired")?;
-        // A mismatched request is terminal just like a malformed control
-        // record.  Taking ownership before validation prevents a supervisor
-        // from probing stale historical tiles and then continuing this child.
+        self.recovery_fenced = true;
         let committed = if self.activity.is_some() {
             self.activity_committed.iter().rev().find(|frame|
                 frame.tiles.iter().any(|tile| tile.window_id.0 == confirmation.window))
@@ -1169,12 +1172,19 @@ impl AtlasReceiverPresenter {
             Ok(()) => child.recover_input(confirmation, deadline, clock).await,
             Err(error) => Err(error),
         };
+        self.recovery_fenced = false;
         match result {
             Ok(recovered) => {
                 self.active = Some((receiver, child));
-                self.recovery_fenced = false;
                 self.recovery_fence.clear();
                 Ok(recovered)
+            }
+            Err(error) if child.is_active() => {
+                // Abandon this attempt only. The fence stays armed so the input
+                // owner can resend with a fresh deadline; it releases the fence
+                // when it gives up, and an idle request wait releases it too.
+                self.active = Some((receiver, child));
+                Err(error)
             }
             Err(error) => {
                 drop(receiver);
@@ -1186,6 +1196,11 @@ impl AtlasReceiverPresenter {
                 }
             }
         }
+    }
+
+    /// Whether a native fault retired the owned child.
+    pub(crate) fn is_retired(&self) -> bool {
+        self.active.is_none()
     }
 
     /// Wait for the recovery request while continuing the sole reliable source
@@ -1206,7 +1221,7 @@ impl AtlasReceiverPresenter {
         self.drain_activity().await?;
         let fence = self.recovery_fence.clone();
         let waiting = async {
-            tokio::time::timeout_at(deadline, async {
+            let Ok(result) = tokio::time::timeout_at(deadline, async {
                 tokio::select! {
                     () = fence.cleared() => Ok(None),
                     request = requests.recv() => request.map(Some)
@@ -1214,7 +1229,14 @@ impl AtlasReceiverPresenter {
                 }
             })
             .await
-            .context("atlas recovery media-owner request wait expired")?
+            else {
+                // An idle input owner is not a media fault. Reopen media; the
+                // owner re-arms the fence when it has a request to send.
+                eprintln!("atlas-recovery-fence-released reason=request-wait-idle");
+                fence.clear();
+                return Ok(None);
+            };
+            result
         };
         let result = self
             .active
@@ -1231,13 +1253,18 @@ impl AtlasReceiverPresenter {
 
     /// Service an input-supervisor request on the sole media owner.  A dropped
     /// response receiver changes no recovery outcome; native work has either
-    /// completed exactly or the child has been retired.
+    /// completed exactly, was never written, or the child has been retired.
+    /// # Errors
+    /// Ends the media owner only for a retired child or a desktop receipt
+    /// failure; a rejected input recovery attempt is answered and survived.
     pub async fn handle_input_recovery_with_clock(
         &mut self,
         request: AtlasInputRecoveryRequest,
         clock: impl FnMut() -> Result<(u64, u64)>,
     ) -> Result<()> {
         let deadline=request.confirmation.native_write_deadline(request.deadline);
+        // A desktop receipt failure leaves its pipe poisoned, so it stays terminal.
+        let desktop = matches!(request.confirmation, NativeGeometryControl::Desktop { .. });
         let result = match request.confirmation {
             NativeGeometryControl::Input(confirmation) => self.recover_input_with_clock(confirmation, deadline, clock).await,
             NativeGeometryControl::Desktop { ack, native_sequence } => {
@@ -1250,7 +1277,12 @@ impl AtlasReceiverPresenter {
         let failure = result.as_ref().err().map(|error| format!("{error:#}"));
         let _ = request.response.send(result);
         if let Some(failure) = failure {
-            anyhow::bail!("atlas input recovery transaction failed: {failure}")
+            // A rejected attempt is answered to the input owner; only a
+            // retired native child ends this media owner.
+            if desktop || self.is_retired() {
+                anyhow::bail!("atlas input recovery transaction failed: {failure}")
+            }
+            eprintln!("atlas-recovery-attempt-abandoned reason={failure}");
         }
         Ok(())
     }
@@ -1308,17 +1340,23 @@ impl AtlasReceiverPresenter {
         let result = async {
             let instant = Instant::now();
             let qpc = sample_qpc()?;
-            let source_remaining = receiver
-                .admission
-                .remaining_budget_ns(&frame.layout, now())
-                .map_err(|error| anyhow::anyhow!("atlas handoff expired: {error:?}"))?;
+            // The codec consumed this frame; presenting it late is a
+            // performance miss, not a reason to drop the chain. An exhausted
+            // budget becomes the smallest native target so the child still
+            // presents the frame and counts it as a late commit.
+            let source_remaining = match receiver.admission.remaining_budget_ns(&frame.layout, now()) {
+                Ok(remaining) => remaining,
+                Err(crate::atlas_runtime::AtlasAdmissionError::Expired) => 0,
+                Err(error) => anyhow::bail!("atlas handoff rejected: {error:?}"),
+            };
             let call_remaining = u64::try_from(
                 deadline
                     .saturating_duration_since(Instant::now())
                     .as_nanos(),
             )
             .unwrap_or(u64::MAX);
-            let remaining = source_remaining.min(call_remaining);
+            let one_tick_ns = 1_000_000_000_u64.div_ceil(qpc.frequency.max(1));
+            let remaining = source_remaining.min(call_remaining).max(one_tick_ns);
             let native = NativePresentationDeadline::from_remaining_budget(
                 qpc.ticks,
                 qpc.frequency,

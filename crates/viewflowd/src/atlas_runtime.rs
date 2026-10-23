@@ -46,7 +46,6 @@ pub struct AtlasReceiver {
     observed: Option<AtlasFrame>,
     pending: Option<AtlasFrame>,
     delivered: Option<AtlasFrame>,
-    finish_latest: bool,
 }
 
 impl AtlasReceiver {
@@ -75,7 +74,6 @@ impl AtlasReceiver {
             observed: None,
             pending: None,
             delivered: None,
-            finish_latest: false,
         })
     }
 
@@ -87,13 +85,16 @@ impl AtlasReceiver {
         self.stage_with_expiry(manifest, now, false).map(|_| ())
     }
 
-    /// V3 may discard a fully validated expired manifest before native decode.
-    /// Observe its lineage but never install it as admissible pending media.
+    /// Both the feedback (V3) and legacy protocols finish the latest manifest
+    /// even after it missed the latency target: a newer manifest already
+    /// replaces a pending one, so lateness never queues, and dropping media the
+    /// codec consumed would break its reference chain and retire the stream.
+    /// Never returns `Ok(true)`; the flag is kept for the session interface.
     pub(crate) fn stage_with_expiry(
         &mut self,
         manifest: AtlasFrame,
         now: u64,
-        recover_expired: bool,
+        _recover_expired: bool,
     ) -> Result<bool, AtlasAdmissionError> {
         manifest
             .validate()
@@ -110,22 +111,22 @@ impl AtlasReceiver {
         if let Some(old) = &self.observed {
             validate_successor(old, &manifest)?;
         }
-        self.finish_latest = recover_expired;
         self.fresh_for_delivery(&manifest, now)?;
         self.observed = Some(manifest.clone());
         self.pending = Some(manifest);
         Ok(false)
     }
 
-    // The feedback protocol permits only one frame in flight. Its latest
-    // manifest cannot be obsolete merely because it missed the latency target.
+    // Only one manifest is pending at a time. The latest one cannot be
+    // obsolete merely because it missed the latency target (a performance
+    // miss, not a stream fault); future timestamps remain invalid.
     pub(crate) fn fresh_for_delivery(
         &self,
         layout: &AtlasFrame,
         now: u64,
     ) -> Result<(), AtlasAdmissionError> {
         match self.fresh(layout, now) {
-            Err(AtlasAdmissionError::Expired) if self.finish_latest => Ok(()),
+            Err(AtlasAdmissionError::Expired) => Ok(()),
             result => result,
         }
     }
@@ -358,13 +359,13 @@ mod tests {
         );
         assert_eq!(gate.stage_with_expiry(layout(2), 151, true), Ok(false));
         assert!(gate.admit(media(2), codec(2, true), 151).is_ok());
-        // V2 continues to fail closed, without consuming the rejected manifest.
+        // V2 also finishes a late latest manifest instead of retiring media.
         let mut legacy = receiver();
+        assert!(legacy.stage(layout(1), 151).is_ok());
         assert_eq!(
-            legacy.stage(layout(1), 151),
-            Err(AtlasAdmissionError::Expired)
+            legacy.admit(media(1), codec(1, true), 160).unwrap().layout,
+            layout(1)
         );
-        assert!(legacy.stage(layout(1), 110).is_ok());
     }
 
     #[test]
@@ -401,10 +402,9 @@ mod tests {
         gate.stage(layout(2), 110).unwrap();
         assert!(gate.stage(layout(1), 110).is_err());
         assert!(gate.admit(media(1), codec(1, true), 110).is_err());
-        assert!(matches!(
-            gate.admit(media(2), codec(2, true), 152),
-            Err(AtlasAdmissionError::Expired)
-        ));
+        // Late delivery is a performance miss; the original timestamp stays.
+        let late = gate.admit(media(2), codec(2, true), 152).unwrap();
+        assert_eq!(late.layout.source_submitted_ns, layout(2).source_submitted_ns);
     }
     #[test]
     fn layout_and_source_changes_need_new_generation() {

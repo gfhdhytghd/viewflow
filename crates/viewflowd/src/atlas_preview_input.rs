@@ -15,10 +15,15 @@ use tokio::sync::{mpsc, oneshot, watch};
 use viewflow_protocol::{AtlasFrame, DomainControl, Id128, WindowPointerAuthorization, wire};
 
 // A cancellation control is not an input event, but it still must not wait
-// indefinitely for source cleanup.  This is an owner-local bound; it is never
-// copied into a source lease or used to extend a native event deadline.
-const RECOVERY_SOURCE_SELECTION_BUDGET_NS: u64 = 100_000_000;
-const RECOVERY_NATIVE_BUDGET_NS: u64 = 100_000_000;
+// indefinitely for source cleanup.  These are owner-local operation watchdogs,
+// not frame-rate targets: a missed one abandons or retries that recovery
+// attempt for its window only. They are never copied into a source lease or
+// used to extend a native event deadline.
+const RECOVERY_SOURCE_SELECTION_BUDGET_NS: u64 = 1_000_000_000;
+const RECOVERY_NATIVE_BUDGET_NS: u64 = 1_000_000_000;
+// A native Resume rejected before it reached the pipe is resent with a fresh
+// deadline; after this many attempts the recovery is abandoned for that window.
+const RECOVERY_NATIVE_ATTEMPTS: u8 = 3;
 
 // Existing exact-frame authority cannot answer a newly issued selection: the
 // source may reject that selection and END the old grant. Keep its event behind
@@ -54,6 +59,7 @@ struct PendingAtlasRecovery {
     source_deadline_ns: u64,
     drained: bool,
     receipt: Option<oneshot::Receiver<Result<u64>>>,
+    attempts: u8,
 }
 
 struct PendingRejectedGesture {
@@ -1758,8 +1764,19 @@ impl AtlasPreviewInput {
         };
         if let Some(receipt) = &mut pending.receipt {
             match receipt.try_recv() {
-                Ok(result) => {
-                    result.context("native rejected gesture control failed")?;
+                Ok(Err(error)) => {
+                    // The native child is still alive (a retired child closes
+                    // the receipt). Drop this rejected gesture only; the source
+                    // already refused it and the route keeps running.
+                    eprintln!(
+                        "atlas-rejected-gesture-abandoned window={:?} reason={error:#}",
+                        pending.rejected.selection.window_id
+                    );
+                    recovery.rejected = None;
+                    recovery.fence.release_abandoned_recovery();
+                    return Ok(None);
+                }
+                Ok(Ok(_)) => {
                     pending.receipt = None;
                     if pending.cancel_confirmed {
                         recovery.rejected = None;
@@ -1895,10 +1912,16 @@ impl AtlasPreviewInput {
         preview: Option<&mut WindowPreviewInput>,
         input_sequence: &mut u64,
     ) -> Result<Option<viewflow_protocol::AtlasWindowSelection>> {
-        ensure!(
-            qpc.0 >= notice.observed_qpc && qpc.1 == notice.frequency,
-            "atlas recovery notice clock is stale or changed"
-        );
+        // The QPC sample and the native observation come from different tasks,
+        // so an earlier sample is ordering, not staleness. A changed frequency
+        // makes this notice unusable; skip it instead of ending the route.
+        if qpc.1 != notice.frequency {
+            eprintln!(
+                "atlas-recovery-notice-ignored reason=clock-frequency window={:?}",
+                notice.selection.window_id
+            );
+            return Ok(None);
+        }
         if notice.physical_drained {
             let recovery = self
                 .recovery
@@ -2027,6 +2050,7 @@ impl AtlasPreviewInput {
             source_deadline_ns: deadline,
             drained: false,
             receipt: None,
+            attempts: 0,
         });
         Ok(None)
     }
@@ -2047,32 +2071,29 @@ impl AtlasPreviewInput {
             if !pending.drained {
                 return Ok(true);
             }
-            ensure!(
-                committed
-                    .back()
-                    .is_some_and(|frame| pending.selection.matches(frame)),
-                "atlas recovery committed tile disappeared"
-            );
-            if pending.fresh_authorization.is_none() {
-                ensure!(
-                    now_ns < pending.source_deadline_ns,
-                    "atlas recovery source authorization timed out"
-                );
+            if !committed
+                .back()
+                .is_some_and(|frame| pending.selection.matches(frame))
+            {
+                return Ok(self.abandon_recovery("committed-tile-changed"));
+            }
+            let Some(fresh) = pending.fresh_authorization else {
+                if now_ns >= pending.source_deadline_ns {
+                    return Ok(self.abandon_recovery("source-authorization-watchdog"));
+                }
+                return Ok(true);
+            };
+            if pending.receipt.is_some() {
                 return Ok(true);
             }
-            crate::input_runtime::conservative_authorization_deadline(
-                pending
-                    .fresh_authorization
-                    .expect("checked above")
-                    .source_not_after_ns,
+            if crate::input_runtime::conservative_authorization_deadline(
+                fresh.source_not_after_ns,
                 clock,
                 now_ns,
             )
-            .map_err(|error| {
-                anyhow::anyhow!("atlas recovery source lease is not current: {error:?}")
-            })?;
-            if !pending.drained || pending.receipt.is_some() {
-                return Ok(true);
+            .is_err()
+            {
+                return Ok(self.abandon_recovery("source-lease-not-current"));
             }
             (
                 pending.notice,
@@ -2081,10 +2102,9 @@ impl AtlasPreviewInput {
             )
         };
         let (ticks, frequency) = (self.qpc)()?;
-        ensure!(
-            ticks >= start.0.observed_qpc && frequency == start.0.frequency,
-            "atlas recovery QPC changed before native resume"
-        );
+        if frequency != start.0.frequency {
+            return Ok(self.abandon_recovery("qpc-frequency-changed"));
+        }
         let budget_ticks = u64::try_from(
             (u128::from(frequency) * u128::from(RECOVERY_NATIVE_BUDGET_NS)).div_ceil(1_000_000_000),
         )?
@@ -2141,6 +2161,22 @@ impl AtlasPreviewInput {
         Ok(true)
     }
 
+    /// Drop one window's geometry recovery and reopen media. The route and
+    /// every other window keep running; a later native notice starts afresh.
+    /// Returns `false`, meaning recovery no longer holds the input loop.
+    fn abandon_recovery(&mut self, reason: &str) -> bool {
+        if let Some(recovery) = &mut self.recovery {
+            if let Some(pending) = recovery.pending.take() {
+                eprintln!(
+                    "atlas-recovery-abandoned window={:?} reason={reason}",
+                    pending.selection.window_id
+                );
+            }
+            recovery.fence.release_abandoned_recovery();
+        }
+        false
+    }
+
     fn collect_recovery_receipt(&mut self) -> Result<bool> {
         let Some(recovery) = &mut self.recovery else {
             return Ok(false);
@@ -2163,7 +2199,23 @@ impl AtlasPreviewInput {
                 recovery.pending = None;
                 Ok(false)
             }
-            Ok(Err(error)) => Err(error.context("atlas native recovery rejected")),
+            Ok(Err(error)) => {
+                // The media owner answers a rejected attempt only while the
+                // native child is still alive; a retired child closes the
+                // receipt instead. Resend with a fresh deadline, then give up
+                // on this window's recovery rather than the whole route.
+                pending.receipt = None;
+                pending.attempts = pending.attempts.saturating_add(1);
+                if pending.attempts < RECOVERY_NATIVE_ATTEMPTS {
+                    eprintln!(
+                        "atlas-recovery-retry attempt={} reason={error:#}",
+                        pending.attempts
+                    );
+                    return Ok(true);
+                }
+                eprintln!("atlas-recovery-native-failed reason={error:#}");
+                Ok(self.abandon_recovery("native-attempts-exhausted"))
+            }
             Err(oneshot::error::TryRecvError::Empty) => Ok(true),
             Err(oneshot::error::TryRecvError::Closed) => {
                 anyhow::bail!("atlas recovery media owner dropped its receipt")
@@ -2731,7 +2783,7 @@ impl AtlasPreviewInput {
                     let (qpc, frequency) = (self.qpc)()?;
                     native.into_event(sequence, local_ns, qpc, frequency)?
                 };
-                let Some((mut selection, event)) = candidate else {
+                let Some((mut selection, mut event)) = candidate else {
                     continue;
                 };
                 ensure!(
@@ -2743,18 +2795,54 @@ impl AtlasPreviewInput {
                     "atlas keyboard is not locally enabled"
                 );
                 selection.activate_keyboard &= self.allow_keyboard;
-                if clock.now_ns() >= selection.sender_not_after_ns {
-                    ensure!(
-                        event.is_motion(),
-                        "atlas input expired awaiting committed layout: sequence={} window={:?} frame={} button={} wheel={} key={}",
-                        event.sample.sample_sequence,
-                        event.sample.presented.window,
-                        event.sample.presented.frame,
-                        event.button.is_some(),
-                        event.wheel.is_some(),
-                        event.key.is_some()
-                    );
-                    continue;
+                let now_ns = clock.now_ns();
+                if now_ns >= selection.sender_not_after_ns {
+                    if event.is_motion() {
+                        continue;
+                    }
+                    // Buttons, wheel and keys are ordered state changes. Waiting
+                    // past the native deadline is a performance miss, so rebind
+                    // to the newest committed picture of the same window with a
+                    // fresh operation watchdog instead of ending the route.
+                    let deadline = now_ns
+                        .checked_add(
+                            crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+                                - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS,
+                        )
+                        .context("late atlas input deadline overflow")?;
+                    let committed = self.committed.borrow();
+                    let newest = committed.iter().rev().find(|frame| {
+                        frame.tiles.iter().any(|tile| tile.window_id == selection.window_id)
+                    });
+                    match newest {
+                        Some(frame) => {
+                            let activate_keyboard = selection.activate_keyboard;
+                            selection = viewflow_protocol::AtlasWindowSelection::from_frame(
+                                frame,
+                                selection.window_id,
+                                selection.sequence,
+                                deadline,
+                            )
+                            .map_err(|e| anyhow::anyhow!("invalid late input frame: {e:?}"))?;
+                            selection.activate_keyboard = activate_keyboard;
+                            event.sample.presented = viewflow_core::PresentedInputIdentity {
+                                window: selection.window_id,
+                                frame: selection.source_frame_id,
+                                geometry_epoch: selection.source_geometry_epoch,
+                            };
+                        }
+                        None if committed.is_empty() => selection.sender_not_after_ns = deadline,
+                        None => {
+                            // The window left every committed layout; it has no
+                            // target. Route cleanup releases anything it held.
+                            eprintln!(
+                                "atlas-input-dropped reason=window-not-presented sequence={} window={:?}",
+                                event.sample.sample_sequence, selection.window_id
+                            );
+                            continue;
+                        }
+                    }
+                    event.sample.sender_not_after_ns = deadline;
                 }
                 {
                     let committed = self.committed.borrow();
