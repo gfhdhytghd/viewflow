@@ -7,6 +7,7 @@
 //! a one-in-flight diagnostic; a VFGP write/submission acknowledgement is not
 //! a compositor scanout acknowledgement.
 
+#[cfg(any(windows, test))]
 use crate::sync_ext::LockExt;
 #[cfg(any(windows, test))]
 use std::sync::atomic::AtomicU8;
@@ -90,11 +91,11 @@ const WINDOW: Id128 = Id128(1);
 const DEADLINE_NS: u64 = 33_333_333;
 #[cfg(any(windows, test))]
 const PRESENTER_ACK_WAIT: Duration = Duration::from_nanos(DEADLINE_NS);
-// This is only a bounded wait for an authoritative no-bind disposition after
-// the already fixed source freshness deadline. It never makes a Presented
-// frame fresh or extends the native QPC deadline encoded in VFGP v4.
-#[cfg(any(windows, test))]
-const EXPIRED_DISPOSITION_GRACE: Duration = Duration::from_millis(100);
+// Operation watchdog, not a frame deadline. A frame that misses 33 ms is
+// dropped or REJECTed and its in-flight write/disposition is finished; only an
+// operation with no progress for this long is treated as a hung peer/child.
+#[cfg(any(windows, test, all(target_os = "linux", feature = "native-nvenc")))]
+const OPERATION_WATCHDOG: Duration = Duration::from_secs(5);
 #[cfg(any(test, all(target_os = "linux", feature = "native-nvenc")))]
 const CONTROL_RESPONSE_WAIT: Duration = Duration::from_secs(1);
 const DEFAULT_MAX_FRAME_BYTES: usize = 4 * 1024 * 1024;
@@ -562,6 +563,7 @@ struct ReceiverStats {
     reject_late: u64,
     reject_after_assembly: u64,
     reject_after_validation: u64,
+    reject_after_presenter_ack: u64,
     logged_rejects: u8,
 }
 
@@ -587,6 +589,9 @@ impl ReceiverStats {
             }
             "after_validation" => {
                 self.reject_after_validation = self.reject_after_validation.saturating_add(1)
+            }
+            "after_presenter_ack" => {
+                self.reject_after_presenter_ack = self.reject_after_presenter_ack.saturating_add(1)
             }
             _ => unreachable!("fixed receiver reject reason"),
         }
@@ -617,13 +622,14 @@ impl ReceiverStats {
 
     fn print(&self) {
         eprintln!(
-            "coded receiver summary: frames={} reject_timeout={} reject_late={} reject_after_assembly={} reject_after_validation={} reject_detail_lines={}",
+            "coded receiver summary: frames={} reject_timeout={} reject_late={} reject_after_assembly={} reject_after_validation={} reject_detail_lines={} reject_after_presenter_ack={}",
             self.frames,
             self.reject_timeout,
             self.reject_late,
             self.reject_after_assembly,
             self.reject_after_validation,
             self.logged_rejects,
+            self.reject_after_presenter_ack,
         );
     }
 }
@@ -2296,15 +2302,25 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                     0
                 };
                 let source_submitted_ns = frame.color.source_submitted_ns;
+                let Some(dispatch_budget) =
+                    remaining_capture_dispatch_budget(source_submitted_ns, clock.now_ns())
+                else {
+                    // Nothing of this AU has left. Like the post-encode stale
+                    // path above, it may be a reference: recover with an IDR.
+                    awaiting_idr = true;
+                    idr_floor = None;
+                    encoder.request_keyframe();
+                    stats.post_encode_stale = stats.post_encode_stale.saturating_add(1);
+                    continue;
+                };
                 let frame_dispatch_deadline = Instant::now()
-                    .checked_add(
-                        remaining_capture_dispatch_budget(source_submitted_ns, clock.now_ns())
-                            .context("coded frame expired before metadata dispatch")?,
-                    )
+                    .checked_add(dispatch_budget)
                     .context("coded frame dispatch deadline overflow")?;
-                // Metadata is an admission-slot commitment; fail closed if
-                // all bytes cannot leave before this frame's original capture
-                // deadline.  Never refresh the budget from wall clock now.
+                // Metadata is an admission-slot commitment on the reliable
+                // stream, so a started record is always finished. If it ends
+                // after the capture deadline, the plane sends below observe the
+                // expired dispatch and the receiver's exact REJECT drives IDR
+                // recovery. Only a write stalled past the watchdog is fatal.
                 let (meta_kind, meta_payload) = if let Some(reference) = alpha_reference_key {
                     let mut combined = Vec::with_capacity(FRAME_META_BYTES + ALPHA_REFERENCE_BYTES);
                     combined.extend_from_slice(&meta);
@@ -2315,8 +2331,8 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                 };
                 poll_with_drain(
                     write_record(&mut tx, meta_kind, &meta_payload),
-                    frame_dispatch_deadline,
-                    "coded frame metadata write exceeded capture deadline",
+                    Instant::now() + OPERATION_WATCHDOG,
+                    "coded frame metadata write stalled",
                     || drain_unencoded_capture(source),
                 )
                 .await?;
@@ -2420,8 +2436,17 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                         stats.recoverable_rejected = stats.recoverable_rejected.saturating_add(1);
                         continue;
                     }
-                    FrameControl::Ack if datagram_too_large || expired_dispatch => {
+                    FrameControl::Ack | FrameControl::LateAck
+                        if datagram_too_large || expired_dispatch =>
+                    {
                         bail!("receiver ACKed a frame whose datagram send was incomplete")
+                    }
+                    FrameControl::LateAck => {
+                        // Presented, so the decoder chain is intact, but the
+                        // receipt crossed the source deadline in transit. Keep
+                        // streaming; only this stale frame authorizes no input.
+                        stats.acknowledged = stats.acknowledged.saturating_add(1);
+                        continue;
                     }
                     FrameControl::Ack => {}
                 }
@@ -2494,7 +2519,6 @@ struct QueuedPresenterFrame {
     source_submitted_ns: u64,
     record: Vec<u8>,
     decode_only: bool,
-    recover_expired_v4: bool,
     completion: oneshot::Sender<std::result::Result<NativeCompletion, String>>,
 }
 
@@ -2570,7 +2594,6 @@ enum PresenterOutput {
 #[cfg(any(windows, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ExpectedNativeCompletion {
-    Presented(u64),
     DecodeOnly(u64),
     PresentedOrExpired(u64),
 }
@@ -2617,7 +2640,6 @@ struct CompressedPresenter {
     stdout: Option<JoinHandle<()>>,
     stderr: Option<JoinHandle<()>>,
     completions: Mutex<VecDeque<oneshot::Receiver<std::result::Result<NativeCompletion, String>>>>,
-    recover_expired_v4: bool,
     pointer_samples: tokio::sync::watch::Receiver<crate::window_preview_input::PreviewPointerState>,
     pointer_events: Mutex<Option<crate::window_preview_input::PreviewPointerEventReceiver>>,
     retirement: Option<std::result::Result<(), String>>,
@@ -2916,7 +2938,6 @@ impl CompressedPresenter {
             stdout,
             stderr,
             completions: Mutex::new(VecDeque::new()),
-            recover_expired_v4,
             pointer_samples,
             pointer_events: Mutex::new(pointer_events),
             retirement: None,
@@ -2924,17 +2945,11 @@ impl CompressedPresenter {
     }
 
     fn queue(&self, tag: FrameIdentity, source_submitted_ns: u64, record: Vec<u8>) -> Result<()> {
-        self.queue_inner(
-            tag,
-            source_submitted_ns,
-            record,
-            false,
-            self.recover_expired_v4,
-        )
+        self.queue_inner(tag, source_submitted_ns, record, false)
     }
 
     fn queue_decode_only(&self, tag: FrameIdentity, record: Vec<u8>) -> Result<()> {
-        self.queue_inner(tag, 0, record, true, false)
+        self.queue_inner(tag, 0, record, true)
     }
 
     fn queue_inner(
@@ -2943,7 +2958,6 @@ impl CompressedPresenter {
         source_submitted_ns: u64,
         record: Vec<u8>,
         decode_only: bool,
-        recover_expired_v4: bool,
     ) -> Result<()> {
         let mut latest = self.state.latest.lock_or_recover();
         if latest.is_some() || self.state.closed.load(Ordering::Acquire) {
@@ -2955,7 +2969,6 @@ impl CompressedPresenter {
             source_submitted_ns,
             record,
             decode_only,
-            recover_expired_v4,
             completion,
         });
         self.completions
@@ -2971,16 +2984,13 @@ impl CompressedPresenter {
             .lock_or_recover()
             .pop_front()
             .context("presenter completion missing")?;
-        let wait = if self.recover_expired_v4 {
-            PRESENTER_ACK_WAIT + EXPIRED_DISPOSITION_GRACE
-        } else {
-            PRESENTER_ACK_WAIT
-        };
-        match tokio::time::timeout(wait, completion).await {
+        // The worker finishes every started frame and owns the hung-presenter
+        // watchdog; this outer bound also covers the pre-write slot.
+        match tokio::time::timeout(PRESENTER_ACK_WAIT + OPERATION_WATCHDOG, completion).await {
             Ok(Ok(Ok(completion))) => Ok(completion),
             Ok(Ok(Err(error))) => bail!("compressed presenter failed: {error}"),
             Ok(Err(_)) => bail!("compressed presenter worker stopped"),
-            Err(_) => bail!("compressed presenter ACK timed out"),
+            Err(_) => bail!("compressed presenter made no progress"),
         }
     }
 
@@ -3040,7 +3050,6 @@ fn compressed_presenter_writer(
                 source_submitted_ns,
                 record,
                 decode_only,
-                recover_expired_v4,
                 completion,
             }) = queued
             else {
@@ -3062,46 +3071,14 @@ fn compressed_presenter_writer(
                     Ok(None) => {}
                     Err(error) => return Err(format!("query compressed presenter: {error}")),
                 }
-                // Fix both absolute waits before any pipe byte can leave. The
-                // disposition grace is not a presentation deadline: only an
-                // exact Expired outcome may use it.
-                let freshness_deadline = if decode_only {
-                    None
-                } else {
-                    let Some(remaining) =
-                        remaining_freshness_budget(source_submitted_ns, estimate, clock.now_ns())
-                    else {
-                        if recover_expired_v4 {
-                            return Ok(NativeCompletion::Expired(tag.frame));
-                        }
-                        return Err("coded frame became late before VFGP write".to_owned());
-                    };
-                    Some(
-                        Instant::now()
-                            .checked_add(remaining)
-                            .ok_or_else(|| "coded frame deadline overflow".to_owned())?,
-                    )
-                };
-                let disposition_deadline = freshness_deadline
-                    .map(|deadline| {
-                        if recover_expired_v4 {
-                            deadline
-                                .checked_add(EXPIRED_DISPOSITION_GRACE)
-                                .ok_or_else(|| "expired disposition deadline overflow".to_owned())
-                        } else {
-                            Ok(deadline)
-                        }
-                    })
-                    .transpose()?;
-                if let Some(deadline) = freshness_deadline {
-                    if Instant::now() >= deadline {
-                        // No VFGP bytes have been written; the unbound local
-                        // slot can truthfully use the same recovery outcome.
-                        if recover_expired_v4 {
-                            return Ok(NativeCompletion::Expired(tag.frame));
-                        }
-                        return Err("coded frame became late before VFGP write".to_owned());
-                    }
+                // A frame already late before any pipe byte leaves was never
+                // bound by the child, with or without VFGP v4 recovery, so the
+                // local Expired outcome is truthful and drives REJECT/IDR.
+                if !decode_only
+                    && remaining_freshness_budget(source_submitted_ns, estimate, clock.now_ns())
+                        .is_none_or(|remaining| remaining.is_zero())
+                {
+                    return Ok(NativeCompletion::Expired(tag.frame));
                 }
                 *state.acknowledgement.lock_or_recover() = None;
                 state.acknowledgement_read_ns.store(0, Ordering::Release);
@@ -3115,32 +3092,33 @@ fn compressed_presenter_writer(
                 if let Err(error) = written {
                     return Err(format!("write compressed presenter stdin: {error}"));
                 }
+                // An authoritative native Expired is accepted from any child;
+                // it only proves the frame was not bound.
                 let expected = if decode_only {
                     ExpectedNativeCompletion::DecodeOnly(tag.frame)
-                } else if recover_expired_v4 {
-                    ExpectedNativeCompletion::PresentedOrExpired(tag.frame)
                 } else {
-                    ExpectedNativeCompletion::Presented(tag.frame)
+                    ExpectedNativeCompletion::PresentedOrExpired(tag.frame)
                 };
+                // Wait for this frame's own disposition even when it is late,
+                // so a late receipt can never be mistaken for the next frame.
+                // Lateness is judged by the caller; only a child that makes no
+                // progress for the watchdog ends the presenter.
                 let native_completion = wait_for_presenter_completion(
                     &state.acknowledgement,
                     &state.acknowledgement_changed,
                     &state.closed,
                     expected,
-                    if decode_only {
-                        Instant::now() + PRESENTER_STARTUP_WAIT
-                    } else {
-                        disposition_deadline.expect("live frame fixed deadline")
-                    },
+                    Instant::now()
+                        + if decode_only {
+                            PRESENTER_STARTUP_WAIT
+                        } else {
+                            OPERATION_WATCHDOG
+                        },
                 );
                 completion_observed_ns = clock.now_ns();
                 let native_completion = native_completion?;
-                if let Some(freshness_deadline) = freshness_deadline {
-                    return validate_live_native_completion(
-                        native_completion,
-                        tag.frame,
-                        freshness_deadline,
-                    );
+                if !decode_only {
+                    return validate_live_native_completion(native_completion, tag.frame);
                 }
                 Ok(native_completion)
             })();
@@ -4356,29 +4334,26 @@ async fn receive(o: Options, ep: &Endpoint) -> Result<()> {
             let Some(remaining) = remaining.and_then(|remaining| {
                 native_deadline_budget_after_presentation_reserve(remaining, o.presentation_reserve)
             }) else {
-                if !o.presentation_reserve.is_zero() {
-                    // This occurs before a VFGP record exists, so the native
-                    // child cannot have bound the frame. Keep recovery in the
-                    // existing exact REJECT path rather than restamping it.
-                    receiver_stats.reject(
-                        "after_validation",
-                        tag,
-                        first_packet_us,
-                        first_source_age_upper_ns,
-                        color_seen_packets,
-                        color_expected_chunks,
-                        alpha_seen_packets,
-                        alpha_expected_chunks,
-                    );
-                    tokio::time::timeout(
-                        remaining_session(session_deadline)?,
-                        write_record(&mut tx, REJECT, &tag.encode()),
-                    )
-                    .await
-                    .context("coded receiver session timed out writing reserved-budget REJECT")??;
-                    continue 'frames;
-                }
-                bail!("coded frame expired before native deadline derivation")
+                // This occurs before a VFGP record exists, so the native child
+                // cannot have bound the frame. Keep recovery in the existing
+                // exact REJECT path rather than restamping it.
+                receiver_stats.reject(
+                    "after_validation",
+                    tag,
+                    first_packet_us,
+                    first_source_age_upper_ns,
+                    color_seen_packets,
+                    color_expected_chunks,
+                    alpha_seen_packets,
+                    alpha_expected_chunks,
+                );
+                tokio::time::timeout(
+                    remaining_session(session_deadline)?,
+                    write_record(&mut tx, REJECT, &tag.encode()),
+                )
+                .await
+                .context("coded receiver session timed out writing expired REJECT")??;
+                continue 'frames;
             };
             let deadline =
                 crate::gpu_presenter_pipe::NativePresentationDeadline::from_remaining_budget(
@@ -4451,7 +4426,21 @@ async fn receive(o: Options, ep: &Endpoint) -> Result<()> {
             bail!("unexpected non-presenter live disposition")
         }
         if !fresh(cp.source_submitted_ns, estimate, clock.now_ns()) {
-            bail!("coded frame became late after presenter submission ACK")
+            // Presented late: a missed target, not a failure. REJECT keeps the
+            // stale frame from authorizing input and asks for a fresh IDR,
+            // which every sender version already handles.
+            receiver_stats.reject(
+                "after_presenter_ack",
+                tag,
+                first_packet_us,
+                first_source_age_upper_ns,
+                color_seen_packets,
+                color_expected_chunks,
+                alpha_seen_packets,
+                alpha_expected_chunks,
+            );
+            write_record(&mut tx, REJECT, &tag.encode()).await?;
+            continue 'frames;
         };
         write_record(&mut tx, PRESENTER_ACK, &tag.encode()).await?;
         // The source cannot authorize a captured frame until this exact video
@@ -4536,6 +4525,8 @@ fn sendable_after_recovery(
 enum FrameControl {
     Reject,
     Ack,
+    /// A presenter ACK received after the source freshness deadline.
+    LateAck,
 }
 
 /// Both replies are authenticated by QUIC and exact frame identity. A REJECT
@@ -4567,7 +4558,9 @@ fn admit_frame_control(
             .checked_add(DEADLINE_NS)
             .is_none_or(|deadline| now_ns >= deadline)
     {
-        bail!("presenter ACK arrived after source freshness deadline")
+        // A missed latency target, not a protocol error: the caller keeps the
+        // session and withholds input authorization for this stale frame.
+        return Ok(FrameControl::LateAck);
     }
     Ok(control)
 }
@@ -4690,14 +4683,14 @@ fn wait_for_presenter_completion(
     expected: ExpectedNativeCompletion,
     deadline: Instant,
 ) -> std::result::Result<NativeCompletion, String> {
-    let mut acknowledgement = acknowledgement.lock().expect("presenter ACK lock");
+    let mut acknowledgement = acknowledgement.lock_or_recover();
     while acknowledgement.is_none() && !closed.load(Ordering::Acquire) {
         let remaining = deadline
             .checked_duration_since(Instant::now())
             .ok_or_else(|| "compressed presenter disposition timed out".to_owned())?;
         let (next, result) = changed
             .wait_timeout(acknowledgement, remaining)
-            .expect("presenter ACK wait");
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         acknowledgement = next;
         if result.timed_out() && acknowledgement.is_none() {
             return Err("compressed presenter disposition timed out".to_owned());
@@ -4706,15 +4699,14 @@ fn wait_for_presenter_completion(
     let got = acknowledgement
         .take()
         .ok_or_else(|| "compressed presenter closed before disposition".to_owned())?;
-    // A wakeup or an already-populated slot is not evidence it arrived within
-    // the fixed grace. Consume nothing after that absolute deadline.
+    // A wakeup or an already-populated slot is not evidence it arrived before
+    // the caller's watchdog. Consume nothing after that absolute deadline.
     if Instant::now() >= deadline {
         return Err("compressed presenter disposition timed out".to_owned());
     }
     let matches = matches!(
         (expected, got),
-        (ExpectedNativeCompletion::Presented(expected), NativeCompletion::Presented(actual))
-            | (ExpectedNativeCompletion::DecodeOnly(expected), NativeCompletion::DecodeOnly(actual))
+        (ExpectedNativeCompletion::DecodeOnly(expected), NativeCompletion::DecodeOnly(actual))
             | (ExpectedNativeCompletion::PresentedOrExpired(expected), NativeCompletion::Presented(actual))
             | (ExpectedNativeCompletion::PresentedOrExpired(expected), NativeCompletion::Expired(actual))
             if expected == actual
@@ -4728,19 +4720,17 @@ fn wait_for_presenter_completion(
 }
 
 #[cfg(any(windows, test))]
+/// Checks identity only. A late Presented is a missed latency target that the
+/// receive loop answers with REJECT; it is not a presenter failure.
 fn validate_live_native_completion(
     completion: NativeCompletion,
     identity: u64,
-    freshness_deadline: Instant,
 ) -> std::result::Result<NativeCompletion, String> {
     match completion {
-        NativeCompletion::Expired(actual) if actual == identity => Ok(completion),
-        NativeCompletion::Presented(actual) if actual == identity => {
-            if Instant::now() >= freshness_deadline {
-                Err("coded frame became late after presenter ACK".to_owned())
-            } else {
-                Ok(completion)
-            }
+        NativeCompletion::Expired(actual) | NativeCompletion::Presented(actual)
+            if actual == identity =>
+        {
+            Ok(completion)
         }
         _ => Err(format!(
             "native completion {completion:?} cannot satisfy live frame {identity}"
@@ -4757,9 +4747,11 @@ fn take_presenter_slot<T>(
     ready: &Condvar,
     closed: &AtomicBool,
 ) -> Option<T> {
-    let mut latest = latest.lock().expect("presenter queue lock");
+    let mut latest = latest.lock_or_recover();
     while latest.is_none() && !closed.load(Ordering::Acquire) {
-        latest = ready.wait(latest).expect("presenter queue wait");
+        latest = ready
+            .wait(latest)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
     }
     latest.take()
 }
@@ -7535,7 +7527,7 @@ mod tests {
         let changed = std::sync::Arc::new(Condvar::new());
         let closed = AtomicBool::new(false);
         let freshness_deadline = Instant::now() + Duration::from_millis(1);
-        let disposition_deadline = freshness_deadline + EXPIRED_DISPOSITION_GRACE;
+        let disposition_deadline = Instant::now() + OPERATION_WATCHDOG;
         let producer = {
             let acknowledgement = acknowledgement.clone();
             let changed = changed.clone();
@@ -7559,8 +7551,7 @@ mod tests {
         producer.join().unwrap();
         assert!(Instant::now() >= freshness_deadline);
         assert_eq!(
-            validate_live_native_completion(NativeCompletion::Expired(7), 7, freshness_deadline,)
-                .unwrap(),
+            validate_live_native_completion(NativeCompletion::Expired(7), 7).unwrap(),
             NativeCompletion::Expired(7)
         );
         assert!(
@@ -7597,22 +7588,46 @@ mod tests {
     }
 
     #[test]
-    fn late_presented_completion_is_not_admitted_by_expiry_grace() {
-        let deadline = Instant::now() + Duration::from_millis(1);
-        std::thread::sleep(Duration::from_millis(2));
-        assert!(
-            validate_live_native_completion(NativeCompletion::Presented(7), 7, deadline)
-                .unwrap_err()
-                .contains("late")
+    fn late_presented_completion_is_a_missed_target_not_a_presenter_failure() {
+        // The worker no longer fails the presenter for lateness; the receive
+        // loop answers a late Presented with REJECT and keeps the attempt.
+        assert_eq!(
+            validate_live_native_completion(NativeCompletion::Presented(7), 7).unwrap(),
+            NativeCompletion::Presented(7)
         );
-        assert!(
-            validate_live_native_completion(
-                NativeCompletion::Presented(8),
-                7,
-                Instant::now() + Duration::from_millis(1),
+        assert!(validate_live_native_completion(NativeCompletion::Presented(8), 7).is_err());
+        assert!(validate_live_native_completion(NativeCompletion::DecodeOnly(7), 7).is_err());
+    }
+
+    #[test]
+    fn late_disposition_is_awaited_for_its_own_frame_until_the_watchdog() {
+        // A disposition arriving well after the 33 ms target is still the
+        // matching receipt for this frame, so the next frame cannot consume it.
+        let acknowledgement = std::sync::Arc::new(Mutex::new(None));
+        let changed = std::sync::Arc::new(Condvar::new());
+        let closed = AtomicBool::new(false);
+        let late = {
+            let acknowledgement = acknowledgement.clone();
+            let changed = changed.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(PRESENTER_ACK_WAIT + Duration::from_millis(5));
+                *acknowledgement.lock().unwrap() = Some(NativeCompletion::Presented(3));
+                changed.notify_one();
+            })
+        };
+        assert_eq!(
+            wait_for_presenter_completion(
+                &acknowledgement,
+                &changed,
+                &closed,
+                ExpectedNativeCompletion::PresentedOrExpired(3),
+                Instant::now() + OPERATION_WATCHDOG,
             )
-            .is_err()
+            .unwrap(),
+            NativeCompletion::Presented(3)
         );
+        late.join().unwrap();
+        assert!(acknowledgement.lock().unwrap().is_none());
     }
 
     #[test]
@@ -7634,7 +7649,7 @@ mod tests {
                 &acknowledgement,
                 &changed,
                 &closed,
-                ExpectedNativeCompletion::Presented(1),
+                ExpectedNativeCompletion::PresentedOrExpired(1),
                 started + Duration::from_millis(2),
             )
             .unwrap_err()
@@ -7658,7 +7673,7 @@ mod tests {
                 &acknowledgement,
                 &changed,
                 &closed,
-                ExpectedNativeCompletion::Presented(1),
+                ExpectedNativeCompletion::PresentedOrExpired(1),
                 Instant::now() + Duration::from_secs(1),
             )
             .unwrap_err()
@@ -7668,7 +7683,7 @@ mod tests {
     }
 
     #[test]
-    fn late_reject_recovers_but_late_ack_is_not_admitted() {
+    fn late_reject_and_late_ack_both_keep_the_session() {
         let tag = FrameIdentity {
             window: WINDOW,
             frame: 9,
@@ -7677,13 +7692,20 @@ mod tests {
         };
         let payload = tag.encode();
         let expired_now = DEADLINE_NS + 1;
-        // Control is allowed to outlive the frame's presentation budget only
-        // for a REJECT, which is proof of no submission and triggers IDR.
+        // A late REJECT is proof of no submission and triggers IDR. A late ACK
+        // is a missed target: it withholds input authorization, not the session.
         assert_eq!(
             admit_frame_control(REJECT, &payload, tag, 0, expired_now).unwrap(),
             FrameControl::Reject
         );
-        assert!(admit_frame_control(PRESENTER_ACK, &payload, tag, 0, expired_now).is_err());
+        assert_eq!(
+            admit_frame_control(PRESENTER_ACK, &payload, tag, 0, expired_now).unwrap(),
+            FrameControl::LateAck
+        );
+        assert_eq!(
+            admit_frame_control(PRESENTER_ACK, &payload, tag, 0, DEADLINE_NS - 1).unwrap(),
+            FrameControl::Ack
+        );
         assert!(
             admit_frame_control(
                 REJECT,
@@ -7717,7 +7739,7 @@ mod tests {
                     &acknowledgement,
                     &changed,
                     &closed,
-                    ExpectedNativeCompletion::Presented(1),
+                    ExpectedNativeCompletion::PresentedOrExpired(1),
                     Instant::now() + Duration::from_secs(1),
                 )
             })
