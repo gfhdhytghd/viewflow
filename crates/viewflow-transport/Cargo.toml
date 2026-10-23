@@ -14,6 +14,10 @@ rustls-pemfile = "2.2.0"
 tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "time"] }
 viewflow-protocol = { path = "../viewflow-protocol" }
 
+[features]
+# Exposes private wire decoders to the out-of-workspace fuzz crate only.
+fuzzing = []
+
 [dev-dependencies]
 viewflow-core = { path = "../viewflow-core" }
 viewflow-platform = { path = "../viewflow-platform" }

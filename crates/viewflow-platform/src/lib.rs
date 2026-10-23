@@ -16,8 +16,17 @@ mod touchpad_state;
 pub mod windows_input;
 #[cfg(windows)]
 pub mod windows_input_service;
-#[cfg(any(windows, test))]
+#[cfg(any(windows, test, feature = "fuzzing"))]
 mod windows_input_wire;
+
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzz_api {
+    pub use crate::windows_input_wire::{
+        REQUEST_SIZE, decode as decode_windows_input, decode_result as decode_windows_result,
+        encode as encode_windows_input, encode_result as encode_windows_result,
+    };
+}
 pub mod windows_proxy;
 #[cfg(windows)]
 mod windows_touchpad;

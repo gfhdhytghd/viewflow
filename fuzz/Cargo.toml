@@ -1,0 +1,181 @@
+[package]
+name = "viewflow-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+license = "GPL-3.0-only"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+bytes = "1.11.1"
+libfuzzer-sys = "0.4"
+prost = "0.13.5"
+viewflow-deployment-marker = { path = "../crates/viewflow-deployment-marker" }
+viewflow-hyprland = { path = "../crates/viewflow-hyprland" }
+viewflow-platform = { path = "../crates/viewflow-platform", features = ["fuzzing"] }
+viewflow-protocol = { path = "../crates/viewflow-protocol" }
+viewflow-transport = { path = "../crates/viewflow-transport", features = ["fuzzing"] }
+viewflowd = { path = "../crates/viewflowd", features = ["fuzzing"] }
+
+# Kept out of the main workspace so nightly/sanitizer builds never affect it.
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "sidecar_request"
+path = "fuzz_targets/sidecar_request.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sidecar_response"
+path = "fuzz_targets/sidecar_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sidecar_quarantine_marker"
+path = "fuzz_targets/sidecar_quarantine_marker.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "windows_input_wire"
+path = "fuzz_targets/windows_input_wire.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "reliable_decode"
+path = "fuzz_targets/reliable_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "codec_descriptor"
+path = "fuzz_targets/codec_descriptor.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "alpha_rle"
+path = "fuzz_targets/alpha_rle.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "raw_bgra"
+path = "fuzz_targets/raw_bgra.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "media_datagram"
+path = "fuzz_targets/media_datagram.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "media_reassembly"
+path = "fuzz_targets/media_reassembly.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "control_envelope"
+path = "fuzz_targets/control_envelope.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "protocol_roundtrip"
+path = "fuzz_targets/protocol_roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hyprcapture_stream"
+path = "fuzz_targets/hyprcapture_stream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hyprcapture_gpu"
+path = "fuzz_targets/hyprcapture_gpu.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "native_window_input"
+path = "fuzz_targets/native_window_input.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cursor_feedback"
+path = "fuzz_targets/cursor_feedback.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "atlas_feedback"
+path = "fuzz_targets/atlas_feedback.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "audio_wire"
+path = "fuzz_targets/audio_wire.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "clipboard_record"
+path = "fuzz_targets/clipboard_record.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "local_ipc_text"
+path = "fuzz_targets/local_ipc_text.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "deployment_marker"
+path = "fuzz_targets/deployment_marker.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "hyprland_ipc"
+path = "fuzz_targets/hyprland_ipc.rs"
+test = false
+doc = false
+bench = false

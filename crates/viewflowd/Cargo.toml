@@ -31,6 +31,8 @@ native-nvenc = []
 native-gpu-nvenc = ["native-nvenc"]
 # The old feature remains an alias for callers; CUDA itself is optional.
 native-gpu-media = ["native-gpu-nvenc"]
+# Exposes private wire decoders to the out-of-workspace fuzz crate only.
+fuzzing = ["viewflow-platform/fuzzing", "viewflow-transport/fuzzing"]
 
 [build-dependencies]
 cc = "1.4.4"

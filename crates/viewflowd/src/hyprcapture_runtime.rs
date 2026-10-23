@@ -1077,6 +1077,15 @@ fn parse_response(
     })
 }
 
+#[cfg(feature = "fuzzing")]
+pub(crate) fn fuzz_parse_response(
+    bytes: &[u8],
+    expected_address: &str,
+    max_pixel_bytes: usize,
+) -> bool {
+    parse_response(bytes, expected_address, max_pixel_bytes).is_ok()
+}
+
 fn bounded_dimension(value: Option<&Value>, name: &str) -> Result<usize> {
     let value = value
         .and_then(Value::as_u64)
