@@ -72,6 +72,7 @@ mod bootstrap_runtime;
 pub mod clipboard_runtime;
 pub mod clipboard_sync;
 mod clock_retention;
+pub mod doctor;
 mod cursor_feedback;
 #[cfg(target_os = "linux")]
 mod cursor_native_drag;
@@ -201,6 +202,8 @@ Usage:
   viewflowd acceptance-query --acceptance-socket <PATH> --operation-id <ID>
   viewflowd force-release-input --receipt <PATH> --operation-id <ID> --linux-evidence-sha256 <LOWER64>  (Windows only)
   viewflowd input-status  (macOS only; checks permission without posting input)
+  viewflowd doctor [--cert <PEM> --key <PEM> --ca <PEM>] [--bind <IP:PORT>] [--peer <IP:PORT> --server-name <TLS_NAME>] [--timeout-ms <MS>] [--format text|json]
+                                   Read-only setup checks with fix hints; never posts input
 
 Serve options:
   --input-script <PATH>            Send one validated smoke-input script once
@@ -292,6 +295,7 @@ pub enum Command {
     InputStatus,
     Serve(ServeConfig),
     Connect(ConnectConfig),
+    Doctor(doctor::DoctorConfig),
     #[cfg(unix)]
     ArmQuiesce(ArmQuiesceConfig),
     #[cfg(unix)]
@@ -318,7 +322,7 @@ where
     let mut arguments = arguments.into_iter().map(Into::into);
     let mode = arguments
         .next()
-        .ok_or_else(|| anyhow!("missing command: expected serve or connect"))?;
+        .ok_or_else(|| anyhow!("missing command: expected serve, connect or doctor"))?;
     let options = parse_options(arguments)?;
     match mode.as_str() {
         #[cfg(target_os = "macos")]
@@ -338,6 +342,7 @@ where
                 Ok(Command::Connect(parse_connect_config(&options, identity)?))
             }
         }
+        "doctor" => Ok(Command::Doctor(doctor::DoctorConfig::from_options(&options)?)),
         #[cfg(unix)]
         "arm-quiesce" => Ok(Command::ArmQuiesce(parse_arm_quiesce_config(&options)?)),
         #[cfg(unix)]
@@ -868,6 +873,7 @@ pub async fn run(command: Command) -> Result<()> {
         }
         Command::Serve(config) => run_server(config).await,
         Command::Connect(config) => run_client(config).await,
+        Command::Doctor(config) => doctor::run(&config).await,
         #[cfg(unix)]
         Command::ArmQuiesce(config) => arm_quiescence(&config),
         #[cfg(unix)]

@@ -6,7 +6,7 @@ use quinn::{
 };
 use rustls::{
     RootCertStore,
-    pki_types::{CertificateDer, PrivateKeyDer},
+    pki_types::{CertificateDer, PrivateKeyDer, UnixTime},
     server::WebPkiClientVerifier,
 };
 
@@ -49,6 +49,40 @@ impl PeerIdentity {
             private_key,
             roots,
         })
+    }
+
+    /// Checks that the private key belongs to the leaf certificate.
+    ///
+    /// # Errors
+    ///
+    /// Returns the rustls error for a mismatched or unusable key.
+    pub fn check_key_matches_certificate(&self) -> Result<(), BoxError> {
+        rustls::ServerConfig::builder()
+            .with_no_client_auth()
+            .with_single_cert(
+                self.certificate_chain.clone(),
+                self.private_key.clone_key(),
+            )?;
+        Ok(())
+    }
+
+    /// Verifies the leaf certificate against this identity's own pairing roots
+    /// at `now`, as a remote peer would during the handshake.
+    ///
+    /// # Errors
+    ///
+    /// Returns the rustls verification error, such as an expired certificate
+    /// or one issued by a different pairing authority.
+    pub fn check_certificate_at(&self, now: UnixTime) -> Result<(), rustls::Error> {
+        let verifier = WebPkiClientVerifier::builder(Arc::new(self.roots.clone()))
+            .build()
+            .map_err(|error| rustls::Error::General(error.to_string()))?;
+        let (leaf, intermediates) = self
+            .certificate_chain
+            .split_first()
+            .ok_or(rustls::Error::NoCertificatesPresented)?;
+        verifier.verify_client_cert(leaf, intermediates, now)?;
+        Ok(())
     }
 }
 
@@ -135,5 +169,51 @@ mod activity_compatibility {
         negotiate(false, false).await;
         negotiate(true, false).await;
         negotiate(false, true).await;
+    }
+}
+
+#[cfg(test)]
+mod identity_checks {
+    use super::*;
+    use std::time::Duration;
+
+    const CERT: &[u8] = include_bytes!("../tests/fixtures/peer.pem");
+    const KEY: &[u8] = include_bytes!("../tests/fixtures/peer.key");
+    const CA: &[u8] = include_bytes!("../tests/fixtures/ca.pem");
+    // Inside the fixture validity window (2026-08-29 .. 2036-08-26).
+    const VALID_AT: u64 = 1_800_000_000;
+
+    #[test]
+    fn fixture_identity_passes() {
+        let identity = PeerIdentity::from_pem(CERT, KEY, CA).unwrap();
+        identity.check_key_matches_certificate().unwrap();
+        identity
+            .check_certificate_at(UnixTime::since_unix_epoch(Duration::from_secs(VALID_AT)))
+            .unwrap();
+    }
+
+    #[test]
+    fn key_for_another_certificate_is_reported() {
+        let identity = PeerIdentity::from_pem(CA, KEY, CA).unwrap();
+        assert!(identity.check_key_matches_certificate().is_err());
+    }
+
+    #[test]
+    fn expiry_and_clock_skew_are_reported() {
+        let identity = PeerIdentity::from_pem(CERT, KEY, CA).unwrap();
+        let at = |secs| UnixTime::since_unix_epoch(Duration::from_secs(secs));
+        assert!(matches!(
+            identity.check_certificate_at(at(2_200_000_000)),
+            Err(rustls::Error::InvalidCertificate(
+                rustls::CertificateError::Expired | rustls::CertificateError::ExpiredContext { .. }
+            ))
+        ));
+        assert!(matches!(
+            identity.check_certificate_at(at(1_000_000_000)),
+            Err(rustls::Error::InvalidCertificate(
+                rustls::CertificateError::NotValidYet
+                    | rustls::CertificateError::NotValidYetContext { .. }
+            ))
+        ));
     }
 }
