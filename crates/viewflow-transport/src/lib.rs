@@ -10,6 +10,12 @@ mod reassembly;
 mod reliable;
 mod tls;
 
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzz_api {
+    pub use crate::reliable::{decode as decode_reliable, encode_blob_chunk, encode_control};
+}
+
 use std::{error::Error, fmt};
 
 use bytes::Bytes;

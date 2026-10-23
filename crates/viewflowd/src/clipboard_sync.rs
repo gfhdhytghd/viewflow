@@ -204,6 +204,18 @@ async fn receive_update<R: AsyncRead + Unpin>(reader: &mut R, remote_role: u8) -
     })
 }
 
+/// Fuzz hook: one peer record, then the same content check used before the
+/// local clipboard is written. A `&[u8]` reader never returns `Pending`.
+#[cfg(feature = "fuzzing")]
+pub(crate) fn fuzz_receive_record(mut bytes: &[u8], remote_role: u8) -> bool {
+    let future = std::pin::pin!(receive_update(&mut bytes, remote_role));
+    let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+    match future.poll(&mut context) {
+        std::task::Poll::Ready(Ok(update)) => update.content.validate().is_ok(),
+        _ => false,
+    }
+}
+
 #[derive(Default)]
 struct State {
     clock: u64,

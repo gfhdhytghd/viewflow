@@ -5312,3 +5312,7 @@ pub(crate) mod atlas_growth;
 pub mod atlas_occlusion;
 
 pub mod audio_wire;
+
+#[cfg(feature = "fuzzing")]
+#[doc(hidden)]
+pub mod fuzz_api;

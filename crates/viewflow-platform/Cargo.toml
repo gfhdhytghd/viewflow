@@ -10,6 +10,10 @@ serde_json = "1.0"
 sha2 = "0.10"
 viewflow-protocol = { path = "../viewflow-protocol" }
 
+[features]
+# Exposes private wire decoders to the out-of-workspace fuzz crate only.
+fuzzing = []
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [
     "Win32_Foundation",
