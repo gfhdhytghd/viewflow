@@ -5,6 +5,11 @@ use viewflow_protocol::{FramePlane, FramePlaneReady, WindowId};
 
 use crate::{ClockEstimate, MediaDatagram, MediaPlane};
 
+// Normal sessions keep one pending frame per live window plane. A peer that
+// sprays window IDs would otherwise grow this without bound; past the cap the
+// oldest incomplete frame is dropped, which normal traffic never reaches.
+const MAX_PENDING_PLANES: usize = 256;
+
 #[derive(Clone, Copy, Debug)]
 pub struct MediaAssemblerConfig {
     pub deadline_ns: u64,
@@ -245,6 +250,16 @@ impl MediaAssembler {
                 received_ns,
                 payload: packet.payload,
             }));
+        }
+        if self.pending.len() >= MAX_PENDING_PLANES && !self.pending.contains_key(&frame_key) {
+            if let Some(oldest) = self
+                .pending
+                .iter()
+                .min_by_key(|(_, pending)| pending.source_submitted_ns)
+                .map(|(key, _)| *key)
+            {
+                self.pending.remove(&oldest);
+            }
         }
         let pending = self
             .pending
@@ -589,4 +604,32 @@ mod tests {
         assert_eq!(plane.ready.source_submitted_ns, 10_000_000);
         assert_eq!(plane.ready.received_ns, 13_000_000);
     }
+
+    #[test]
+    fn pending_frames_are_capped_by_evicting_the_oldest() {
+        let mut assembler = MediaAssembler::new(MediaAssemblerConfig::default());
+        let packet = |window: u128, submitted: u64| MediaDatagram {
+            window_id: viewflow_protocol::Id128(window),
+            frame_id: 1,
+            geometry_epoch: 1,
+            plane: MediaPlane::Color,
+            chunk_index: 0,
+            chunk_count: 2,
+            source_submitted_ns: submitted,
+            payload: Bytes::from_static(b"x"),
+        };
+        for window in 1..=(MAX_PENDING_PLANES as u128 + 10) {
+            let submitted = u64::try_from(window).unwrap();
+            assert!(assembler.push_any(packet(window, submitted), submitted).unwrap().is_none());
+        }
+        assert_eq!(assembler.pending.len(), MAX_PENDING_PLANES);
+        assert!(!assembler.pending.keys().any(|key| key.plane.window_id == viewflow_protocol::Id128(1)));
+        // The newest window still completes normally.
+        let newest = MAX_PENDING_PLANES as u128 + 10;
+        let mut last = packet(newest, 0);
+        last.source_submitted_ns = u64::try_from(newest).unwrap();
+        last.chunk_index = 1;
+        assert!(assembler.push_any(last, 0).unwrap().is_some());
+    }
+
 }
