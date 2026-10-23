@@ -725,6 +725,62 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "native-gpu-nvenc")]
+    #[test]
+    fn activity_capture_lanes_do_not_wait_for_other_windows_or_steal_inflight_leases() {
+        use crate::gpu_atlas_capture::AtlasCapturePool;
+        use std::collections::BTreeSet;
+        use viewflow_protocol::Id128;
+        let (first, first_sender)=pair();let (second, second_sender)=pair();
+        let mut pool=AtlasCapturePool::new(vec![(Id128(1),receiver(first)),(Id128(2),receiver(second))],1000).unwrap();
+        let image=eventfd();let fence=eventfd();
+        let priority=BTreeSet::from([Id128(1)]);let background=BTreeSet::from([Id128(2)]);
+        send(&first_sender,&frame(1,1),&[image.as_raw_fd(),fence.as_raw_fd()]);
+        let mut priority_work=pool.poll_subset_at(&priority,10).unwrap().unwrap();
+        assert_eq!(priority_work.len(),1);
+        assert!(pool.poll_subset_at(&priority,10).unwrap().is_none());
+        assert!(pool.poll_subset_at(&background,10).unwrap().is_none());
+        send(&second_sender,&frame(1,1),&[image.as_raw_fd(),fence.as_raw_fd()]);
+        let mut background_work=pool.poll_subset_at(&background,10).unwrap().unwrap();
+        assert_eq!(background_work.len(),1);
+        assert!(pool.poll_ready_at(10).is_err());
+        // No GPU import occurred: test leases may now release explicitly.
+        let mut source=background_work.pop().unwrap();source.receiver.release_after_source_reads(&source.frame).unwrap();
+        pool.restore_subset(vec![(source.window,source.receiver)]).unwrap();
+        assert!(pool.poll_subset_at(&priority,10).unwrap().is_none());
+        let mut source=priority_work.pop().unwrap();source.receiver.release_after_source_reads(&source.frame).unwrap();
+        pool.restore_subset(vec![(source.window,source.receiver)]).unwrap();
+        assert_eq!(pool.windows().len(),2);
+        assert!(pool.poll_subset_at(&priority,10).unwrap().is_none());
+    }
+
+    #[cfg(feature = "native-gpu-nvenc")]
+    #[test]
+    fn activity_available_batch_skips_slow_peer_and_withdraws_after_reads() {
+        use crate::gpu_atlas_capture::AtlasCapturePool;
+        use std::collections::BTreeSet;
+        use viewflow_protocol::Id128;
+        let (first, first_sender) = pair(); let (second, _second_sender) = pair();
+        let mut pool = AtlasCapturePool::new(vec![(Id128(1), receiver(first)), (Id128(2), receiver(second))], 1000).unwrap();
+        let image = eventfd(); let fence = eventfd();
+        send(&first_sender, &frame(1,1), &[image.as_raw_fd(), fence.as_raw_fd()]);
+        let all = BTreeSet::from([Id128(1),Id128(2)]);
+        let mut batch = pool.poll_available_at(&all,10).unwrap();
+        assert_eq!(batch.len(),1);
+        assert_eq!(batch[0].window,Id128(1));
+        assert!(pool.source_reads_pending(Id128(1)));
+        pool.withdraw_activity(Id128(1)).unwrap();
+        assert_eq!(pool.windows(), &BTreeSet::from([Id128(2)]));
+        assert!(pool.source_reads_pending(Id128(1)));
+        // The synthetic lease was never imported to a GPU. Its source-read
+        // boundary can be completed explicitly without input or focus changes.
+        let mut source = batch.pop().unwrap();
+        source.receiver.release_after_source_reads(&source.frame).unwrap();
+        pool.restore_subset(vec![(source.window,source.receiver)]).unwrap();
+        assert!(!pool.source_reads_pending(Id128(1)));
+        assert!(pool.poll_available_at(&BTreeSet::from([Id128(2)]),10).unwrap().is_empty());
+    }
+
     #[test]
     fn receives_exact_two_fds_and_explicitly_releases() {
         let (socket, sender) = pair();

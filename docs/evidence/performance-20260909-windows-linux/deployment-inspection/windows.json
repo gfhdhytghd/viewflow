@@ -1,0 +1,27 @@
+{
+  "config_path": "C:\\Users\\wilf\\Viewflow\\desktop-test\\receive.json",
+  "config_hash": "F822FAAA945015E120679BB4F46822B8A941CFCB842D22476E7D834AD9DC90C0",
+  "reverse": {
+    "args": [
+      "-6144",
+      "-780",
+      "0",
+      "2676"
+    ],
+    "native": "C:\\Users\\wilf\\Viewflow\\desktop-test\\viewflow_windows_reverse.exe"
+  },
+  "tasks": [
+    {
+      "name": "ViewflowMain-Active",
+      "state": "Ready",
+      "priority": 7,
+      "actions": [
+        {
+          "Execute": "powershell.exe",
+          "Arguments": "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File C:\\Users\\wilf\\Viewflow\\desktop-test\\main-session.ps1",
+          "WorkingDirectory": null
+        }
+      ]
+    }
+  ]
+}

@@ -120,3 +120,38 @@ journalctl --user -u viewflow-desktop.service
 `cursor suppression disable on handoff: win32_status=...`，不阻断正常输入。
 现有实际鼠标移动事件处理保留；写入成功不等同于已验证当前桌面的光标可见，
 实际切换后的显示仍由用户验收。诊断 probe 不触发此设置，也不发送输入。
+
+## 2026-09-12：独立输入通道的物理坐标映射
+
+登录前 `viewflowd serve` 没有视频接收端的 `DesktopPointerDisplay` 配置。
+独立光标发送端已将坐标换算为目标输出像素（以千分之一像素传输），但原
+输入服务管道拒绝没有映射的绝对位置，返回 `RejectedInvalidInput`，因此连接
+正常仍可能完全无法移动光标。
+
+现在管道允许省略映射；控制台输入工作线程绑定当前输入桌面并启用 per-monitor
+DPI awareness 后，按实际虚拟桌面像素范围处理这些位置。显式视频映射保持
+原行为，越界位置仍返回坐标错误。显示尺寸必须与发送端配置匹配。
+
+本次 Linux 22 项、Windows 原生 27 项输入测试通过，包含无映射管道往返、
+负坐标、完整像素范围和越界检查。输入服务原生 release 构建已部署，安装
+SHA256 为 `3A19806B4C7995C580FA61A82BE4C629ACE7C74AB887E1F4D9D06B37B72B9882`。
+无输入诊断返回 `secure-desktop-access=ok input-injected=false`；鼠标实际移动
+及锁屏交互仍等待用户验收。
+
+## 控制中心的动态 Windows 发现
+
+`tools/viewflow-target.sh` 保持先发送 HDMI 切换命令，再准备输入通道的顺序。
+Windows 分支启动 `viewflow-windows-input.service`，不再启动旧视频服务。
+目标准备失败时保留原输入通道，HDMI 不回切。
+
+输入模板的 `remote` 可配置为 `WindowsVM:44149`，并增加 `peer_discovery`：
+`hostname`、可选 `hostnames`、稳定网卡 `mac`、`ssh_user`、`ssh_host_key_alias`。
+`tools/desktop_peer_discovery.py` 使用该网卡的 IPv4 邻居记录及主机名解析收集
+候选，沿用已信任的 SSH 主机密钥并核对 Windows 主机名；不自动接受陌生密钥。
+仅生成的运行配置写入发现的 IP，发现元数据不传给 Rust 协议配置解析器。
+每次输入服务启动和子进程断线重启时重新发现地址。若 Windows 尚未产生邻居
+记录且主机名不可解析，会等待/报告未发现，不将其他电脑当作该 Windows。
+
+控制中心、登录前接收任务启动和就绪检查使用同一发现结果，不再写死 `.70`
+或 `.131`。该按钮是 HDMI/输入路由选择；Mac 的窗口共享仍按已有 systemd
+依赖联动，Windows 分支使用登录前也可用的独立输入服务。

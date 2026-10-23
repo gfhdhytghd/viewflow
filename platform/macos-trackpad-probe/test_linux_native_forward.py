@@ -5,7 +5,7 @@ import json
 import subprocess
 import threading
 from unittest.mock import patch
-from linux_native_forward import ViewflowRoute, NativeRawDevice, AsyncRoute
+from linux_native_forward import ViewflowRoute, NativeRawDevice, AsyncRoute, CompositeRoute
 from linux_native_forward import NativeEncoder, NativeDevice, captured_for_route, PRESSURE, MAJOR, MINOR, ORIENTATION, EV_KEY, BTN_LEFT
 from linux_forward import TRACKING, X, Y, EV_ABS, EV_SYN, SYN_REPORT, SYN_DROPPED
 
@@ -15,6 +15,24 @@ def decode(p):
 
 
 class NativeForwardTests(unittest.TestCase):
+    def test_composite_route_follows_either_viewport_and_observes_release(self):
+        class Route:
+            enabled = False
+            calls = 0
+            def active(self):
+                self.calls += 1
+                return self.enabled
+        primary, sidecar = Route(), Route()
+        route = CompositeRoute([primary, sidecar])
+        self.assertFalse(route.active())
+        primary.enabled = True
+        self.assertTrue(route.active())
+        primary.enabled = False; sidecar.enabled = True
+        self.assertTrue(route.active())
+        self.assertEqual(primary.calls, sidecar.calls)
+        sidecar.enabled = False
+        self.assertFalse(route.active())
+
     def test_route_query_cannot_block_physical_report_reader(self):
         entered, release = threading.Event(), threading.Event()
         class Route:
@@ -143,6 +161,22 @@ class NativeForwardTests(unittest.TestCase):
             self.assertTrue(route.active())
             with patch('os.readlink', side_effect=FileNotFoundError):
                 self.assertFalse(route.active())
+
+    def test_named_mac_route_uses_its_own_readiness_and_capture_state(self):
+        config = {'remote': 'mac:44139', 'pointer': {'cursor_monitor_id': 2}}
+        status = {'connected': 1, 'phase': 3, 'remote': [2, 3072, 1590, 1539, 1155]}
+        def opened(path, *args):
+            if path == '/mac-config': return io.StringIO(json.dumps(config))
+            if path == '/mac-ready': return io.StringIO('456')
+            if path == '/proc/456/cmdline': return io.BytesIO(b'vf-cursor-peer\0--config\0/mac-config\0')
+            raise AssertionError(f'Unexpected shared route path: {path}')
+        route = ViewflowRoute('/mac-config', 'mac', '/mac-ready', 'macos')
+        with patch('builtins.open', side_effect=opened), patch('os.readlink', return_value='/bin/vf-cursor-peer'), patch('subprocess.run') as run:
+            run.return_value.stdout = json.dumps(status)
+            self.assertTrue(route.active())
+            self.assertEqual(run.call_args.args[0], ['hyprctl', 'repl', 'return hl.plugin.viewflow.capture_status("macos")'])
+            run.return_value.stdout = json.dumps(dict(status, phase=0))
+            self.assertFalse(route.active())
 
     def test_viewflow_route_and_return_release(self):
         config = {'remote':'172.16.105.83:44139', 'pointer':{'cursor_monitor_id':2}}

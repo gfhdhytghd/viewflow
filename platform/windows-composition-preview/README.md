@@ -1,5 +1,20 @@
 # Windows composition backdrop diagnostic
 
+For passive atlas measurements, set
+`VIEWFLOW_ATLAS_DIAGNOSTIC_MOUSE_PASSTHROUGH=1` before launching the process.
+It makes proxy windows layered, transparent to mouse hit testing, and
+non-activating before their first show. Do not combine this diagnostic mode
+with pointer or keyboard forwarding. `WS_EX_NOACTIVATE` alone does not make
+a window pass mouse input through. Normal interactive proxies keep their
+existing input behavior. The startup log records the effective backdrop sigma
+and whether it selects host blur or alpha-only rendering.
+
+The host backdrop oracle always uses passive windows and compares a known
+striped background through a reference blur, the sparse renderer, and an
+alpha-only control. See the [pixel and input-routing evidence](../../docs/evidence/performance-20260908/passive-blur-validation/README.md).
+Layered-window styling may affect DWM composition; measure subsequent performance
+with the same passive settings in every comparison arm.
+
 Atlas native-input proxies use source-side text composition: the destination
 forwards physical input, not locally composed text. With atlas pointer events
 enabled, startup disables IME only on the dedicated proxy UI thread, before
@@ -165,3 +180,14 @@ query results are physical presentation receipts.
 The [six-run diagnostic overhead comparison](../../docs/evidence/performance-20260908/trace-controls/README.md)
 measures these controls separately from reduced socket/source logging. It did
 not establish 4K60 or display latency within two frames.
+
+### Calling-thread multimedia scheduling
+
+`VIEWFLOW_MMCS_PLAYBACK=1` registers the presenter and MTA decoder threads with
+Windows MMCSS Playback and requests High relative priority within that task.
+Registration failure retains ordinary scheduling. Missing or other values leave
+registration off. The scope owns no registry settings or third-party process
+priority. Controlled 4K measurements and the actual scheduled-task priority
+are recorded in [the MMCSS comparison](../../docs/evidence/performance-20260908/mmcss-canonical/README.md).
+The local production launcher opts in; this does not imply physical 4K60 or a
+two-frame maximum latency guarantee.

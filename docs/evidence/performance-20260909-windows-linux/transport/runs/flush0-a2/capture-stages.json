@@ -1,0 +1,59 @@
+{
+  "scope": "CPU timestamps around callbacks/API calls; command completion and physical scanout are not measured. The final delivery-log write itself is outside its timestamp.",
+  "stages": {
+    "profile_capture:callback_enter->callback_locked": {
+      "n": 1562,
+      "median": 0.0001,
+      "p95": 0.0002,
+      "max": 66.0241
+    },
+    "profile_capture:copy_begin->copied": {
+      "n": 1562,
+      "median": 0.0113,
+      "p95": 0.0273,
+      "max": 21.8254
+    },
+    "profile_wgc_delivery:arrival->locked": {
+      "n": 1562,
+      "median": 0.0006,
+      "p95": 0.001,
+      "max": 0.014
+    },
+    "profile_wgc_delivery:locked->retrieved": {
+      "n": 1562,
+      "median": 0.0005,
+      "p95": 0.0008,
+      "max": 0.0099
+    },
+    "profile_wgc_delivery:retrieved->dispatch": {
+      "n": 1562,
+      "median": 0.0076,
+      "p95": 0.0128,
+      "max": 0.036
+    },
+    "profile_wgc_delivery:dispatch->end": {
+      "n": 1562,
+      "median": 0.038349999999999995,
+      "p95": 0.0621,
+      "max": 78.1383
+    },
+    "encoder_flush:begin->end": {
+      "n": 3590,
+      "median": 0.0212,
+      "p95": 0.0457,
+      "max": 0.1314
+    },
+    "wgc_arrival_gap_ms": {
+      "n": 1561,
+      "median": 16.823,
+      "p95": 33.2394,
+      "max": 597.692
+    },
+    "wgc_arrival_gaps_above_100ms": 7,
+    "wgc_arrival_gaps_above_450ms": 3,
+    "output_request_statuses": {
+      "0": 1500,
+      "2": 2090
+    }
+  }
+}

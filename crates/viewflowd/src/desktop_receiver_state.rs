@@ -19,6 +19,11 @@ pub(crate) struct DesktopReceiverState {
 }
 
 impl DesktopReceiverState {
+    pub(crate) fn native_sequence(&self) -> u64 { self.native_sequence }
+    pub(crate) fn acknowledgement_finishes(&self, ack: DesktopWindowMoveAck) -> bool {
+        ack.result != Outcome::Applied || self.pending.is_some_and(|p| matches!(p.phase, Phase::End | Phase::Cancel))
+    }
+
     /// Keep the newest consecutive position while preserving gesture boundaries.
     /// At most one bounded channel worth of events is examined per tick.
     pub(crate) fn next_event(
@@ -327,6 +332,7 @@ mod tests {
     fn frame(movable: bool) -> AtlasFrame {
         let bounds = bounds();
         AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: STREAM,
             frame_id: 100,
@@ -353,7 +359,8 @@ mod tests {
                 topology_generation: 5,
                 viewport: bounds,
                 windows: vec![AtlasWindowPlacement {
-                    window_id: WINDOW,
+                    body_bounds: None,
+                window_id: WINDOW,
                     bounds,
                     movable,
                     z_order: 0,

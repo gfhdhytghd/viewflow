@@ -1,0 +1,93 @@
+{
+  "scope": "Observed discontinuities only; aggregate intervals and residency logging do not prove uninterrupted60fps or photon latency. Multiple-window attribution may require manual review.",
+  "sustained_6k_evidence": "invalid_or_confounded",
+  "reasons": [
+    "observed_dropped_trace_records"
+  ],
+  "trace_drops_last_observed": 84,
+  "residency_events": [
+    {
+      "log_time": "Oct 08 19:34:54.660179",
+      "id": 1,
+      "demand": [
+        0,
+        0,
+        6016,
+        3456
+      ],
+      "window_workspace": {
+        "id": 5,
+        "name": "5"
+      },
+      "window_visible": true,
+      "outputs": [
+        {
+          "name": "DP-4",
+          "workspace": {
+            "id": 5,
+            "name": "5"
+          },
+          "dpms": true
+        }
+      ]
+    },
+    {
+      "log_time": "Oct 08 19:34:54.694343",
+      "id": 1,
+      "demand": [
+        0,
+        0,
+        6144,
+        3456
+      ],
+      "window_workspace": {
+        "id": 5,
+        "name": "5"
+      },
+      "window_visible": true,
+      "outputs": [
+        {
+          "name": "DP-4",
+          "workspace": {
+            "id": 5,
+            "name": "5"
+          },
+          "dpms": true
+        }
+      ]
+    }
+  ],
+  "accept_intervals": [
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 301,
+      "interval_ms": 5006.088
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 298,
+      "interval_ms": 5008.897
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 300,
+      "interval_ms": 5004.216
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 300,
+      "interval_ms": 5015.171
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 299,
+      "interval_ms": 5011.71
+    }
+  ],
+  "foreground_change_count": 0
+}

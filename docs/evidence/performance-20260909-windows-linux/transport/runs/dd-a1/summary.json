@@ -1,0 +1,109 @@
+{
+  "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+  "observer_captures": 1201,
+  "distinct_total": 439,
+  "warmup_observer_seconds": 3,
+  "steady_distinct": 378,
+  "desktop_distinct_hz": 22.24049744151379,
+  "latency_low_ms": {
+    "n": 378,
+    "min": 133.361988,
+    "median": 183.485998,
+    "p95": 216.86854,
+    "p99": 233.186501,
+    "max": 233.599432
+  },
+  "latency_high_ms": {
+    "n": 378,
+    "min": 134.168094,
+    "median": 184.4161105,
+    "p95": 217.782851,
+    "p99": 233.989512,
+    "max": 234.598069
+  },
+  "clock_envelope_width_ms": {
+    "n": 378,
+    "min": 0.556077,
+    "median": 0.861846,
+    "p95": 1.448936,
+    "p99": 1.52596,
+    "max": 1.52596
+  },
+  "clock_rtt_ms": {
+    "n": 315,
+    "min": 0.126984,
+    "median": 0.49691,
+    "p95": 0.939406,
+    "p99": 1.432595,
+    "max": 3.043483
+  },
+  "clock_samples": 315,
+  "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+  "run_qualified": true,
+  "target_6k30_60ms_met": false,
+  "source_desktop_pairs": 371,
+  "source_desktop_missing": 7,
+  "source_desktop_to_linux_low_ms": {
+    "n": 371,
+    "min": 62.82857200000001,
+    "median": 96.92661799999999,
+    "p95": 114.61011699999999,
+    "p99": 130.73728499999999,
+    "max": 131.861621
+  },
+  "source_desktop_to_linux_high_ms": {
+    "n": 371,
+    "min": 63.73965799999999,
+    "median": 97.93502500000001,
+    "p95": 115.588084,
+    "p99": 131.599131,
+    "max": 132.90114799999998
+  },
+  "fixture_draw_to_source_desktop_ms": {
+    "n": 371,
+    "min": 60.1229,
+    "median": 86.6926,
+    "p95": 118.9853,
+    "p99": 119.9476,
+    "max": 136.6972
+  },
+  "evaluation_criterion": {
+    "desktop_distinct_hz_min": 30,
+    "latency_high_p95_ms_max": 60,
+    "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+  },
+  "largest_latency_observations": [
+    {
+      "marker": 324,
+      "mono": 69186073687327,
+      "source_pre_draw_ns": 17426241709500,
+      "latency_low_ms": 233.599432,
+      "latency_high_ms": 234.598069,
+      "clock_width_ms": 0.998637
+    },
+    {
+      "marker": 520,
+      "mono": 69190623735700,
+      "source_pre_draw_ns": 17430791764000,
+      "latency_low_ms": 233.447538,
+      "latency_high_ms": 234.543965,
+      "clock_width_ms": 1.096427
+    },
+    {
+      "marker": 631,
+      "mono": 69193173471417,
+      "source_pre_draw_ns": 17433341771400,
+      "latency_low_ms": 233.283317,
+      "latency_high_ms": 234.412655,
+      "clock_width_ms": 1.129338
+    }
+  ],
+  "distinct_observation_gap_ms": {
+    "n": 377,
+    "min": 13.799054,
+    "median": 49.811581,
+    "p95": 66.540899,
+    "p99": 69.256577,
+    "max": 83.094223
+  }
+}

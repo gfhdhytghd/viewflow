@@ -1,0 +1,42 @@
+[Unit]
+Description=Windows AutoShop QEMU VM
+Wants=network-online.target
+After=network-online.target systemd-modules-load.service
+Requires=sys-subsystem-net-devices-br0.device
+After=sys-subsystem-net-devices-br0.device
+ConditionPathExists=/home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/windows-autoshop.qcow2
+
+[Service]
+Type=simple
+AllowedCPUs=4-13
+ExecStartPre=/usr/bin/rm -f /home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/qmp-vfio.sock
+ExecStartPre=-/usr/bin/ip link delete tap-windows
+ExecStartPre=/usr/bin/ip tuntap add dev tap-windows mode tap
+ExecStartPre=/usr/bin/ip link set tap-windows master br0
+ExecStartPre=/usr/bin/ip link set tap-windows up
+ExecStart=/usr/bin/qemu-system-x86_64 \
+    -name Windows-AutoShop,process=windows-autoshop \
+    -enable-kvm \
+    -machine q35,accel=kvm \
+    -cpu host,hv-vpindex=on,hv-time=on,hv-synic=on,hv-stimer=on \
+    -smp 10,sockets=1,cores=10,threads=1 \
+    -m 24576 \
+    -rtc base=localtime,clock=host,driftfix=slew \
+    -qmp unix:/home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/qmp-vfio.sock,server=on,wait=off \
+    -drive if=ide,format=qcow2,file=/home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/windows-autoshop.qcow2 \
+    -cdrom /home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/plc-project.iso \
+    -display none \
+    -vga none \
+    -device vfio-pci,host=0000:00:02.0,id=intel_igpu,bus=pcie.0,addr=0x2,x-igd-opregion=on \
+    -device qemu-xhci,id=usb_xhci,bus=pcie.0,addr=0x4 \
+    -boot order=c,menu=on \
+    -netdev tap,id=net0,ifname=tap-windows,script=no,downscript=no \
+    -device e1000,netdev=net0,bus=pcie.0,addr=0x3
+ExecStop=/home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/windows-autoshop-powerdown
+ExecStopPost=-/usr/bin/ip link delete tap-windows
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+
+[Install]
+WantedBy=multi-user.target

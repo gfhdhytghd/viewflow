@@ -8,8 +8,8 @@ one executable. The OS-specific boundaries remain inside the installation.
 ## Scope and verification
 
 - macOS: native SwiftUI `Viewflow.app`, bundled QUIC input/window/clipboard peers,
-  native capture/presentation/probes, and the native HID bridge compiled into the
-  main executable. Full packaging requires an embedded DriverKit DEXT.
+  native capture/presentation/probes, and a bundled CoreHID receiver. CoreHID
+  packaging requires macOS 26+ and an appropriately provisioned signed receiver.
 - Windows: one `Viewflow.exe` dashboard and a per-user Inno Setup installer,
   containing the input/desktop/window/cursor/clipboard peers, native window
   backends, virtual-display management utility and optional lock-screen input
@@ -28,15 +28,17 @@ plugins, change focus, connect to a Mac or post input.
 ## User flow
 
 1. Install and open Viewflow.
-2. Import a `.viewflowconnection` file exported from the existing pairing.
+2. Select a nearby computer and enter its pairing code, or import an existing
+   `.viewflowconnection` file.
 3. Open Permissions and complete the OS permissions needed for chosen features.
 4. Start the enabled components. Stop individual components or all connections
    from the same application. Quit waits for worker teardown and held-input
    release. Component crashes retry independently; diagnostic failure does not
    close healthy connections. No 33 ms session deadline is introduced.
 
-macOS offers Screen Recording, Accessibility, DriverKit installation/status and
-login-item settings. Actual bundled input/capture processes are checked as well
+macOS offers Screen Recording, Accessibility, CoreHID status and login-item
+settings. Legacy DriverKit packages retain their extension controls.
+Actual bundled input/capture processes are checked as well
 as the app: a parent app permission is not assumed to cover all helpers.
 Windows offers lock-screen input service installation through the normal UAC
 prompt, and firewall guidance. Ordinary functionality does not require that
@@ -45,21 +47,28 @@ input permission guidance. Installers never auto-run physical input tests.
 
 ## Build macOS
 
-Requires macOS, Xcode, Rust, CMake and the native build dependencies. Current
-DriverKit source targets arm64 / DriverKit 27. The GUI itself targets macOS 13+.
+Requires macOS, Xcode with the macOS 26 SDK, Rust, CMake and the pairing Python
+dependencies. The default package includes CoreHID and targets macOS 26+.
 
 ```sh
-python3 tools/build-macos-app.py --output dist/Viewflow.app --zip
+python3 tools/build-macos-app.py --output dist/Viewflow.app --zip \
+  --identity 'Apple Development: NAME (CERTIFICATE ID)' \
+  --corehid-profile /path/CoreHID.provisionprofile \
+  --corehid-bundle-id org.viewflow.trackpad-corehid-probe
 ```
 
-This default creates a full **development** bundle with an ad-hoc signed driver.
-Ad-hoc signing does not confer DriverKit entitlements or make the driver usable.
-A deployable signed build requires a provisioned, signed DEXT and an app profile
+This creates a **development** bundle for registered devices. Public distribution
+requires Developer ID, the matching CoreHID distribution profile and notarization;
+see [public DMG packaging](../tools/macos-dmg/README.md). For an unsigned CI build
+without HID, use `--without-driver` explicitly.
+
+The legacy DriverKit backend remains opt-in. It requires a signed DEXT and an app profile
 for `org.viewflow.app` with `system-extension.install` and
 `driverkit.userclient-access` for `org.viewflow.trackpad-probe`:
 
 ```sh
 python3 tools/build-macos-app.py --output dist/Viewflow.app --zip \
+  --hid-backend driverkit \
   --driver-bundle /path/org.viewflow.trackpad-probe.dext \
   --identity 'Apple Development: NAME (TEAM)' \
   --app-profile /path/ViewflowApp.provisionprofile
@@ -90,12 +99,52 @@ combined with identity signing, and must not be presented as the complete app.
 
 ## Build Windows and Linux
 
-Build on each target OS. PyInstaller includes the interpreter; end users do not
+Windows and Linux share a Qt 6 Quick/QML interface, using PySide6 to connect the
+macOS-style sidebar and settings pages to the existing component supervisor.
+The four pages are Connections, Permissions, Pairing, and Diagnostics. Closing
+the window keeps the application running when a system tray is available; use
+Exit Viewflow to stop components and quit. Without a tray, closing quits.
+
+The shared GUI supports English and Simplified Chinese. The sidebar language
+selector defaults to the system locale (Chinese locales use Simplified Chinese;
+other locales fall back to English). Explicit choices are saved per user and
+apply immediately without restarting components. Pairing names, custom component
+titles, native helper output and raw diagnostic data are preserved as supplied.
+`platform/desktop-app/i18n.py` holds the translation catalog; use complete messages
+with named placeholders rather than concatenating translated fragments.
+Permission checks display readable summaries; raw JSON is available only in the
+Diagnostics page's collapsed detail view and exported reports. These checks do
+not send desktop input or prove end-to-end interaction.
+
+On Linux the GUI checks the environment at startup and after plugin operations:
+live Hyprland build, loaded plugins, installed and locally cached package
+versions, GPU driver query and running kernel. System dependencies are
+informational only: the GUI has no package installation or privilege-elevation
+entry point. Users install packages with their distribution's tools.
+Dependency hints distinguish NVIDIA, AMD and Intel and exclude PCI devices
+bound to vfio-pci. See [Arch hardware video acceleration](https://wiki.archlinux.org/title/Hardware_video_acceleration).
+
+The current Linux pipeline is still NVIDIA-specific: the DMA-BUF encoder uses
+CUDA/NVENC and reverse decode imports CUDA frames into GLES textures. VA-API
+support is not yet implemented. Installing AMD/Intel acceleration libraries
+does not make that backend available, and the GUI does not offer a fake working
+selector. Supporting AMD/Intel requires both native pipeline work and validation
+on an accessible render device.
+
+Plugins remain bundled. For a matching Hyprland build, the GUI offers both Load
+and selectable/copyable `hyprctl plugin load` commands for missing plugins. These
+run as the user, do not overwrite Hyprland configuration and do not reload the
+desktop. There is currently no published Viewflow hyprpm manifest, so the GUI
+does not advertise a nonfunctional `hyprpm add` command. A mismatched build needs
+a matching plugin package; loading it is not forced. No driver/plugin install
+is performed just by opening the GUI.
+
+Build on each target OS. PyInstaller includes Qt, QML, and the interpreter; end users do not
 need to install Python. A Windows package cannot be produced by a Linux
 PyInstaller invocation.
 
 ```sh
-python3 -m pip install pyinstaller==6.22.0
+python3 -m pip install -r platform/desktop-app/requirements.txt
 python3 tools/build-desktop-app.py --output dist/Viewflow --installer
 ```
 
@@ -122,7 +171,11 @@ Missing components are errors. A Linux prebuilt payload must also include
 payloads may provide required non-system DLLs in `dll/`. Build/package manifests
 record component hashes and the source revision plus dirty-tree status.
 
-## Pairing export
+## Legacy pairing export
+
+The GUI now uses a single host/client group, with at most three computers.
+See [local pairing](local-pairing.md). The export commands below are retained
+for legacy tooling; current GUIs no longer import these files.
 
 No credentials are embedded in the release. Pairing files contain private keys;
 transfer them using your normal trusted channel. The exporter creates new files
@@ -195,3 +248,16 @@ Mac window helper. The helper releases its resources when that adapter exits;
 a separate teardown watchdog reaps it if an OS callback never completes. This
 watchdog begins only after the owner process disappears, not after a late frame.
 The unified app normally owns helpers directly through its process supervisor.
+
+### Isolated QML UI checks
+
+`--smoke-ui` loads the real QML in passive mode: no saved profile, instance lock,
+component startup, shortcut registration, or settings writes. Use an isolated
+display or Qt's offscreen platform; live mouse/keyboard acceptance is user-operated.
+
+```sh
+QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software python3 -m unittest discover -s platform/desktop-app -p 'test_qt_app.py'
+```
+
+The same UI resources are included in Linux and Windows bundles. Build and run
+the Windows package on Windows to validate native dialogs, tray, and rendering.

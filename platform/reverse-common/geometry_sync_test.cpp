@@ -2,6 +2,10 @@
 #include <cassert>
 namespace vf=viewflow::reverse;
 int main(){
+ // A named output workspace must never become a relative negative move.
+ assert(vf::workspace_selector(5,"5")=="5");
+ assert(vf::workspace_selector(-1338,"viewflow-macos")=="name:viewflow-macos");
+ assert(vf::workspace_selector(-99,"special:viewflow")=="special:viewflow");
  // A native translation confirms titlebar ownership once. Content clicks,
  // resizes, and receipts for our own old geometry must not initiate a move.
  vf::NativeMoveConfirmation confirmation;

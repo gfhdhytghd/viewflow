@@ -248,7 +248,13 @@ public:
     std::vector<std::pair<std::shared_ptr<BackgroundBuffer>, int>> retired;
     try {
       ++updates_;
-      const auto window = Window(hwnd), desktop = Display(hwnd);
+      auto window = Window(hwnd);
+      const auto desktop = Display(hwnd);
+      // The captured visual includes exterior shadows; its origin can now
+      // precede the body-only HWND. Keep backdrop sampling in that image space.
+      const auto offset=fg.visual.Offset();const auto size=fg.visual.Size();
+      window.left+=int64_t(std::floor(offset.x));window.top+=int64_t(std::floor(offset.y));
+      window.right=window.left+int64_t(std::ceil(size.x));window.bottom=window.top+int64_t(std::ceil(size.y));
       if (window.empty() || desktop.empty() || !fg.shared_sparse ||
           std::none_of(fg.shared_sparse->nodes.begin(),
                        fg.shared_sparse->nodes.end(),

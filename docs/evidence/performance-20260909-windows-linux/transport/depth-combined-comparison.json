@@ -1,0 +1,562 @@
+[
+  {
+    "trial": "combinedzero-four-a1",
+    "interval_us": 0,
+    "limit": 4,
+    "before_submit_counts": {
+      "0": 3,
+      "1": 1822,
+      "2": 22
+    },
+    "native_sha256": "B540F1A8944E68358C35B926972DDBC83C4111592A8FE4A903BFA1E5129A7597",
+    "summary": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1129,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 970,
+      "desktop_distinct_hz": 57.108246342864106,
+      "latency_low_ms": {
+        "n": 970,
+        "min": 55.937189,
+        "median": 56.7341115,
+        "p95": 57.707899,
+        "p99": 73.940661,
+        "max": 273.503238
+      },
+      "latency_high_ms": {
+        "n": 970,
+        "min": 56.744324,
+        "median": 57.4860695,
+        "p95": 58.417173,
+        "p99": 74.706353,
+        "max": 274.209473
+      },
+      "clock_envelope_width_ms": {
+        "n": 970,
+        "min": 0.473947,
+        "median": 0.742047,
+        "p95": 1.002923,
+        "p99": 1.030307,
+        "max": 1.171993
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.112119,
+        "median": 0.40908900000000004,
+        "p95": 0.714698,
+        "p99": 0.86799,
+        "max": 1.002923
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": true,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 911,
+          "mono": 94671652168627,
+          "source_pre_draw_ns": 42911792621500,
+          "latency_low_ms": 273.503238,
+          "latency_high_ms": 274.209473,
+          "clock_width_ms": 0.706235
+        },
+        {
+          "marker": 910,
+          "mono": 94671635380175,
+          "source_pre_draw_ns": 42911775916600,
+          "latency_low_ms": 273.419686,
+          "latency_high_ms": 274.125921,
+          "clock_width_ms": 0.706235
+        },
+        {
+          "marker": 909,
+          "mono": 94671602080000,
+          "source_pre_draw_ns": 42911759257000,
+          "latency_low_ms": 256.779111,
+          "latency_high_ms": 257.485346,
+          "clock_width_ms": 0.706235
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 969,
+        "min": 12.227486,
+        "median": 16.685062,
+        "p95": 18.046538,
+        "p99": 33.662089,
+        "max": 216.654156
+      }
+    }
+  },
+  {
+    "trial": "combineddefault-two-b1",
+    "interval_us": 16000,
+    "limit": 2,
+    "before_submit_counts": {
+      "0": 164,
+      "1": 1534
+    },
+    "native_sha256": "B540F1A8944E68358C35B926972DDBC83C4111592A8FE4A903BFA1E5129A7597",
+    "summary": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1095,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 932,
+      "desktop_distinct_hz": 54.81880354130903,
+      "latency_low_ms": {
+        "n": 932,
+        "min": 64.626742,
+        "median": 65.62608,
+        "p95": 66.161994,
+        "p99": 69.347519,
+        "max": 82.559559
+      },
+      "latency_high_ms": {
+        "n": 932,
+        "min": 65.734818,
+        "median": 66.50969649999999,
+        "p95": 71.992743,
+        "p99": 72.433215,
+        "max": 88.728479
+      },
+      "clock_envelope_width_ms": {
+        "n": 932,
+        "min": 0.479584,
+        "median": 0.868977,
+        "p95": 6.485054,
+        "p99": 6.485054,
+        "max": 6.485054
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.117208,
+        "median": 0.4263745,
+        "p95": 0.757755,
+        "p99": 1.014044,
+        "max": 6.172695
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 557,
+          "mono": 94719178605021,
+          "source_pre_draw_ns": 42959510089300,
+          "latency_low_ms": 82.243425,
+          "latency_high_ms": 88.728479,
+          "clock_width_ms": 6.485054
+        },
+        {
+          "marker": 1327,
+          "mono": 94732012239752,
+          "source_pre_draw_ns": 42972343679400,
+          "latency_low_ms": 81.939672,
+          "latency_high_ms": 83.945362,
+          "clock_width_ms": 2.00569
+        },
+        {
+          "marker": 445,
+          "mono": 94717311872388,
+          "source_pre_draw_ns": 42957643411600,
+          "latency_low_ms": 82.145975,
+          "latency_high_ms": 83.473088,
+          "clock_width_ms": 1.327113
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 931,
+        "min": 13.231607,
+        "median": 16.684536,
+        "p95": 33.395937,
+        "p99": 33.684336,
+        "max": 36.536622
+      }
+    }
+  },
+  {
+    "trial": "combineddefault-two-b2",
+    "interval_us": 16000,
+    "limit": 2,
+    "before_submit_counts": {
+      "0": 149,
+      "1": 1569
+    },
+    "native_sha256": "B540F1A8944E68358C35B926972DDBC83C4111592A8FE4A903BFA1E5129A7597",
+    "summary": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1094,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 936,
+      "desktop_distinct_hz": 55.05443486196752,
+      "latency_low_ms": {
+        "n": 936,
+        "min": 58.098393,
+        "median": 58.849301499999996,
+        "p95": 75.473286,
+        "p99": 75.88242,
+        "max": 78.04687
+      },
+      "latency_high_ms": {
+        "n": 936,
+        "min": 58.992845,
+        "median": 59.6830215,
+        "p95": 76.316635,
+        "p99": 76.73649,
+        "max": 78.691957
+      },
+      "clock_envelope_width_ms": {
+        "n": 936,
+        "min": 0.486333,
+        "median": 0.828319,
+        "p95": 1.190934,
+        "p99": 1.190934,
+        "max": 1.190934
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.108069,
+        "median": 0.4251775,
+        "p95": 0.723502,
+        "p99": 0.865443,
+        "max": 1.190934
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 1348,
+          "mono": 94785908669559,
+          "source_pre_draw_ns": 43026244566100,
+          "latency_low_ms": 78.04687,
+          "latency_high_ms": 78.691957,
+          "clock_width_ms": 0.645087
+        },
+        {
+          "marker": 364,
+          "mono": 94769506627333,
+          "source_pre_draw_ns": 43009844315200,
+          "latency_low_ms": 76.233877,
+          "latency_high_ms": 77.298988,
+          "clock_width_ms": 1.065111
+        },
+        {
+          "marker": 1288,
+          "mono": 94784907035448,
+          "source_pre_draw_ns": 43025244707800,
+          "latency_low_ms": 76.350299,
+          "latency_high_ms": 77.18107,
+          "clock_width_ms": 0.830771
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 935,
+        "min": 13.457855,
+        "median": 16.684607,
+        "p95": 33.50803,
+        "p99": 33.83122,
+        "max": 36.314517
+      }
+    }
+  },
+  {
+    "trial": "combinedzero-four-a2",
+    "interval_us": 0,
+    "limit": 4,
+    "before_submit_counts": {
+      "0": 3,
+      "1": 1819,
+      "2": 39
+    },
+    "native_sha256": "B540F1A8944E68358C35B926972DDBC83C4111592A8FE4A903BFA1E5129A7597",
+    "summary": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1161,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 1004,
+      "desktop_distinct_hz": 59.056934254340376,
+      "latency_low_ms": {
+        "n": 1004,
+        "min": 56.989282,
+        "median": 57.6244305,
+        "p95": 58.136828,
+        "p99": 61.23095,
+        "max": 74.855966
+      },
+      "latency_high_ms": {
+        "n": 1004,
+        "min": 57.815559,
+        "median": 58.399057,
+        "p95": 58.959129,
+        "p99": 61.948696,
+        "max": 75.65392
+      },
+      "clock_envelope_width_ms": {
+        "n": 1004,
+        "min": 0.51554,
+        "median": 0.753527,
+        "p95": 1.146486,
+        "p99": 1.146486,
+        "max": 1.146486
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.101916,
+        "median": 0.39653550000000004,
+        "p95": 0.69996,
+        "p99": 0.798156,
+        "max": 1.146486
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": true,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 1039,
+          "mono": 94834289551555,
+          "source_pre_draw_ns": 43074628707100,
+          "latency_low_ms": 74.855966,
+          "latency_high_ms": 75.65392,
+          "clock_width_ms": 0.797954
+        },
+        {
+          "marker": 1040,
+          "mono": 94834306191451,
+          "source_pre_draw_ns": 43074645374600,
+          "latency_low_ms": 74.847209,
+          "latency_high_ms": 75.626316,
+          "clock_width_ms": 0.779107
+        },
+        {
+          "marker": 919,
+          "mono": 94832289320377,
+          "source_pre_draw_ns": 43072628682800,
+          "latency_low_ms": 74.595878,
+          "latency_high_ms": 75.264431,
+          "clock_width_ms": 0.668553
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 1003,
+        "min": 12.617788,
+        "median": 16.678229,
+        "p95": 17.1509,
+        "p99": 33.317874,
+        "max": 36.458818
+      }
+    }
+  },
+  {
+    "trial": "combinedzero-two-c1",
+    "interval_us": 0,
+    "limit": 2,
+    "before_submit_counts": {
+      "0": 1,
+      "1": 1864
+    },
+    "native_sha256": "B540F1A8944E68358C35B926972DDBC83C4111592A8FE4A903BFA1E5129A7597",
+    "summary": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1166,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 1004,
+      "desktop_distinct_hz": 59.058617971200405,
+      "latency_low_ms": {
+        "n": 1004,
+        "min": 55.145848,
+        "median": 56.103064,
+        "p95": 72.401196,
+        "p99": 73.062329,
+        "max": 88.687361
+      },
+      "latency_high_ms": {
+        "n": 1004,
+        "min": 55.760947,
+        "median": 56.8953765,
+        "p95": 73.290866,
+        "p99": 73.82813,
+        "max": 89.58291
+      },
+      "clock_envelope_width_ms": {
+        "n": 1004,
+        "min": 0.48748,
+        "median": 0.719679,
+        "p95": 1.144987,
+        "p99": 1.214977,
+        "max": 1.214977
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.11025,
+        "median": 0.4208995,
+        "p95": 0.730097,
+        "p99": 0.893863,
+        "max": 1.130424
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 915,
+          "mono": 94885471120271,
+          "source_pre_draw_ns": 43125796245000,
+          "latency_low_ms": 88.687361,
+          "latency_high_ms": 89.58291,
+          "clock_width_ms": 0.895549
+        },
+        {
+          "marker": 913,
+          "mono": 94885437588099,
+          "source_pre_draw_ns": 43125762910000,
+          "latency_low_ms": 88.490189,
+          "latency_high_ms": 89.385738,
+          "clock_width_ms": 0.895549
+        },
+        {
+          "marker": 974,
+          "mono": 94886441707514,
+          "source_pre_draw_ns": 43126779665300,
+          "latency_low_ms": 76.012443,
+          "latency_high_ms": 77.05875,
+          "clock_width_ms": 1.046307
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 1003,
+        "min": 12.845581,
+        "median": 16.675734,
+        "p95": 17.226563,
+        "p99": 33.277997,
+        "max": 49.739839
+      }
+    }
+  },
+  {
+    "trial": "combinedzero-two-c2",
+    "interval_us": 0,
+    "limit": 2,
+    "before_submit_counts": {
+      "0": 1,
+      "1": 1864
+    },
+    "native_sha256": "B540F1A8944E68358C35B926972DDBC83C4111592A8FE4A903BFA1E5129A7597",
+    "summary": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1116,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 946,
+      "desktop_distinct_hz": 55.64306469027295,
+      "latency_low_ms": {
+        "n": 946,
+        "min": 52.066754,
+        "median": 69.108757,
+        "p95": 69.80345,
+        "p99": 70.188448,
+        "max": 85.920594
+      },
+      "latency_high_ms": {
+        "n": 946,
+        "min": 52.752117,
+        "median": 69.8765095,
+        "p95": 70.658657,
+        "p99": 71.007979,
+        "max": 86.717824
+      },
+      "clock_envelope_width_ms": {
+        "n": 946,
+        "min": 0.531845,
+        "median": 0.763182,
+        "p95": 1.292472,
+        "p99": 1.304316,
+        "max": 1.304316
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.120619,
+        "median": 0.402414,
+        "p95": 0.738012,
+        "p99": 1.044521,
+        "max": 1.356631
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 339,
+          "mono": 94930318941541,
+          "source_pre_draw_ns": 43170647086300,
+          "latency_low_ms": 85.920594,
+          "latency_high_ms": 86.717824,
+          "clock_width_ms": 0.79723
+        },
+        {
+          "marker": 1351,
+          "mono": 94947188289313,
+          "source_pre_draw_ns": 43187530592400,
+          "latency_low_ms": 71.706011,
+          "latency_high_ms": 72.419756,
+          "clock_width_ms": 0.713745
+        },
+        {
+          "marker": 793,
+          "mono": 94937888200709,
+          "source_pre_draw_ns": 43178230558600,
+          "latency_low_ms": 71.637535,
+          "latency_high_ms": 72.391195,
+          "clock_width_ms": 0.75366
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 945,
+        "min": 13.876652,
+        "median": 16.692323,
+        "p95": 33.314984,
+        "p99": 33.810558,
+        "max": 34.180822
+      }
+    }
+  }
+]

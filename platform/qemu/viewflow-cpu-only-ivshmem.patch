@@ -1,0 +1,17 @@
+--- a/hw/vfio/listener.c
++++ b/hw/vfio/listener.c
+@@ -76,6 +76,14 @@
+ static bool vfio_listener_skipped_section(MemoryRegionSection *section,
+                                           bool bypass_ro)
+ {
++    /* Viewflow copies these IVSHMEM buffers on the CPU only. Mapping them
++     * into a passthrough device's IOMMU pins the entire sparse aperture.
++     * Explicit backend-name opt-in; ordinary guest RAM remains DMA mapped.
++     * Never use this prefix for memory submitted to a device for DMA. */
++    if (g_str_has_prefix(memory_region_name(section->mr), "viewflow_cpu_only_")) {
++        return true;
++    }
++
+     if (bypass_ro && section->readonly) {
+         return true;
+     }

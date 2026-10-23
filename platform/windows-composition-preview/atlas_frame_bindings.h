@@ -32,7 +32,10 @@ public:
         return false;
     } else {
       const auto &old = latest_->layout;
+      const uint64_t stride = layout.activity ? 2 : 1;
       if (frame.identity <= latest_->identity ||
+          layout.activity.has_value() != old.activity.has_value() ||
+          (layout.activity && layout.activity->lane != old.activity->lane) ||
           layout.stream != old.stream ||
           layout.geometry_epoch != old.geometry_epoch ||
           layout.config_generation != old.config_generation ||
@@ -48,7 +51,7 @@ public:
       const bool changed = layout.patches != old.patches || frame.width != latest_->width || frame.height != latest_->height || !SamePlacement(layout.tiles, old.tiles);
       if ((changed && layout.revision == old.revision) ||
           ((changed || layout.revision != old.revision ||
-            frame.identity - latest_->identity != 1) &&
+            frame.identity - latest_->identity != stride) &&
            !keyframe))
         return false;
       size_t previous_index = 0;

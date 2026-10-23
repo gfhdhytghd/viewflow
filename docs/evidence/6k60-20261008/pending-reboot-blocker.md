@@ -1,0 +1,9 @@
+# Goal handoff: saved-work confirmation needed
+
+High-refresh source experiment requires capability-list reload; current6Kmode inventory only60Hz,priorhotreload3010/50. User question about current saved documents and possible two reboots remains unanswered across more than three consecutive goal turns. Automatic continue-goal prompts do not answer saved-work question. Independent build closure,fixtureclock/origin fixes,geometrydedup validation and current60Hzfull-originbaseline completed in meantime. No new evidence justifies repeating already-rejected polling/buffer/priority controls. Next concrete source-refresh test cannot proceed safely without current application-state confirmation.
+
+Live restoration audit: Linuxnormalserviceactive,nativeSHA2562e3008638c8f9498668c1921ccca045306ab16bead216e7511ef76c468cf88d2;WindowsnormalTaskState4,native7FCDB747CD188AFE12E2CA9CE73C4D51CBA62E21664108B72DE2E299F85D3000,wrapperD0335263114FEA980CC4F4F879DA3A06DF7B8D110EE739F869760B0133EB283E;VDDoriginalXMLA0F5A3FB82344F3D0F90DF92D213A46EB3BC0690F0FD3E9DB5AD5A9416B978EF;fixturetaskReady3. No live benchmark process awaiting completion.32runnerverifiedplugininventoryrestored.
+
+Objective remains unmet: latest full-origin softwaremedian47.311ms/P9552.675ms;20s1200/1200generation/acceptance does not prove sustainedactualpresentation60fps or16.7ms,photonlatencyunmeasured. Mark blocked on current saved-work/reboot confirmation,not complete or paused. Proposed config and test/recovery scope are in refresh120-highres-fixture-plan.md; no driverconfig installed and no reboot performed. Resume when user confirms saved state or provides another feasible constrained path.
+
+2026-10-09: User explicitly authorized continuation/reboots. The blocker is resolved; see refresh120-reboot33-result.md for completed experiment and restoration. Performance target remains unmet.

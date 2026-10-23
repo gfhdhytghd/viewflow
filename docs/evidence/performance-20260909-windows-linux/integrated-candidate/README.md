@@ -1,0 +1,5 @@
+# Direct submission, render alpha summary and lifecycle recovery
+
+2026-09-09. This candidate combines owned-source direct submission, render-first exact alpha summary and optional capture-version skipping. The capture callback still copies borrowed WGC data into an application-owned texture. It also recovers a resized source that produces no follow-up frame after 500 ms and omits invalid closed-window metadata. Recovery restarts only that capture while retaining the source texture and parent session. Its 39-file build and tracker test pass. The four integrated full-chain trials vary only capture skipping: enabled achieves 32.795–33.211 distinct FPS versus 30.974–31.266 disabled; latency intervals overlap. No 60 ms result is claimed. See ../transport/README.md and ../lifecycle-v2/README.md. No standalone source run is claimed for this exact build, and no installed reverse executable was replaced.
+
+Source, methods and raw observations are retained beside this report. `sha256.json` covers all archived files except itself.

@@ -1,0 +1,62 @@
+--- before/main.cpp
++++ after/main.cpp
+@@ -778,6 +778,20 @@
+   }();
+   return enabled;
+ }
++// Optional diagnostic cadence; does not wait for GPU or change frame admission.
++bool fine_gpu_poll_enabled() {
++  static const bool enabled=[] {
++    wchar_t value[2]{};
++    const bool requested=GetEnvironmentVariableW(L"VIEWFLOW_ATLAS_GPU_POLL",value,2)==1 && value[0]==L'1';
++    const bool enabled=requested && viewflow::windows::AtlasGpuQueriesEnabled();
++    std::fprintf(stderr,"atlas-gpu-poll enabled=%u interval_ms=1\n",unsigned(enabled));
++    return enabled;
++  }();
++  return enabled;
++}
++DWORD gpu_probe_wait_ms() {
++  return fine_gpu_poll_enabled() && (!gpu_copy_probes.empty() || !gpu_timestamp_probes.empty()) ? 1 : INFINITE;
++}
+ void poll_gpu_copy_probes(std::string& output) {
+   for(auto it=gpu_timestamp_probes.begin();it!=gpu_timestamp_probes.end();) {
+     if((*it)->Poll(output)) it=gpu_timestamp_probes.erase(it); else ++it;
+@@ -2337,6 +2351,13 @@
+     return decoder_.submit_ready_event() || next_parsed_ < parsed_frames_.size();
+   }
+   HANDLE DecodeReadyEvent() const { return decoder_.submit_ready_event(); }
++  void PollGpuDiagnostics() {
++    if (!fine_gpu_poll_enabled()) return;
++    std::string completed;
++    poll_gpu_copy_probes(completed);
++    if (!completed.empty()) std::cerr.write(completed.data(), std::streamsize(completed.size()));
++  }
++
+   // Do one bounded handoff/completion, then return to the outer message loop.
+   // Keep only this pipe chunk's parsed records; never read ahead during decode.
+   bool Advance() try {
+@@ -3184,13 +3205,14 @@
+       }
+       TranslateMessage(&message); DispatchMessageW(&message);
+     }
++    presenter.PollGpuDiagnostics();
+     if (presenter.WorkPending()) {
+       if (presenter.Advance()) continue;
+       HANDLE decoded = presenter.DecodeReadyEvent();
+       if (!decoded) bad("atlas pending work has no completion event");
+       // The MTA owns input bytes until completion. Keep servicing native input
+       // without nested dispatch inside a decode/copy/visual mutation operation.
+-      if (MsgWaitForMultipleObjectsEx(1, &decoded, INFINITE, QS_ALLINPUT,
++      if (MsgWaitForMultipleObjectsEx(1, &decoded, gpu_probe_wait_ms(), QS_ALLINPUT,
+                                       MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
+       continue;
+     }
+@@ -3204,7 +3226,7 @@
+     }
+     HANDLE ready = reader.ready_event();
+     atlas_progress(AtlasProgress::Idle);
+-    if (MsgWaitForMultipleObjectsEx(1, &ready, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
++    if (MsgWaitForMultipleObjectsEx(1, &ready, gpu_probe_wait_ms(), QS_ALLINPUT, MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
+   }
+ }
+ } // namespace

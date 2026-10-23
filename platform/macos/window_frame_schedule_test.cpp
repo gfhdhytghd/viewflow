@@ -45,4 +45,24 @@ int main() {
     cadence.advance(200.001, 60);
     assert(!cadence.due(200.002));
     assert(cadence.due(200.018));
+    macos::InputPriority priority;
+    assert(!priority.active(1.));
+    assert(priority.queue_limit(1.,false)==2);
+    priority.key(1.);
+    assert(priority.active(1.1));
+    assert(priority.queue_limit(1.1,false)==1); // Ordinary video leaves a slot.
+    assert(priority.queue_limit(1.1,true)==2);  // Popup may use it immediately.
+    assert(priority.urgent(1.1,true,60));
+    priority.submitted_popup(1.1);
+    assert(!priority.urgent(1.101,true,60));
+    assert(priority.urgent(1.118,true,60));
+    assert(!priority.urgent(1.118,false,60));
+    priority.key(1.3); // Repeated typing extends the preference.
+    assert(priority.active(1.5));
+    assert(!priority.active(1.651));
+    assert(priority.queue_limit(1.651,false)==2);
+    assert(priority.discovery_period(1.5)<priority.discovery_period(1.651));
+    cadence.restart(1.2,60);
+    assert(!cadence.due(1.215));
+    assert(cadence.due(1.217));
 }

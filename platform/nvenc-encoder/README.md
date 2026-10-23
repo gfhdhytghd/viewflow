@@ -69,7 +69,8 @@ The native C++ `GpuDmabufEncoder::encodeAtlas` entry point imports each DMA-BUF,
 prepares its crop and optional shadow independently, retains prepared device
 pixels, and calls this primitive before one NVENC submission. The batch deadline
 is the minimum of its caller deadline and every tile's original lease deadline.
-Imports are cleaned before composition. A full-size single tile uses the original
+Source reads finish and imports are unmapped before composition; reusable
+registrations may remain cached. A full-size single tile uses the original
 direct path without extra tile allocations. An empty layout encodes a clear atlas.
 The integration test exercises cropped tile colors through H.264 software decode,
 exact alpha placement/retirement, overlap rejection and expired tile leases.
@@ -82,6 +83,26 @@ images and confirms malformed batch headers terminally fail the handle. A manual
 Rust owned-empty-atlas test crosses the Rust/native boundary without capturing
 the desktop. Transported layout metadata, sender orchestration and receiver
 routing remain pending; this is not yet an end-to-end multiwindow application.
+
+## DMA-BUF registration reuse
+
+The GPU encoder retains up to four EGL images, GL textures and CUDA registrations
+per encoder by default. The key includes the DMA-BUF storage identity and layout;
+an owned FD keeps that identity alive while the entry is retained. Every frame
+still waits its own native fence, maps the resource, obtains the current mapped
+array, finishes reading and unmaps it before returning the producer receipt.
+Frame content and mapped-array pointers are never reused across frames.
+
+Failed storage identification or optional FD retention falls back to ordinary
+import. Preparation errors and expired preparation clear the affected entry;
+the existing cleanup-failure handling remains in place. Capacity eviction and
+encoder destruction release retained resources. Set `VIEWFLOW_GPU_IMPORT_CACHE=0`
+to bypass registration reuse for diagnostics; unset/empty or `1` enables it.
+
+Repeated 4K comparisons saved about 1 ms of encoding work, but complete display
+latency still depends on capture and Windows scheduling. See the
+[cache comparison](../../docs/evidence/performance-20260908/import-cache-hyperv-ddc/README.md)
+and [two-mode comparison](../../docs/evidence/performance-20260908/performance-mode-import-integration/README.md).
 
 ## C ABI
 

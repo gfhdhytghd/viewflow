@@ -1,0 +1,25 @@
+cadence=unpaced
+renderer=NVIDIA RTX PRO 6000 Blackwell Workstation Edition/PCIe/SSE2
+ffmpeg_context_flags=4
+source=isolated_tmpfs_shared
+strategy=sync
+registered_host_to_linear bytes=84934656 samples=120 median_ms=1.6242 p95_ms=1.7899 median_GBps=52.293
+byte_verification=pass
+registered_host_to_array bytes=84934656 samples=120 median_ms=1.6770 p95_ms=1.8091 median_GBps=50.648
+byte_verification=pass
+registered_host_to_GL_texture bytes=84934656 samples=120 median_ms=1.9421 p95_ms=3.9094 median_GBps=43.734
+byte_verification=pass
+strategy=async_default_wait
+registered_host_to_linear bytes=84934656 samples=120 median_ms=1.5978 p95_ms=1.7083 median_GBps=53.156
+byte_verification=pass
+registered_host_to_array bytes=84934656 samples=120 median_ms=1.6791 p95_ms=1.8062 median_GBps=50.583
+byte_verification=pass
+registered_host_to_GL_texture bytes=84934656 samples=120 median_ms=1.8969 p95_ms=4.1535 median_GBps=44.776
+byte_verification=pass
+strategy=async_nonblocking_wait
+registered_host_to_linear bytes=84934656 samples=120 median_ms=1.6127 p95_ms=1.7822 median_GBps=52.668
+byte_verification=pass
+registered_host_to_array bytes=84934656 samples=120 median_ms=1.6698 p95_ms=1.8942 median_GBps=50.866
+byte_verification=pass
+registered_host_to_GL_texture bytes=84934656 samples=120 median_ms=1.9338 p95_ms=4.1161 median_GBps=43.921
+byte_verification=pass

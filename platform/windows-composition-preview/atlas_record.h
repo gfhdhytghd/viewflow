@@ -29,6 +29,7 @@ struct DesktopWindow {
   bool movable{};
   uint32_t z_order{};
   uint32_t raise_serial{};
+  std::optional<DesktopRect> body_bounds;
 };
 struct DesktopLayout {
   uint64_t topology_generation{};
@@ -53,6 +54,21 @@ inline std::span<const AtlasPatch> PatchesForTile(
       [](uint32_t tile, const AtlasPatch& patch) { return tile < patch.tile_index; });
   return patches.subspan(size_t(first - patches.begin()), size_t(last - first));
 }
+struct AtlasActivity {
+  uint32_t lane{};uint64_t epoch{};AtlasId preferred{},focus{};
+  std::vector<AtlasId> members;
+};
+inline std::optional<AtlasActivity> DecodeAtlasActivity(std::span<const uint8_t> bytes) {
+  if(bytes.size()<48)return {};
+  auto u32=[&](size_t at){return (uint32_t(bytes[at])<<24)|(uint32_t(bytes[at+1])<<16)|(uint32_t(bytes[at+2])<<8)|bytes[at+3];};
+  auto u64=[&](size_t at){return (uint64_t(u32(at))<<32)|u32(at+4);};
+  auto id=[&](size_t at){return AtlasId{u64(at),u64(at+8)};};
+  const auto count=u32(4);if(u32(0)>1 || !u64(8) || count>4096 || bytes.size()!=48+size_t(count)*16)return {};
+  AtlasActivity result{u32(0),u64(8),id(16),id(32),{}};
+  for(unsigned i=0;i<count;++i){const auto member=id(48+size_t(i)*16);if(member==AtlasId{} || (!result.members.empty() && result.members.back()>=member))return {};result.members.push_back(member);}
+  for(auto selected:{result.preferred,result.focus})if(selected!=AtlasId{} && !std::binary_search(result.members.begin(),result.members.end(),selected))return {};
+  return result;
+}
 struct AtlasLayout {
   AtlasId stream;
   uint64_t geometry_epoch{}, config_generation{}, revision{}, source_ns{};
@@ -60,6 +76,7 @@ struct AtlasLayout {
   std::vector<AtlasTile> tiles;
   std::optional<DesktopLayout> desktop;
   std::optional<std::vector<AtlasPatch>> patches;
+  std::optional<AtlasActivity> activity;
 };
 
 inline std::optional<AtlasLayout>
@@ -77,7 +94,7 @@ DecodeAtlasLayout(std::span<const uint8_t> bytes, uint32_t width,
   if (count > 4096 || bytes.size() != 112 + size_t(count) * 64 || flags > (sparse ? 7u : 3u))
     return {};
   AtlasLayout layout{id(56),  u64(72),         u64(80),         u64(88),
-                     u64(96), bool(flags & 1), bool(flags & 2), {}, std::nullopt, std::nullopt};
+                     u64(96), bool(flags & 1), bool(flags & 2), {}, std::nullopt, std::nullopt, std::nullopt};
   if (layout.stream == AtlasId{} || !layout.geometry_epoch ||
       !layout.config_generation || !layout.source_ns)
     return {};
@@ -116,7 +133,7 @@ inline std::optional<DesktopLayout>
 DecodeDesktopLayout(std::span<const uint8_t> bytes, const AtlasLayout &atlas) {
   // bytes begins at the first desktop extension byte: topology + viewport +
   // count/reserved, followed by one ordered 56-byte window record per tile.
-  constexpr size_t fixed = 48, record = 56;
+  constexpr size_t fixed = 48;
   auto u32 = [&](size_t at) {
     return (uint32_t(bytes[at]) << 24) | (uint32_t(bytes[at + 1]) << 16) |
            (uint32_t(bytes[at + 2]) << 8) | bytes[at + 3];
@@ -124,7 +141,10 @@ DecodeDesktopLayout(std::span<const uint8_t> bytes, const AtlasLayout &atlas) {
   auto u64 = [&](size_t at) { return (uint64_t(u32(at)) << 32) | u32(at + 4); };
   auto i64 = [&](size_t at) { return static_cast<int64_t>(u64(at)); };
   auto id = [&](size_t at) { return AtlasId{u64(at), u64(at + 8)}; };
-  if (atlas.tiles.size() > 4096 ||
+  if(bytes.size()<fixed)return {};
+  const auto body_version=u32(44);
+  const size_t record=body_version==1?88:56;
+  if (body_version>1 || atlas.tiles.size() > 4096 ||
       bytes.size() != fixed + atlas.tiles.size() * record)
     return {};
   DesktopLayout layout{u64(0), {i64(8), i64(16), u64(24), u64(32)}, {}};
@@ -136,7 +156,7 @@ DecodeDesktopLayout(std::span<const uint8_t> bytes, const AtlasLayout &atlas) {
           INT64_MAX - static_cast<int64_t>(layout.viewport.width_millidip) ||
       layout.viewport.y_millidip >
           INT64_MAX - static_cast<int64_t>(layout.viewport.height_millidip) ||
-      u32(40) != atlas.tiles.size() || u32(44) != 0)
+      u32(40) != atlas.tiles.size())
     return {};
   layout.windows.reserve(atlas.tiles.size());
   for (size_t index = 0; index < atlas.tiles.size(); ++index) {
@@ -157,6 +177,16 @@ DecodeDesktopLayout(std::span<const uint8_t> bytes, const AtlasLayout &atlas) {
          window.bounds.y_millidip >
              INT64_MAX - static_cast<int64_t>(window.bounds.height_millidip)))
       return {};
+    if(body_version) {
+      DesktopRect body{i64(at+56),i64(at+64),u64(at+72),u64(at+80)};
+      if(!body.width_millidip || !body.height_millidip || body.width_millidip>uint64_t(INT64_MAX) || body.height_millidip>uint64_t(INT64_MAX) ||
+         body.x_millidip<window.bounds.x_millidip || body.y_millidip<window.bounds.y_millidip ||
+         uint64_t(body.x_millidip-window.bounds.x_millidip)>window.bounds.width_millidip ||
+         uint64_t(body.y_millidip-window.bounds.y_millidip)>window.bounds.height_millidip ||
+         body.width_millidip>window.bounds.width_millidip-uint64_t(body.x_millidip-window.bounds.x_millidip) ||
+         body.height_millidip>window.bounds.height_millidip-uint64_t(body.y_millidip-window.bounds.y_millidip))return {};
+      window.body_bounds=body;
+    }
     layout.windows.push_back(window);
   }
   return layout;

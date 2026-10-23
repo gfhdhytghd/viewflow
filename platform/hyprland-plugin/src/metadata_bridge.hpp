@@ -55,7 +55,7 @@ struct MonitorState {
 
 class MetadataBridge {
 public:
-  MetadataBridge();
+  explicit MetadataBridge(std::filesystem::path path = {});
   ~MetadataBridge();
 
   MetadataBridge(const MetadataBridge &) = delete;

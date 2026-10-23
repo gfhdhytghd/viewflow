@@ -1,0 +1,73 @@
+**********************************************************************
+** Visual Studio 2022 Developer Command Prompt v17.14.39
+** Copyright (c) 2025 Microsoft Corporation
+**********************************************************************
+[vcvarsall.bat] Environment initialized for: 'x64'
+-- Configuring done (0.0s)
+-- Generating done (0.3s)
+-- Build files have been written to: C:/Users/wilf/Viewflow/composition-audit-20260913/build-reverse
+适用于 .NET Framework MSBuild 版本 17.14.51+25f168cee
+
+  viewflow_reverse_frame_changes_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_frame_changes_test.exe
+  viewflow_reverse_geometry_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_geometry_test.exe
+  viewflow_reverse_performance_mode_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_performance_mode_test.exe
+  viewflow_reverse_encoder.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_encoder.lib
+  viewflow_reverse_wire_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_wire_test.exe
+  viewflow_reverse_capture_fixture.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_capture_fixture.exe
+  viewflow_windows_window_capture.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\wgc\Release\viewflow_windows_window_capture.lib
+  viewflow_virtual_display.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_virtual_display.exe
+  Building Custom Rule C:/Users/wilf/Viewflow/composition-audit-20260913/platform/windows-reverse/CMakeLists.txt
+  viewflow_wgc_capture_contract_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\wgc\Release\viewflow_wgc_capture_contract_test.exe
+  Building Custom Rule C:/Users/wilf/Viewflow/composition-audit-20260913/platform/windows-reverse/CMakeLists.txt
+  viewflow_reverse_ime_inventory_probe.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_ime_inventory_probe.exe
+  viewflow_window_residency_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_window_residency_test.exe
+  viewflow_reverse_alpha_async_probe.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_alpha_async_probe.exe
+cl : 命令行  warning D9025: 正在重写“/DNDEBUG”(用“/UNDEBUG”) [C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\viewflow_window_decoration_test.vcxproj]
+  window_decoration_test.cpp
+  viewflow_reverse_encoder_probe.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_reverse_encoder_probe.exe
+cl : 命令行  warning D9025: 正在重写“/DNDEBUG”(用“/UNDEBUG”) [C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\viewflow_window_decoration_gpu_test.vcxproj]
+  window_decoration_gpu_test.cpp
+  main.cpp
+  window_decoration_gpu.cpp
+  viewflow_window_decoration_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_window_decoration_test.exe
+  正在生成代码...
+  viewflow_window_decoration_gpu_test.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_window_decoration_gpu_test.exe
+  window_decoration_gpu.cpp
+  正在生成代码...
+  viewflow_windows_reverse.vcxproj -> C:\Users\wilf\Viewflow\composition-audit-20260913\build-reverse\Release\viewflow_windows_reverse.exe
+Internal ctest changing into directory: C:/Users/wilf/Viewflow/composition-audit-20260913/build-reverse
+Test project C:/Users/wilf/Viewflow/composition-audit-20260913/build-reverse
+    Start 1: reverse_wire
+1/9 Test #1: reverse_wire ......................   Passed    0.02 sec
+    Start 2: reverse_geometry
+2/9 Test #2: reverse_geometry ..................   Passed    0.09 sec
+    Start 3: reverse_frame_changes
+3/9 Test #3: reverse_frame_changes .............   Passed    0.01 sec
+    Start 4: reverse_performance_mode
+4/9 Test #4: reverse_performance_mode ..........   Passed    0.02 sec
+    Start 5: window_residency
+5/9 Test #5: window_residency ..................   Passed    0.01 sec
+    Start 6: window_decoration
+6/9 Test #6: window_decoration .................Exit code 0xc0000409
+***Exception:   0.13 sec
+
+    Start 7: window_decoration_gpu
+7/9 Test #7: window_decoration_gpu .............   Passed    0.13 sec
+    Start 8: viewflow_wgc_capture_contract
+8/9 Test #8: viewflow_wgc_capture_contract .....   Passed    0.02 sec
+    Start 9: viewflow_wgc_window_only_source
+9/9 Test #9: viewflow_wgc_window_only_source ...   Passed    0.03 sec
+
+89% tests passed, 1 tests failed out of 9
+
+Total Test time (real) =   0.48 sec
+
+The following tests FAILED:
+	  6 - window_decoration (Exit code 0xc0000409
+)
+
+** WARNING: connection is not using a post-quantum key exchange algorithm.
+** This session may be vulnerable to "store now, decrypt later" attacks.
+** The server may need to be upgraded. See https://openssh.com/pq.html
+Errors while running CTest
+

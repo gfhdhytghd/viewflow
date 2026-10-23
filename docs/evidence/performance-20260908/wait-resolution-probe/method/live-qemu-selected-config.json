@@ -1,0 +1,26 @@
+{
+  "pid": 1579,
+  "selected_arguments": [
+    [
+      "-machine",
+      "q35,accel=kvm"
+    ],
+    [
+      "-cpu",
+      "host"
+    ],
+    [
+      "-smp",
+      "10,sockets=1,cores=10,threads=1"
+    ],
+    [
+      "-rtc",
+      "base=localtime,clock=host,driftfix=slew"
+    ],
+    [
+      "-qmp",
+      "unix:/home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/qmp-vfio.sock,server=on,wait=off"
+    ]
+  ],
+  "explicit_hyperv_arguments": []
+}

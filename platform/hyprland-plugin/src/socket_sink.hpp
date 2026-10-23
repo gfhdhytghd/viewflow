@@ -20,7 +20,7 @@ struct ReceivedPacket {
 
 class SocketSink {
 public:
-  SocketSink();
+  explicit SocketSink(std::filesystem::path path = {});
   ~SocketSink();
 
   SocketSink(const SocketSink &) = delete;

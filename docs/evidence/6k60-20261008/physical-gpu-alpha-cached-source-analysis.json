@@ -1,0 +1,29 @@
+{
+  "scope": "Windows QPC; enqueue-to-pack includes GPU readback, polling and shared publication",
+  "stages": {
+    "enqueue_to_pack_ms": {
+      "n": 1278,
+      "p50": 17.6676,
+      "p95": 32.5717,
+      "max": 77.2791
+    },
+    "pack_ms": {
+      "n": 1278,
+      "p50": 0.0052,
+      "p95": 0.0073,
+      "max": 0.0187
+    },
+    "pipe_write_ms": {
+      "n": 1278,
+      "p50": 0.0149,
+      "p95": 0.0224,
+      "max": 0.0616
+    },
+    "atlas_to_write_ms": {
+      "n": 1278,
+      "p50": 17.835,
+      "p95": 32.9451,
+      "max": 77.3577
+    }
+  }
+}

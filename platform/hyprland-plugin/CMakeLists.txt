@@ -22,6 +22,7 @@ add_library(viewflow-hyprland SHARED
     src/input_capture.cpp
     src/input_capture_core.cpp
     src/desktop_window_controller.cpp
+    src/window_recall.cpp
     src/window_input_target.cpp
     src/window_pointer_session.cpp
     src/window_pointer_controller.cpp

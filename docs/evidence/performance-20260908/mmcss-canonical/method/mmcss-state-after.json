@@ -1,0 +1,106 @@
+{
+  "service": {
+    "Name": "MMCSS",
+    "Status": 4,
+    "StartType": 2
+  },
+  "playback": {
+    "Scheduling Category": "Medium",
+    "Priority": 3,
+    "SFIO Priority": "Normal",
+    "Background Only": "False",
+    "Clock Rate": 10000,
+    "GPU Priority": 8,
+    "Affinity": 0
+  },
+  "e1000": [
+    {
+      "RegistryKeyword": "*FlowControl",
+      "RegistryValue": [
+        "3"
+      ]
+    },
+    {
+      "RegistryKeyword": "*InterruptModeration",
+      "RegistryValue": [
+        "1"
+      ]
+    },
+    {
+      "RegistryKeyword": "*IPChecksumOffloadIPv4",
+      "RegistryValue": [
+        "3"
+      ]
+    },
+    {
+      "RegistryKeyword": "*JumboPacket",
+      "RegistryValue": [
+        "1514"
+      ]
+    },
+    {
+      "RegistryKeyword": "*LsoV1IPv4",
+      "RegistryValue": [
+        "1"
+      ]
+    },
+    {
+      "RegistryKeyword": "*PriorityVLANTag",
+      "RegistryValue": [
+        "3"
+      ]
+    },
+    {
+      "RegistryKeyword": "*ReceiveBuffers",
+      "RegistryValue": [
+        "256"
+      ]
+    },
+    {
+      "RegistryKeyword": "*SpeedDuplex",
+      "RegistryValue": [
+        "0"
+      ]
+    },
+    {
+      "RegistryKeyword": "*TCPChecksumOffloadIPv4",
+      "RegistryValue": [
+        "3"
+      ]
+    },
+    {
+      "RegistryKeyword": "*TransmitBuffers",
+      "RegistryValue": [
+        "512"
+      ]
+    },
+    {
+      "RegistryKeyword": "*UDPChecksumOffloadIPv4",
+      "RegistryValue": [
+        "3"
+      ]
+    },
+    {
+      "RegistryKeyword": "AdaptiveIFS",
+      "RegistryValue": [
+        "1"
+      ]
+    },
+    {
+      "RegistryKeyword": "ITR",
+      "RegistryValue": [
+        "65535"
+      ]
+    },
+    {
+      "RegistryKeyword": "NetworkAddress",
+      "RegistryValue": null
+    },
+    {
+      "RegistryKeyword": "NumCoalesceBuffers",
+      "RegistryValue": [
+        "128"
+      ]
+    }
+  ]
+}

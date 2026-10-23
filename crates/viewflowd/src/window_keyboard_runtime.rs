@@ -141,6 +141,11 @@ impl WindowInputSession {
         )
         .map_err(|error| anyhow!("native keyboard request: {error:?}"))?;
         self.connection.send(request)?;
+        if let Some(activity) = &self.activity {
+            activity.observe(|state, now| state.hold(event.target_window.0, 2,
+                (u64::from(event.key.usage_page) << 32) | u64::from(event.key.usage_id),
+                event.key.state == InputSwitchState::Pressed, now));
+        }
         self.sequence = sequence;
         self.pending_key = Some(event);
         self.state = State::Keying;

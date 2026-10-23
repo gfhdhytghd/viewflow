@@ -104,5 +104,19 @@ int main() {
     const auto* b=shared_opacity.Find(id,id==5?16:8,id==5?4:8);
     if(!b || b->opaque_patches!=std::vector<uint8_t>{uint8_t(id<=2)})return 31;
   }
+  AtlasFrameBindings lane;
+  auto lane_first=frame(5),lane_next=frame(7);
+  lane_first.atlas->activity=viewflow::vfgp::AtlasActivity{1,1,{0,1},{0,1},{{0,1}}};
+  lane_next.atlas->activity=lane_first.atlas->activity;
+  lane_next.atlas->color_keyframe=false;lane_next.atlas->alpha_keyframe=false;
+  if(!lane.Stage(lane_first)||!lane.Commit(5)||!lane.Stage(lane_next)||!lane.Commit(7))return 32;
+  auto lost=frame(11);lost.atlas->activity=lane_first.atlas->activity;
+  lost.atlas->color_keyframe=false;
+  if(lane.Stage(lost))return 33;
+  lost.atlas->color_keyframe=true;
+  if(!lane.Stage(lost)||!lane.Commit(11))return 34;
+  auto other=frame(13);other.atlas->activity=lane_first.atlas->activity;
+  other.atlas->activity->lane=0;
+  if(lane.Stage(other))return 35;
   return 0;
 }

@@ -1,0 +1,72 @@
+{
+  "command": [
+    "/usr/bin/qemu-system-x86_64",
+    "-machine",
+    "q35,accel=kvm",
+    "-cpu",
+    "host,hv-vpindex=on,hv-time=on,hv-synic=on,hv-stimer=on",
+    "-smp",
+    "1",
+    "-m",
+    "64M",
+    "-nodefaults",
+    "-display",
+    "none",
+    "-S",
+    "-qmp",
+    "stdio"
+  ],
+  "live_vm_pid": 1579,
+  "does_not_attach_live_vm": true,
+  "greeting": {
+    "QMP": {
+      "version": {
+        "qemu": {
+          "micro": 1,
+          "minor": 1,
+          "major": 11
+        },
+        "package": ""
+      },
+      "capabilities": [
+        "oob"
+      ]
+    }
+  },
+  "capabilities": {
+    "return": {}
+  },
+  "status": {
+    "return": {
+      "status": "prelaunch",
+      "running": false
+    }
+  },
+  "cpus": {
+    "return": [
+      {
+        "thread-id": 130096,
+        "qom-type": "host-x86_64-cpu",
+        "props": {
+          "core-id": 0,
+          "thread-id": 0,
+          "socket-id": 0
+        },
+        "qom-path": "/machine/unattached/device[0]",
+        "cpu-index": 0,
+        "target": "x86_64"
+      }
+    ]
+  },
+  "properties": {
+    "hv-vpindex": true,
+    "hv-time": true,
+    "hv-synic": true,
+    "hv-stimer": true
+  },
+  "quit": {
+    "return": {}
+  },
+  "exit": 0,
+  "stderr": ""
+}

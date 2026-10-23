@@ -1,0 +1,3 @@
+# Initial CBR, regular P and CQP experiment
+
+26 local/remote source inputs match and the native probe builds. CBR and CBR with GPB disabled each emit 120 full 6K frames. The first CQP 26 trial fails before its first output with MFX_ERR_NOT_ENOUGH_BUFFER (-5): runtime GetVideoParam reports BufferSizeInKB 31850, exceeding the fixed 16 MiB bitstream allocation. This is an application probe capacity limitation, not unsupported CQP. The exact failure and native identity are retained; no full-route trial or production change was made. The corrected [v13 probe](../vpl-probe-v13/README.md) sizes its output from actual runtime requirements and reruns all controls.

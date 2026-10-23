@@ -98,7 +98,15 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
     if (bytes_.size() < wanted_)
       break;
     if (wanted_ == 40) {
-      const auto *p = bytes_.data();
+      auto *p = bytes_.data();
+      if(p[0]=='V' && p[1]=='F' && p[2]=='G' && p[3]=='P' && p[4]==11){
+        if(!allow_activity_v11_ || !allow_atlas_v5_ || (p[5]!=5 && p[5]!=7 && p[5]!=8) || p[6]>1 || p[7]){error_="V11 activity disabled or invalid";return false;}
+        activity_v11_=true;activity_lane_=p[6];p[4]=p[5];p[5]=p[6]=0;
+      }
+      if (p[0]=='V' && p[1]=='F' && p[2]=='G' && p[3]=='P' && p[4]==10) {
+        if (!allow_atlas_v5_ || max_<128 || be32(p+8)!=128 || be32(p+12)) { error_="V10 geometry ack header"; return false; }
+        version_=10; wanted_=128; continue;
+      }
       if (p[0] == 'V' && p[1] == 'F' && p[2] == 'G' && p[3] == 'P' &&
           (p[4] == 6 || p[4] == 9)) {
         const bool rejected = p[4] == 9;
@@ -126,10 +134,10 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
         const auto header = be32(p + 8);
         const bool sparse=version_==8;
         if (!allow_atlas_v5_ || (version_==7 && !allow_desktop_v7_) || header>max_ ||
-            (sparse ? (header<120 || header>120u+4096u*120u+48u+32768u*28u) :
+            (activity_v11_ ? (header<164 || header>max_) : sparse ? (header<120 || header>120u+4096u*152u+48u+32768u*28u) :
                 (header<(version_==7 ? 160u:112u) ||
-                 header>(version_==7 ? 160u+4096u*120u:112u+4096u*64u) ||
-                 (version_==7 ? (header-160u)%120u:(header-112u)%64u)))) {
+                 header>(version_==7 ? 160u+4096u*152u:112u+4096u*64u) ||
+                 (version_==7 ? ((header-160u)%120u && (header-160u)%152u):(header-112u)%64u)))) {
           error_="atlas header or disabled"; return false;
         }
         wanted_ = 112;
@@ -164,6 +172,12 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
       wanted_ = size_t(total);
       continue;
     }
+    if (version_ == 10) {
+      auto ack=DecodeDesktopGeometryAck(bytes_);
+      if (!ack) { error_="V10 geometry ack"; return false; }
+      Frame record{}; record.desktop_geometry_ack=ack; out->push_back(std::move(record));
+      bytes_.clear(); wanted_=header_bytes_=40; version_=0; continue;
+    }
     if (version_ == 6 || version_ == 9) {
       auto recovery = version_ == 9 ? DecodeRejectedInput(bytes_) : DecodeInputRecovery(bytes_);
       if (!recovery || recovery->sequence <= previous_recovery_) {
@@ -186,10 +200,10 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
                      w = be32(p + 24), h = be32(p + 28);
       const auto header = be32(p + 8);
       if ((version_ == 5 || version_ == 7 || version_ == 8) &&
-          (be32(p+104)>4096 || (version_==8 ?
+          (be32(p+104)>4096 || (activity_v11_ ? (header<164u+be32(p+104)*64u || (version_==7 && !allow_desktop_v7_) || (version_==8 && (be32(p+108)&4) && !allow_desktop_v7_)) : version_==8 ?
              (header < 120u + be32(p+104)*64u + ((be32(p+108)&4) ? 48u+be32(p+104)*56u:0u)
                 || ((be32(p+108)&4) && !allow_desktop_v7_)) :
-             header != (version_==7 ? 160u+be32(p+104)*120u:112u+be32(p+104)*64u)))) {
+             (version_==7 ? (header!=160u+be32(p+104)*120u && header!=160u+be32(p+104)*152u) : header!=112u+be32(p+104)*64u)))) {
         error_="atlas tile count or desktop disabled"; return false;
       }
       const uint64_t area = uint64_t(w) * h, total = uint64_t(payload) + header;
@@ -200,7 +214,7 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
         return false;
       }
       const uint64_t id = be64(p + 16);
-      if (!id || id <= ((version_ == 5 || version_ == 7 || version_ == 8) ? previous_atlas_
+      if (!id || id <= ((version_ == 5 || version_ == 7 || version_ == 8) ? (activity_v11_?previous_activity_[activity_lane_]:previous_atlas_)
                                                          : previous_)) {
         error_ = "identity";
         return false;
@@ -212,6 +226,16 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
     const auto *p = bytes_.data();
     const uint64_t id = be64(p + 16);
     const uint32_t w = be32(p + 24), h = be32(p + 28), c = be32(p + 32);
+    std::optional<AtlasActivity> activity;
+    size_t layout_header=header_bytes_;
+    if(activity_v11_){
+      if(layout_header<52){error_="V11 activity footer";return false;}
+      const auto size=be32(p+layout_header-4);
+      if(size>layout_header-112-4){error_="V11 activity length";return false;}
+      layout_header-=size+4;
+      activity=DecodeAtlasActivity({p+layout_header,size});
+      if(!activity || activity->lane!=activity_lane_){error_="V11 activity fields";return false;}
+    }
     std::optional<AtlasLayout> atlas;
     if (version_ == 5 || version_ == 7 || version_ == 8) {
       const size_t atlas_bytes = 112 + size_t(be32(p + 104)) * 64;
@@ -222,15 +246,23 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
       }
       size_t next_at=atlas_bytes;
       if (version_==7 || (version_==8 && (be32(p+108)&4))) {
-        const size_t desktop_bytes=48+atlas->tiles.size()*56;
-        if(next_at+desktop_bytes>header_bytes_) { error_="desktop extension length"; return false; }
+        if(next_at+48>layout_header) { error_="desktop extension header"; return false; }
+        const auto body_version=be32(p+next_at+44);
+        if(body_version>1) { error_="desktop body version"; return false; }
+        const size_t desktop_bytes=48+atlas->tiles.size()*(body_version?88:56);
+        if(next_at+desktop_bytes>layout_header) { error_="desktop extension length"; return false; }
         auto desktop=DecodeDesktopLayout({p+next_at,desktop_bytes},*atlas);
         if(!desktop) { error_="desktop layout"; return false; }
         atlas->desktop=std::move(desktop);
         next_at+=desktop_bytes;
       }
-      if(version_==8 && !DecodeSparsePatches({p+next_at,header_bytes_-next_at},w,h,*atlas)) {
+      if(version_==8 && !DecodeSparsePatches({p+next_at,layout_header-next_at},w,h,*atlas)) {
         error_="V8 sparse patches"; return false;
+      }
+      if(version_!=8 && next_at!=layout_header){error_="atlas trailing metadata";return false;}
+      if(activity){
+        for(const auto& tile:atlas->tiles)if(!std::binary_search(activity->members.begin(),activity->members.end(),tile.window)){error_="V11 tile membership";return false;}
+        atlas->activity=std::move(activity);
       }
     }
     Frame frame{id,
@@ -267,10 +299,10 @@ bool Parser::Push(std::span<const uint8_t> in, std::vector<Frame> *out) {
       frame.deadline_qpc = DeadlineQpc{be64(p + 40), be64(p + 48)};
     out->push_back(std::move(frame));
     if (version_ == 5 || version_ == 7 || version_ == 8)
-      previous_atlas_ = id;
+      {if(activity_v11_)previous_activity_[activity_lane_]=id;else previous_atlas_=id;}
     else
       previous_ = id;
-    bytes_.clear();
+    bytes_.clear();activity_v11_=false;activity_lane_=0;
     wanted_ = 40;
     header_bytes_ = 40;
     version_ = 0;

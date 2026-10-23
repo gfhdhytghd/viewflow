@@ -1,0 +1,23 @@
+{
+  "pid": 687589,
+  "argv_selected": {
+    "-cpu": "host,hv-vpindex=on,hv-time=on,hv-synic=on,hv-stimer=on",
+    "-machine": "q35,accel=kvm",
+    "-smp": "10,sockets=1,cores=10,threads=1",
+    "-m": "24576"
+  },
+  "qmp_properties": {
+    "hv-vpindex": {
+      "return": true
+    },
+    "hv-time": {
+      "return": true
+    },
+    "hv-synic": {
+      "return": true
+    },
+    "hv-stimer": {
+      "return": true
+    }
+  }
+}

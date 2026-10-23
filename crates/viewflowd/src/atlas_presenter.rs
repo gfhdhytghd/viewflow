@@ -20,6 +20,7 @@ pub struct AtlasVisualSubmission {
 #[derive(Debug, PartialEq, Eq)]
 pub enum AtlasDisposition {
     ExpiredUnbound,
+    Superseded,
     CommittedWithinDeadline { commit_ticks: u64 },
     CommittedLate { commit_ticks: u64 },
 }
@@ -72,6 +73,10 @@ impl AtlasDisposition {
         );
         let ticks = number(6, "commit_ticks=")?;
         match fields[3] {
+            "outcome=superseded" => {
+                ensure!(ticks == 0, "superseded frame cannot commit pixels");
+                Ok(Self::Superseded)
+            }
             "outcome=expired-unbound" => {
                 ensure!(
                     ticks == 0 && receipt_ticks >= deadline.ticks,
@@ -146,6 +151,15 @@ mod disposition_tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn superseded_has_no_commit_and_does_not_require_deadline_expiry() {
+        let superseded = COMMIT.replace("outcome=committed", "outcome=superseded")
+            .replace("commit_ticks=199", "commit_ticks=0");
+        assert_eq!(parse(&superseded, 150).unwrap(), AtlasDisposition::Superseded);
+        assert_eq!(parse(&superseded, 250).unwrap(), AtlasDisposition::Superseded);
+        assert!(parse(&superseded.replace("commit_ticks=0", "commit_ticks=150"), 150).is_err());
     }
 
     #[test]
@@ -254,6 +268,8 @@ pub struct AtlasPresenterPipe<W, R> {
     receipt_mode: ReceiptMode,
     input_mode: NativeInputMode,
     last_recovery: u64,
+    activity_requested: bool,
+    activity_capable: bool,
 }
 
 impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
@@ -271,6 +287,8 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
             receipt_mode: ReceiptMode::Legacy,
             input_mode: NativeInputMode::Disabled,
             last_recovery: 0,
+            activity_requested: false,
+            activity_capable: false,
         }
     }
 
@@ -324,6 +342,40 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
             input_mode: NativeInputMode::RecoverableDesktop,
             ..Self::with_input_recovery(writer, reader)
         }
+    }
+
+    /// Enable readiness negotiation only when the child received the V11 flag.
+    pub(crate) fn request_activity(mut self) -> Self {
+        self.activity_requested = true;
+        self
+    }
+
+    pub(crate) fn activity_capable(&self) -> bool { self.activity_capable }
+
+    pub(crate) fn into_activity(
+        mut self, clock: impl Fn() -> Result<(u64, u64)> + Send + Sync + 'static,
+    ) -> Result<crate::atlas_activity_presenter::ActivityAtlasPresenter<W>>
+    where W: Send, R: Send + 'static {
+        ensure!(self.ready && !self.poisoned && self.activity_capable
+            && self.warmup_shape.is_some() && self.last_frame == 0,
+            "activity pipe requires completed V11 startup");
+        let (writer, reader) = self.io.take().context("activity pipe unavailable")?;
+        Ok(crate::atlas_activity_presenter::ActivityAtlasPresenter::start(
+            writer, reader, self.input_mode == NativeInputMode::RecoverableDesktop, clock))
+    }
+
+    /// Forward a validated final source geometry receipt without changing media
+    /// identity or codec state. The sole pipe owner serializes this with frames.
+    pub async fn desktop_geometry_ack(&mut self, ack: viewflow_protocol::DesktopWindowMoveAck,
+        native_sequence: u64, deadline: Instant) -> Result<u64> {
+        ensure!(self.ready && !self.poisoned, "desktop receipt pipe unavailable");
+        let record = encode_desktop_geometry_ack(ack, native_sequence)?;
+        self.poisoned = true;
+        let io = self.io.as_mut().context("desktop receipt pipe missing")?;
+        timeout_at(deadline, async { io.0.write_all(&record).await?; io.0.flush().await })
+            .await.context("desktop receipt pipe write expired")??;
+        self.poisoned = false;
+        Ok(native_sequence)
     }
 
     /// Send a source-post-cleanup confirmation and consume its exact native
@@ -428,9 +480,17 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
             .io
             .take()
             .ok_or_else(|| anyhow::anyhow!("atlas pipe missing"))?;
-        let line = timeout_at(deadline, read_line(&mut io.1)).await??;
+        let line = timeout_at(deadline, read_line_bounded(&mut io.1, 256)).await??;
+        let base = if self.activity_requested {
+            if let Some(base) = line.strip_suffix(" activity=v11") {
+                self.activity_capable = true;
+                base
+            } else {
+                line.strip_suffix(" activity=off").context("missing native activity capability")?
+            }
+        } else { line.as_str() };
         ensure!(
-            line == if self.input_mode == NativeInputMode::RecoverableDesktop {
+            base == if self.input_mode == NativeInputMode::RecoverableDesktop {
                 "atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1 desktop=v1 move_mode=win"
             } else if self.input_mode == NativeInputMode::RecoverableKeyboard {
                 "atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1"
@@ -682,8 +742,12 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
             let _ = std::io::stderr().lock().write_all(line.as_bytes());
         }
         self.last_frame = frame.layout.frame_id;
+        ensure!(result != AtlasDisposition::Superseded || frame.layout.activity.is_some(),
+            "superseded disposition requires activity scheduling");
         self.receipt_mode = if result == AtlasDisposition::ExpiredUnbound {
             ReceiptMode::DispositionNeedsKeyframe
+        } else if result == AtlasDisposition::Superseded {
+            ReceiptMode::Disposition
         } else {
             self.last_committed_frame = frame.layout.frame_id;
             ReceiptMode::Disposition
@@ -692,6 +756,26 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
         self.poisoned = false;
         Ok(result)
     }
+}
+
+pub(crate) fn encode_desktop_geometry_ack(ack: viewflow_protocol::DesktopWindowMoveAck,
+    native_sequence: u64) -> Result<Vec<u8>> {
+        ack.validate().map_err(|e| anyhow::anyhow!("invalid desktop receipt: {e:?}"))?;
+        ensure!(native_sequence > 0, "desktop receipt sequence must be nonzero");
+        let mut record = vec![0_u8; 128];
+        record[..4].copy_from_slice(b"VFGP"); record[4]=10;
+        record[5]=u8::from(ack.result == viewflow_protocol::DesktopWindowMoveResult::Rejected);
+        record[8..12].copy_from_slice(&128_u32.to_be_bytes());
+        record[16..24].copy_from_slice(&native_sequence.to_be_bytes());
+        record[40..56].copy_from_slice(&ack.stream_id.0.to_be_bytes());
+        record[56..72].copy_from_slice(&ack.window_id.0.to_be_bytes());
+        record[72..80].copy_from_slice(&u64::try_from(ack.drag_id.0)?.to_be_bytes());
+        record[80..88].copy_from_slice(&ack.config_generation.to_be_bytes());
+        record[88..96].copy_from_slice(&ack.actual_bounds.x_millidip.to_be_bytes());
+        record[96..104].copy_from_slice(&ack.actual_bounds.y_millidip.to_be_bytes());
+        record[104..112].copy_from_slice(&ack.actual_bounds.width_millidip.to_be_bytes());
+        record[112..120].copy_from_slice(&ack.actual_bounds.height_millidip.to_be_bytes());
+        Ok(record)
 }
 
 async fn read_line(reader: &mut (impl AsyncRead + Unpin)) -> Result<String> {
@@ -721,7 +805,7 @@ pub(crate) async fn read_line_bounded(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     #[tokio::test]
     async fn native_lines_share_read_ahead_without_one_pipe_read_per_byte() {
@@ -761,6 +845,27 @@ mod tests {
     const RECOVERY_READY: &[u8] = b"atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1\n";
     const DESKTOP_READY: &[u8] = b"atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1 keyboard=v1 recovery=v1 desktop=v1 move_mode=win\n";
     const RECOVERY_RECEIPT: &[u8] = b"atlas-input-recovered-v1 sequence=1 stream_hi=0 stream_lo=2 window_hi=0 window_lo=3 atlas_epoch=4 config_generation=5 previous_epoch=6 geometry_epoch=7 grant_generation=8 atlas_frame=9 source_frame=10 placement_generation=11 deadline_qpc=120 frequency=1000 recovered_qpc=110\n";
+    #[tokio::test]
+    async fn desktop_geometry_receipt_preserves_media_identity_and_encodes_native_sequence() {
+        use viewflow_protocol::{DesktopWindowMoveAck, DesktopWindowMoveResult, DesktopRect, Id128};
+        let ack=DesktopWindowMoveAck {
+            source_device: Id128(1), owner_device: Id128(2), stream_id: Id128(3),
+            config_generation: 4, topology_generation: 5, window_id: Id128(6), drag_id: Id128(7), sequence: 2,
+            result: DesktopWindowMoveResult::Ended,
+            actual_bounds: DesktopRect { x_millidip:-1000, y_millidip:2000, width_millidip:640000, height_millidip:480000 },
+        };
+        let (client,mut native)=tokio::io::duplex(1024);
+        let (reader,writer)=tokio::io::split(client);
+        let mut pipe=AtlasPresenterPipe::with_input_recovery(writer,reader);
+        pipe.ready=true;pipe.last_frame=99;pipe.last_committed_frame=98;
+        assert_eq!(pipe.desktop_geometry_ack(ack,17,Instant::now()+std::time::Duration::from_secs(1)).await.unwrap(),17);
+        let mut bytes=[0_u8;128];native.read_exact(&mut bytes).await.unwrap();
+        assert_eq!(&bytes[..5],b"VFGP\x0a");
+        assert_eq!(u64::from_be_bytes(bytes[16..24].try_into().unwrap()),17);
+        assert_eq!(i64::from_be_bytes(bytes[88..96].try_into().unwrap()),-1000);
+        assert_eq!(pipe.last_frame,99);assert_eq!(pipe.last_committed_frame,98);assert!(!pipe.poisoned);
+    }
+
     fn recovery_control() -> crate::atlas_input_recovery::InputRecoveryConfirmation {
         crate::atlas_input_recovery::InputRecoveryConfirmation {
             rejection: None,
@@ -779,6 +884,20 @@ mod tests {
             frequency: 1000,
         }
     }
+    #[tokio::test]
+    async fn activity_readiness_can_decline_without_downgrading_input_capabilities() {
+        for (suffix, valid, capable) in [(" activity=off", true, false), (" activity=v11", true, true), (" activity=v10", false, false), ("", false, false)] {
+            let (client, mut native) = tokio::io::duplex(2048);
+            let (reader, writer) = tokio::io::split(client);
+            let mut pipe = AtlasPresenterPipe::with_input_recovery(writer, reader).request_activity();
+            let base = std::str::from_utf8(RECOVERY_READY).unwrap().trim_end();
+            native.write_all(format!("{base}{suffix}\n").as_bytes()).await.unwrap();
+            let result = pipe.wait_ready(Instant::now() + std::time::Duration::from_secs(1)).await;
+            assert_eq!(result.is_ok(), valid);
+            if valid { assert_eq!(pipe.activity_capable(), capable); }
+        }
+    }
+
     #[tokio::test]
     async fn recovery_readiness_is_exact_and_never_silently_upgrades_or_downgrades() {
         for recovery in [false, true] {
@@ -976,10 +1095,11 @@ mod tests {
         }
     }
 
-    fn test_frame() -> AdmittedAtlas {
+    pub(crate) fn test_frame() -> AdmittedAtlas {
         use viewflow_protocol::{AtlasFrame, FrameManifest, Id128};
         AdmittedAtlas {
             layout: AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,

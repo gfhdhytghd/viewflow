@@ -40,7 +40,7 @@ std::filesystem::path resolveSocketPath() {
 
 } // namespace
 
-SocketSink::SocketSink() : m_socketPath(resolveSocketPath()) {}
+SocketSink::SocketSink(std::filesystem::path path) : m_socketPath(path.empty() ? resolveSocketPath() : std::move(path)) {}
 
 SocketSink::~SocketSink() { disconnect(); }
 

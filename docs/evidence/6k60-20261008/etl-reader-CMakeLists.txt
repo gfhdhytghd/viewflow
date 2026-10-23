@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+project(viewflow_etl_reader LANGUAGES CXX)
+add_executable(viewflow_etl_reader etl_reader.cpp)
+target_compile_features(viewflow_etl_reader PRIVATE cxx_std_20)
+target_link_libraries(viewflow_etl_reader PRIVATE advapi32 tdh)

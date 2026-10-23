@@ -1,0 +1,467 @@
+[
+  {
+    "run": "vpl-probe/runs/lowpower-on-a1",
+    "exit": 1,
+    "settings": {
+      "exit": 1,
+      "low_power": 1,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-20260909\\probe.exe"
+    },
+    "native_sha256": "9323532ABB9B3DE3C259EC36824564621F26145A04877CED31DC756E492B05D2",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "run": "vpl-probe-v2/runs/lowpower-off-b1",
+    "exit": 0,
+    "settings": {
+      "exit": 0,
+      "low_power": 0,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v2-20260909\\probe.exe"
+    },
+    "native_sha256": "81E90537B2C84A504A64829D38ACEAB6A1477E6C9B19DA8060DB846027E3E8FF",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "1abd8174e383582840aa5af030e6c8d84a0b666ce38e8f08c9efb281c31218a6",
+    "warmup_frames": 20,
+    "timings_ms": {
+      "prepare": {
+        "n": 100,
+        "median": 0.4477,
+        "p95": 0.6384,
+        "min": 0.326,
+        "max": 0.8127
+      },
+      "submit": {
+        "n": 100,
+        "median": 0.029449999999999997,
+        "p95": 0.0372,
+        "min": 0.02,
+        "max": 0.0414
+      },
+      "sync": {
+        "n": 100,
+        "median": 25.206850000000003,
+        "p95": 25.5115,
+        "min": 24.5061,
+        "max": 29.4947
+      },
+      "total": {
+        "n": 100,
+        "median": 25.688499999999998,
+        "p95": 26.0192,
+        "min": 25.0297,
+        "max": 29.9729
+      }
+    }
+  },
+  {
+    "run": "vpl-probe-v2/runs/lowpower-on-a1",
+    "exit": 0,
+    "settings": {
+      "exit": 0,
+      "low_power": 1,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v2-20260909\\probe.exe"
+    },
+    "native_sha256": "81E90537B2C84A504A64829D38ACEAB6A1477E6C9B19DA8060DB846027E3E8FF",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "1abd8174e383582840aa5af030e6c8d84a0b666ce38e8f08c9efb281c31218a6",
+    "warmup_frames": 20,
+    "timings_ms": {
+      "prepare": {
+        "n": 100,
+        "median": 0.4622,
+        "p95": 0.6538,
+        "min": 0.3437,
+        "max": 0.7897
+      },
+      "submit": {
+        "n": 100,
+        "median": 0.029150000000000002,
+        "p95": 0.0378,
+        "min": 0.0215,
+        "max": 0.06
+      },
+      "sync": {
+        "n": 100,
+        "median": 25.22815,
+        "p95": 25.8239,
+        "min": 24.5144,
+        "max": 30.6328
+      },
+      "total": {
+        "n": 100,
+        "median": 25.73195,
+        "p95": 26.3175,
+        "min": 24.9992,
+        "max": 31.1955
+      }
+    }
+  },
+  {
+    "run": "vpl-probe-v3/runs/tiles1-a1",
+    "exit": 0,
+    "settings": {
+      "exit": 0,
+      "low_power": 1,
+      "tile_columns": 1,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v3-20260909\\probe.exe"
+    },
+    "native_sha256": "BE9A88522E58EE444A1E1BD6DF2A47C8F5823A069201945530100C198296A7AB",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "1abd8174e383582840aa5af030e6c8d84a0b666ce38e8f08c9efb281c31218a6",
+    "warmup_frames": 20,
+    "timings_ms": {
+      "prepare": {
+        "n": 100,
+        "median": 0.48460000000000003,
+        "p95": 0.6494,
+        "min": 0.3798,
+        "max": 0.8399
+      },
+      "submit": {
+        "n": 100,
+        "median": 0.0284,
+        "p95": 0.0373,
+        "min": 0.0195,
+        "max": 0.0413
+      },
+      "sync": {
+        "n": 100,
+        "median": 25.07685,
+        "p95": 25.4412,
+        "min": 24.0637,
+        "max": 27.951
+      },
+      "total": {
+        "n": 100,
+        "median": 25.6435,
+        "p95": 25.9478,
+        "min": 24.5209,
+        "max": 28.526
+      }
+    },
+    "gpu_command_intervals_ms": {
+      "convert": {
+        "n": 100,
+        "median": 3.8517,
+        "p95": 3.8892,
+        "min": 3.3014,
+        "max": 3.9172
+      },
+      "copy": {
+        "n": 100,
+        "median": 11.140149999999998,
+        "p95": 11.2653,
+        "min": 10.7085,
+        "max": 11.3634
+      }
+    }
+  },
+  {
+    "run": "vpl-probe-v3/runs/tiles2-b1",
+    "exit": 0,
+    "settings": {
+      "exit": 0,
+      "low_power": 1,
+      "tile_columns": 2,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v3-20260909\\probe.exe"
+    },
+    "native_sha256": "BE9A88522E58EE444A1E1BD6DF2A47C8F5823A069201945530100C198296A7AB",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "8673249da886afa0cf8c47d551e04dea546a812eaa0511bf38f7270471da8efe",
+    "warmup_frames": 20,
+    "timings_ms": {
+      "prepare": {
+        "n": 100,
+        "median": 0.50735,
+        "p95": 0.6323,
+        "min": 0.4138,
+        "max": 0.8163
+      },
+      "submit": {
+        "n": 100,
+        "median": 0.028749999999999998,
+        "p95": 0.0375,
+        "min": 0.0225,
+        "max": 0.054
+      },
+      "sync": {
+        "n": 100,
+        "median": 23.7663,
+        "p95": 24.1218,
+        "min": 22.5541,
+        "max": 27.2591
+      },
+      "total": {
+        "n": 100,
+        "median": 24.3539,
+        "p95": 24.6391,
+        "min": 23.0723,
+        "max": 27.8555
+      }
+    },
+    "gpu_command_intervals_ms": {
+      "convert": {
+        "n": 100,
+        "median": 3.8564,
+        "p95": 3.9096,
+        "min": 3.3171,
+        "max": 3.952
+      },
+      "copy": {
+        "n": 100,
+        "median": 13.070250000000001,
+        "p95": 13.3062,
+        "min": 12.6932,
+        "max": 13.3533
+      }
+    }
+  },
+  {
+    "run": "vpl-probe-v3/runs/tiles4-c1",
+    "exit": 0,
+    "settings": {
+      "exit": 0,
+      "low_power": 1,
+      "tile_columns": 4,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v3-20260909\\probe.exe"
+    },
+    "native_sha256": "BE9A88522E58EE444A1E1BD6DF2A47C8F5823A069201945530100C198296A7AB",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "4f062eaf92e955c3a8dbf49487bbea5f856cd32a288adf06925e865f6bb85007",
+    "warmup_frames": 20,
+    "timings_ms": {
+      "prepare": {
+        "n": 100,
+        "median": 0.5068,
+        "p95": 0.7058,
+        "min": 0.3597,
+        "max": 0.9153
+      },
+      "submit": {
+        "n": 100,
+        "median": 0.0297,
+        "p95": 0.039,
+        "min": 0.0202,
+        "max": 0.0434
+      },
+      "sync": {
+        "n": 100,
+        "median": 24.80805,
+        "p95": 25.4603,
+        "min": 23.629,
+        "max": 27.7842
+      },
+      "total": {
+        "n": 100,
+        "median": 25.38665,
+        "p95": 26.0958,
+        "min": 24.1668,
+        "max": 28.2456
+      }
+    },
+    "gpu_command_intervals_ms": {
+      "convert": {
+        "n": 100,
+        "median": 3.8376,
+        "p95": 3.8823,
+        "min": 3.3055,
+        "max": 3.8954
+      },
+      "copy": {
+        "n": 100,
+        "median": 11.0034,
+        "p95": 11.202,
+        "min": 10.6792,
+        "max": 11.5616
+      }
+    }
+  },
+  {
+    "run": "vpl-probe-v4/runs/shared1-a1",
+    "exit": 1,
+    "settings": {
+      "exit": 1,
+      "low_power": 1,
+      "tile_columns": 1,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v4-20260909\\probe.exe"
+    },
+    "native_sha256": "8459BBA88F9B0D8D1D426B354F1650339D8638CC4E13A2FE375F1DF6137F3AA1",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "run": "vpl-probe-v5/runs/shared1-a1",
+    "exit": 1,
+    "settings": {
+      "exit": 1,
+      "low_power": 1,
+      "tile_columns": 1,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v5-20260909\\probe.exe"
+    },
+    "native_sha256": "C09C6D539A21B38E22D04A8F53A84C88E45ECD572E7F4A048118D1B3EAB332A4",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "run": "vpl-probe-v6/runs/shared-rt-a1",
+    "exit": 1,
+    "settings": {
+      "exit": 1,
+      "low_power": 1,
+      "tile_columns": 1,
+      "bind_flags": 32,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v6-20260909\\probe.exe"
+    },
+    "native_sha256": "5F2422BCCD946ADFA868F9EABA0AE770E8D7E6F76215E206997C7811CD0DFB02",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "run": "vpl-probe-v6/runs/shared-rt-srv-b1",
+    "exit": 1,
+    "settings": {
+      "exit": 1,
+      "low_power": 1,
+      "tile_columns": 1,
+      "bind_flags": 40,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v6-20260909\\probe.exe"
+    },
+    "native_sha256": "5F2422BCCD946ADFA868F9EABA0AE770E8D7E6F76215E206997C7811CD0DFB02",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "run": "vpl-probe-v7/runs/external1-a1",
+    "exit": 0,
+    "settings": {
+      "exit": 0,
+      "low_power": 1,
+      "tile_columns": 1,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v7-20260909\\probe.exe"
+    },
+    "native_sha256": "C46777BF7E47B0BF44B8CBD249702B92282C52F38C25F48F04881CDCAFE94658",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "1abd8174e383582840aa5af030e6c8d84a0b666ce38e8f08c9efb281c31218a6",
+    "warmup_frames": 20,
+    "timings_ms": {
+      "prepare": {
+        "n": 100,
+        "median": 0.42805,
+        "p95": 0.5713,
+        "min": 0.3347,
+        "max": 0.7134
+      },
+      "submit": {
+        "n": 100,
+        "median": 0.028650000000000002,
+        "p95": 0.0336,
+        "min": 0.0187,
+        "max": 0.0411
+      },
+      "sync": {
+        "n": 100,
+        "median": 22.221449999999997,
+        "p95": 22.503,
+        "min": 21.5367,
+        "max": 31.5761
+      },
+      "total": {
+        "n": 100,
+        "median": 22.6896,
+        "p95": 23.0228,
+        "min": 21.9984,
+        "max": 32.033
+      }
+    },
+    "gpu_command_intervals_ms": {
+      "convert": {
+        "n": 100,
+        "median": 3.8593,
+        "p95": 3.8922,
+        "min": 3.8335,
+        "max": 3.966
+      },
+      "copy": {
+        "n": 100,
+        "median": 0.0,
+        "p95": 0.0001,
+        "min": 0.0,
+        "max": 0.0001
+      }
+    }
+  },
+  {
+    "run": "vpl-probe-v7/runs/external2-b1",
+    "exit": 0,
+    "settings": {
+      "exit": 0,
+      "low_power": 1,
+      "tile_columns": 2,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v7-20260909\\probe.exe"
+    },
+    "native_sha256": "C46777BF7E47B0BF44B8CBD249702B92282C52F38C25F48F04881CDCAFE94658",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "8673249da886afa0cf8c47d551e04dea546a812eaa0511bf38f7270471da8efe",
+    "warmup_frames": 20,
+    "timings_ms": {
+      "prepare": {
+        "n": 100,
+        "median": 0.38780000000000003,
+        "p95": 0.5077,
+        "min": 0.3074,
+        "max": 0.7147
+      },
+      "submit": {
+        "n": 100,
+        "median": 0.02725,
+        "p95": 0.0345,
+        "min": 0.0191,
+        "max": 0.0392
+      },
+      "sync": {
+        "n": 100,
+        "median": 17.634149999999998,
+        "p95": 25.6878,
+        "min": 17.2591,
+        "max": 26.8003
+      },
+      "total": {
+        "n": 100,
+        "median": 18.04285,
+        "p95": 26.1282,
+        "min": 17.6761,
+        "max": 27.2101
+      }
+    },
+    "gpu_command_intervals_ms": {
+      "convert": {
+        "n": 100,
+        "median": 3.8773,
+        "p95": 3.9065,
+        "min": 3.8427,
+        "max": 3.9747
+      },
+      "copy": {
+        "n": 100,
+        "median": 0.0,
+        "p95": 0.0001,
+        "min": 0.0,
+        "max": 0.0001
+      }
+    }
+  },
+  {
+    "run": "vpl-probe-v8/runs/rgb2-a1",
+    "exit": 1,
+    "settings": {
+      "exit": 1,
+      "low_power": 1,
+      "tile_columns": 2,
+      "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v8-20260909\\probe.exe"
+    },
+    "native_sha256": "DD2242C60C0418B5DC7DF7D4B9DB65E6080985E4768A6CD200856D5AA492B87D",
+    "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+    "encoded_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

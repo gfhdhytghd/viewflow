@@ -1,0 +1,99 @@
+{
+  "label": "import-identity-baseline-01",
+  "identity_rows": 3124,
+  "unique_storage_keys": 1,
+  "storage_keys": [
+    {
+      "dev": 12,
+      "ino": 7239,
+      "width": 3848,
+      "height": 2408,
+      "stride": 15424,
+      "offset": 0,
+      "fourcc": 875708993,
+      "modifier": 216172782128496660,
+      "observations": 3124
+    }
+  ],
+  "stage_ms": {
+    "fence to egl_image": {
+      "n": 3097,
+      "min": 0.147,
+      "median": 0.21,
+      "p95": 0.249,
+      "max": 120.34
+    },
+    "egl_image to egl_bind": {
+      "n": 3097,
+      "min": 0.054,
+      "median": 0.079,
+      "p95": 0.094,
+      "max": 66.535
+    },
+    "egl_bind to gl_finish": {
+      "n": 3097,
+      "min": 0.002,
+      "median": 0.003,
+      "p95": 0.004,
+      "max": 0.044
+    },
+    "gl_finish to cuda_register": {
+      "n": 3097,
+      "min": 0.348,
+      "median": 0.549,
+      "p95": 0.756,
+      "max": 155.44
+    },
+    "cuda_register to import": {
+      "n": 3097,
+      "min": 0.013,
+      "median": 0.025,
+      "p95": 0.031,
+      "max": 1.5
+    },
+    "fence to import": {
+      "n": 3097,
+      "min": 0.592,
+      "median": 0.873,
+      "p95": 1.095,
+      "max": 244.192
+    },
+    "import to copy_prepare": {
+      "n": 3090,
+      "min": 1.332,
+      "median": 1.628,
+      "p95": 2.141,
+      "max": 4.305
+    },
+    "copy_prepare to nv12_alpha_readback": {
+      "n": 3090,
+      "min": 0.082,
+      "median": 0.089,
+      "p95": 0.103,
+      "max": 0.893
+    },
+    "nv12_alpha_readback to nvenc": {
+      "n": 3090,
+      "min": 3.785,
+      "median": 4.047499999999999,
+      "p95": 4.229,
+      "max": 5.205
+    },
+    "nvenc to return": {
+      "n": 3090,
+      "min": 0.007,
+      "median": 0.02,
+      "p95": 0.03,
+      "max": 0.066
+    }
+  },
+  "total_encode_ms": {
+    "n": 3097,
+    "min": 1.791,
+    "median": 6.72,
+    "p95": 7.44,
+    "max": 251.77
+  },
+  "malformed_detail_lines": 1,
+  "cache_rows": []
+}

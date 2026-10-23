@@ -1,0 +1,14 @@
+Windows hardware capture_staging_test hardware 6k copy; exit 0
+source_protect=0x4 source_type=0x20000 pitch=24576 width=6144 height=3456
+mode threads p50_ms p95_ms exact_pixels
+memcpy_rows 0 8.614 9.755 1
+sse2 1 4.955 7.016 1
+sse2 2 3.226 4.343 1
+sse2 4 3.008 3.325 1
+avx2 1 4.898 5.339 1
+avx2 2 3.074 3.340 1
+avx2 4 2.756 3.006 1
+parallel_memcpy 1 4.136 4.906 1
+parallel_memcpy 2 2.890 3.216 1
+parallel_memcpy 4 2.559 3.060 1
+Static repeated mapped frame; ordinary aligned RAM, not end-to-end transport. Transcribed from command result.

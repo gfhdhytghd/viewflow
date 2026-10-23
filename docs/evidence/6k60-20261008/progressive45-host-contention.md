@@ -1,0 +1,7 @@
+# Prefix events disabled, external GPU contention discovered
+
+Run45 explicitly VIEWFLOW_PROGRESSIVE_PREFIX_TRACE=0,0completion-event trace records,runnerexit0. Softwarefeedback n79median78.140/P95100.644/max129.485ms;interior20s1188generated/1017accepted;wholegenerator14gaps>25ms,max43.290ms. No foreground/diagnosticdrop flags. Original plugin inventory restored,normalprograms restored,Linuxserviceactive.
+
+Immediately after trial, live host nvidia-smi reports GPU100%,memoryutil38%,34652MiBused,68C,381W;load12.34/8.35/5.13,37GiBavailable,swap4GiBfull. Three active compute tasks observed:PID3989998 .venv/bin/python outputs/frechet-explore/steer2/mech/run.py all (9704MiB,elapsed2:47);PID3998777 .../scale/run.py06(2962MiB,elapsed2:07);PID4013896 .../instruct/run.py pilot4(10882MiB,elapsed0:35). These recent research tasks are not automatically covered by earlier instruction to stop model services. No signal or termination sent. Their lifetimes overlap at least part of this benchmark, but GPU utilization was sampled after trial, not recorded continuously during it; do not attribute all regression quantitatively to them.
+
+Run45 cannot isolate prefix-event overhead. User asked asynchronously whether to preserve jobs and continue code work, or authorize temporary pause for benchmark. No blocking goal status set; independent source/build work remains available. Future baseline must record contemporaneous host GPU/CPU contention, not infer an idle GPU from user absence or prior service state.

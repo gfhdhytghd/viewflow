@@ -1,0 +1,204 @@
+{
+  "scope": "fence follows fixture drawing before Present; observed time includes CPU scheduling/poll delay and is an upper bound; observed-to-WGC gap is a lower bound on actual completion-to-WGC gap; negative values retained",
+  "gpu_summaries": [
+    "motion-gpu-summary hr=0x00000000 observed=1800 pending=0 dropped=0 scope=cpu-observed-fence-upper-bound"
+  ],
+  "gpu_records": 1800,
+  "matched_atlas_extents": {
+    "(6144, 3456)": 1599
+  },
+  "excluded_non_6k": 0,
+  "matched_6k_span_ms": 26718.3322,
+  "summary": {
+    "generation_to_observed_gpu_ms": {
+      "n": 1599,
+      "p50": 2.3358,
+      "p95": 5.3178,
+      "min": 0.1771,
+      "max": 16.1195
+    },
+    "fence_submit_to_observed_ms": {
+      "n": 1599,
+      "p50": 2.107,
+      "p95": 5.1442,
+      "min": 0.0067,
+      "max": 15.9685
+    },
+    "observed_gpu_to_wgc_ms": {
+      "n": 1599,
+      "p50": 14.4983,
+      "p95": 17.4916,
+      "min": 6.3647,
+      "max": 35.0491
+    },
+    "generation_to_wgc_ms": {
+      "n": 1599,
+      "p50": 16.5449,
+      "p95": 22.1424,
+      "min": 7.9882,
+      "max": 37.8118
+    }
+  },
+  "worst_20": [
+    {
+      "pts": 57452677691,
+      "sequence": 216,
+      "generation_to_observed_gpu_ms": 2.7627,
+      "fence_submit_to_observed_ms": 2.5895,
+      "observed_gpu_to_wgc_ms": 35.0491,
+      "generation_to_wgc_ms": 37.8118
+    },
+    {
+      "pts": 57452876027,
+      "sequence": 217,
+      "generation_to_observed_gpu_ms": 15.3007,
+      "fence_submit_to_observed_ms": 15.1269,
+      "observed_gpu_to_wgc_ms": 19.3883,
+      "generation_to_wgc_ms": 34.689
+    },
+    {
+      "pts": 57460972071,
+      "sequence": 266,
+      "generation_to_observed_gpu_ms": 0.4679,
+      "fence_submit_to_observed_ms": 0.1628,
+      "observed_gpu_to_wgc_ms": 31.39,
+      "generation_to_wgc_ms": 31.8579
+    },
+    {
+      "pts": 57460794098,
+      "sequence": 265,
+      "generation_to_observed_gpu_ms": 16.1195,
+      "fence_submit_to_observed_ms": 15.9685,
+      "observed_gpu_to_wgc_ms": 13.8194,
+      "generation_to_wgc_ms": 29.9389
+    },
+    {
+      "pts": 57452635629,
+      "sequence": 215,
+      "generation_to_observed_gpu_ms": 8.8375,
+      "fence_submit_to_observed_ms": 8.6744,
+      "observed_gpu_to_wgc_ms": 20.9807,
+      "generation_to_wgc_ms": 29.8182
+    },
+    {
+      "pts": 57598693532,
+      "sequence": 1093,
+      "generation_to_observed_gpu_ms": 0.3317,
+      "fence_submit_to_observed_ms": 0.0837,
+      "observed_gpu_to_wgc_ms": 28.2484,
+      "generation_to_wgc_ms": 28.5801
+    },
+    {
+      "pts": 57599074957,
+      "sequence": 1095,
+      "generation_to_observed_gpu_ms": 0.8606,
+      "fence_submit_to_observed_ms": 0.5773,
+      "observed_gpu_to_wgc_ms": 27.2998,
+      "generation_to_wgc_ms": 28.1604
+    },
+    {
+      "pts": 57460456409,
+      "sequence": 263,
+      "generation_to_observed_gpu_ms": 10.1975,
+      "fence_submit_to_observed_ms": 9.8612,
+      "observed_gpu_to_wgc_ms": 17.4347,
+      "generation_to_wgc_ms": 27.6322
+    },
+    {
+      "pts": 57460547145,
+      "sequence": 264,
+      "generation_to_observed_gpu_ms": 0.7912,
+      "fence_submit_to_observed_ms": 0.4366,
+      "observed_gpu_to_wgc_ms": 25.3068,
+      "generation_to_wgc_ms": 26.098
+    },
+    {
+      "pts": 57547167652,
+      "sequence": 784,
+      "generation_to_observed_gpu_ms": 0.6572,
+      "fence_submit_to_observed_ms": 0.5796,
+      "observed_gpu_to_wgc_ms": 25.3755,
+      "generation_to_wgc_ms": 26.0327
+    },
+    {
+      "pts": 57451680252,
+      "sequence": 211,
+      "generation_to_observed_gpu_ms": 9.3263,
+      "fence_submit_to_observed_ms": 9.1323,
+      "observed_gpu_to_wgc_ms": 16.0953,
+      "generation_to_wgc_ms": 25.4216
+    },
+    {
+      "pts": 57526328918,
+      "sequence": 659,
+      "generation_to_observed_gpu_ms": 0.6269,
+      "fence_submit_to_observed_ms": 0.538,
+      "observed_gpu_to_wgc_ms": 24.6515,
+      "generation_to_wgc_ms": 25.2784
+    },
+    {
+      "pts": 57708660234,
+      "sequence": 1753,
+      "generation_to_observed_gpu_ms": 0.2628,
+      "fence_submit_to_observed_ms": 0.1924,
+      "observed_gpu_to_wgc_ms": 24.9786,
+      "generation_to_wgc_ms": 25.2414
+    },
+    {
+      "pts": 57451999269,
+      "sequence": 213,
+      "generation_to_observed_gpu_ms": 8.6124,
+      "fence_submit_to_observed_ms": 8.3782,
+      "observed_gpu_to_wgc_ms": 16.5745,
+      "generation_to_wgc_ms": 25.1869
+    },
+    {
+      "pts": 57507659280,
+      "sequence": 547,
+      "generation_to_observed_gpu_ms": 0.1784,
+      "fence_submit_to_observed_ms": 0.1003,
+      "observed_gpu_to_wgc_ms": 24.9073,
+      "generation_to_wgc_ms": 25.0857
+    },
+    {
+      "pts": 57616658062,
+      "sequence": 1201,
+      "generation_to_observed_gpu_ms": 0.2427,
+      "fence_submit_to_observed_ms": 0.1171,
+      "observed_gpu_to_wgc_ms": 24.5313,
+      "generation_to_wgc_ms": 24.774
+    },
+    {
+      "pts": 57449674501,
+      "sequence": 199,
+      "generation_to_observed_gpu_ms": 5.3283,
+      "fence_submit_to_observed_ms": 5.1282,
+      "observed_gpu_to_wgc_ms": 19.3984,
+      "generation_to_wgc_ms": 24.7267
+    },
+    {
+      "pts": 57451327538,
+      "sequence": 209,
+      "generation_to_observed_gpu_ms": 0.9622,
+      "fence_submit_to_observed_ms": 0.7285,
+      "observed_gpu_to_wgc_ms": 23.7618,
+      "generation_to_wgc_ms": 24.724
+    },
+    {
+      "pts": 57451835798,
+      "sequence": 212,
+      "generation_to_observed_gpu_ms": 9.6791,
+      "fence_submit_to_observed_ms": 9.4621,
+      "observed_gpu_to_wgc_ms": 15.0304,
+      "generation_to_wgc_ms": 24.7095
+    },
+    {
+      "pts": 57648988494,
+      "sequence": 1395,
+      "generation_to_observed_gpu_ms": 0.3859,
+      "fence_submit_to_observed_ms": 0.2961,
+      "observed_gpu_to_wgc_ms": 24.3166,
+      "generation_to_wgc_ms": 24.7025
+    }
+  ]
+}

@@ -28,3 +28,28 @@ assert not share.eligible(window, monitors, 6)
 rotated = [dict(monitors[1], transform=1)]
 assert not share.eligible(dict(window, at=[4300, 500], workspace={'id': 8}), rotated, 2)
 print('Mac window viewport selection passed')
+# HDMI + Sidecar use one sender set, even while a window spans both viewports.
+monitors.append(dict(id=3, x=3072, y=1590, width=3078, height=2310, scale=2,
+                     activeWorkspace={'id': 9}, specialWorkspace={'id': 0}))
+sidecar_window = dict(window, at=[3200, 1700], workspace={'id': 9})
+assert share.eligible(sidecar_window, monitors, 3)
+assert not share.eligible(sidecar_window, monitors, 2)
+spanning = dict(window, at=[3200, 1500], workspace={'id': 8})
+identities = {1: w for w in [spanning] if any(share.eligible(w, monitors, mid) for mid in (2, 3))}
+assert len(identities) == 1
+
+# Master omits numeric IDs for named and special workspaces. Empty special
+# workspace entries must never make every unnamed workspace visible.
+named = [dict(monitors[1], activeWorkspace={'address': 'viewflow-route', 'type': 'normal', 'name': 'viewflow-route'},
+              specialWorkspace={'address': '', 'type': '', 'name': ''})]
+assert share.eligible(dict(window, workspace={'address': 'viewflow-route', 'name': 'viewflow-route'}), named, 2)
+assert not share.eligible(dict(window, workspace={'address': 'other-route', 'name': 'other-route'}), named, 2)
+assert not share.eligible(dict(window, workspace={}), named, 2)
+assert not share.eligible(dict(window, workspace={'name': 'special:hidden'}), named, 2)
+named[0]['specialWorkspace'] = {'address': 'special:active', 'name': 'special:active'}
+assert share.eligible(dict(window, workspace={'address': 'special:active', 'name': 'special:active'}), named, 2)
+
+# Explicit type remains authoritative even when the special name has no prefix.
+named[0]['specialWorkspace'] = {'type': 'special', 'name': 'active'}
+assert share.eligible(dict(window, workspace={'type': 'special', 'name': 'active'}), named, 2)
+assert not share.eligible(dict(window, workspace={'type': 'normal', 'name': 'active'}), named, 2)

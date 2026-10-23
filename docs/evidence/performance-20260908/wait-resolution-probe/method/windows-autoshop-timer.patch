@@ -1,0 +1,5 @@
+--- /etc/systemd/system/windows-autoshop.service
++++ /etc/systemd/system/windows-autoshop.service
+@@ -21 +21 @@
+-    -cpu host \
++    -cpu host,hv-vpindex=on,hv-time=on,hv-synic=on,hv-stimer=on \

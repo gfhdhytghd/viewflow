@@ -1,0 +1,46 @@
+{
+  "scope": "same PTS; first_copy_before_last_ready is GPU staging query observation, not proof DMA overlaps CPU copy; submissions counts reflect observed prefixes",
+  "matched": 1447,
+  "first_copy_before_last_ready": 1331,
+  "multiple_upload_submissions": 1426,
+  "source": {
+    "first_poll_ms": {
+      "n": 1447,
+      "p50": 1.56,
+      "p95": 4.787,
+      "max": 35.608
+    },
+    "poll_gap_max_ms": {
+      "n": 1447,
+      "p50": 0.0,
+      "p95": 4.096,
+      "max": 14.79
+    },
+    "query_max_ms": {
+      "n": 1447,
+      "p50": 0.002,
+      "p95": 0.005,
+      "max": 0.845
+    },
+    "unmap_max_ms": {
+      "n": 1447,
+      "p50": 0.002,
+      "p95": 0.003,
+      "max": 0.038
+    }
+  },
+  "upload_by_source_overlap": {
+    "0": {
+      "n": 116,
+      "p50": 6.536,
+      "p95": 8.936,
+      "max": 13.02
+    },
+    "1": {
+      "n": 1331,
+      "p50": 6.198,
+      "p95": 18.266,
+      "max": 22.439
+    }
+  }
+}

@@ -8,7 +8,7 @@ import unittest
 
 SCRIPT=Path(__file__).resolve().parents[1]/'viewflow-target.sh'
 class ButtonTests(unittest.TestCase):
-    def run_button(self, failure=False):
+    def run_button(self, failure=False, multiscreen=False):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);bin=root/'bin';bin.mkdir();log=root/'calls'
             programs={
@@ -16,6 +16,7 @@ class ButtonTests(unittest.TestCase):
                 'systemctl': '''#!/bin/sh
 echo "systemctl $*" >> "$CALL_LOG"
 case "$*" in
+ *"is-active --quiet viewflow-display-topology.service"*) [ "$MULTISCREEN" = 1 ]; exit $? ;;
  *"is-active --quiet viewflow-macos-input.service"*) exit 0 ;;
  *"is-active"*) exit 1 ;;
 esac
@@ -40,7 +41,8 @@ esac
             env=os.environ | {'PATH':str(bin)+':'+os.environ['PATH'],
                 'XDG_CONFIG_HOME':str(root/'config'),'XDG_STATE_HOME':str(root/'state'),
                 'XDG_RUNTIME_DIR':str(root/'run'),'CALL_LOG':str(log),
-                'VIEWFLOW_HDMI_HELPER':str(bin/'hdmi'),'FAIL_DISCOVERY':str(int(failure))}
+                'VIEWFLOW_HDMI_HELPER':str(bin/'hdmi'),'FAIL_DISCOVERY':str(int(failure)),
+                'MULTISCREEN':str(int(multiscreen))}
             result=subprocess.run(['bash',str(SCRIPT),'set','windows'],env=env,capture_output=True,text=True)
             return result,log.read_text().splitlines(),(root/'state/hyprv/hdmi-target').read_text()
 
@@ -52,6 +54,13 @@ esac
         self.assertIn('ready 192.0.2.131:44149',calls)
         self.assertNotIn('systemctl --user restart viewflow-desktop.service',calls)
         self.assertEqual(target,'windows\n')
+
+    def test_topology_supervisor_owns_route_changes_after_hdmi(self):
+        result, calls, target = self.run_button(multiscreen=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(target, 'windows\n')
+        self.assertEqual(calls[0], 'hdmi send input1')
+        self.assertFalse(any(' stop ' in c or ' restart ' in c or ' disable ' in c for c in calls))
 
     def test_discovery_failure_preserves_input_after_hdmi_switch(self):
         result,calls,target=self.run_button(True)

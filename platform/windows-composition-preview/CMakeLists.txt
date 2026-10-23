@@ -329,3 +329,17 @@ target_include_directories(viewflow_sparse_seam_capture_test PRIVATE
 target_link_libraries(viewflow_sparse_seam_capture_test PRIVATE
   $<TARGET_PROPERTY:viewflow_windows_composition_preview,LINK_LIBRARIES>)
 target_compile_options(viewflow_sparse_seam_capture_test PRIVATE /EHsc /UNDEBUG)
+
+add_executable(viewflow_desktop_geometry_ack_test desktop_geometry_ack_test.cpp)
+target_compile_features(viewflow_desktop_geometry_ack_test PRIVATE cxx_std_20)
+target_link_libraries(viewflow_desktop_geometry_ack_test PRIVATE viewflow_vfgp_parser)
+add_test(NAME desktop_geometry_ack COMMAND viewflow_desktop_geometry_ack_test)
+
+add_executable(viewflow_vfgp_v11_test vfgp_parser.cpp vfgp_parser_v11_test.cpp)
+target_compile_features(viewflow_vfgp_v11_test PRIVATE cxx_std_20)
+if(MSVC)
+  target_compile_options(viewflow_vfgp_v11_test PRIVATE /UNDEBUG)
+else()
+  target_compile_options(viewflow_vfgp_v11_test PRIVATE -UNDEBUG)
+endif()
+add_test(NAME vfgp_activity_v11 COMMAND viewflow_vfgp_v11_test)

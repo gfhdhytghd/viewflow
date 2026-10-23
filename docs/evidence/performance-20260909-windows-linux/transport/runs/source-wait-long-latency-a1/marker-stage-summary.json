@@ -1,0 +1,161 @@
+{
+  "scope": "Diagnostic stage pairing for unambiguous decoded markers; original full-route criterion unchanged",
+  "decoded_images": 6950,
+  "unique_decoded_markers": 6950,
+  "duplicate_marker_ids": 0,
+  "observed_steady": 5812,
+  "paired": 5812,
+  "excluded": {},
+  "stages": {
+    "fixture_pre_draw_to_wgc_copy_queued_ms": {
+      "n": 5812,
+      "min": 20.3111,
+      "median": 24.50325,
+      "p95": 25.41,
+      "p99": 26.4271,
+      "max": 42.5851
+    },
+    "wgc_copy_queued_to_source_submit_ms": {
+      "n": 5812,
+      "min": 0.018,
+      "median": 1.166,
+      "p95": 5.968,
+      "p99": 7.3661,
+      "max": 13.0313
+    },
+    "fixture_pre_draw_to_source_submit_ms": {
+      "n": 5812,
+      "min": 20.5767,
+      "median": 25.6724,
+      "p95": 30.7595,
+      "p99": 32.4907,
+      "max": 44.6294
+    },
+    "source_submit_call_ms": {
+      "n": 5812,
+      "min": 0.2755,
+      "median": 0.5324,
+      "p95": 0.7128,
+      "p99": 0.8309,
+      "max": 3.3396
+    },
+    "source_submit_to_color_ready_ms": {
+      "n": 5812,
+      "min": 18.3857,
+      "median": 21.82305,
+      "p95": 33.1269,
+      "p99": 35.1422,
+      "max": 46.6673
+    },
+    "source_color_ready_to_pipe_write_ms": {
+      "n": 5812,
+      "min": 0.0236,
+      "median": 0.0411,
+      "p95": 0.0624,
+      "p99": 0.0984,
+      "max": 3.5372
+    },
+    "pipe_write_to_native_receive_low_ms": {
+      "n": 5812,
+      "min": -0.618805,
+      "median": 0.758553,
+      "p95": 1.098142,
+      "p99": 1.308914,
+      "max": 2.830244
+    },
+    "pipe_write_to_native_receive_high_ms": {
+      "n": 5812,
+      "min": 0.99974,
+      "median": 1.574763,
+      "p95": 1.98459,
+      "p99": 2.335031,
+      "max": 3.72159
+    },
+    "native_receive_to_accept_ms": {
+      "n": 5812,
+      "min": 0.009016,
+      "median": 0.0198295,
+      "p95": 0.119505,
+      "p99": 0.168042,
+      "max": 1.526696
+    },
+    "native_accept_to_decode_submit_ms": {
+      "n": 5812,
+      "min": 0.026954,
+      "median": 0.0693575,
+      "p95": 0.111876,
+      "p99": 0.137552,
+      "max": 1.128077
+    },
+    "native_decode_call_ms": {
+      "n": 5812,
+      "min": 3.97912,
+      "median": 4.4158919999999995,
+      "p95": 4.813806,
+      "p99": 5.067047,
+      "max": 7.347627
+    },
+    "marker_read_ms": {
+      "n": 5812,
+      "min": 0.058195,
+      "median": 0.16592600000000002,
+      "p95": 0.373955,
+      "p99": 0.572963,
+      "max": 1.465911
+    },
+    "native_gpu_upload_call_ms": {
+      "n": 5812,
+      "min": 0.039332,
+      "median": 0.0715995,
+      "p95": 0.099249,
+      "p99": 0.137249,
+      "max": 3.645388
+    },
+    "native_alpha_ms": {
+      "n": 5812,
+      "min": 0.000142,
+      "median": 0.000585,
+      "p95": 0.001354,
+      "p99": 0.001972,
+      "max": 0.004378
+    },
+    "native_draw_and_swap_ms": {
+      "n": 5812,
+      "min": 0.224119,
+      "median": 0.3398285,
+      "p95": 0.539503,
+      "p99": 0.793082,
+      "max": 1.442647
+    },
+    "native_swap_to_desktop_observed_ms": {
+      "n": 5812,
+      "min": 2.121418,
+      "median": 13.757143500000002,
+      "p95": 15.721527,
+      "p99": 16.530781,
+      "max": 19.740291
+    },
+    "full_route_upper_ms": {
+      "n": 5812,
+      "min": 65.895018,
+      "median": 67.4441125,
+      "p95": 83.722077,
+      "p99": 84.452538,
+      "max": 101.041489
+    }
+  },
+  "marker_read_all_ms": {
+    "n": 6950,
+    "min": 0.057426,
+    "median": 0.165956,
+    "p95": 0.380003,
+    "p99": 0.569387,
+    "max": 1.465911
+  },
+  "limitations": [
+    "Marker read adds two synchronous CUDA device-to-host row copies totaling 6 KiB per decoded image. Its CPU duration is reported separately; instrumentation can affect GPU scheduling.",
+    "Stage quantiles are not additive. Decode/upload/draw timestamps measure CPU call boundaries, not isolated GPU execution.",
+    "Cross-host stages use the observed clock interval envelope within +/-0.5 seconds. Desktop observation excludes physical scanout.",
+    "Only markers decoded exactly once are paired to observed images; repeated marker IDs have no uniquely established PTS."
+  ]
+}

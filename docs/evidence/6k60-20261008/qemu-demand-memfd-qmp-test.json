@@ -1,0 +1,513 @@
+{
+  "status": "passed",
+  "scope": "owned QMP/QOM memfd test only",
+  "vfio_tested": false,
+  "gpu_dma_tested": false,
+  "guest_started": false,
+  "residency_is_pin_proof": false,
+  "memfd_bytes": 1073741824,
+  "segment_bytes": 67108864,
+  "qmp": [
+    {
+      "request": {
+        "execute": "qmp_capabilities",
+        "id": 1
+      },
+      "response": {
+        "return": {},
+        "id": 1
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 2,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_memfd0",
+          "mem-path": "/proc/self/fd/3",
+          "size": 67108864,
+          "offset": 0,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 2
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 3,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "offset"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 3
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 4,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_memfd1",
+          "mem-path": "/proc/self/fd/3",
+          "size": 67108864,
+          "offset": 67108864,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 4
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 5,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "offset"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 5
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 6,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_memfd2",
+          "mem-path": "/proc/self/fd/3",
+          "size": 67108864,
+          "offset": 134217728,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 6
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 7,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "offset"
+        }
+      },
+      "response": {
+        "return": 134217728,
+        "id": 7
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 8,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 8
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 9,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 9
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 10,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 10
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 11,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "x-viewflow-dma-prefix",
+          "value": 67108864
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 11
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 12,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 12
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 13,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 13
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 14,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 14
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 15,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 15
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 16,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 16
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 17,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 17
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 18,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "x-viewflow-dma-prefix",
+          "value": 67108864
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 18
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 19,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 19
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 20,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 20
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 21,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 21
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 22,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 22
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 23,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 23
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 24,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 24
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 25,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "x-viewflow-dma-prefix",
+          "value": 67108864
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 25
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 26,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 26
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 27,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 27
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 28,
+        "arguments": {
+          "path": "/objects/viewflow_dma_memfd2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 67108864,
+        "id": 28
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 29,
+        "arguments": {
+          "id": "viewflow_dma_memfd2"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 29
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 30,
+        "arguments": {
+          "id": "viewflow_dma_memfd1"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 30
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 31,
+        "arguments": {
+          "id": "viewflow_dma_memfd0"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 31
+      }
+    },
+    {
+      "request": {
+        "execute": "quit",
+        "id": 32
+      },
+      "response": {
+        "return": {},
+        "id": 32
+      }
+    }
+  ],
+  "residency": [
+    {
+      "stage": "before_qemu",
+      "resident_bytes": 0
+    },
+    {
+      "stage": "segment_0_grown",
+      "resident_bytes": 0
+    },
+    {
+      "stage": "segment_1_grown",
+      "resident_bytes": 0
+    },
+    {
+      "stage": "segment_2_grown",
+      "resident_bytes": 0
+    },
+    {
+      "stage": "all_objects_deleted",
+      "resident_bytes": 0
+    },
+    {
+      "stage": "qemu_exited",
+      "resident_bytes": 0
+    }
+  ],
+  "seals": 6,
+  "command": [
+    "/tmp/qemu-11.1.1/build-viewflow-demand/qemu-system-x86_64",
+    "-machine",
+    "none",
+    "-nodefaults",
+    "-display",
+    "none",
+    "-S",
+    "-qmp",
+    "unix:/tmp/viewflow-dma-memfd-7bg18ivg/qmp.sock,server=on,wait=off"
+  ],
+  "owned_pid": 3091744,
+  "stderr": ""
+}

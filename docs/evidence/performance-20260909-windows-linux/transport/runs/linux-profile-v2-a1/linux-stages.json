@@ -1,0 +1,66 @@
+{
+  "warmup_ns": 3000000000,
+  "scope": "CPU wall times, including API synchronization; not independent hardware GPU stage timings. Swap completion is submission, not physical scanout.",
+  "stages": {
+    "decode": {
+      "n": 1158,
+      "median_ms": 4.6031785,
+      "p95_ms": 4.981745,
+      "max_ms": 5.619183
+    },
+    "upload": {
+      "n": 1158,
+      "median_ms": 0.0714565,
+      "p95_ms": 0.116216,
+      "max_ms": 3.239924
+    },
+    "alpha": {
+      "n": 1158,
+      "median_ms": 0.000561,
+      "p95_ms": 0.001289,
+      "max_ms": 0.003584
+    },
+    "draw_swap": {
+      "n": 1158,
+      "median_ms": 0.38205449999999996,
+      "p95_ms": 0.761303,
+      "max_ms": 1.217094
+    },
+    "accept_total": {
+      "n": 1158,
+      "median_ms": 5.1719755,
+      "p95_ms": 5.717823,
+      "max_ms": 7.987393
+    },
+    "receive_to_accept": {
+      "n": 1158,
+      "median_ms": 0.023872,
+      "p95_ms": 0.137183,
+      "max_ms": 2.331697
+    },
+    "geometry": {
+      "n": 745,
+      "median_ms": 0.217536,
+      "p95_ms": 0.778964,
+      "max_ms": 8.158207
+    },
+    "cuda_map": {
+      "n": 1158,
+      "median_ms": 0.032673,
+      "p95_ms": 0.058203,
+      "max_ms": 3.120193
+    },
+    "cuda_copy": {
+      "n": 1158,
+      "median_ms": 0.0248265,
+      "p95_ms": 0.03718,
+      "max_ms": 0.11396
+    },
+    "cuda_unmap": {
+      "n": 1158,
+      "median_ms": 0.0086065,
+      "p95_ms": 0.014139,
+      "max_ms": 0.082072
+    }
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "scope": "6K opaque fixture, Windows WGC->HEVC+alpha->local file only; excludes QUIC and Linux presentation",
+  "source_frames": 958,
+  "captures": 1486,
+  "warmup_seconds": 5,
+  "steady_frames": 804,
+  "steady_output_hz": 32.86603533864172,
+  "stages_ms": {
+    "encoder_submit": {
+      "n": 804,
+      "median": 2.89385,
+      "p95": 5.1402,
+      "p99": 21.855,
+      "max": 26.4264,
+      "min": 1.9921
+    },
+    "alpha_enqueue": {
+      "n": 804,
+      "median": 0.10915,
+      "p95": 0.1766,
+      "p99": 0.2294,
+      "max": 0.7626,
+      "min": 0.0683
+    },
+    "frame_work": {
+      "n": 804,
+      "median": 3.0487,
+      "p95": 5.3252,
+      "p99": 21.9922,
+      "max": 26.5507,
+      "min": 2.1181
+    },
+    "alpha_cpu_copy": {
+      "n": 804,
+      "median": 2.76445,
+      "p95": 3.9822,
+      "p99": 4.8082,
+      "max": 8.0275,
+      "min": 1.44
+    },
+    "alpha_compare_pack": {
+      "n": 804,
+      "median": 2.99365,
+      "p95": 4.8822,
+      "p99": 6.4301,
+      "max": 8.758,
+      "min": 1.4376
+    },
+    "alpha_enqueue_to_collect": {
+      "n": 804,
+      "median": 11.52435,
+      "p95": 15.1199,
+      "p99": 17.425,
+      "max": 19.2778,
+      "min": 3.9381
+    },
+    "submit_to_color_poll": {
+      "n": 804,
+      "median": 29.39315,
+      "p95": 34.7781,
+      "p99": 47.9008,
+      "max": 54.84,
+      "min": 24.165
+    },
+    "submit_to_output": {
+      "n": 804,
+      "median": 29.39615,
+      "p95": 34.7809,
+      "p99": 47.905,
+      "max": 54.8443,
+      "min": 24.1697
+    },
+    "pack_write": {
+      "n": 804,
+      "median": 0.05075,
+      "p95": 0.138,
+      "p99": 0.1726,
+      "max": 0.2683,
+      "min": 0.0243
+    },
+    "fixture_pre_draw_to_output": {
+      "n": 804,
+      "median": 115.149,
+      "p95": 125.9419,
+      "p99": 135.1047,
+      "max": 140.0302,
+      "min": 101.2964
+    }
+  },
+  "wgc_future_timestamp_count": 1478,
+  "marker_validation": {
+    "decoded": 958,
+    "steady_distinct": 804,
+    "steady_unique_hz": 32.86603533864172,
+    "regressions": 0
+  },
+  "offline_gpu_decode_ms": {
+    "n": 958,
+    "median": 3.8669675000000003,
+    "p95": 4.118558,
+    "p99": 4.260876,
+    "max": 51.254059,
+    "min": 3.626838
+  },
+  "offline_gpu_upload_ms": {
+    "n": 958,
+    "median": 0.036265500000000006,
+    "p95": 0.05725,
+    "p99": 0.157377,
+    "max": 1.968712,
+    "min": 0.01914
+  },
+  "run_qualified": true,
+  "qualification_note": "normal bounded exit and all emitted frames decoded"
+}

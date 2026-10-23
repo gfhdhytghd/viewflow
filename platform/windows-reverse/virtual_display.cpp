@@ -9,6 +9,7 @@
 #include <cwchar>
 #include <algorithm>
 #include <cstdint>
+#include "virtual_display_transient.hpp"
 namespace {
 bool virtualAdapter(const std::wstring& selected) {
     for(DWORD index=0;;++index) {
@@ -17,6 +18,59 @@ bool virtualAdapter(const std::wstring& selected) {
         if(selected==device.DeviceName && wcsstr(device.DeviceString,L"Virtual"))return true;
     }
     return false;
+}
+// Translate the entire active layout so the selected virtual display is primary.
+// Preserve modes and relative adjacency; roll back staged changes on failure.
+int primary(const std::wstring& selected) {
+    if(!virtualAdapter(selected))return 6;
+    struct Display { std::wstring name; DEVMODEW before,after; bool primary; };
+    std::vector<Display> displays;
+    POINTL origin{}; bool found=false;
+    for(DWORD i=0;;++i) {
+        DISPLAY_DEVICEW d{};d.cb=sizeof(d);
+        if(!EnumDisplayDevicesW(nullptr,i,&d,0))break;
+        if(!(d.StateFlags&DISPLAY_DEVICE_ATTACHED_TO_DESKTOP))continue;
+        DEVMODEW m{};m.dmSize=sizeof(m);
+        if(!EnumDisplaySettingsW(d.DeviceName,ENUM_CURRENT_SETTINGS,&m))return 9;
+        displays.push_back({d.DeviceName,m,m,bool(d.StateFlags&DISPLAY_DEVICE_PRIMARY_DEVICE)});
+        std::wprintf(L"before %ls primary=%d position=%ld,%ld size=%lux%lu hz=%lu\n",
+            d.DeviceName,displays.back().primary,m.dmPosition.x,m.dmPosition.y,m.dmPelsWidth,m.dmPelsHeight,m.dmDisplayFrequency);
+        if(selected==d.DeviceName){origin=m.dmPosition;found=true;}
+    }
+    if(!found)return 10;
+    for(auto& d:displays) {
+        d.after.dmPosition.x-=origin.x;d.after.dmPosition.y-=origin.y;
+        d.before.dmFields=DM_POSITION|DM_PELSWIDTH|DM_PELSHEIGHT|DM_BITSPERPEL|DM_DISPLAYFREQUENCY;
+        d.after.dmFields=d.before.dmFields;
+
+    }
+    auto apply=[&](bool restore) {
+        bool ok=true;
+        // Stage the primary first, then every other display, and apply once.
+        for(int pass=0;pass<2;++pass)for(auto& d:displays) {
+            const bool isPrimary=restore?d.primary:d.name==selected;
+            if(isPrimary!=(pass==0))continue;
+            auto& m=restore?d.before:d.after;
+            const auto result=ChangeDisplaySettingsExW(d.name.c_str(),&m,nullptr,
+                CDS_UPDATEREGISTRY|CDS_NORESET|(isPrimary?CDS_SET_PRIMARY:0),nullptr);
+            if(result!=DISP_CHANGE_SUCCESSFUL)ok=false;
+        }
+        return ChangeDisplaySettingsExW(nullptr,nullptr,nullptr,0,nullptr)==DISP_CHANGE_SUCCESSFUL && ok;
+    };
+    bool ok=apply(false);
+    for(const auto& d:displays) {
+        DEVMODEW actual{};actual.dmSize=sizeof(actual);
+        const bool read=EnumDisplaySettingsW(d.name.c_str(),ENUM_CURRENT_SETTINGS,&actual);
+        ok=ok && read && actual.dmPosition.x==d.after.dmPosition.x && actual.dmPosition.y==d.after.dmPosition.y &&
+            actual.dmPelsWidth==d.before.dmPelsWidth && actual.dmPelsHeight==d.before.dmPelsHeight && actual.dmDisplayFrequency==d.before.dmDisplayFrequency;
+    }
+    DISPLAY_DEVICEW check{};check.cb=sizeof(check);bool primaryVerified=false;
+    for(DWORD i=0;EnumDisplayDevicesW(nullptr,i,&check,0);++i) {
+        if(selected==check.DeviceName && (check.StateFlags&DISPLAY_DEVICE_PRIMARY_DEVICE))primaryVerified=true;
+        check={};check.cb=sizeof(check);
+    }
+    if(!ok || !primaryVerified){std::fprintf(stderr,"primary verification failed rollback=%d\n",apply(true));return 8;}
+    std::wprintf(L"primary_verified=%ls origin=0,0 modes_preserved=1\n",selected.c_str());return 0;
 }
 // Windows Settings uses these source DPI packet types. Validate their layout
 // and the driver's returned range before writing only the selected VDD source.
@@ -61,6 +115,53 @@ int dpi(const std::wstring& selected,int percent) {
 // never adds certificates or alters Windows driver-signature policy.
 int wmain(int argc,wchar_t** argv) {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    if(argc>=2 && std::wcsncmp(argv[1],L"transient-",10)==0){
+        namespace transient=viewflow::display_transient;
+        try{
+            if(argc==4 && !std::wcscmp(argv[1],L"transient-backup")){
+                if(!virtualAdapter(argv[2]))return 6;transient::save(argv[2],argv[3]);return 0;
+            }
+            if(argc==3 && !std::wcscmp(argv[1],L"transient-restore")){const auto backup=transient::load(argv[2]);if(!virtualAdapter(backup.displays[backup.selected].name))return 6;return transient::restore(backup)?0:9;}
+            if(argc==8 && (!std::wcscmp(argv[1],L"transient-test")||!std::wcscmp(argv[1],L"transient-apply"))){
+                const auto backup=transient::load(argv[2]);
+                if(!virtualAdapter(backup.displays[backup.selected].name))return 6;
+                return transient::change(backup,static_cast<LONG>(transient::integer(argv[3],LONG_MIN,LONG_MAX)),
+                    static_cast<LONG>(transient::integer(argv[4],LONG_MIN,LONG_MAX)),
+                    static_cast<DWORD>(transient::integer(argv[5],1,16384)),static_cast<DWORD>(transient::integer(argv[6],1,16384)),
+                    static_cast<DWORD>(transient::integer(argv[7],1,1000)),!std::wcscmp(argv[1],L"transient-apply"));
+            }
+            std::fprintf(stderr,"usage: transient-backup DISPLAY FILE | transient-test/apply FILE X Y WIDTH HEIGHT HZ | transient-restore FILE\n");return 2;
+        }catch(const std::exception& error){std::fprintf(stderr,"transient display: %s\n",error.what());return 9;}
+    }
+
+    if(argc==3 && wcscmp(argv[1],L"primary")==0)return primary(argv[2]);
+    if(argc==4 && (wcscmp(argv[1],L"test-refresh")==0 || wcscmp(argv[1],L"refresh")==0)) {
+        const std::wstring selected=argv[2];if(!virtualAdapter(selected))return 6;
+        DEVMODEW mode{};mode.dmSize=sizeof(mode);
+        if(!EnumDisplaySettingsW(selected.c_str(),ENUM_CURRENT_SETTINGS,&mode))return 9;
+        const auto hz=std::stoul(argv[3]);if(!hz || hz>1000)return 10;
+        const auto previous=mode.dmDisplayFrequency;
+        mode.dmFields=DM_DISPLAYFREQUENCY;mode.dmDisplayFrequency=hz;
+        const auto result=ChangeDisplaySettingsExW(selected.c_str(),&mode,nullptr,CDS_TEST,nullptr);
+        std::wprintf(L"%ls refresh_test=%lu previous=%lu result=%ld applied=0\n",selected.c_str(),hz,previous,result);
+        if(result!=DISP_CHANGE_SUCCESSFUL)return 7;
+        if(wcscmp(argv[1],L"test-refresh")==0)return 0;
+        const auto applied=ChangeDisplaySettingsExW(selected.c_str(),&mode,nullptr,0,nullptr);
+        if(applied!=DISP_CHANGE_SUCCESSFUL)return 8;
+        DEVMODEW actual{};actual.dmSize=sizeof(actual);
+        if(!EnumDisplaySettingsW(selected.c_str(),ENUM_CURRENT_SETTINGS,&actual) || actual.dmDisplayFrequency!=hz)return 9;
+        std::wprintf(L"%ls refresh_verified=%lu transient=1\n",selected.c_str(),actual.dmDisplayFrequency);
+        return 0;
+    }
+    if(argc==3 && wcscmp(argv[1],L"modes")==0) {
+        // Read-only capability inventory; never apply a mode from this path.
+        for(DWORD index=0;;++index) {
+            DEVMODEW mode{};mode.dmSize=sizeof(mode);
+            if(!EnumDisplaySettingsW(argv[2],index,&mode))break;
+            std::wprintf(L"%ls mode=%lu %lux%lu refresh_hz=%lu bpp=%lu\n",argv[2],index,mode.dmPelsWidth,mode.dmPelsHeight,mode.dmDisplayFrequency,mode.dmBitsPerPel);
+        }
+        return 0;
+    }
     if((argc==3 || argc==4) && wcscmp(argv[1],L"dpi")==0)return dpi(argv[2],argc==4?std::stoi(argv[3]):0);
     if(argc==3 && wcscmp(argv[1],L"install")==0) {
         HDEVINFO set=SetupDiCreateDeviceInfoList(&GUID_DEVCLASS_DISPLAY,nullptr);
@@ -98,6 +199,6 @@ int wmain(int argc,wchar_t** argv) {
     }
     for(DWORD index=0;;++index){DISPLAY_DEVICEW device{};device.cb=sizeof(device);if(!EnumDisplayDevicesW(nullptr,index,&device,0))break;
         DEVMODEW mode{};mode.dmSize=sizeof(mode);EnumDisplaySettingsW(device.DeviceName,ENUM_CURRENT_SETTINGS,&mode);
-        std::wprintf(L"%ls | %ls | flags=%lu | %ld,%ld %lux%lu\n",device.DeviceName,device.DeviceString,device.StateFlags,mode.dmPosition.x,mode.dmPosition.y,mode.dmPelsWidth,mode.dmPelsHeight);}
+        std::wprintf(L"%ls | %ls | flags=%lu | %ld,%ld %lux%lu refresh_hz=%lu\n",device.DeviceName,device.DeviceString,device.StateFlags,mode.dmPosition.x,mode.dmPosition.y,mode.dmPelsWidth,mode.dmPelsHeight,mode.dmDisplayFrequency);}
     return 0;
 }

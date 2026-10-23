@@ -1,0 +1,45 @@
+{
+  "wgc_timestamp_audit": {
+    "callback_records": 1565,
+    "timestamp_later_than_callback": 1539,
+    "strict_capture_latency_validated": false,
+    "status": "contradicted_by_future_timestamps"
+  },
+  "scope": "sampled Wayland feedback, not photon; periodic cached frames are not motion FPS; captures predating calibration are excluded from new-capture latency",
+  "clock_endpoint_envelope_half_width_ms": 0.101495,
+  "clock_endpoint_offset_change_us": 51.31,
+  "clock_caveat": "endpoint envelope is observed calibration uncertainty; unobserved clock drift is not bounded",
+  "outside_calibration_interval": 0,
+  "outputs": {
+    "DP-4": {
+      "atlas_to_present_ms": {
+        "n": 80,
+        "p50": 30.625719,
+        "p95": 44.397119,
+        "min": 25.398819,
+        "max": 63.092019
+      },
+      "new_capture_to_present_first_observed_ms": {
+        "n": 80,
+        "p50": 27.537819,
+        "p95": 56.695319,
+        "min": 21.136619,
+        "max": 127.493919
+      },
+      "callback_to_present_first_observed_ms": {
+        "n": 80,
+        "p50": 32.372918999999996,
+        "p95": 44.686319,
+        "min": 27.394419,
+        "max": 65.423919
+      },
+      "atlas_dimensions": [
+        [
+          6144,
+          3456
+        ]
+      ],
+      "unmatched": 0
+    }
+  }
+}

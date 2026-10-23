@@ -1,0 +1,11 @@
+# WGC callback delivery boundary instrumentation
+
+Added default-off VIEWFLOW_WGC_DELIVERY_TRACE=1. CapturedFrame carries optional CPU QPC observations for onFrame entry, delivery mutex acquisition, TryGetNextFrame return, geometry completion and borrowed surface preparation. All boundaries zero and no new clock reads when disabled. Reverse profile_capture records those fields through async diagnostics. No wire format, capture routing, lifetime or focus policy change. Windows Release source and fixture builds passed.
+
+Extended analyze-present-capture.py to join same pixel sequence/generation and atlas/source identity across fixture Present boundaries and backend callback observations. Initial analysis failed because a text edit accidentally made the sort key a tuple; corrected to scalar generation_to_callback_ms and successfully regenerated all results. Raw run unaffected.
+
+physical-pixel-bands-delivery1:1552 correlated records. Present return→WGC callback entry median17.52855ms,P9524.4425ms,max39.1801ms. WGC entry→consumer callback median0.0092ms,P950.0157ms,max0.2771ms. Delivery mutex max0.0061ms, GetNextFrame max0.0034ms, geometry max0.2736ms. Therefore the observed frame-age delay is overwhelmingly before our WGC handler entry, not delivery-lock contention or geometry/surface preparation. This does not separate GPU execution, Windows composition, WGC internal work or event scheduling.
+
+All1552host markers matched, reported trace drops0, no foreground change and exact plugin inventory restored. Analyzer found zero-residency demand during run, so sustained6K acceptance is confounded despite all aggregate accept intervals6144x3456.80generation→Waylandfeedback samples median40.328ms,P9551.878ms, not photons. Goal remains unmet.
+
+Guest source/wrapper/probe and host source restored by runner checks; standalone deadline plugin unloaded; Linux receiver active. Opt-in fixture diagnostics remain available in fixture build. Backup moved to build/ivshmem-backup/pixel-bands-delivery-native.backup. No mouse/keyboard injection or focus operation. Next work should measure upstream GPU completion/composition-delivery; optimizing the measured microsecond delivery lock cannot close the end-to-end gap.

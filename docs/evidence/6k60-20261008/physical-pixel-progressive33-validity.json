@@ -1,0 +1,100 @@
+{
+  "scope": "Observed discontinuities only; aggregate intervals and residency logging do not prove uninterrupted60fps or photon latency. Multiple-window attribution may require manual review.",
+  "sustained_6k_evidence": "invalid_or_confounded",
+  "reasons": [
+    "observed_foreground_change"
+  ],
+  "trace_drops_last_observed": 0,
+  "host_trace_drops_max_observed": 0,
+  "residency_events": [
+    {
+      "log_time": "Oct 09 13:11:10.928773",
+      "id": 1,
+      "demand": [
+        0,
+        0,
+        6016,
+        3456
+      ],
+      "window_workspace": {
+        "id": 5,
+        "name": "5"
+      },
+      "window_visible": true,
+      "outputs": [
+        {
+          "name": "DP-4",
+          "workspace": {
+            "id": 5,
+            "name": "5"
+          },
+          "dpms": true
+        }
+      ]
+    },
+    {
+      "log_time": "Oct 09 13:11:10.969395",
+      "id": 1,
+      "demand": [
+        0,
+        0,
+        6144,
+        3456
+      ],
+      "window_workspace": {
+        "id": 5,
+        "name": "5"
+      },
+      "window_visible": true,
+      "outputs": [
+        {
+          "name": "DP-4",
+          "workspace": {
+            "id": 5,
+            "name": "5"
+          },
+          "dpms": true
+        }
+      ]
+    }
+  ],
+  "accept_intervals": [
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 277,
+      "interval_ms": 5005.251
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 295,
+      "interval_ms": 5002.592
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 296,
+      "interval_ms": 5023.189
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 296,
+      "interval_ms": 5016.993
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 274,
+      "interval_ms": 5004.504
+    },
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 64,
+      "interval_ms": 5113.298
+    }
+  ],
+  "foreground_change_count": 1
+}

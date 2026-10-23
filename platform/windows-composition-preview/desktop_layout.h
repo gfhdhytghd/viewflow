@@ -31,6 +31,20 @@ struct DesktopSlice {
   int32_t crop_x{}, crop_y{};
 };
 
+// The wire placement still identifies the full captured image. Window-manager
+// geometry uses the body, and converts back at the existing source boundary.
+inline vfgp::DesktopRect BodyForFull(const vfgp::DesktopRect& next,const vfgp::DesktopRect& full,const std::optional<vfgp::DesktopRect>& body) {
+  if(!body)return next;
+  const auto dx=body->x_millidip-full.x_millidip,dy=body->y_millidip-full.y_millidip;
+  const auto dw=full.width_millidip-body->width_millidip,dh=full.height_millidip-body->height_millidip;
+  return {next.x_millidip+dx,next.y_millidip+dy,next.width_millidip>dw?next.width_millidip-dw:1,next.height_millidip>dh?next.height_millidip-dh:1};
+}
+inline vfgp::DesktopRect FullForBody(const vfgp::DesktopRect& next,const vfgp::DesktopRect& full,const std::optional<vfgp::DesktopRect>& body) {
+  if(!body)return next;
+  return {next.x_millidip-(body->x_millidip-full.x_millidip),next.y_millidip-(body->y_millidip-full.y_millidip),
+      next.width_millidip+(full.width_millidip-body->width_millidip),next.height_millidip+(full.height_millidip-body->height_millidip)};
+}
+
 // Scale is pixels per logical pixel times 1000: 1500 means 1.5x.
 inline bool ValidDisplay(const DesktopDisplay &display) {
   return display.physical_width && display.physical_height &&

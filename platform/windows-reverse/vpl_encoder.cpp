@@ -39,14 +39,40 @@ struct VplEncoder::Impl {
 VplEncoder::VplEncoder():impl_(std::make_unique<Impl>()){}
 VplEncoder::~VplEncoder()=default;
 HRESULT VplEncoder::start(ID3D11Device* device,unsigned width,unsigned height,unsigned fps,unsigned codec){
+ if(impl_->session)return E_UNEXPECTED;
+ const auto setting=std::getenv("VIEWFLOW_REVERSE_VPL_FAST_INIT");
+ const bool fast=!setting || std::strcmp(setting,"0")!=0;
+ const auto result=start_impl(device,width,height,fps,codec,fast);
+ if(SUCCEEDED(result)||!fast)return result;
+ // Retry the original capability enumeration if the named Intel runtime or
+ // requested HEVC configuration is unavailable. Never restrict backend support.
+ std::fprintf(stderr,"encoder_vpl_fast_init hr=%08lx fallback=enumeration\n",static_cast<unsigned long>(result));
+ impl_=std::make_unique<Impl>();
+ return start_impl(device,width,height,fps,codec,false);
+}
+HRESULT VplEncoder::start_impl(ID3D11Device* device,unsigned width,unsigned height,unsigned fps,unsigned codec,bool fast){
+ const auto start_at=clock100ns();auto stage_at=start_at;
+ const auto stage=[&](const char* name){const auto now=clock100ns();std::fprintf(stderr,"encoder_vpl_init stage=%s us=%lld total_us=%lld\n",name,(now-stage_at)/10,(now-start_at)/10);stage_at=now;};
  auto& s=*impl_;if(!device||s.session||codec!=2||!width||!height||width%2||height%2||!fps||width>16368||height>16368)return E_INVALIDARG;
  s.dll=LoadLibraryExW(L"libvpl.dll",nullptr,LOAD_LIBRARY_SEARCH_SYSTEM32);if(!s.dll)return HRESULT_FROM_WIN32(GetLastError());
  #define LOAD(name) s.p##name=reinterpret_cast<decltype(s.p##name)>(GetProcAddress(s.dll,#name));if(!s.p##name)return E_NOINTERFACE;
  VF_VPL_FUNCTIONS(LOAD)
  #undef LOAD
+ stage("load-library");
  s.loader=s.pMFXLoad();if(!s.loader)return E_FAIL;
- VF_HR(s.filter("mfxImplDescription.Impl",MFX_IMPL_TYPE_HARDWARE));VF_HR(s.filter("mfxImplDescription.AccelerationMode",MFX_ACCEL_MODE_VIA_D3D11));VF_HR(s.filter("mfxImplDescription.ApiVersion.Version",(2u<<16)|2));VF_HR(s.filter("mfxImplDescription.mfxEncoderDescription.encoder.CodecID",MFX_CODEC_HEVC));
+ VF_HR(s.filter("mfxImplDescription.Impl",MFX_IMPL_TYPE_HARDWARE));VF_HR(s.filter("mfxImplDescription.AccelerationMode",MFX_ACCEL_MODE_VIA_D3D11));VF_HR(s.filter("mfxImplDescription.ApiVersion.Version",(2u<<16)|2));
+ // These filters enable the dispatcher's limited initialization query. Codec
+ // support is still validated by ENCODE_Query/Init below. Adding a CodecID
+ // dispatcher filter disables this path and enumerates all capabilities.
+ if(fast){
+  VF_HR(s.filter("mfxImplDescription.VendorID",0x8086));
+  const auto config=s.pMFXCreateConfig(s.loader);if(!config)return E_OUTOFMEMORY;
+  mfxVariant name{};name.Type=MFX_VARIANT_TYPE_PTR;name.Data.Ptr=const_cast<char*>("mfx-gen");
+  VF_MFX(s.pMFXSetConfigFilterProperty(config,reinterpret_cast<const mfxU8*>("mfxImplDescription.ImplName"),name));
+ }else {VF_HR(s.filter("mfxImplDescription.mfxEncoderDescription.encoder.CodecID",MFX_CODEC_HEVC));}
+
  VF_MFX(s.pMFXCreateSession(s.loader,0,&s.session));mfxVersion version{};VF_MFX(s.pMFXQueryVersion(s.session,&version));
+ stage("session");
  s.device=device;device->GetImmediateContext(&s.context);VF_HR(s.device.As(&s.video));VF_HR(s.context.As(&s.video_context));
  VF_MFX(s.pMFXVideoCORE_SetHandle(s.session,MFX_HANDLE_D3D11_DEVICE,device));s.allocator.device=device;s.allocator.context=s.context;VF_MFX(s.pMFXVideoCORE_SetFrameAllocator(s.session,&s.allocator.callbacks));
  if(const auto env=std::getenv("VIEWFLOW_REVERSE_VPL_DEPTH");env && (std::strcmp(env,"1")==0||std::strcmp(env,"2")==0))s.depth=static_cast<unsigned>(std::atoi(env));
@@ -56,21 +82,25 @@ HRESULT VplEncoder::start(ID3D11Device* device,unsigned width,unsigned height,un
  mfxExtHEVCTiles tiles{};tiles.Header={MFX_EXTBUFF_HEVC_TILES,sizeof(tiles)};tiles.NumTileRows=1;tiles.NumTileColumns=width>=1024?2:1;
  if(const auto env=std::getenv("VIEWFLOW_REVERSE_VPL_TILES");env && (std::strcmp(env,"1")==0||std::strcmp(env,"2")==0||std::strcmp(env,"4")==0))tiles.NumTileColumns=std::atoi(env);
  mfxExtBuffer* ext[]={&tiles.Header};p.ExtParam=ext;p.NumExtParam=1;
- const auto query=s.pMFXVideoENCODE_Query(s.session,&p,&p);VF_MFX(query);mfxFrameAllocRequest request{};VF_MFX(s.pMFXVideoENCODE_QueryIOSurf(s.session,&p,&request));VF_MFX(s.pMFXVideoENCODE_Init(s.session,&p));s.started=true;VF_MFX(s.pMFXVideoENCODE_GetVideoParam(s.session,&p));
+ stage("device-allocator");
+ const auto query=s.pMFXVideoENCODE_Query(s.session,&p,&p);VF_MFX(query);mfxFrameAllocRequest request{};VF_MFX(s.pMFXVideoENCODE_QueryIOSurf(s.session,&p,&request));stage("query");VF_MFX(s.pMFXVideoENCODE_Init(s.session,&p));stage("encode-init");s.started=true;VF_MFX(s.pMFXVideoENCODE_GetVideoParam(s.session,&p));
  std::fprintf(stderr,"encoder_vpl api=%u.%u query=%d width=%u height=%u low=%u usage=%u async=%u refdist=%u refs=%u tiles=%u rows=%u slices=%u bitrate=%u\n",version.Major,version.Minor,query,i.CropW,i.CropH,m.LowPower,m.TargetUsage,p.AsyncDepth,m.GopRefDist,m.NumRefFrame,tiles.NumTileColumns,tiles.NumTileRows,m.NumSlice,m.TargetKbps);
  if(i.CropW!=width||i.CropH!=height||i.FourCC!=MFX_FOURCC_NV12||m.GopRefDist!=1||p.AsyncDepth!=s.depth)return E_FAIL;
  D3D11_VIDEO_PROCESSOR_CONTENT_DESC d{};d.InputFrameFormat=D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;d.InputWidth=d.OutputWidth=width;d.InputHeight=d.OutputHeight=height;d.InputFrameRate=d.OutputFrameRate={fps,1};d.Usage=D3D11_VIDEO_USAGE_OPTIMAL_SPEED;
  VF_HR(s.video->CreateVideoProcessorEnumerator(&d,&s.enumeration));VF_HR(s.video->CreateVideoProcessor(s.enumeration.Get(),0,&s.processor));RECT rect{0,0,(LONG)width,(LONG)height};
  s.video_context->VideoProcessorSetStreamSourceRect(s.processor.Get(),0,TRUE,&rect);s.video_context->VideoProcessorSetStreamDestRect(s.processor.Get(),0,TRUE,&rect);s.video_context->VideoProcessorSetOutputTargetRect(s.processor.Get(),TRUE,&rect);s.video_context->VideoProcessorSetStreamFrameFormat(s.processor.Get(),0,D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
  D3D11_VIDEO_PROCESSOR_COLOR_SPACE rgb{},yuv{};yuv.YCbCr_Matrix=1;yuv.Nominal_Range=D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;s.video_context->VideoProcessorSetStreamColorSpace(s.processor.Get(),0,&rgb);s.video_context->VideoProcessorSetOutputColorSpace(s.processor.Get(),&yuv);
+ stage("video-processor");
  const unsigned count=std::max({s.depth+1,unsigned(request.NumFrameMin),unsigned(request.NumFrameSuggested)});
  for(unsigned n=0;n<count;++n){auto input=std::make_unique<Impl::Input>();
   D3D11_TEXTURE2D_DESC td{};td.Width=i.Width;td.Height=i.Height;td.MipLevels=td.ArraySize=td.SampleDesc.Count=1;td.Format=DXGI_FORMAT_NV12;td.BindFlags=D3D11_BIND_RENDER_TARGET;VF_HR(s.device->CreateTexture2D(&td,nullptr,&input->nv12));
   D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC ov{};ov.ViewDimension=D3D11_VPOV_DIMENSION_TEXTURE2D;VF_HR(s.video->CreateVideoProcessorOutputView(input->nv12.Get(),s.enumeration.Get(),&ov,&input->output));
   input->memory.resource=input->nv12;input->surface.Info=i;input->surface.Data.MemId=&input->memory;s.inputs.push_back(std::move(input));
  }
+ stage("surface-pool");
  for(auto& task:s.tasks)task.bytes.resize(16*1024*1024);
  std::fprintf(stderr,"encoder_vpl_pool depth=%u minimum=%u suggested=%u allocated=%u\n",s.depth,request.NumFrameMin,request.NumFrameSuggested,count);
+ stage("bitstream-pool");
  s.width=width;s.height=height;s.fps=fps;return S_OK;
 }
 

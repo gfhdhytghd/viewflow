@@ -1,0 +1,5 @@
+Base: official tag 24.12.24
+Ownership repair based on fc499471c1deaa70cae5af5cb25dd4a22b8269c9
+Additional fix: one owned unnamed cursor event per monitor; initialize D3D once.
+Build: Windows WDK 10.0.26100.0, VS 2022, Release x64.
+AdapterOption.h is unchanged from Common/Include at the base tag; copy beside Driver.cpp to build this extracted project.

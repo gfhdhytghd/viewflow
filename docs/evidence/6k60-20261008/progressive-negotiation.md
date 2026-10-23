@@ -1,0 +1,9 @@
+# Progressive capability negotiation foundation
+
+Inspected existing wire/input validators: tile flags above8191 and unknown input kinds are rejected. Adding an unconditionally emitted feature flag/message would break old peers. Implemented optional shared-control negotiation in reserved768..959 bytes, before existing bank layout1024; legacy reader-ready fields512/520 and SHM1 slots unchanged. Frames exposes the negotiation block but production code does not yet call it or advertise support.
+
+Three separately owned64-byte lines: reader offer(fresh reader-lifetime nonce,feature mask), writer answer(reader nonce,fresh writer-lifetime nonce,intersection), reader commit(both nonces). Writer only enables when all current identifiers/features match. New reader with old writer sees no response for its fresh nonce; new writer with old reader cannot get commit for its fresh nonce. Old stale memory alone is insufficient to enable SHM2. Each endpoint must generate nonzero nonces and never reuse them across restarts. No timeout/session termination policy added; absent agreement retains complete-frame transport.
+
+Linux optimized and Windows Release negotiation tests passed: legacy silence, missing commit, feature intersection, independent restarts, stale identifiers, zero nonce rejection. Windows shared_frames test also passed after exposing control block, covering legacy ownership/pitch/wire/concurrent integrity. Tests do not yet prove cross-VM concurrent handshake or native-loop integration.
+
+Outstanding: endpoint lifecycle wiring, agreement revalidation during restart, progressive pixel mappings/leases, early reference transmission, GPU subrange upload and final presentation gating. No production deployment or live performance claim. Goal remains unmet. No input, focus, plugin or service changes.

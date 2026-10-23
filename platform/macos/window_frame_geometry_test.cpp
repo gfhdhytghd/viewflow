@@ -6,10 +6,14 @@ namespace vm=viewflow::macos;
 int main() {
     namespace vf=viewflow::reverse;
     assert(!vf::needs_remote({0,0,800,600},{{0,0,1920,1200}},{{-3072,0,3072,1728}}));
-    assert(vf::needs_remote({-100,0,800,600},{{0,0,1920,1200}},{{-3072,0,3072,1728}}));
+    assert(!vf::needs_remote({-100,0,800,600},{{0,0,1920,1200}},{{-3072,0,3072,1728}}));
     assert(!vf::needs_remote({0,0,800,600},{{0,0,400,1200},{400,0,400,1200}},{{-1,0,2,1200}}));
-    assert(vf::needs_remote({0,0,800,600},{{0,0,300,1200},{400,0,400,1200}},{{300,0,100,1200}}));
+    assert(!vf::needs_remote({0,0,800,600},{{0,0,300,1200},{400,0,400,1200}},{{300,0,100,1200}}));
     assert(!vf::needs_remote({2000,0,800,600},{{0,0,1920,1200}},{{-3072,0,3072,1728}}));
+    for(double x : {-399., -400., -401., -399.})
+        assert(vf::needs_remote({x,0,800,600},{{0,0,1920,1200}},{{-3072,0,3072,1728}})==(x < -400));
+    assert(vf::needs_remote({0,-301,800,600},{{0,0,1920,1200}},{{0,-1200,1920,1200}}));
+    assert(!vf::needs_remote({0,-300,800,600},{{0,0,1920,1200}},{{0,-1200,1920,1200}}));
     const unsigned width=200,height=140;
     const auto stride=width*4;
     std::vector<std::uint8_t> image(stride*height);

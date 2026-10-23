@@ -11,12 +11,13 @@ int main() {
     assert(selected.bounds == legacy.bounds && selected.mode == PerformanceMode::latency && selected.explicit_mode);
     assert(selected.mode_file == std::filesystem::path("settings/mode"));
     assert(parse_options({"--performance-status", "--mode-file", "settings/mode"}).status_only);
+    assert(parse_options({"--fusion-file", "settings/fusion"}).fusion_file==std::filesystem::path("settings/fusion"));
     for (const std::vector<std::string_view>& bad : {
             std::vector<std::string_view>{"--performance-mode"}, {"--performance-mode", "fast"},
             {"--mode-file", ""}, {"0", "0", "0", "10"}, {"-1", "0", "10"},
             {"-6144x", "-780", "0", "2676"}, {"999999999999999999999999"},
             {"--performance-mode", "latency", "--performance-mode", "frame-rate"},
-            {"--unknown"}}) {
+            {"--fusion-file"}, {"--fusion-file", ""}, {"--fusion-file", "a", "--fusion-file", "b"}, {"--unknown"}}) {
         bool rejected = false;
         try { parse_options(bad); } catch (const std::invalid_argument&) { rejected = true; }
         assert(rejected);

@@ -1,0 +1,19 @@
+{
+  "certificate": "/home/wilf/.local/state/viewflow/desktop-test-20260906-coordinates/source.pem",
+  "private_key": "/home/wilf/.local/state/viewflow/desktop-test-20260906-coordinates/source.key",
+  "certificate_authority": "/home/wilf/.local/state/viewflow/desktop-test-20260906-coordinates/pair-ca.pem",
+  "server_name": "WindowsVM",
+  "bind": "0.0.0.0:0",
+  "remote": "172.16.105.24:44339",
+  "role": "presenter",
+  "backend": {
+    "native": "/home/wilf/data/viewflow/build/ivshmem-backup/dma-four-bank-boot/viewflow_linux_reverse.dma-integrated",
+    "args": [
+      "0",
+      "0",
+      "2",
+      "--ivshmem",
+      "/dev/shm/viewflow-frames"
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+           PID: 657939 (Hyprland)
+           TID: 657939 (Hyprland)
+           UID: 1000 (wilf)
+           GID: 1000 (wilf)
+        Signal: 11 (SEGV) si_code: SEGV_MAPERR
+     Timestamp: Thu 2026-09-10 16:42:33 EDT (2min 44s ago)
+  Command Line: Hyprland --config /tmp/vf-shadow-isolate/hyprland.lua
+    Executable: /usr/bin/Hyprland
+ Control Group: /user.slice/user-1000.slice/session-15.scope
+          Unit: session-15.scope
+         Slice: user-1000.slice
+       Session: 15
+     Owner UID: 1000 (wilf)
+       Boot ID: ec82b775ee9c45c3a9ccd9c0c0dbfcc3
+    Machine ID: b584301cf87646a2816bb65da1b34851
+      Hostname: SuperPower
+       Storage: /var/lib/systemd/coredump/core.Hyprland.1000.ec82b775ee9c45c3a9ccd9c0c0dbfcc3.657939.1789072953000000.zst (present)
+  Size on Disk: 3.6M
+       Message: Process 657939 (Hyprland) of user 1000 dumped core.
+                
+                Stack trace of thread 657939:
+                #0  0x00007fe635131f07 n/a (libgcc_s.so.1 + 0x20f07)
+                #1  0x00007fe635133f06 _Unwind_Backtrace (libgcc_s.so.1 + 0x22f06)
+                #2  0x00007fe633f2c268 __backtrace (libc.so.6 + 0x12c268)
+                #3  0x000055eb71ecb4f3 _Z12getBacktracev (Hyprland + 0x5c24f3)
+                #4  0x000055eb71def9d4 _ZN13CrashReporter18createAndSaveCrashEi (Hyprland + 0x4e69d4)
+                #5  0x000055eb71cc57ee n/a (Hyprland + 0x3bc7ee)
+                #6  0x00007fe633e3e6f0 n/a (libc.so.6 + 0x3e6f0)
+                #7  0x00007fe61540bdfc n/a (n/a + 0x0)
+                #8  0x00007fe6154576a5 n/a (/tmp/vf-shadow-isolate/probe.so + 0xf6a5)
+                #9  0x00007fe61545779a n/a (/tmp/vf-shadow-isolate/probe.so + 0xf79a)
+                #10 0x00007fe63517f225 n/a (liblua.so.5.5 + 0x11225)
+                #11 0x00007fe635191b40 n/a (liblua.so.5.5 + 0x23b40)
+                #12 0x00007fe63517dba0 n/a (liblua.so.5.5 + 0xfba0)
+                #13 0x00007fe6351791f3 n/a (liblua.so.5.5 + 0xb1f3)
+                #14 0x00007fe635179974 n/a (liblua.so.5.5 + 0xb974)
+                #15 0x00007fe63517dcb9 lua_pcallk (liblua.so.5.5 + 0xfcb9)
+                #16 0x000055eb71d1efc2 _ZN6Config3Lua14CConfigManager12guardedPCallEiiiiSt17basic_string_viewIcSt11char_traitsIcEE (Hyprland + 0x415fc2)
+                #17 0x000055eb71d26e11 _ZN6Config3Lua14CConfigManager4evalERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEb (Hyprland + 0x41de11)
+                #18 0x000055eb71dbeaff n/a (Hyprland + 0x4b5aff)
+                #19 0x000055eb71de3335 _ZNSt17_Function_handlerIFNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE20eHyprCtlOutputFormatS5_EPS7_E9_M_invokeERKSt9_Any_dataOS6_OS5_ (Hyprland + 0x4da335)
+                #20 0x000055eb71db9a3e _ZN8CHyprCtl8getReplyENSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE (Hyprland + 0x4b0a3e)
+                #21 0x000055eb71dc3613 n/a (Hyprland + 0x4ba613)
+                #22 0x00007fe6358af992 wl_event_loop_dispatch (libwayland-server.so.0 + 0xa992)
+                #23 0x00007fe6358b1b87 wl_display_run (libwayland-server.so.0 + 0xcb87)
+                #24 0x000055eb71facb73 _ZN17CEventLoopManager9enterLoopEv (Hyprland + 0x6a3b73)
+                #25 0x000055eb71b85d44 main (Hyprland + 0x27cd44)
+                #26 0x00007fe633e27781 n/a (libc.so.6 + 0x27781)

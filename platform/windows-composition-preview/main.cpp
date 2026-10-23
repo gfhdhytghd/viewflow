@@ -8,6 +8,8 @@
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
 #include <d3dcompiler.h>
 #include <thread>
+#include <condition_variable>
+#include "ordered_desktop_output.h"
 #include <mutex>
 #include <windowsx.h>
 #include <wct.h>
@@ -462,6 +464,7 @@ struct AtlasDesktopTarget {
   viewflow::windows_preview::DesktopDisplay display;
   uint64_t topology_generation{}, placement_generation{};
   viewflow::vfgp::DesktopRect bounds;
+  std::optional<viewflow::vfgp::DesktopRect> body_bounds;
   bool movable{}, slice_valid{};
   viewflow::windows_preview::DesktopSlice slice;
   uint32_t tile_width{}, tile_height{};
@@ -553,10 +556,11 @@ void emit_pointer_motion(HWND h, WPARAM w,
       point.x = std::clamp<LONG>(point.x, 0, source_width - 1);
       point.y = std::clamp<LONG>(point.y, 0, source_height - 1);
     }
-    const uint64_t full_x = uint64_t(point.x);
-    const uint64_t full_y = uint64_t(point.y);
-    source_x = int64_t(full_x * desktop->tile_width / desktop->slice.full_physical_width);
-    source_y = int64_t(full_y * desktop->tile_height / desktop->slice.full_physical_height);
+    const auto body=desktop->body_bounds.value_or(desktop->bounds);
+    const double full_x=double(body.x_millidip-desktop->bounds.x_millidip)+double(point.x)*body.width_millidip/source_width;
+    const double full_y=double(body.y_millidip-desktop->bounds.y_millidip)+double(point.y)*body.height_millidip/source_height;
+    source_x=int64_t(full_x*desktop->tile_width/desktop->bounds.width_millidip);
+    source_y=int64_t(full_y*desktop->tile_height/desktop->bounds.height_millidip);
     source_width = int32_t(desktop->tile_width); source_height = int32_t(desktop->tile_height);
     if (source_x < 0 || source_y < 0 || source_x >= source_width || source_y >= source_height) {
       // A new native size can precede its source frame during Snap. Wait for
@@ -1496,7 +1500,9 @@ struct AtlasInputContext {
   uint64_t next_drag_id{};
   bool desktop_clipped{};
   bool wm_moving{}, applying_source_placement{};
-  uint64_t wm_drag_id{}, wm_sequence{}, wm_pending_until{};
+  uint64_t wm_drag_id{}, wm_sequence{}, wm_pending_drag{};
+  bool wm_pending_geometry{}, wm_geometry_acknowledged{};
+  RECT wm_source_rect{}; bool wm_source_rect_valid{};
   RECT wm_requested{};
   RECT viewport_region{};
   bool viewport_region_valid{};
@@ -1504,6 +1510,7 @@ struct AtlasInputContext {
   POINT chrome_down{};
   std::function<void(float, float)> resize_preview;
   std::function<void()> update_background;
+  std::function<void()> sync_geometry;
 };
 
 bool update_desktop_clip(HWND hwnd, AtlasInputContext* context) {
@@ -1827,12 +1834,15 @@ void emit_native_geometry(HWND hwnd, AtlasInputContext* context,
       uint64_t(client.bottom) * 1'000'000 / d.scale_milli};
   // Begin names the currently committed source geometry; subsequent records
   // carry the native WM result, including a one-shot maximize/restore or Snap.
+  bounds=viewflow::windows_preview::FullForBody(bounds,context->desktop.bounds,context->desktop.body_bounds);
   if (phase == Phase::Begin) bounds = context->desktop.bounds;
   emit_desktop_move(*context, {phase, context->wm_drag_id, ++context->wm_sequence,
       uint64_t(now.QuadPart) + uint64_t(rate.QuadPart) * 5, uint64_t(rate.QuadPart), bounds});
   if (phase != Phase::Begin) {
     context->wm_requested = {origin.x, origin.y, origin.x + client.right, origin.y + client.bottom};
-    context->wm_pending_until = GetTickCount64() + 2000;
+    context->wm_pending_geometry = true;
+    context->wm_geometry_acknowledged = false;
+    context->wm_pending_drag = context->wm_drag_id;
   }
   if (phase == Phase::End || phase == Phase::Cancel) context->wm_drag_id = 0;
 }
@@ -2028,6 +2038,7 @@ LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
       return HTCAPTION;
     return hit;
   }
+  if(context && context->sync_geometry && (message==WM_WINDOWPOSCHANGED || message==WM_SIZE))context->sync_geometry();
   if (message == WM_WINDOWPOSCHANGED && !update_desktop_clip(hwnd, context)) {
     std::cerr << "desktop-wm viewport-clip-failed\n";
     // A transient placement/clip failure is retried by the next layout.
@@ -2063,10 +2074,8 @@ LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
       std::cerr << "desktop-wm ended\n";
       emit_native_geometry(hwnd, context, Phase::End);
       context->wm_moving = false;
-      // Releasing the shell loop returns placement to source frames immediately.
-      // In particular, lease cleanup at a cross-display return must not leave
-      // a two-second edge-aligned copy while Hyprland continues the same drag.
-      context->wm_pending_until = 0;
+      // Retain the final native position until its causal source receipt and
+      // matching captured geometry arrive, including across delayed frames.
       // The shell consumed the release in its modal loop. Reconcile the
       // cancelled application ledger with that observed physical release.
       if (context->input.rejected_recovery_pending()) {
@@ -2271,8 +2280,17 @@ class AtlasNativePresenter {
     CompositionMaskBrush backdrop_mask{nullptr};
     CompositionBrush raw_backdrop{nullptr};
     std::unique_ptr<NativeBackgroundCache> background_cache;
+    WindowOwner shadow_window{nullptr};
+    DesktopWindowTarget shadow_target{nullptr};
+    ContainerVisual shadow_root{nullptr};
+    CompositionVisualSurface shadow_surface{nullptr};
+    std::array<SpriteVisual,4> shadow_edges{nullptr,nullptr,nullptr,nullptr};
+    std::array<CompositionSurfaceBrush,4> shadow_brushes{nullptr,nullptr,nullptr,nullptr};
+    double body_left{},body_top{},body_width{1},body_height{1}; // fractions of full captured image
     bool layout_absent{};
+    bool syncing_shadow{};
     ~Proxy() {
+      input.sync_geometry={};
       input.update_background={};
       if(window.value)KillTimer(window.value,atlas_background_timer);
       if(background_cache)background_cache->Report(stderr);
@@ -2299,10 +2317,12 @@ class AtlasNativePresenter {
   AtlasNativePresenter(Compositor compositor,
       viewflow::windows_preview::MtaVideoCompositor& decoder, size_t max_frame_bytes, uint32_t proxy_capacity,
       bool dispositions = false, bool pointer_events = false, bool wheel_events = false, bool keyboard_events = false,
-      bool input_recovery = false, std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {})
-      : compositor_(compositor), decoder_(decoder), parser_(max_frame_bytes, true, true, input_recovery, desktop_display.has_value(), native_alpha_reuse_enabled()), proxy_capacity_(proxy_capacity),
+      bool input_recovery = false, std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {},
+      viewflow::windows_preview::MtaVideoCompositor* priority_decoder = nullptr)
+      : compositor_(compositor), parser_(max_frame_bytes, true, true, input_recovery, desktop_display.has_value(), native_alpha_reuse_enabled(), priority_decoder != nullptr), proxy_capacity_(proxy_capacity),
         dispositions_(dispositions), pointer_events_(pointer_events), wheel_events_(wheel_events), keyboard_events_(keyboard_events),
         input_recovery_(input_recovery), desktop_display_(desktop_display) {
+    lanes_[0].decoder = &decoder; lanes_[1].decoder = priority_decoder;
     std::cerr << "atlas-alpha-storage mode=" << (native_alpha_reuse_enabled() ? "shared-reuse" : "expanded-copy") << "\n";
     // Local fallback until the atlas protocol carries source blur regions.
     // Read once, before live admission; zero explicitly retains alpha-only.
@@ -2329,26 +2349,39 @@ class AtlasNativePresenter {
   }
   void Push(std::span<const uint8_t> chunk) try {
     stage = "atlas-pipe-parse";
-    if (WorkPending()) bad("atlas pipe consumed while decode pending");
+    if (!CanRead()) bad("atlas pipe queue is full");
     parsed_frames_.clear();
-    next_parsed_ = 0;
     if (!parser_.Push(chunk, &parsed_frames_)) bad(parser_.error());
   } catch (hresult_error const& error) {
     report_native_failure(error);
     throw;
   }
   bool WorkPending() const {
-    return decoder_.submit_ready_event() || next_parsed_ < parsed_frames_.size();
+    return !parsed_frames_.empty() || lanes_[0].decoder->submit_ready_event() ||
+        (lanes_[1].decoder && lanes_[1].decoder->submit_ready_event());
   }
-  HANDLE DecodeReadyEvent() const { return decoder_.submit_ready_event(); }
+  bool CanRead() const {
+    return parsed_frames_.empty() && (lanes_[1].decoder || !lanes_[0].decoder->submit_ready_event());
+  }
+  std::vector<HANDLE> DecodeReadyEvents() const {
+    std::vector<HANDLE> events;
+    for (const auto& state : lanes_)
+      if (state.decoder && state.decoder->submit_ready_event()) events.push_back(state.decoder->submit_ready_event());
+    return events;
+  }
   // Do one bounded handoff/completion, then return to the outer message loop.
   // Keep only this pipe chunk's parsed records; never read ahead during decode.
   bool Advance() try {
     poll_gpu_copy_probes(sampled_timings_);
-    if (decoder_.submit_ready_event()) {
-      if (!decoder_.submit_ready()) return false;
+    const auto now = GetTickCount64();
+    const bool background_due = now - background_served_ms_ >= 200;
+    const std::array<unsigned,2> order = background_due ? std::array<unsigned,2>{0,1} : std::array<unsigned,2>{1,0};
+    for (const auto index : order) {
+      if (!lanes_[index].decoder || !lanes_[index].decoder->submit_ready()) continue;
+      selected_lane_ = index;
+      if (!index) background_served_ms_ = now;
       stage = "atlas-decode-completion";
-      auto result = decoder_.TakeSubmit();
+      auto result = lane().decoder->TakeSubmit();
       if (gpu_copy_probe_enabled()) {
         const auto& t = result.host_durations;
         sampled_timings_ += "atlas-native-host-us frame=" + std::to_string(t.frame_identity) +
@@ -2372,10 +2405,52 @@ class AtlasNativePresenter {
       }
       return true;
     }
-    if (next_parsed_ < parsed_frames_.size()) {
-      auto frame = std::move(parsed_frames_[next_parsed_++]);
+    for (const auto index : order) {
+      if (!lanes_[index].decoder) continue;
+      const auto found = std::find_if(parsed_frames_.begin(), parsed_frames_.end(), [this,index](const auto& frame) {
+        const bool control = frame.desktop_geometry_ack.has_value() || frame.input_recovery.has_value();
+        return (control || !lanes_[index].decoder->submit_ready_event()) &&
+            (frame.atlas && frame.atlas->activity ? frame.atlas->activity->lane : 0) == index;
+      });
+      if (found == parsed_frames_.end()) continue;
+      selected_lane_ = index;
+      if (!index) background_served_ms_ = now;
+      auto frame = std::move(*found);
+      parsed_frames_.erase(found);
       native_failure_identity = frame.identity;
       stage = "atlas-frame-admission";
+      if (frame.desktop_geometry_ack) {
+        const auto& ack=*frame.desktop_geometry_ack;
+        auto found=proxies_.find(ack.window);
+        if (found!=proxies_.end()) {
+          auto& input=found->second->input;
+          const auto* binding=input.input.current_binding();
+          if (binding && binding->stream==ack.stream && binding->config_generation==ack.config &&
+              input.wm_pending_drag==ack.drag && ack.sequence==input.wm_sequence) {
+            input.wm_geometry_acknowledged=true;
+            const viewflow::vfgp::DesktopRect bounds{ack.x,ack.y,ack.width,ack.height};
+            const auto body=viewflow::windows_preview::BodyForFull(bounds,input.desktop.bounds,input.desktop.body_bounds);
+            const auto slice=viewflow::windows_preview::SliceForDisplay(body,input.desktop.display);
+            const auto full=slice ? viewflow::windows_preview::FullWindowForSlice(*slice) : std::nullopt;
+            if (ack.rejected || !full) input.wm_pending_geometry=false;
+            else input.wm_requested={full->x,full->y,full->x+int(full->width),full->y+int(full->height)};
+            // A static source may have delivered its matching frame before
+            // this control. Reconcile that cached placement immediately.
+            if (!input.wm_moving && input.wm_source_rect_valid &&
+                (!input.wm_pending_geometry || EqualRect(&input.wm_source_rect,&input.wm_requested))) {
+              const auto& r=input.wm_source_rect;
+              input.applying_source_placement=true;
+              if(SetWindowPos(found->second->window.value,nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,
+                  SWP_NOACTIVATE|SWP_NOZORDER)) {
+                input.wm_pending_geometry=false;
+                ResizeBodyVisual(*found->second,float(r.right-r.left),float(r.bottom-r.top));
+              }
+              input.applying_source_placement=false;
+            }
+          }
+        }
+        return true;
+      }
       if (frame.input_recovery) {
         RecoverInput(*frame.input_recovery);
         return true;
@@ -2392,18 +2467,22 @@ class AtlasNativePresenter {
           sampled_timings_ += "atlas-native-alpha frame=" + std::to_string(frame.identity) +
               " reused=" + std::to_string(frame.alpha_reused) + " bytes=" + std::to_string(frame.Alpha().size()) + "\n";
         if (!dispositions_) CheckDeadline(*frame.deadline_qpc);
-        if (!bindings_.Stage(frame)) bad("atlas decoder binding or lineage");
+        if (!lane().bindings.Stage(frame)) bad("atlas decoder binding or lineage");
+        if (frame.atlas->activity && frame.atlas->activity->epoch >= activity_epoch_) {
+          activity_epoch_ = frame.atlas->activity->epoch;
+          activity_members_ = {frame.atlas->activity->members.begin(), frame.atlas->activity->members.end()};
+        }
         ObservePresentationTarget(frame.identity, frame.width, frame.height);
         // Disposition admission already sampled QPC and can prove unbound
         // expiry. A second sample crossing the boundary must not turn that
         // recoverable state into a terminal exception before any visual bind.
         if (!dispositions_) CheckDeadline(*frame.deadline_qpc);
       }
-      const auto local = decode_identities_.Stage(frame.identity, frame.width, frame.height, frame.decode_only);
+      const auto local = lane().decode_identities.Stage(frame.identity, frame.width, frame.height, frame.decode_only);
       if (!local) bad("atlas decoder local identity or shape");
       atlas_progress(AtlasProgress::Decode);
       stage = "atlas-decode-submit";
-      decoder_.BeginSubmit(*local, frame.width, frame.height,
+      lane().decoder->BeginSubmit(*local, frame.width, frame.height,
           std::move(frame.color_au), std::move(frame.alpha), std::move(frame.shared_alpha));
       return true;
     }
@@ -2417,11 +2496,16 @@ class AtlasNativePresenter {
   void Finish() {
     if (WorkPending()) bad("atlas EOF while decode pending");
     if (!parser_.Finish()) bad("incomplete atlas pipe record");
-    std::vector<viewflow::windows::CompositedFrame> completed;
-    check_hresult(decoder_.Finish(&completed));
-    for (const auto& decoded : completed) Complete(decoded);
-    if (!bindings_.Empty() || !decode_identities_.Empty() || (warmup_started_ && !warmup_.finish()))
-      bad("atlas decoder did not return all submitted identities");
+    for (unsigned index=0; index<lanes_.size(); ++index) {
+      if (!lanes_[index].decoder) continue;
+      selected_lane_=index;
+      std::vector<viewflow::windows::CompositedFrame> completed;
+      check_hresult(lane().decoder->Finish(&completed));
+      for (const auto& decoded : completed) Complete(decoded);
+      if (!lane().bindings.Empty() || !lane().decode_identities.Empty())
+        bad("atlas decoder did not return all submitted identities");
+    }
+    if (warmup_started_ && !warmup_.finish()) bad("atlas warmup incomplete");
   }
  private:
   void RecoverInput(const viewflow::vfgp::InputRecoveryConfirmation& c) {
@@ -2461,17 +2545,19 @@ class AtlasNativePresenter {
     std::cout << std::endl;
   }
   void Complete(const viewflow::windows::CompositedFrame& decoded) {
-    const auto identity = decode_identities_.Take(decoded.frame_identity, decoded.width, decoded.height);
+    const auto identity = lane().decode_identities.Take(decoded.frame_identity, decoded.width, decoded.height);
     if (!identity) bad("atlas decoder output identity mapping");
     if (identity->warmup) {
-      if (!warmup_foreground_) warmup_foreground_ = foreground(compositor_, float(decoded.width), float(decoded.height), decoder_.device());
-      auto candidate = stage_gpu_surface(*warmup_foreground_, compositor_, decoded);
+      if (!lane().warmup_foreground) lane().warmup_foreground = foreground(compositor_, float(decoded.width), float(decoded.height), lane().decoder->device());
+      auto candidate = stage_gpu_surface(*lane().warmup_foreground, compositor_, decoded);
       PrepareProxies(decoded.width, decoded.height);
-      if (warmup_foreground_->visual.Brush() || !warmup_.complete(identity->source_identity)) bad("atlas warmup bound pixels or identity mismatch");
+      if (lane().warmup_foreground->visual.Brush() || !warmup_.complete(identity->source_identity)) bad("atlas warmup bound pixels or identity mismatch");
       std::cout << "atlas-warmup-completed identity=" << identity->source_identity
                 << " width=" << decoded.width << " height=" << decoded.height << std::endl;
       return; // Hidden HWNDs only; no visible brush, live binding or receipt.
     }
+    if (!lane().warmup_foreground)
+      lane().warmup_foreground = foreground(compositor_, float(decoded.width), float(decoded.height), lane().decoder->device());
     auto frame = decoded;
     frame.frame_identity = identity->source_identity;
     if(frame.shader_gpu_timing) frame.shader_gpu_timing->frame=identity->source_identity;
@@ -2508,7 +2594,7 @@ class AtlasNativePresenter {
   // Finish its decode/copy/bind under the parent's operation watchdog instead.
   void ObservePresentationTarget(uint64_t identity, uint32_t width, uint32_t height) {
     if (!dispositions_) return;
-    const auto* binding = bindings_.Find(identity, width, height);
+    const auto* binding = lane().bindings.Find(identity, width, height);
     if (!binding) bad("atlas disposition missing binding");
     CheckDeadline(binding->deadline, "atlas-performance-target");
   }
@@ -2524,6 +2610,57 @@ class AtlasNativePresenter {
       sampled_timings_ += "atlas-native-timing frame=" + std::to_string(identity) + " phase=" + phase + " qpc=" + std::to_string(now.QuadPart) + " frequency=" + std::to_string(frequency_) + " remaining_us=" + std::to_string(static_cast<int64_t>(remaining)) + "\n";
     } else {
       traces_[trace_count_++] = {identity, phase, static_cast<int64_t>(remaining)};
+    }
+  }
+  void ResizeBodyVisual(Proxy& proxy,float w,float h) {
+    if(proxy.syncing_shadow)return;
+    if(w<=0 || h<=0 || proxy.body_width<=0 || proxy.body_height<=0)return;
+    const float width=w/float(proxy.body_width),height=h/float(proxy.body_height);
+    const float left=width*float(proxy.body_left),top=height*float(proxy.body_top);
+    proxy.foreground.visual.Size({width,height});proxy.foreground.visual.Offset({-left,-top,0});
+    if(proxy.foreground.sparse_root && proxy.foreground.width && proxy.foreground.height)
+      proxy.foreground.sparse_root.Scale({width/float(proxy.foreground.width),height/float(proxy.foreground.height),1});
+    if(proxy.backdrop){proxy.backdrop.Size({width,height});proxy.backdrop.Offset({-left,-top,0});}
+    if(!proxy.shadow_window.value)return;
+    proxy.shadow_surface.SourceSize({width,height});
+    const std::array<std::array<float,4>,4> edges{{{0,0,width,top},{0,top,left,h},{left+w,top,std::max(0.f,width-left-w),h},{0,top+h,width,std::max(0.f,height-top-h)}}};
+    for(size_t i=0;i<4;++i) {
+      const auto& e=edges[i];proxy.shadow_edges[i].Size({e[2],e[3]});proxy.shadow_edges[i].Offset({e[0],e[1],0});
+      proxy.shadow_brushes[i].Offset({-e[0],-e[1]});
+    }
+    RECT r{},old{};
+    if(GetWindowRect(proxy.window.value,&r)) {
+      const int x=r.left-int(std::lround(left)),y=r.top-int(std::lround(top));
+      const int sw=int(std::lround(width)),sh=int(std::lround(height));
+      const bool visible=IsWindowVisible(proxy.window.value)&&!IsIconic(proxy.window.value)&&!IsZoomed(proxy.window.value)&&!proxy.layout_absent;
+      if(GetWindowRect(proxy.shadow_window.value,&old) && old.left==x && old.top==y &&
+          old.right-old.left==sw && old.bottom-old.top==sh && bool(IsWindowVisible(proxy.shadow_window.value))==visible)return;
+      // Moving an owned window can synchronously send position messages to its
+      // owner. Do not recursively mutate the shadow from that notification.
+      proxy.syncing_shadow=true;
+      SetWindowPos(proxy.shadow_window.value,proxy.window.value,x,y,sw,sh,
+          SWP_NOACTIVATE|(visible?SWP_SHOWWINDOW:SWP_HIDEWINDOW));
+      proxy.syncing_shadow=false;
+    }
+  }
+  void EnsureShadow(Proxy& proxy) {
+    if(proxy.shadow_window.value || (proxy.body_left==0 && proxy.body_top==0 && proxy.body_width==1 && proxy.body_height==1))return;
+    WNDCLASSW klass{};klass.lpfnWndProc=DefWindowProcW;klass.hInstance=GetModuleHandleW(nullptr);klass.lpszClassName=L"ViewflowAtlasShadow";
+    if(!RegisterClassW(&klass)&&GetLastError()!=ERROR_CLASS_ALREADY_EXISTS)throw_last_error();
+    proxy.shadow_window.value=CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP|WS_EX_LAYERED|WS_EX_TRANSPARENT|WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW,
+        klass.lpszClassName,L"Viewflow source shadow",WS_POPUP,0,0,1,1,proxy.window.value,nullptr,klass.hInstance,nullptr);
+    if(!proxy.shadow_window.value)throw_last_error();
+    SetLayeredWindowAttributes(proxy.shadow_window.value,0,255,LWA_ALPHA);
+    auto desktop=compositor_.as<ABI::Windows::UI::Composition::Desktop::ICompositorDesktopInterop>();
+    check_hresult(desktop->CreateDesktopWindowTarget(proxy.shadow_window.value,true,
+        reinterpret_cast<ABI::Windows::UI::Composition::Desktop::IDesktopWindowTarget**>(put_abi(proxy.shadow_target))));
+    proxy.shadow_root=compositor_.CreateContainerVisual();proxy.shadow_target.Root(proxy.shadow_root);
+    proxy.shadow_surface=compositor_.CreateVisualSurface();proxy.shadow_surface.SourceVisual(proxy.foreground.visual);
+    for(size_t i=0;i<4;++i) {
+      auto brush=compositor_.CreateSurfaceBrush(proxy.shadow_surface);brush.Stretch(CompositionStretch::None);
+      brush.HorizontalAlignmentRatio(0);brush.VerticalAlignmentRatio(0);
+      auto edge=compositor_.CreateSpriteVisual();edge.Brush(brush);proxy.shadow_root.Children().InsertAtTop(edge);
+      proxy.shadow_brushes[i]=brush;proxy.shadow_edges[i]=edge;
     }
   }
   Proxy& EnsureProxy(viewflow::vfgp::AtlasId id, uint32_t width, uint32_t height,
@@ -2598,9 +2735,9 @@ class AtlasNativePresenter {
     auto desktop = compositor_.as<ABI::Windows::UI::Composition::Desktop::ICompositorDesktopInterop>();
     check_hresult(desktop->CreateDesktopWindowTarget(proxy->window.value, true,
         reinterpret_cast<ABI::Windows::UI::Composition::Desktop::IDesktopWindowTarget**>(put_abi(proxy->target))));
-    proxy->foreground = warmup_foreground_
-        ? foreground_on_device(*warmup_foreground_, compositor_, float(width), float(height))
-        : foreground(compositor_, float(width), float(height), decoder_.device());
+    proxy->foreground = lane().warmup_foreground
+        ? foreground_on_device(*lane().warmup_foreground, compositor_, float(width), float(height))
+        : foreground(compositor_, float(width), float(height), lane().decoder->device());
     proxy->root = compositor_.CreateContainerVisual();
     if (backdrop_sigma_ > 0) {
       Blur effect;
@@ -2637,12 +2774,8 @@ class AtlasNativePresenter {
         proxy->background_cache.reset();
       }
     }
-    proxy->input.resize_preview = [state = &proxy->foreground, visual = proxy->foreground.visual, backdrop = proxy->backdrop](float w, float h) {
-      visual.Size({w, h});
-      if(state->sparse_root && state->width && state->height)
-        state->sparse_root.Scale({w/float(state->width),h/float(state->height),1.0f});
-      if (backdrop) backdrop.Size({w, h});
-    };
+    proxy->input.resize_preview = [this,p=proxy.get()](float w,float h) {ResizeBodyVisual(*p,w,h);};
+    proxy->input.sync_geometry = [this,p=proxy.get()] {RECT r{};if(GetClientRect(p->window.value,&r))ResizeBodyVisual(*p,float(r.right),float(r.bottom));};
     if (IsWindowVisible(proxy->window.value) || proxy->foreground.visual.Brush() ||
         (proxy->backdrop && (proxy->backdrop.Brush() || proxy->backdrop_mask.Mask())))
       bad("atlas prepared proxy exposed startup pixels");
@@ -2650,7 +2783,7 @@ class AtlasNativePresenter {
   }
   void PrepareProxies(uint32_t width, uint32_t height) {
     if (proxies_prepared_ || !proxy_capacity_) return;
-    if (!warmup_foreground_ || live_started_) bad("atlas proxy preparation outside warmup");
+    if (!lane().warmup_foreground || live_started_) bad("atlas proxy preparation outside warmup");
     reserved_proxies_.reserve(proxy_capacity_);
     for (uint32_t i = 0; i < proxy_capacity_; ++i)
       reserved_proxies_.push_back(CreateProxy(L"Viewflow atlas reserved", width, height, i));
@@ -2659,8 +2792,15 @@ class AtlasNativePresenter {
               << " bound_pixels=false" << std::endl;
   }
   void Present(const viewflow::windows::CompositedFrame& frame) {
-    const auto* binding = bindings_.Find(frame.frame_identity, frame.width, frame.height);
+    const auto* binding = lane().bindings.Find(frame.frame_identity, frame.width, frame.height);
     if (!binding) bad("atlas decoded frame has no matching immutable layout");
+    if (binding->layout.activity && binding->layout.activity->epoch < activity_epoch_) {
+      const auto count=binding->layout.tiles.size();
+      const auto deadline=binding->deadline;
+      if (!lane().bindings.Commit(frame.frame_identity)) bad("atlas superseded identity");
+      EmitDisposition(frame.frame_identity, count, deadline, "superseded", 0);
+      return;
+    }
     TraceBudget(frame.frame_identity, "decoded", binding->deadline);
     if (frame.frame_identity % 60 == 0 && binding->layout.patches) {
       size_t hidden = 0;
@@ -2685,14 +2825,16 @@ class AtlasNativePresenter {
       GpuSurfaceCandidate surface;
       std::optional<viewflow::windows_preview::DesktopSlice> desktop_slice;
       std::optional<SparseGpuCandidate> sparse;
+      std::optional<viewflow::windows_preview::DesktopSlice> body_slice;
     };
     std::optional<GpuSurfaceCandidate> shared_candidate;
     if(binding->layout.patches) {
-      if(!sparse_atlas_) sparse_atlas_=foreground_on_device(*warmup_foreground_,compositor_,float(frame.width),float(frame.height));
-      shared_candidate=stage_gpu_surface(*sparse_atlas_,compositor_,frame);
+      if(!lane().sparse_atlas) lane().sparse_atlas=foreground_on_device(*lane().warmup_foreground,compositor_,float(frame.width),float(frame.height));
+      shared_candidate=stage_gpu_surface(*lane().sparse_atlas,compositor_,frame);
     }
     std::vector<Candidate> candidates;
     std::set<viewflow::vfgp::AtlasId> retained;
+    if (binding->layout.activity) retained = activity_members_;
     std::set<viewflow::vfgp::AtlasId> clipped;
     if (desktop_display_ && !binding->layout.desktop) bad("atlas desktop mode requires VFGP v7 placement");
     std::optional<viewflow::windows_preview::DesktopDisplay> mapped_display;
@@ -2720,16 +2862,40 @@ class AtlasNativePresenter {
         if (!desktop_slice) { clipped.insert(tile.window); continue; }
       }
       auto& proxy = EnsureProxy(tile.window, tile.width, tile.height, frame.frame_identity, binding->deadline);
+      // Keep the HWND and visible brush through migration. Only the factories
+      // and reusable GPU storage change to the decoder that owns this frame.
+      if (proxy.foreground.d3d.get() != lane().decoder->device()) {
+        proxy.foreground.d3d = lane().warmup_foreground->d3d;
+        proxy.foreground.d2d = lane().warmup_foreground->d2d;
+        proxy.foreground.graphics = lane().warmup_foreground->graphics;
+        proxy.foreground.surface = nullptr;
+        proxy.foreground.gpu_brush = nullptr;
+        proxy.foreground.spare_surface = nullptr;
+        proxy.foreground.spare_brush = nullptr;
+        proxy.foreground.spare_commit = nullptr;
+      }
+      std::optional<viewflow::windows_preview::DesktopSlice> body_slice=desktop_slice;
+      if(desktop_display_) {
+        const auto& placement=binding->layout.desktop->windows[index];
+        const auto body=placement.body_bounds.value_or(placement.bounds);
+        body_slice=viewflow::windows_preview::SliceForDisplay(body,*mapped_display);
+        if(!body_slice){clipped.insert(tile.window);continue;}
+        proxy.body_left=double(body.x_millidip-placement.bounds.x_millidip)/placement.bounds.width_millidip;
+        proxy.body_top=double(body.y_millidip-placement.bounds.y_millidip)/placement.bounds.height_millidip;
+        proxy.body_width=double(body.width_millidip)/placement.bounds.width_millidip;
+        proxy.body_height=double(body.height_millidip)/placement.bounds.height_millidip;
+        EnsureShadow(proxy);
+      }
       TraceBudget(frame.frame_identity, "proxy-ready", binding->deadline);
       if(binding->layout.patches) {
         auto sparse=stage_sparse_visuals(proxy.foreground,compositor_,shared_candidate->surface,
             *binding->layout.patches,uint32_t(index),tile.width,tile.height,proxy.raw_backdrop,backdrop_sigma_,binding->opaque_patches);
-        candidates.push_back({tile.window,{nullptr,nullptr,tile.width,tile.height},desktop_slice,std::move(sparse)});
+        candidates.push_back({tile.window,{nullptr,nullptr,tile.width,tile.height},desktop_slice,std::move(sparse),body_slice});
       } else {
         viewflow::windows::CompositedFrame view;
         check_hresult(viewflow::windows::MakeCompositedRegion(frame,
             {tile.x, tile.y, tile.width, tile.height}, &view));
-        candidates.push_back({tile.window,stage_gpu_surface(proxy.foreground,compositor_,view),desktop_slice,std::nullopt});
+        candidates.push_back({tile.window,stage_gpu_surface(proxy.foreground,compositor_,view),desktop_slice,std::nullopt,body_slice});
       }
       atlas_progress(AtlasProgress::Copy);
       TraceBudget(frame.frame_identity, "copy-ready", binding->deadline);
@@ -2747,10 +2913,10 @@ class AtlasNativePresenter {
       const bool visual_resize = proxy.foreground.width != width || proxy.foreground.height != height;
       RECT client{};
       if (!GetClientRect(proxy.window.value, &client)) throw_last_error();
-      const auto full_rect = candidate.desktop_slice ? viewflow::windows_preview::FullWindowForSlice(*candidate.desktop_slice) : std::nullopt;
+      const auto full_rect = candidate.body_slice ? viewflow::windows_preview::FullWindowForSlice(*candidate.body_slice) : std::nullopt;
       if (candidate.desktop_slice && !full_rect) bad("atlas full window placement overflow");
-      const auto window_width = width;
-      const auto window_height = height;
+      const auto window_width = candidate.body_slice?candidate.body_slice->full_physical_width:width;
+      const auto window_height = candidate.body_slice?candidate.body_slice->full_physical_height:height;
       const bool window_resize = client.right - client.left != int(window_width) || client.bottom - client.top != int(window_height);
       POINT origin{};
       if (candidate.desktop_slice && !ClientToScreen(proxy.window.value, &origin)) throw_last_error();
@@ -2762,9 +2928,9 @@ class AtlasNativePresenter {
       atlas_progress(AtlasProgress::Bind);
       stage = "atlas-foreground-bind";
       if(candidate.sparse) {
-        const bool native_preview=proxy.input.wm_moving || GetTickCount64()<proxy.input.wm_pending_until;
+        const bool native_preview=proxy.input.wm_moving || proxy.input.wm_pending_geometry;
         commit_sparse_visuals(proxy.foreground,std::move(*candidate.sparse),
-            native_preview ? float(client.right):float(width),native_preview ? float(client.bottom):float(height));
+            native_preview ? float(client.right)/float(proxy.body_width):float(width),native_preview ? float(client.bottom)/float(proxy.body_height):float(height));
         if(frame.frame_identity % 60 == 0 && proxy.foreground.shared_sparse) {
           size_t backgrounds=0;
           for(const auto& [key,node]:proxy.foreground.shared_sparse->nodes)if(node.background)++backgrounds;
@@ -2781,7 +2947,7 @@ class AtlasNativePresenter {
       proxy.input.desktop_clipped = false;
       // While the shell owns resize, stretch the latest received texture to
       // its current client size. Delayed source frames must not shrink it back.
-      const bool preview_native_size = proxy.input.wm_moving || GetTickCount64() < proxy.input.wm_pending_until;
+      const bool preview_native_size = proxy.input.wm_moving || proxy.input.wm_pending_geometry;
       if (visual_resize || preview_native_size)
         proxy.foreground.visual.Size(preview_native_size ?
             winrt::Windows::Foundation::Numerics::float2{float(client.right), float(client.bottom)} : winrt::Windows::Foundation::Numerics::float2{float(width), float(height)});
@@ -2803,10 +2969,11 @@ class AtlasNativePresenter {
           full_rect ? full_rect->y : 0,
           (full_rect ? full_rect->x : 0) + int(window_width),
           (full_rect ? full_rect->y : 0) + int(window_height)};
-      if (proxy.input.wm_pending_until && EqualRect(&desired_client, &proxy.input.wm_requested))
-        proxy.input.wm_pending_until = 0;
+      proxy.input.wm_source_rect=desired_client; proxy.input.wm_source_rect_valid=true;
+      if (proxy.input.wm_pending_geometry && proxy.input.wm_geometry_acknowledged && EqualRect(&desired_client, &proxy.input.wm_requested))
+        proxy.input.wm_pending_geometry = false;
       const bool native_owns_geometry = proxy.input.wm_moving || IsIconic(proxy.window.value) ||
-          GetTickCount64() < proxy.input.wm_pending_until;
+          proxy.input.wm_pending_geometry;
       if ((window_resize || window_move) && !native_owns_geometry) {
         stage = "atlas-window-placement";
         const int x = full_rect ? full_rect->x : 0;
@@ -2827,17 +2994,18 @@ class AtlasNativePresenter {
         ShowWindow(proxy.window.value, SW_SHOWNOACTIVATE);
         ++window_shows_;
       }
+      RECT body_client{};if(GetClientRect(proxy.window.value,&body_client))ResizeBodyVisual(proxy,float(body_client.right),float(body_client.bottom));
       if (proxy.background_cache) proxy.background_cache->Update(proxy.window.value,proxy.foreground);
       if (proxy.background_cache && frame.frame_identity % 60 == 0)
         sampled_timings_ += proxy.background_cache->Snapshot();
     }
     if(shared_candidate) {
-      sparse_atlas_->spare_surface=std::move(sparse_atlas_->surface);
-      sparse_atlas_->spare_brush=std::move(sparse_atlas_->gpu_brush);
-      sparse_atlas_->surface=std::move(shared_candidate->surface);
-      sparse_atlas_->gpu_brush=std::move(shared_candidate->brush);
-      sparse_atlas_->width=shared_candidate->width;
-      sparse_atlas_->height=shared_candidate->height;
+      lane().sparse_atlas->spare_surface=std::move(lane().sparse_atlas->surface);
+      lane().sparse_atlas->spare_brush=std::move(lane().sparse_atlas->gpu_brush);
+      lane().sparse_atlas->surface=std::move(shared_candidate->surface);
+      lane().sparse_atlas->gpu_brush=std::move(shared_candidate->brush);
+      lane().sparse_atlas->width=shared_candidate->width;
+      lane().sparse_atlas->height=shared_candidate->height;
     }
     for (const auto id : clipped) {
       const auto found = proxies_.find(id);
@@ -2939,7 +3107,7 @@ class AtlasNativePresenter {
     // fence. A later atlas upload cannot overwrite the previous layout's pixels
     // while those visual changes are still queued in Windows Composition.
     if (shared_candidate)
-      sparse_atlas_->spare_commit = compositor_.RequestCommitAsync();
+      lane().sparse_atlas->spare_commit = compositor_.RequestCommitAsync();
     stage = "atlas-final-commit-check";
     const auto commit_ticks = Clock(binding->deadline);
     if (commit_ticks >= binding->deadline.deadline) ++late_commits_;
@@ -2967,6 +3135,7 @@ class AtlasNativePresenter {
           input.desktop.topology_generation = binding->layout.desktop->topology_generation;
           input.desktop.placement_generation = tile.placement_generation;
           input.desktop.bounds = placement.bounds;
+          input.desktop.body_bounds = placement.body_bounds;
           input.desktop.movable = placement.movable;
           input.desktop.display = *mapped_display;
           if (!update_desktop_clip(proxies_.at(tile.window)->window.value, &input)) throw_last_error();
@@ -2986,7 +3155,7 @@ class AtlasNativePresenter {
           retire_pointer_input(&input.input.pointer, "keyboard-binding-changed-while-held");
       }
     }
-    if (!bindings_.Commit(frame.frame_identity)) bad("atlas commit identity");
+    if (!lane().bindings.Commit(frame.frame_identity)) bad("atlas commit identity");
     if (dispositions_) {
       atlas_progress(AtlasProgress::Receipt);
       EmitDisposition(frame.frame_identity, count, deadline, "committed", commit_ticks);
@@ -2996,15 +3165,23 @@ class AtlasNativePresenter {
               << " tile_count=" << count << " physical_present_receipt=false" << std::endl;
   }
   Compositor compositor_;
-  viewflow::windows_preview::MtaVideoCompositor& decoder_;
+  struct Lane {
+    viewflow::windows_preview::MtaVideoCompositor* decoder{};
+    viewflow::windows_preview::AtlasFrameBindings bindings;
+    viewflow::windows_preview::AtlasDecodeIdentities decode_identities;
+    std::optional<Foreground> warmup_foreground;
+    std::optional<Foreground> sparse_atlas;
+  };
+  std::array<Lane,2> lanes_;
+  unsigned selected_lane_{};
+  uint64_t background_served_ms_{};
+  uint64_t activity_epoch_{};
+  std::set<viewflow::vfgp::AtlasId> activity_members_;
+  Lane& lane() { return lanes_[selected_lane_]; }
+  const Lane& lane() const { return lanes_[selected_lane_]; }
   viewflow::vfgp::Parser parser_;
   std::vector<viewflow::vfgp::Frame> parsed_frames_;
-  size_t next_parsed_{};
-  viewflow::windows_preview::AtlasFrameBindings bindings_;
-  viewflow::windows_preview::AtlasDecodeIdentities decode_identities_;
   viewflow::windows_preview::WarmupAdmission warmup_{3};
-  std::optional<Foreground> warmup_foreground_;
-  std::optional<Foreground> sparse_atlas_;
   bool warmup_started_{}, live_started_{};
   std::map<viewflow::vfgp::AtlasId, std::unique_ptr<Proxy>> proxies_;
   std::vector<std::unique_ptr<Proxy>> reserved_proxies_;
@@ -3082,7 +3259,8 @@ std::optional<viewflow::windows_preview::DesktopDisplay> atlas_desktop_display(i
 int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t proxy_capacity = 0,
                       bool dispositions = false, bool pointer_events = false, bool wheel_events = false, bool keyboard_events = false,
                       bool input_recovery = false,
-                      std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {}, uint32_t color_codec = 2) {
+                      std::optional<viewflow::windows_preview::DesktopDisplay> desktop_display = {}, uint32_t color_codec = 2,
+                      bool activity = false) {
   viewflow::windows_preview::MmcssScope multimedia_schedule("presenter");
   KeyboardClockReport clock_report(keyboard_events);
   LARGE_INTEGER keyboard_frequency{};
@@ -3116,6 +3294,15 @@ int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t
   enter_stage("atlas-video-decoder");
   viewflow::windows_preview::MtaVideoCompositor decoder;
   check_hresult(decoder.Initialize(color_codec));
+  std::unique_ptr<viewflow::windows_preview::MtaVideoCompositor> priority_decoder;
+  if (activity) {
+    priority_decoder = std::make_unique<viewflow::windows_preview::MtaVideoCompositor>();
+    const auto status = priority_decoder->Initialize(color_codec);
+    if (FAILED(status)) {
+      std::cerr << "atlas-activity-fallback reason=second-decoder-unavailable hr=" << uint32_t(status) << "\n";
+      priority_decoder.reset();
+    }
+  }
   enter_stage("atlas-sta-apartment");
   init_apartment(apartment_type::single_threaded);
   enter_stage("atlas-dispatcher-queue");
@@ -3127,7 +3314,7 @@ int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t
   enter_stage("atlas-compositor");
   Compositor compositor;
   enter_stage("atlas-presenter");
-  AtlasNativePresenter presenter(compositor, decoder, max_frame_bytes, proxy_capacity, dispositions, pointer_events, wheel_events, keyboard_events, input_recovery, desktop_display);
+  AtlasNativePresenter presenter(compositor, decoder, max_frame_bytes, proxy_capacity, dispositions, pointer_events, wheel_events, keyboard_events, input_recovery, desktop_display, priority_decoder.get());
   DesktopMoveKeyboardHook move_keyboard_hook(desktop_display.has_value());
   enter_stage("atlas-pipe");
   HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
@@ -3139,8 +3326,8 @@ int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t
   atlas_modal_pump = [&] {
     for (unsigned batch = 0; batch < 32; ++batch) {
       if (presenter.WorkPending()) {
-        if (!presenter.Advance()) return;
-        continue;
+        if (presenter.Advance()) continue;
+        if (!presenter.CanRead()) return;
       }
       std::array<uint8_t, CompressedPipeReader::chunk_bytes> chunk{};
       DWORD count{};
@@ -3148,6 +3335,7 @@ int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t
       DWORD error{};
       if (reader.terminal(&error)) {
         if (error != ERROR_SUCCESS) check_hresult(HRESULT_FROM_WIN32(error));
+        if (presenter.WorkPending()) return;
         presenter.Finish(); PostQuitMessage(0);
       }
       return;
@@ -3160,7 +3348,9 @@ int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t
               : wheel_events ? "atlas-native-ready disposition=v1 input_enabled=true pointer=v1 wheel=v1"
               : pointer_events ? "atlas-native-ready disposition=v1 input_enabled=true pointer=v1"
               : dispositions ? "atlas-native-ready disposition=v1 input_enabled=false"
-                            : "atlas-native-ready input_enabled=false") << std::endl;
+                            : "atlas-native-ready input_enabled=false");
+  if (activity) std::cout << " activity=" << (priority_decoder ? "v11" : "off");
+  std::cout << std::endl;
   for (;;) {
     atlas_progress(AtlasProgress::Messages);
     MSG message{};
@@ -3176,29 +3366,64 @@ int run_atlas_preview(size_t max_frame_bytes = default_max_frame_bytes, uint32_t
     }
     if (presenter.WorkPending()) {
       if (presenter.Advance()) continue;
-      HANDLE decoded = presenter.DecodeReadyEvent();
-      if (!decoded) bad("atlas pending work has no completion event");
-      // The MTA owns input bytes until completion. Keep servicing native input
-      // without nested dispatch inside a decode/copy/visual mutation operation.
-      if (MsgWaitForMultipleObjectsEx(1, &decoded, INFINITE, QS_ALLINPUT,
-                                      MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
-      continue;
     }
     std::array<uint8_t, CompressedPipeReader::chunk_bytes> chunk{};
     DWORD count{};
-    if (reader.take(&chunk, &count)) { presenter.Push({chunk.data(), count}); continue; }
+    if (presenter.CanRead() && reader.take(&chunk, &count)) { presenter.Push({chunk.data(), count}); continue; }
     DWORD error{};
-    if (reader.terminal(&error)) {
+    if (!presenter.WorkPending() && reader.terminal(&error)) {
       if (error != ERROR_SUCCESS) check_hresult(HRESULT_FROM_WIN32(error));
       presenter.Finish(); return 0;
     }
-    HANDLE ready = reader.ready_event();
+    auto ready = presenter.DecodeReadyEvents();
+    if (presenter.CanRead()) ready.push_back(reader.ready_event());
+    if (ready.empty()) bad("atlas pending work has no completion event");
     atlas_progress(AtlasProgress::Idle);
-    if (MsgWaitForMultipleObjectsEx(1, &ready, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
+    if (MsgWaitForMultipleObjectsEx(DWORD(ready.size()), ready.data(), INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE) == WAIT_FAILED) throw_last_error();
   }
 }
 } // namespace
+// One writer owns stdout. A stopped consumer cannot hold the native shell
+// move loop; consecutive geometry updates collapse before crossing the pipe.
+class AsyncDesktopOutput final : public std::streambuf {
+  std::mutex mutex_; std::condition_variable changed_;
+  std::deque<std::string> queue_; std::string pending_;
+  bool stopping_{}; std::thread worker_; std::streambuf* previous_{};
+  int sync() override {
+    std::lock_guard lock(mutex_);
+    if(!pending_.empty()) {
+      viewflow::windows_preview::queue_desktop_output(queue_,std::move(pending_));
+      pending_.clear(); changed_.notify_one();
+    }
+    return 0;
+  }
+  std::streamsize xsputn(const char* bytes,std::streamsize size) override {
+    std::lock_guard lock(mutex_); pending_.append(bytes,size); return size;
+  }
+  int_type overflow(int_type c) override {
+    if(!traits_type::eq_int_type(c,traits_type::eof())) { const char ch=traits_type::to_char_type(c); xsputn(&ch,1); }
+    return traits_type::not_eof(c);
+  }
+ public:
+  AsyncDesktopOutput():worker_([this] {
+    for(;;) {
+      std::string line;
+      { std::unique_lock lock(mutex_); changed_.wait(lock,[&]{return stopping_ || !queue_.empty();});
+        if(stopping_ || queue_.empty())return; line=std::move(queue_.front());queue_.pop_front(); }
+      if(std::fwrite(line.data(),1,line.size(),stdout)!=line.size() || std::fflush(stdout)!=0)return;
+    }
+  }) { previous_=std::cout.rdbuf(this); }
+  ~AsyncDesktopOutput() {
+    sync(); std::cout.rdbuf(previous_);
+    {std::lock_guard lock(mutex_);stopping_=true;} changed_.notify_one();
+    // Child shutdown discards queued output; source disconnect releases held
+    // input. Interrupt an outstanding pipe write before joining the worker.
+    CancelSynchronousIo(worker_.native_handle()); worker_.join();
+  }
+};
+
 int wmain(int argc, wchar_t **argv) try {
+  AsyncDesktopOutput async_output;
   enter_stage("timer-resolution");
   viewflow::windows_preview::TimerResolutionGuard timer_resolution;
   if (!timer_resolution.active()) {
@@ -3211,7 +3436,7 @@ int wmain(int argc, wchar_t **argv) try {
     // Keep every v5/v6 invocation byte-for-byte compatible, while making the
     // V7 desktop tail explicit and strictly ordered after all old flags.
     size_t at = 2; size_t max = default_max_frame_bytes; uint32_t capacity = 0;
-    bool dispositions = false, pointer = false, wheel = false, keyboard = false, recovery = false;
+    bool dispositions = false, pointer = false, wheel = false, keyboard = false, recovery = false, activity = false;
     // Explicit launch capability: an older presenter rejects this before any live stream starts.
     if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-sparse-v1") ++at;
     if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--max-frame-bytes") {
@@ -3237,9 +3462,10 @@ int wmain(int argc, wchar_t **argv) try {
       else if (codec != L"h264") bad("unsupported atlas codec");
       at += 2;
     }
+    if (at < size_t(argc) && std::wstring_view(argv[at]) == L"--atlas-activity-v11") { activity = true; ++at; }
     if (at != size_t(argc) || (pointer && !dispositions) || (wheel && !pointer) ||
-        (keyboard && !wheel) || (recovery && !keyboard)) bad("atlas option order or dependency");
-    return run_atlas_preview(max, capacity, dispositions, pointer, wheel, keyboard, recovery, desktop, color_codec);
+        (keyboard && !wheel) || (recovery && !keyboard) || (activity && !dispositions)) bad("atlas option order or dependency");
+    return run_atlas_preview(max, capacity, dispositions, pointer, wheel, keyboard, recovery, desktop, color_codec, activity);
   }
   auto o = options(argc, argv);
   if (o.emit_pointer_motion && (!EnableMouseInPointer(TRUE) || !IsMouseInPointerEnabled()))

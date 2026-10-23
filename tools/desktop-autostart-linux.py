@@ -13,7 +13,7 @@ stopping = False
 SPECIAL_WORKSPACE = 'viewflow'
 UNDERLAY_WORKSPACE = 'viewflow-underlay'
 
-def launch_command(prepared, monitor, peer, existing_output=None):
+def launch_command(prepared, monitor, peer, existing_output=None, state_dir=None):
     if getattr(sys, 'frozen', False):
         bundle = Path(sys.executable).resolve().parent
         helper = Path(__file__).resolve().with_name('desktop-drag-linux.sh')
@@ -26,6 +26,8 @@ def launch_command(prepared, monitor, peer, existing_output=None):
                '--peer', str(peer), '--empty-desktop', *plugins]
     if existing_output:
         command.extend(['--existing-output', existing_output])
+    if state_dir:
+        command.extend(['--state-dir', str(state_dir)])
     return command
 
 def stop(_signal, _frame):
@@ -52,35 +54,48 @@ def save(path, value):
     temporary.replace(path)
 
 
+def special_workspace_active(monitor, workspace):
+    info = monitor.get('specialWorkspace', {})
+    selector = info.get('address') or info.get('name', '')
+    special = info.get('type') == 'special' if info.get('type') else selector.startswith('special:')
+    return special and selector.removeprefix('special:') == workspace
+
+
 def special_workspace_expression(output, workspace=SPECIAL_WORKSPACE,
                                  underlay=UNDERLAY_WORKSPACE):
     output_value = json.dumps(output)
-    workspace_value = json.dumps(workspace)
+    workspace_value = json.dumps('special:' + workspace)
+    workspace_name = json.dumps(workspace)
     underlay_value = json.dumps(underlay)
+    # Convert the old internal normal workspace without selecting a user's
+    # existing numbered workspace. Monitor setters and follow=false retain focus.
     return (f'local monitor = hl.get_monitor({output_value}); '
             f'if not monitor then error("Viewflow output is unavailable") end; '
-            f'hl.workspace_rule({{ workspace = "name:" .. {underlay_value}, monitor = {output_value}, persistent = true }}); '
-            f'monitor:set_workspace({{ workspace = {underlay_value} }}); '
-            f'if hl.get_workspace("special:" .. {workspace_value}) then '
-            f'monitor:set_special_workspace({{ workspace = "special:" .. {workspace_value} }}) end')
+            f'local previous = monitor.active_workspace; '
+            f'hl.workspace_rule({{ workspace = {workspace_value}, monitor = {output_value} }}); '
+            f'monitor:set_special_workspace({workspace_name}); '
+            f'if previous and previous.name == {underlay_value} and not previous.special then '
+            f'hl.workspace_rule({{ workspace = "name:" .. {underlay_value}, persistent = false }}); '
+            f'for _, window in ipairs(hl.get_workspace_windows(previous)) do '
+            f'hl.dsp.window.move({{ window = window, workspace = {workspace_value}, follow = false }})() end; '
+            f'local used = {{}}; for _, ws in ipairs(hl.get_workspaces()) do '
+            f'if ws.id then used[ws.id] = true end end; '
+            f'local number = 1; while used[number] do number = number + 1 end; '
+            f'monitor:set_workspace(number) end')
 
 
 def activate_special_workspace(output, workspace=SPECIAL_WORKSPACE,
                                underlay=UNDERLAY_WORKSPACE):
-    subprocess.run(['hyprctl', 'eval', special_workspace_expression(output, workspace, underlay)],
-                   check=True, timeout=5)
+    expression = special_workspace_expression(output, workspace, underlay)
+    subprocess.run(['hyprctl', 'eval', expression], check=True, timeout=5)
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
         monitors = read_json('hyprctl', '-j', 'monitors')
-        if any(m['name'] == output and m.get('activeWorkspace', {}).get('name') == underlay
-               for m in monitors):
+        if any(m['name'] == output and special_workspace_active(m, workspace) for m in monitors):
             return
-        # Persistent workspaces may be materialized on a later compositor tick.
-        subprocess.run(['hyprctl', 'eval',
-                        'hl.get_monitor(' + json.dumps(output) + '):set_workspace({workspace=' + json.dumps(underlay) + '})'],
-                       check=True, timeout=5)
+        subprocess.run(['hyprctl', 'eval', expression], check=True, timeout=5)
         time.sleep(0.1)
-    raise RuntimeError(f'Owned output did not activate Viewflow underlay workspace {underlay}')
+    raise RuntimeError(f'Owned output did not activate Viewflow special workspace {workspace}')
 
 
 def restore_existing_output(output, remote):
@@ -88,7 +103,7 @@ def restore_existing_output(output, remote):
     expression = ('hl.monitor({ output = ' + json.dumps(output) +
                   ', mode = ' + json.dumps(f'{remote["width"]}x{remote["height"]}@60') +
                   ', position = ' + json.dumps(f'{remote["x"]}x{remote["y"]}') +
-                  ', scale = ' + json.dumps(remote['scale']) + ' })')
+                  ', scale = ' + json.dumps(remote['scale']) + ', disabled = false })')
     def apply_geometry():
         subprocess.run(['hyprctl', '-q', 'eval', expression], check=True)
 
@@ -117,6 +132,12 @@ def prepare(template, instance, monitor, runtime):
         from desktop_peer_discovery import resolve
         config["remote"] = resolve(config)
         config.pop("peer_discovery")
+    # Launcher-only display management is not part of the media peer schema.
+    config.pop('windows_virtual_display', None)
+    native = config.pop('native_cursor', None)
+    if native:
+        os.environ['VIEWFLOW_CURSOR_OUTPUT_SIZE'] = f'{native["width"]}x{native["height"]}'
+        os.environ['VIEWFLOW_CURSOR_OUTPUT_ORIGIN'] = f'{native["x"]},{native["y"]}'
     config['compositor_pid'] = instance['pid']
     config['windows'] = []
     desktop = config['desktop']
@@ -136,12 +157,34 @@ def main():
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--monitor', required=True)
     parser.add_argument('--peer', type=Path, required=True)
+    parser.add_argument('--fallback-config', type=Path, help='Windows pre-login input configuration')
+    parser.add_argument('--fallback-peer', type=Path, help='Windows pre-login cursor peer')
     parser.add_argument('--existing-output', help='reuse an existing output without creating or removing it')
+    parser.add_argument('--state-dir', type=Path, help='private state directory for this paired GUI session')
     args = parser.parse_args()
+    if bool(args.fallback_config) != bool(args.fallback_peer):
+        parser.error('--fallback-config and --fallback-peer must be supplied together')
+    primary_config, primary_peer = args.config, args.peer
+    route = None
+    next_probe = 0.0
+    if args.fallback_peer:
+        from windows_session_route import RoutePolicy, media_available
+        route = RoutePolicy()
+        primary_template = json.loads(primary_config.read_text())
+        fallback_template = json.loads(args.fallback_config.read_text())
+        if (not primary_template.get('peer_discovery') or
+                primary_template['peer_discovery'] != fallback_template.get('peer_discovery') or
+                primary_template['desktop']['remote_display'] != fallback_template['desktop']['remote_display']):
+            parser.error('automatic Windows routes require the same discovered peer and display geometry')
+        args.config, args.peer = args.fallback_config, args.fallback_peer
+        remote = fallback_template['desktop']['remote_display']
+        os.environ['VIEWFLOW_CURSOR_OUTPUT_SIZE'] = f'{remote["width"]}x{remote["height"]}'
+        os.environ['VIEWFLOW_CURSOR_READY_FILE'] = str(Path(os.environ['XDG_RUNTIME_DIR']) / 'viewflow/cursor-ready')
+        print('Windows route: input (startup; media readiness not yet known)', flush=True)
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
     runtime = Path(os.environ['XDG_RUNTIME_DIR'])
-    state = runtime / 'viewflow/desktop-drag'
+    state = args.state_dir or runtime / 'viewflow/desktop-drag'
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     pid = None
@@ -180,10 +223,10 @@ def main():
                     raise RuntimeError('Previous session peer is still shutting down')
                 state.rename(state.with_name(f'desktop-drag.previous-{time.time_ns()}'))
         if not state.exists():
-            prepared = runtime / 'viewflow/autostart-source.json'
+            prepared = state.with_name(state.name + '-source.json') if args.state_dir else runtime / 'viewflow/autostart-source.json'
             prepared.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             save(prepared, config)
-            command = launch_command(prepared, args.monitor, args.peer, args.existing_output)
+            command = launch_command(prepared, args.monitor, args.peer, args.existing_output, args.state_dir)
             subprocess.run(command, check=True)
         else:
             # Reuse this session's owned output/plugins without moving windows.
@@ -230,6 +273,49 @@ def main():
                 raise RuntimeError('Hyprland session ended; waiting for the next login')
             if child is not None:
                 child.poll()  # Reap an exited source before inspecting /proc.
+            if route is not None:
+                now = time.monotonic()
+                exited = pid is not None and identity(pid) != token
+                if exited and args.peer == primary_peer:
+                    route.failed(now)
+                if now >= next_probe:
+                    primary_template = json.loads(primary_config.read_text())
+                    # Both endpoints belong to the same verified host; reuse the
+                    # current address, replacing only the media port.
+                    address = config['remote'].rsplit(':', 1)[0]
+                    endpoint = address + ':' + primary_template['remote'].rsplit(':', 1)[1]
+                    route.observe(media_available(primary_template, endpoint), now)
+                    next_probe = time.monotonic() + 3
+                desired_peer = primary_peer if route.mode == 'media' else args.fallback_peer
+                if desired_peer != args.peer:
+                    desired_config = primary_config if route.mode == 'media' else args.fallback_config
+                    # Prepare while the current input child is still serving.
+                    try:
+                        updated = prepare(desired_config, selected, monitor, runtime)
+                        updated['pointer']['cursor_monitor_id'] = config['pointer']['cursor_monitor_id']
+                        updated['desktop']['native_control_dir'] = config['desktop']['native_control_dir']
+                        if route.mode == 'media' and primary_template.get('windows_virtual_display'):
+                            from windows_virtual_display_scale import sync_scale
+                            sync_scale(primary_template, updated['remote'], monitor)
+                    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+                        print(f'Windows route preparation deferred: {error}', flush=True)
+                        route.failed(time.monotonic())
+                    else:
+                        if pid is not None and identity(pid) == token:
+                            os.kill(pid, signal.SIGTERM)
+                            deadline = time.monotonic() + 5
+                            while identity(pid) == token and time.monotonic() < deadline:
+                                if child is not None:
+                                    child.poll()
+                                time.sleep(0.05)
+                            if identity(pid) == token:
+                                os.kill(pid, signal.SIGKILL)
+                            if child is not None:
+                                child.wait(timeout=2)
+                        pid = token = child = None
+                        args.config, args.peer, config = desired_config, desired_peer, updated
+                        save(state / 'config', config)
+                        print(f'Windows route: {route.mode} (session/receiver readiness changed)', flush=True)
             if pid is None or identity(pid) != token:
                 if child is not None:
                     print(f'Desktop peer exited {child.returncode}; restarting', flush=True)
@@ -238,6 +324,15 @@ def main():
                     from desktop_peer_discovery import resolve
                     try:
                         config['remote'] = resolve(template_config)
+                        if route is None and template_config.get('windows_virtual_display'):
+                            from windows_virtual_display_scale import sync_scale
+                            try:
+                                current_monitors = read_json('hyprctl', '-j', 'monitors', 'all')
+                                current_monitor = next(m for m in current_monitors if m['name'] == args.monitor)
+                                sync_scale(template_config, config['remote'], current_monitor)
+                            except (OSError, ValueError, KeyError, StopIteration, RuntimeError, subprocess.SubprocessError) as error:
+                                # A DPI configuration failure is not a stream failure.
+                                print(f'Windows virtual display scale not applied: {error}', flush=True)
                         save(state / 'config', config)
                     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
                         print(f'Waiting for desktop peer: {error}', flush=True)

@@ -12,6 +12,73 @@ static_assert(!windowPointerRouteAllowed(CapturePhase::CAPTURE_PENDING));
 static_assert(!windowPointerRouteAllowed(CapturePhase::REMOTE_CAPTURED));
 
 int main() {
+  CaptureSeat seat;
+  int windows = 0, macos = 0;
+  if (!seat.claim(&windows) || seat.claim(&macos)) return 70;
+  seat.release(&macos); // An unrelated disconnect must retain Windows input.
+  if (seat.available(&macos)) return 71;
+  seat.release(&windows);
+  if (!seat.claim(&macos) || seat.available(&windows)) return 72;
+  seat.release(&macos);
+  const std::array three{
+      InputRect{0, 0, 0, 3072, 1728},
+      InputRect{1, 3072, 390, 1920, 1200},
+      InputRect{2, 3072, 1590, 1539, 1155},
+  };
+  // Only an explicitly returned remote gesture may cross to an adjacent
+  // remote while held. A local drag, another destination, and a later press
+  // cannot reuse that ownership.
+  seat.returnHeldLeft(&macos, three[2], 3300, 1589);
+  if (!seat.inheritsHeldLeft(&windows, three[1]) || seat.inheritsHeldLeft(&macos, three[1]) ||
+      seat.inheritsHeldLeft(&windows, three[0])) return 170;
+  InputCaptureCore continuation;
+  if (!continuation.configureRemote(three[1])) return 171;
+  (void)continuation.button(272, true);
+  continuation.observePosition(3300, 1589, three);
+  if (continuation.observeMotion(0, -2)) return 172; // Ordinary local held drag.
+  continuation.allowHeldLeftReturn(seat.inheritsHeldLeft(&windows, three[1]));
+  continuation.observePosition(3300, 1589, three);
+  if (!continuation.observeMotion(0, -2)) return 173;
+  InputLeaseIdentity inherited{.generation=1}; inherited.targetDevice[0]=1;
+  if (!continuation.activate(inherited)) return 174;
+  (void)continuation.button(272, true); // Ordered inherited press after activate.
+  if (!continuation.button(272, false)) return 175;
+  if (!continuation.release().buttons.empty()) return 176;
+  seat.clearHeldLeft();
+  if (seat.inheritsHeldLeft(&windows, three[1])) return 177;
+  continuation.allowHeldLeftReturn(false);
+  (void)continuation.button(272, true);
+  continuation.observePosition(3300, 1589, three);
+  if (continuation.observeMotion(0, -2)) return 178;
+  seat.returnHeldLeft(&macos, three[2], 3300, 1589);
+  seat.forget(&macos);
+  if (seat.inheritsHeldLeft(&windows, three[1])) return 179;
+  InputCaptureCore mac;
+  if (!mac.configureRemote(three[2])) return 73;
+  mac.observePosition(3071.5, 1660, three);
+  if (!mac.observeMotion(2, 0)) return 74;
+  (void)mac.release();
+  mac.observePosition(3300, 1589.5, three);
+  if (!mac.observeMotion(0, 2)) return 75;
+  (void)mac.release();
+  mac.observePosition(3300, 1600, three);
+  auto crossed = mac.observeMotion(0, 2);
+  if (!crossed || !crossed->entryPosition) return 76;
+
+  // A forced local return cancels pending activation; a late reply must not
+  // recapture the seat. Clearing drag continuation also rejects delayed returns.
+  InputCaptureCore detached;
+  if (!detached.configureRemote(three[1])) return 180;
+  detached.observePosition(3071.5, 500, three);
+  if (!detached.observeMotion(2, 0)) return 181;
+  (void)detached.release();
+  InputLeaseIdentity lateActivation{.generation=20}; lateActivation.targetDevice[0]=1;
+  if (detached.activate(lateActivation) || detached.phase()!=CapturePhase::LOCAL) return 182;
+  (void)detached.button(272, true);
+  detached.armDragReturn(20);
+  detached.finishDragReturn();
+  if (detached.canContinueDrag(20)) return 183;
+
   const std::array monitors{
       InputRect{1, 0, 0, 100, 100},
       InputRect{2, 100, 0, 100, 100},

@@ -40,13 +40,19 @@ int main() {
   assert(frame.width == 10000 && frame.height == 5000 && frame.count == 2);
   assert(frame.contacts[0].id == 99 && frame.contacts[0].x == 2500 && frame.contacts[0].y == 1250);
   assert(frame.contacts[1].id == 100 && frame.contacts[1].x == 7500);
+  state.event(EV_KEY, BTN_LEFT, 1);
+  assert(state.snapshot().button);
+  state.event(EV_KEY, BTN_LEFT, 0);
+  assert(!state.snapshot().button);
   set(0, -1, 0, 0);
   assert(state.snapshot().count == 1 && state.snapshot().contacts[0].id == 100);
   set(0, 101, 0, 0);
   assert(state.snapshot().contacts[0].id == 101); // slot reuse is a new contact.
   state.event(EV_ABS, ABS_MT_TOOL_TYPE, MT_TOOL_PALM);
   assert(state.snapshot().count == 1);
+  state.event(EV_KEY, BTN_LEFT, 1);
   state.event(EV_SYN, SYN_DROPPED, 0);
+  assert(!state.snapshot().button);
   assert(state.snapshot().count == 0);
   state.event(EV_ABS, ABS_MT_TRACKING_ID, 102);
   assert(state.snapshot().count == 0); // no partial-frame recovery.

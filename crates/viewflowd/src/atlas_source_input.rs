@@ -46,6 +46,7 @@ pub(crate) struct AtlasSourceInput {
     policy: AtlasInputPolicy,
     history: VecDeque<AtlasCommittedInput>,
     membership: watch::Sender<crate::window_input_runtime::AtlasInputMembership>,
+    activity: Option<crate::activity_priority::ActivityHandle>,
     requests: mpsc::Receiver<AtlasSelectionRequest>,
     request_sender: Option<mpsc::Sender<AtlasSelectionRequest>>,
     desktop_history: watch::Sender<Arc<VecDeque<AtlasCommittedInput>>>,
@@ -228,6 +229,7 @@ impl AtlasSourceInput {
         };
         Ok(Self {
             acceptance_sender,
+            activity: None,
             acceptance_requests: Some(acceptance_requests),
             acceptance_pending: None,
             rejection_sender,
@@ -271,6 +273,10 @@ impl AtlasSourceInput {
         })
     }
 
+    pub(crate) fn attach_activity(&mut self, activity: crate::activity_priority::ActivityHandle) {
+        self.activity = Some(activity);
+    }
+
     pub(crate) async fn poll(&mut self, committed: Option<&AtlasCommittedInput>) -> Result<()> {
         if let Some(worker) = self.desktop.as_mut() {
             worker.check_health().await?;
@@ -300,13 +306,11 @@ impl AtlasSourceInput {
                 .back()
                 .is_none_or(|old| old.manifest().frame_id != committed.manifest().frame_id)
             {
-                let windows = committed
-                    .manifest()
-                    .tiles
-                    .iter()
-                    .map(|tile| tile.window_id)
-                    .collect();
                 let mut membership = self.membership.borrow().clone();
+                let windows = membership.frame_windows(
+                    committed.manifest().activity.as_ref(),
+                    committed.manifest().tiles.iter().map(|tile| tile.window_id),
+                ).unwrap_or_else(|| membership.windows.clone());
                 if membership.windows.difference(&windows).next().is_some() {
                     if let Some(updates) = &self.updates {
                         membership.authorization_floor = membership
@@ -315,6 +319,10 @@ impl AtlasSourceInput {
                     }
                 }
                 membership.update(windows)?;
+                if let Some(activity) = &self.activity {
+                    let visible: Vec<_> = membership.windows.iter().map(|id| (id.0, 0)).collect();
+                    activity.observe(|state, _| state.membership(&visible));
+                }
                 self.membership.send_replace(membership);
                 self.policy
                     .observe_membership(&self.membership.borrow().windows);
@@ -326,7 +334,10 @@ impl AtlasSourceInput {
                         .iter()
                         .all(|tile| self.membership.borrow().windows.contains(&tile.window_id))
                 });
-                self.history.push_back(committed.clone());
+                if committed.manifest().tiles.iter().all(|tile|
+                    self.membership.borrow().windows.contains(&tile.window_id)) {
+                    self.history.push_back(committed.clone());
+                }
                 if self.history.len() > 32 {
                     self.history.pop_front();
                 }
@@ -366,6 +377,9 @@ impl AtlasSourceInput {
                 self.allow_keyboard,
             )?;
             session.attach_atlas_membership(self.membership.subscribe());
+            if let Some(activity) = &self.activity {
+                session.attach_activity(activity.clone());
+            }
             if let Some(config) = self.cursor_config.take() {
                 session.attach_cursor(crate::atlas_cursor_handoff::CursorBridge::start(
                     config,
@@ -730,7 +744,7 @@ impl DesktopMoveWorker {
     fn start(
         mut controller: DesktopMoveController,
         mut requests: mpsc::Receiver<crate::window_input_runtime::DesktopMoveRequest>,
-        history: watch::Receiver<Arc<VecDeque<AtlasCommittedInput>>>,
+        mut history: watch::Receiver<Arc<VecDeque<AtlasCommittedInput>>>,
         phase: Arc<AtomicU8>,
         origin: Instant,
     ) -> Self {
@@ -829,8 +843,32 @@ impl DesktopMoveWorker {
                             now.saturating_sub(request.received_local_ns) / 1000,
                             started.elapsed().as_micros(), result.as_ref().map(|ack| ack.result));
                     }
-                    // The source action and cleanup are complete even if the
-                    // caller has stopped waiting; do not kill the worker.
+                    // A final receipt must describe a capture made after the
+                    // native operation, including compositor size constraints.
+                    // Media continues independently while this control waits.
+                    let mut result = result;
+                    if matches!(request.movement.phase,
+                        viewflow_protocol::DesktopWindowMovePhase::End | viewflow_protocol::DesktopWindowMovePhase::Cancel)
+                        && result.as_ref().is_ok_and(|ack| ack.result == viewflow_protocol::DesktopWindowMoveResult::Ended) {
+                        let completed = u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?;
+                        let observed = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                            loop {
+                                if let Some(bounds) = observed_desktop_bounds(&history.borrow(), request.movement.window_id, completed) {
+                                    break Some(bounds);
+                                }
+                                if history.changed().await.is_err() { break None; }
+                            }
+                        }).await.ok().flatten();
+                        if let Ok(ack) = &mut result {
+                            if let Some(bounds) = observed { ack.actual_bounds = bounds; }
+                            else {
+                                // Window withdrawal/return can stop capture. Retire
+                                // only this local geometry hold; never publish an
+                                // unobserved requested rectangle as actual geometry.
+                                ack.result = viewflow_protocol::DesktopWindowMoveResult::Rejected;
+                            }
+                        }
+                    }
                     let _ = request.completion.send(result);
                 }
                 Ok(())
@@ -1328,6 +1366,14 @@ fn desktop_cleanup_deadline(now: u64, expires: u64) -> Result<u64> {
     Ok(deadline)
 }
 
+fn observed_desktop_bounds(history: &VecDeque<AtlasCommittedInput>, window: viewflow_protocol::WindowId,
+    completed_native_ns: u64) -> Option<viewflow_protocol::DesktopRect> {
+    history.iter().rev().find_map(|entry| {
+        if entry.snapshot(window)?.capture_monotonic_ns() <= completed_native_ns { return None; }
+        entry.manifest().desktop.as_ref()?.windows.iter().find(|placement| placement.window_id == window).map(|placement| placement.bounds)
+    })
+}
+
 fn desktop_ack(
     movement: viewflow_protocol::DesktopWindowMove,
     result: viewflow_protocol::DesktopWindowMoveResult,
@@ -1676,6 +1722,7 @@ mod tests {
             height: 16,
         };
         viewflow_protocol::AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: viewflow_protocol::Id128(99),
             frame_id,
@@ -1697,7 +1744,8 @@ mod tests {
                     height_millidip: 64_000,
                 },
                 windows: vec![viewflow_protocol::AtlasWindowPlacement {
-                    window_id: viewflow_protocol::Id128(8),
+                    body_bounds: None,
+                window_id: viewflow_protocol::Id128(8),
                     bounds: viewflow_protocol::DesktopRect {
                         x_millidip: 1_000,
                         y_millidip: 2_000,

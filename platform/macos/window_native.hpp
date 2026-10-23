@@ -9,6 +9,8 @@ struct Options {
     bool source{};
     bool validate{};
     bool native_decorations{};
+    bool native_drag{};
+    int native_drag_grab_x{}, native_drag_grab_y{};
     unsigned codec{1}, fps{60};
     double scale{1};
     int origin_x{}, origin_y{};
@@ -16,6 +18,7 @@ struct Options {
     std::vector<unsigned> windows;
     std::vector<std::string> linux_shortcuts;
     std::string evidence_dir;
+    std::string activity_coordinator;
 };
 int run_source(const Options&);
 int run_presenter(const Options&);

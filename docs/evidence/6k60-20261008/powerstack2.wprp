@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WindowsPerformanceRecorder Version="1.0" Author="Viewflow">
+ <Profiles>
+  <SystemCollector Id="SC" Name="Viewflow system metadata"><BufferSize Value="1024"/><Buffers Value="32"/></SystemCollector>
+  <EventCollector Id="EC" Name="Viewflow power messages"><BufferSize Value="256"/><Buffers Value="256"/></EventCollector>
+  <SystemProvider Id="SP"><Keywords><Keyword Value="ProcessThread"/><Keyword Value="Loader"/></Keywords></SystemProvider>
+  <EventProvider Id="Win32k" Name="8c416c79-d49b-4f01-a467-e56d3aa8234c" Level="5" Stack="true" NonPagedMemory="true" Strict="true">
+   <Keywords><Keyword Value="0x408000"/></Keywords>
+   <StackFilters FilterIn="true"><EventId Value="59"/><EventId Value="437"/></StackFilters>
+  </EventProvider>
+  <Profile Id="PowerStack.Verbose.Memory" Name="PowerStack" Description="Bounded system display-off attribution" LoggingMode="Memory" DetailLevel="Verbose">
+   <Collectors>
+    <SystemCollectorId Value="SC"><SystemProviderId Value="SP"/></SystemCollectorId>
+    <EventCollectorId Value="EC"><EventProviders><EventProviderId Value="Win32k"/></EventProviders></EventCollectorId>
+   </Collectors>
+  </Profile>
+ </Profiles>
+</WindowsPerformanceRecorder>

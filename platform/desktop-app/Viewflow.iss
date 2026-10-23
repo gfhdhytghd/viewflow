@@ -17,6 +17,7 @@ SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
+SetupIconFile={#Payload}\_internal\brand\viewflow.ico
 UninstallDisplayIcon={app}\Viewflow.exe
 CloseApplications=yes
 RestartApplications=no

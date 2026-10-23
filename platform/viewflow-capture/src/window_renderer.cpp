@@ -10,9 +10,12 @@
 #define private public
 #define protected public
 #include <hyprland/src/Compositor.hpp>
-#include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/workspace/HLWorkspace.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
 #include <hyprland/src/desktop/view/WLSurface.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowMetadata.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
@@ -41,7 +44,7 @@ struct OwnedImePopup {
 
 std::vector<OwnedImePopup> ownedImePopups(const PHLWINDOW& window, CBox& bounds) {
     std::vector<OwnedImePopup> result;
-    if (window->m_isX11 || !g_pInputManager)
+    if (window->backend().isX11() || !g_pInputManager)
         return result;
     auto& relay = g_pInputManager->m_relay;
     const auto input = relay.getFocusedTextInput();
@@ -93,7 +96,7 @@ void renderOwnedImePopup(const OwnedImePopup& popup, const PHLMONITOR& monitor, 
         data.surface = child;
         data.texture = child->m_current.texture;
         data.mainSurface = child == popup.surface;
-        g_pHyprRenderer->m_renderPass.add(makeUnique<CSurfacePassElement>(data));
+        g_pHyprRenderer->currentPass(g_pHyprRenderer->context()).add(makeUnique<CSurfacePassElement>(data));
         ++data.surfaceCounter;
     }, nullptr);
 }
@@ -109,10 +112,10 @@ class FullSurfaceVisibleRegionOverride {
         // tree. Its surfaces are not wl_subsurfaces of the main wl_surface.
         // Keep the export's visibility scope aligned with that render tree,
         // without admitting unrelated windows or compositor-wide IME surfaces.
-        if (!window->m_isX11 && window->m_popupHead) {
-            window->m_popupHead->breadthfirst(
+        if (!window->backend().isX11() && window->popupHead()) {
+            window->popupHead()->breadthfirst(
                 [this](SP<Desktop::View::CPopup> popup, void*) {
-                    if (popup && popup->aliveAndVisible() && popup->wlSurface())
+                    if (popup && popup->mapped() && popup->wlSurface())
                         overrideTree(popup->wlSurface()->resource());
                 }, nullptr);
         }
@@ -180,7 +183,7 @@ class WindowAnimationGoalOverride {
 
         m_window->m_realPosition->value() = m_window->m_realPosition->goal() + offset;
         m_window->m_realSize->value() = m_window->m_realSize->goal();
-        m_window->updateWindowDecos();
+        m_window->presentation().updateDecorations();
     }
 
     ~WindowAnimationGoalOverride() {
@@ -189,7 +192,7 @@ class WindowAnimationGoalOverride {
 
         m_window->m_realPosition->value() = m_position;
         m_window->m_realSize->value() = m_size;
-        m_window->updateWindowDecos();
+        m_window->presentation().updateDecorations();
     }
 
     WindowAnimationGoalOverride(const WindowAnimationGoalOverride&) = delete;
@@ -205,24 +208,24 @@ class WindowAnimationGoalOverride {
 class WindowLocalProjectionScope {
   public:
     explicit WindowLocalProjectionScope(const PHLMONITOR& monitor) : m_monitor(monitor), m_transform(monitor->m_transform),
-        m_fbSize(g_pHyprRenderer->m_renderData.fbSize), m_projection(g_pHyprRenderer->m_renderData.targetProjection),
-        m_type(g_pHyprRenderer->m_renderData.projectionType), m_transformDamage(g_pHyprRenderer->m_renderData.transformDamage),
-        m_noSimplify(g_pHyprRenderer->m_renderData.noSimplify) {
+        m_fbSize(g_pHyprRenderer->context().m_data.fbSize), m_projection(g_pHyprRenderer->context().m_data.targetProjection),
+        m_type(g_pHyprRenderer->context().m_data.projectionType), m_transformDamage(g_pHyprRenderer->context().m_data.transformDamage),
+        m_noSimplify(g_pHyprRenderer->context().m_data.noSimplify) {
         glGetIntegerv(GL_VIEWPORT, m_viewport.data());
         m_monitor->m_transform = WL_OUTPUT_TRANSFORM_NORMAL;
     }
     void apply(int width, int height) {
-        g_pHyprRenderer->m_renderData.fbSize = Vector2D{width, height};
-        g_pHyprRenderer->setProjectionType(RPT_EXPORT);
-        g_pHyprRenderer->m_renderData.transformDamage = false;
+        g_pHyprRenderer->context().m_data.fbSize = Vector2D{width, height};
+        g_pHyprRenderer->setProjectionType(g_pHyprRenderer->context(), RPT_EXPORT);
+        g_pHyprRenderer->context().m_data.transformDamage = false;
         // Pass simplification clips against the physical monitor's bounds.
         // Export targets can be larger or have a different axis orientation.
-        g_pHyprRenderer->m_renderData.noSimplify = true;
+        g_pHyprRenderer->context().m_data.noSimplify = true;
         g_pHyprOpenGL->setViewport(0, 0, width, height);
     }
     ~WindowLocalProjectionScope() {
         m_monitor->m_transform = m_transform;
-        auto& data = g_pHyprRenderer->m_renderData;
+        auto& data = g_pHyprRenderer->context().m_data;
         data.fbSize = m_fbSize;
         data.targetProjection = m_projection;
         data.projectionType = m_type;
@@ -245,13 +248,13 @@ class WindowLocalProjectionScope {
 
 
 struct RendererFlags {
-    bool feedback = g_pHyprRenderer->m_bBlockSurfaceFeedback;
-    bool shader = g_pHyprRenderer->m_renderData.blockScreenShader;
-    bool snapshot = g_pHyprRenderer->m_bRenderingSnapshot;
+    bool feedback = g_pHyprRenderer->context().m_blockSurfaceFeedback;
+    bool shader = g_pHyprRenderer->context().m_data.blockScreenShader;
+    bool snapshot = g_pHyprRenderer->context().m_renderingSnapshot;
     ~RendererFlags() {
-        g_pHyprRenderer->m_bBlockSurfaceFeedback = feedback;
-        g_pHyprRenderer->m_renderData.blockScreenShader = shader;
-        g_pHyprRenderer->m_bRenderingSnapshot = snapshot;
+        g_pHyprRenderer->context().m_blockSurfaceFeedback = feedback;
+        g_pHyprRenderer->context().m_data.blockScreenShader = shader;
+        g_pHyprRenderer->context().m_renderingSnapshot = snapshot;
     }
 };
 }
@@ -272,10 +275,12 @@ bool WindowRenderer::capture(std::uint64_t address, std::uint64_t sequence) {
     const auto state = impl_->sender.state();
     if (state == WindowGpuSenderState::Connecting || state == WindowGpuSenderState::Busy) return true;
     if (state != WindowGpuSenderState::Ready || !g_pCompositor || !g_pHyprRenderer || !g_pHyprOpenGL) return false;
+    // Defer a capture that overlaps a compositor render session.
+    if (g_pHyprRenderer->context().active()) return true;
     PHLWINDOW window;
     for (const auto& candidate : Desktop::windowState()->windows())
         if (reinterpret_cast<std::uintptr_t>(candidate.get()) == address) { window = candidate; break; }
-    if (!window || !window->m_isMapped || window->isHidden() || !window->wlSurface() || !window->wlSurface()->resource()) return false;
+    if (!window || !window->mapped() || window->isHidden() || !window->wlSurface() || !window->wlSurface()->resource()) return false;
     if (impl_->target && impl_->target != window) return false;
     if (impl_->target_surface && impl_->target_surface != window->wlSurface()->resource()) return false;
     impl_->target = window;
@@ -285,8 +290,8 @@ bool WindowRenderer::capture(std::uint64_t address, std::uint64_t sequence) {
     g_pHyprOpenGL->makeEGLCurrent();
     WindowAnimationGoalOverride goal(window);
     CBox box = window->getFullWindowBoundingBox();
-    if (window->m_workspace && !window->m_pinned) box.translate(window->m_workspace->m_renderOffset->value());
-    box.translate(window->m_floatingOffset);
+    if (window->m_workspace && !(window->m_state & Desktop::View::WINDOW_STATE_PINNED)) box.translate(window->m_workspace->m_renderOffset->value());
+    box.translate(window->presentation().floatingOffset());
     const auto imePopups = ownedImePopups(window, box);
     const auto geometry = planWindowCaptureGeometry(box.x, box.y, box.w, box.h,
         monitor->m_position.x, monitor->m_position.y, monitor->m_scale, static_cast<int>(monitor->m_transform));
@@ -296,12 +301,12 @@ bool WindowRenderer::capture(std::uint64_t address, std::uint64_t sequence) {
     // temporary capture-origin translation. This is evidence for a later local
     // input grant, never permission to inject. XWayland has no input binding.
     std::optional<std::array<std::uint8_t, gpuwire::HCGI_BYTES>> inputWire;
-    if (!window->m_isX11) {
+    if (!window->backend().isX11()) {
         auto content = window->getWindowMainSurfaceBox();
-        if (window->m_workspace && !window->m_pinned) content.translate(window->m_workspace->m_renderOffset->value());
-        content.translate(window->m_floatingOffset);
+        if (window->m_workspace && !(window->m_state & Desktop::View::WINDOW_STATE_PINNED)) content.translate(window->m_workspace->m_renderOffset->value());
+        content.translate(window->presentation().floatingOffset());
         const auto surface = window->wlSurface()->resource();
-        const auto pid = window->getPID();
+        const auto pid = window->backend().pid();
         gpuwire::InputGeometry input{
             address, reinterpret_cast<std::uintptr_t>(surface.get()),
             pid > 0 ? static_cast<std::uint64_t>(pid) : 0,
@@ -327,18 +332,18 @@ bool WindowRenderer::capture(std::uint64_t address, std::uint64_t sequence) {
         RendererFlags flags;
         WindowLocalProjectionScope projection(monitor);
         CRegion damage{0, 0, double(width), double(height)};
-        g_pHyprRenderer->m_bBlockSurfaceFeedback = true;
         fb->setImageDescription(monitor->workBufferImageDescription());
         if (!g_pHyprRenderer->beginFullFakeRender(monitor, damage, fb)) return false;
+        g_pHyprRenderer->context().m_blockSurfaceFeedback = true;
         projection.apply(width, height);
-        g_pHyprRenderer->m_bRenderingSnapshot = true;
+        g_pHyprRenderer->context().m_renderingSnapshot = true;
         FullSurfaceVisibleRegionOverride visible(window, imePopups);
-        g_pHyprRenderer->draw(CClearPassElement::SClearData{CHyprColor{0., 0., 0., 0.}});
-        g_pHyprRenderer->startRenderPass();
-        g_pHyprRenderer->renderWindow(window, monitor, Time::steadyNow(), true, RENDER_PASS_ALL, false, false);
+        g_pHyprRenderer->draw(g_pHyprRenderer->context(), CClearPassElement::SClearData{CHyprColor{0., 0., 0., 0.}});
+        g_pHyprRenderer->startRenderPass(g_pHyprRenderer->context());
+        g_pHyprRenderer->renderWindow(g_pHyprRenderer->context(), window, monitor, window->presentation().renderPresentation(), Time::steadyNow(), true, RENDER_PASS_ALL, false, false);
         for (const auto& popup : imePopups)
             renderOwnedImePopup(popup, monitor, monitor->m_position - Vector2D{geometry.x, geometry.y});
-        g_pHyprRenderer->m_renderData.blockScreenShader = true;
+        g_pHyprRenderer->context().m_data.blockScreenShader = true;
         g_pHyprRenderer->endRender();
     }
     gpuwire::Frame metadata{

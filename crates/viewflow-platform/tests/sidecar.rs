@@ -550,11 +550,9 @@ fn unix_service_uses_owner_only_socket_and_acknowledges_sequence() {
         LocalSidecarListener, ServiceOutcome, SidecarResponse, read_response, serve_one,
     };
 
-    let path = std::env::temp_dir().join(format!(
-        "viewflow-sidecar-{}-{}.sock",
-        std::process::id(),
-        std::thread::current().name().unwrap_or("test")
-    ));
+    // macOS has a short sockaddr_un path limit. Test names can consume the
+    // entire budget before accounting for the system temporary directory.
+    let path = std::env::temp_dir().join(format!("viewflow-sidecar-{}.sock", std::process::id()));
     let _ = fs::remove_file(&path);
     let listener = LocalSidecarListener::bind(&path).unwrap();
     assert_eq!(

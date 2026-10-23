@@ -1,0 +1,46 @@
+{
+  "scope": "DWM process thread spans inside fixture interval; not per-window capture latency; QPC10MHz verified in ETL header",
+  "pairs": {
+    "6-7": "wait for vblank",
+    "8-9": "wait for work",
+    "10-12": "process frame",
+    "13-14": "render",
+    "15-16": "present"
+  },
+  "durations": {
+    "13-14": {
+      "n": 1788,
+      "p50_ms": 2.92795,
+      "p95_ms": 4.5865,
+      "max_ms": 6.918
+    },
+    "15-16": {
+      "n": 1788,
+      "p50_ms": 2.9917,
+      "p95_ms": 4.6563,
+      "max_ms": 6.9834
+    },
+    "10-12": {
+      "n": 1788,
+      "p50_ms": 3.47595,
+      "p95_ms": 5.3678,
+      "max_ms": 38.2041
+    },
+    "8-9": {
+      "n": 1787,
+      "p50_ms": 12.1341,
+      "p95_ms": 21.008,
+      "max_ms": 29.8589
+    },
+    "6-7": {
+      "n": 1787,
+      "p50_ms": 0.0656,
+      "p95_ms": 15.7894,
+      "max_ms": 17.2408
+    }
+  },
+  "wait_vblank_sleep_flag_and_value": {
+    "(0, 0)": 1788
+  },
+  "unmatched_ends": 1
+}

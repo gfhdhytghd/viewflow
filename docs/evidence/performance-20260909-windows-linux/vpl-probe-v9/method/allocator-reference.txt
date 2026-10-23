@@ -1,0 +1,4 @@
+Allocator handle pair and internal NV12/P8 allocation conventions consulted from Intel official sample:
+https://github.com/intel/libvpl-tools/blob/main/tools/legacy/sample_common/src/d3d11_allocator.cpp
+This probe implements its own bounded allocator; it does not expose CPU texture mapping for NV12.
+GetHDL follows the official sample returning borrowed texture handles and array index zero.

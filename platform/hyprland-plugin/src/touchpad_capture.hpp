@@ -20,6 +20,7 @@ struct TouchpadSnapshot {
   struct Contact { std::uint32_t id{}, x{}, y{}; int pressure{5}, major{80}, minor{80}, orientation{}; };
   std::uint32_t width{}, height{}, count{};
   std::array<Contact, 5> contacts{};
+  bool button{};
 };
 
 // evdev type-B slot tracking; independent of libinput's recognized gestures.
@@ -29,12 +30,14 @@ public:
   struct Slot { int id = -1, x{}, y{}, tool{}, pressure{5}, major{80}, minor{80}, orientation{}; };
   std::array<Slot, 32> slots{};
   int selected{};
-  bool dropped{};
+  bool dropped{}, button{};
   input_absinfo x{}, y{};
 
   void event(unsigned type, unsigned code, int value) {
     if (type == EV_SYN && code == SYN_DROPPED) { dropped = true; return; }
-    if (dropped || type != EV_ABS) return;
+    if (dropped) return;
+    if (type == EV_KEY && code == BTN_LEFT) { button = value != 0; return; }
+    if (type != EV_ABS) return;
     if (code == ABS_MT_SLOT) { selected = value; return; }
     if (selected < 0 || selected >= static_cast<int>(slots.size())) return;
     auto& slot = slots[static_cast<std::size_t>(selected)];
@@ -53,6 +56,7 @@ public:
     out.width = physical(x.maximum, x);
     out.height = physical(y.maximum, y);
     if (dropped) return out;
+    out.button = button;
     for (const auto& slot : slots) {
       if (slot.id < 0 || slot.tool == MT_TOOL_PALM) continue;
       if (out.count == out.contacts.size()) { out.count = 0; return out; }
@@ -165,6 +169,10 @@ private:
         m_slots.event(EV_ABS, static_cast<unsigned>(code), values[static_cast<std::size_t>(i + 1)]);
       }
     }
+    std::array<unsigned char, (KEY_MAX + 8) / 8> keys{};
+    if (::ioctl(m_fd, EVIOCGKEY(keys.size()), keys.data()) >= 0)
+      m_slots.button = (keys[BTN_LEFT / 8] & (1u << (BTN_LEFT % 8))) != 0;
+    else { m_slots.button = false; complete = false; }
     input_absinfo selected{};
     if (::ioctl(m_fd, EVIOCGABS(ABS_MT_SLOT), &selected) == 0) m_slots.selected = selected.value;
     else complete = false;

@@ -1,0 +1,11 @@
+# Progressive publication ownership foundation
+
+Current ABI releases an entire slot to reader only after all BGRA bands finish. Existing banded GPU→CPU publication overlaps some producer work but host cannot upload a committed prefix. Inspected shared_frames.hpp: Write::append keeps state1 and only finish sets state2, while acquire accepts2 exclusively. Thus host upload currently serializes after producer full-frame completion.
+
+Added experimental progressive_state.hpp, not integrated or advertised by current IVSHMEM ABI. Fixed64-byte state with release/acquire published-row prefix. One writer and one reader may coexist; complete/aborted reader-held states retain storage until reader releases. Reader departure while writing returns writer-only ownership. Writer abort with active reader marks aborted without freeing/reusing its pixels. Only complete-reading permits presentation. Slot cannot be reused merely because producer finished. Existing production protocol untouched.
+
+Linux optimized test and Windows Release test validate prefix visibility over2000concurrent generations, exclusivity, monotonic row publication, cancellation while held, reader departure before completion and reuse after release. This tests CPU memory ownership, not cross-VM BAR ordering, GPU DMA fences or display correctness. Streaming-store fences and host GPU-upload completion must remain explicit when integrated.
+
+Required integration work: version/capability negotiation before early reference delivery; immutable epoch/sequence/dimensions before announcing a reference; stale-reference rejection under ownership; bounded row/byte validation against actual extent; writer/reader crash recovery under existing exclusive process locks; per-band GPU upload with source lease held until DMA completes; aborted/incomplete frame discarded while last complete snapshot remains displayed; complete frame only presented. Primitive alone has no generation/metadata validation and must not be connected directly to untrusted/stale references.
+
+No performance claim and no production deployment this turn. Potential overlap addresses the several-ms downstream copy/upload chain, not the independently measured~14ms upstream GPU-completion-to-WGC gap. Original6K60/16.7ms end-to-end objective remains unmet. No desktop input, focus, plugin reload or service restart performed.

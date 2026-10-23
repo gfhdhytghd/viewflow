@@ -1,0 +1,1583 @@
+{
+  "scope": "same pixel-identified frame partitions, actual atlas6144x3456, sampled software feedback not photon; protocol groups do not exclude startup from overall results",
+  "stages": {
+    "callback_to_host_accept_end_ms": {
+      "n": 80,
+      "p50": 10.123984499999999,
+      "p95": 12.5884475,
+      "min": 8.3955555,
+      "max": 69.3309545
+    },
+    "callback_to_write_ms": {
+      "n": 80,
+      "p50": 2.47335,
+      "p95": 4.344,
+      "min": 1.3187,
+      "max": 39.6732
+    },
+    "generation_to_callback_ms": {
+      "n": 80,
+      "p50": 16.677599999999998,
+      "p95": 18.2836,
+      "min": 9.9135,
+      "max": 18.7172
+    },
+    "generation_to_host_accept_end_ms": {
+      "n": 80,
+      "p50": 26.589609,
+      "p95": 30.4973525,
+      "min": 18.4822925,
+      "max": 83.9971545
+    },
+    "host_accept_end_to_feedback_ms": {
+      "n": 80,
+      "p50": 12.878778,
+      "p95": 18.359411,
+      "min": 7.206702,
+      "max": 27.227247
+    },
+    "host_accept_ms": {
+      "n": 80,
+      "p50": 0.300918,
+      "p95": 1.429889,
+      "min": 0.211196,
+      "max": 27.592806
+    },
+    "host_queue_ms": {
+      "n": 80,
+      "p50": 0.0022105,
+      "p95": 0.004369,
+      "min": 0.001519,
+      "max": 0.020506
+    },
+    "total_ms": {
+      "n": 80,
+      "p50": 39.925751500000004,
+      "p95": 44.0437015,
+      "min": 27.5171015,
+      "max": 111.2244015
+    },
+    "write_to_feedback_ms": {
+      "n": 80,
+      "p50": 20.508951500000002,
+      "p95": 25.9547015,
+      "min": 14.9920015,
+      "max": 56.8850015
+    },
+    "write_to_ready_ms": {
+      "n": 80,
+      "p50": 7.165559999999999,
+      "p95": 8.8616035,
+      "min": 2.0444425,
+      "max": 9.5557755
+    }
+  },
+  "by_protocol": {
+    "shm1": {
+      "callback_to_host_accept_end_ms": {
+        "n": 1,
+        "p50": 69.3309545,
+        "p95": 69.3309545,
+        "min": 69.3309545,
+        "max": 69.3309545
+      },
+      "callback_to_write_ms": {
+        "n": 1,
+        "p50": 39.6732,
+        "p95": 39.6732,
+        "min": 39.6732,
+        "max": 39.6732
+      },
+      "generation_to_callback_ms": {
+        "n": 1,
+        "p50": 14.6662,
+        "p95": 14.6662,
+        "min": 14.6662,
+        "max": 14.6662
+      },
+      "generation_to_host_accept_end_ms": {
+        "n": 1,
+        "p50": 83.9971545,
+        "p95": 83.9971545,
+        "min": 83.9971545,
+        "max": 83.9971545
+      },
+      "host_accept_end_to_feedback_ms": {
+        "n": 1,
+        "p50": 27.227247,
+        "p95": 27.227247,
+        "min": 27.227247,
+        "max": 27.227247
+      },
+      "host_accept_ms": {
+        "n": 1,
+        "p50": 27.592806,
+        "p95": 27.592806,
+        "min": 27.592806,
+        "max": 27.592806
+      },
+      "host_queue_ms": {
+        "n": 1,
+        "p50": 0.020506,
+        "p95": 0.020506,
+        "min": 0.020506,
+        "max": 0.020506
+      },
+      "total_ms": {
+        "n": 1,
+        "p50": 111.2244015,
+        "p95": 111.2244015,
+        "min": 111.2244015,
+        "max": 111.2244015
+      },
+      "write_to_feedback_ms": {
+        "n": 1,
+        "p50": 56.8850015,
+        "p95": 56.8850015,
+        "min": 56.8850015,
+        "max": 56.8850015
+      },
+      "write_to_ready_ms": {
+        "n": 1,
+        "p50": 2.0444425,
+        "p95": 2.0444425,
+        "min": 2.0444425,
+        "max": 2.0444425
+      }
+    },
+    "shm2": {
+      "callback_to_host_accept_end_ms": {
+        "n": 79,
+        "p50": 10.1238915,
+        "p95": 11.8408695,
+        "min": 8.3955555,
+        "max": 13.0709295
+      },
+      "callback_to_write_ms": {
+        "n": 79,
+        "p50": 2.4592,
+        "p95": 4.2504,
+        "min": 1.3187,
+        "max": 5.2901
+      },
+      "generation_to_callback_ms": {
+        "n": 79,
+        "p50": 16.7317,
+        "p95": 18.2836,
+        "min": 9.9135,
+        "max": 18.7172
+      },
+      "generation_to_host_accept_end_ms": {
+        "n": 79,
+        "p50": 26.4959085,
+        "p95": 29.5257715,
+        "min": 18.4822925,
+        "max": 31.5228295
+      },
+      "host_accept_end_to_feedback_ms": {
+        "n": 79,
+        "p50": 12.857346,
+        "p95": 17.796016,
+        "min": 7.206702,
+        "max": 19.345986
+      },
+      "host_accept_ms": {
+        "n": 79,
+        "p50": 0.299981,
+        "p95": 1.165039,
+        "min": 0.211196,
+        "max": 1.824479
+      },
+      "host_queue_ms": {
+        "n": 79,
+        "p50": 0.002184,
+        "p95": 0.00426,
+        "min": 0.001519,
+        "max": 0.007519
+      },
+      "total_ms": {
+        "n": 79,
+        "p50": 39.9002015,
+        "p95": 44.0117015,
+        "min": 27.5171015,
+        "max": 44.2340015
+      },
+      "write_to_feedback_ms": {
+        "n": 79,
+        "p50": 20.4824015,
+        "p95": 25.8093015,
+        "min": 14.9920015,
+        "max": 26.2907015
+      },
+      "write_to_ready_ms": {
+        "n": 79,
+        "p50": 7.1678415,
+        "p95": 8.8616035,
+        "min": 5.3191915,
+        "max": 9.5557755
+      }
+    }
+  },
+  "rows": [
+    {
+      "frame_identity": {
+        "pts": 356871906057,
+        "sequence": 201,
+        "source_protocol": "shm1"
+      },
+      "generation_to_callback_ms": 14.6662,
+      "callback_to_write_ms": 39.6732,
+      "write_to_feedback_ms": 56.8850015,
+      "total_ms": 111.2244015,
+      "callback_to_host_accept_end_ms": 69.3309545,
+      "generation_to_host_accept_end_ms": 83.9971545,
+      "write_to_ready_ms": 2.0444425,
+      "host_queue_ms": 0.020506,
+      "host_accept_ms": 27.592806,
+      "host_accept_end_to_feedback_ms": 27.227247
+    },
+    {
+      "frame_identity": {
+        "pts": 356876240739,
+        "sequence": 228,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 9.9135,
+      "callback_to_write_ms": 2.6116,
+      "write_to_feedback_ms": 14.9920015,
+      "total_ms": 27.5171015,
+      "callback_to_host_accept_end_ms": 8.5687925,
+      "generation_to_host_accept_end_ms": 18.4822925,
+      "write_to_ready_ms": 5.7438575,
+      "host_queue_ms": 0.002139,
+      "host_accept_ms": 0.211196,
+      "host_accept_end_to_feedback_ms": 9.034809
+    },
+    {
+      "frame_identity": {
+        "pts": 356879318598,
+        "sequence": 246,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.5428,
+      "callback_to_write_ms": 2.6857,
+      "write_to_feedback_ms": 24.8152015,
+      "total_ms": 44.0437015,
+      "callback_to_host_accept_end_ms": 10.1441185,
+      "generation_to_host_accept_end_ms": 26.6869185,
+      "write_to_ready_ms": 7.1858045,
+      "host_queue_ms": 0.002351,
+      "host_accept_ms": 0.270263,
+      "host_accept_end_to_feedback_ms": 17.356783
+    },
+    {
+      "frame_identity": {
+        "pts": 356882816958,
+        "sequence": 267,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.3129,
+      "callback_to_write_ms": 2.5364,
+      "write_to_feedback_ms": 24.3847015,
+      "total_ms": 44.2340015,
+      "callback_to_host_accept_end_ms": 10.4289355,
+      "generation_to_host_accept_end_ms": 27.7418355,
+      "write_to_ready_ms": 7.5755295,
+      "host_queue_ms": 0.003731,
+      "host_accept_ms": 0.313275,
+      "host_accept_end_to_feedback_ms": 16.492166
+    },
+    {
+      "frame_identity": {
+        "pts": 356885807961,
+        "sequence": 285,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.525,
+      "callback_to_write_ms": 1.6364,
+      "write_to_feedback_ms": 25.9547015,
+      "total_ms": 44.1161015,
+      "callback_to_host_accept_end_ms": 10.6790685,
+      "generation_to_host_accept_end_ms": 27.2040685,
+      "write_to_ready_ms": 8.7298635,
+      "host_queue_ms": 0.003875,
+      "host_accept_ms": 0.30893,
+      "host_accept_end_to_feedback_ms": 16.912033
+    },
+    {
+      "frame_identity": {
+        "pts": 356888798617,
+        "sequence": 303,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.662,
+      "callback_to_write_ms": 2.0512,
+      "write_to_feedback_ms": 26.2907015,
+      "total_ms": 44.0039015,
+      "callback_to_host_accept_end_ms": 9.6693445,
+      "generation_to_host_accept_end_ms": 25.3313445,
+      "write_to_ready_ms": 7.3154395,
+      "host_queue_ms": 0.003614,
+      "host_accept_ms": 0.299091,
+      "host_accept_end_to_feedback_ms": 18.672557
+    },
+    {
+      "frame_identity": {
+        "pts": 356891810329,
+        "sequence": 321,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.6653,
+      "callback_to_write_ms": 2.8577,
+      "write_to_feedback_ms": 25.1498015,
+      "total_ms": 43.6728015,
+      "callback_to_host_accept_end_ms": 10.2114855,
+      "generation_to_host_accept_end_ms": 25.8767855,
+      "write_to_ready_ms": 5.5268235,
+      "host_queue_ms": 0.002483,
+      "host_accept_ms": 1.824479,
+      "host_accept_end_to_feedback_ms": 17.796016
+    },
+    {
+      "frame_identity": {
+        "pts": 356894823151,
+        "sequence": 339,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.3618,
+      "callback_to_write_ms": 2.9259,
+      "write_to_feedback_ms": 23.7240015,
+      "total_ms": 44.0117015,
+      "callback_to_host_accept_end_ms": 9.8770235,
+      "generation_to_host_accept_end_ms": 27.2388235,
+      "write_to_ready_ms": 6.6950945,
+      "host_queue_ms": 0.001936,
+      "host_accept_ms": 0.254093,
+      "host_accept_end_to_feedback_ms": 16.772878
+    },
+    {
+      "frame_identity": {
+        "pts": 356897976611,
+        "sequence": 358,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.3573,
+      "callback_to_write_ms": 2.0625,
+      "write_to_feedback_ms": 24.9268015,
+      "total_ms": 43.3466015,
+      "callback_to_host_accept_end_ms": 9.9412015,
+      "generation_to_host_accept_end_ms": 26.2985015,
+      "write_to_ready_ms": 7.6321545,
+      "host_queue_ms": 0.001519,
+      "host_accept_ms": 0.245028,
+      "host_accept_end_to_feedback_ms": 17.0481
+    },
+    {
+      "frame_identity": {
+        "pts": 356901130796,
+        "sequence": 377,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 14.8529,
+      "callback_to_write_ms": 2.9478,
+      "write_to_feedback_ms": 25.8093015,
+      "total_ms": 43.6100015,
+      "callback_to_host_accept_end_ms": 10.3976905,
+      "generation_to_host_accept_end_ms": 25.2505905,
+      "write_to_ready_ms": 5.9819265,
+      "host_queue_ms": 0.002492,
+      "host_accept_ms": 1.465472,
+      "host_accept_end_to_feedback_ms": 18.359411
+    },
+    {
+      "frame_identity": {
+        "pts": 356904477916,
+        "sequence": 397,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.3117,
+      "callback_to_write_ms": 2.5374,
+      "write_to_feedback_ms": 24.4473015,
+      "total_ms": 43.2964015,
+      "callback_to_host_accept_end_ms": 9.9598305,
+      "generation_to_host_accept_end_ms": 26.2715305,
+      "write_to_ready_ms": 7.1106405,
+      "host_queue_ms": 0.001802,
+      "host_accept_ms": 0.309988,
+      "host_accept_end_to_feedback_ms": 17.024871
+    },
+    {
+      "frame_identity": {
+        "pts": 356907519301,
+        "sequence": 415,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 18.4519,
+      "callback_to_write_ms": 5.2901,
+      "write_to_feedback_ms": 19.2712015,
+      "total_ms": 43.0132015,
+      "callback_to_host_accept_end_ms": 13.0709295,
+      "generation_to_host_accept_end_ms": 31.5228295,
+      "write_to_ready_ms": 7.3911665,
+      "host_queue_ms": 0.004369,
+      "host_accept_ms": 0.385294,
+      "host_accept_end_to_feedback_ms": 11.490372
+    },
+    {
+      "frame_identity": {
+        "pts": 356910471679,
+        "sequence": 433,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.1708,
+      "callback_to_write_ms": 3.0248,
+      "write_to_feedback_ms": 24.9093015,
+      "total_ms": 43.1049015,
+      "callback_to_host_accept_end_ms": 10.7139935,
+      "generation_to_host_accept_end_ms": 25.8847935,
+      "write_to_ready_ms": 6.5223205,
+      "host_queue_ms": 0.001834,
+      "host_accept_ms": 1.165039,
+      "host_accept_end_to_feedback_ms": 17.220108
+    },
+    {
+      "frame_identity": {
+        "pts": 356913821712,
+        "sequence": 453,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.1671,
+      "callback_to_write_ms": 2.5963,
+      "write_to_feedback_ms": 23.1573015,
+      "total_ms": 42.9207015,
+      "callback_to_host_accept_end_ms": 10.1793235,
+      "generation_to_host_accept_end_ms": 27.3464235,
+      "write_to_ready_ms": 7.2921055,
+      "host_queue_ms": 0.002024,
+      "host_accept_ms": 0.288894,
+      "host_accept_end_to_feedback_ms": 15.574278
+    },
+    {
+      "frame_identity": {
+        "pts": 356916803258,
+        "sequence": 471,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.0668,
+      "callback_to_write_ms": 1.6284,
+      "write_to_feedback_ms": 25.1952015,
+      "total_ms": 42.8904015,
+      "callback_to_host_accept_end_ms": 9.6447645,
+      "generation_to_host_accept_end_ms": 25.7115645,
+      "write_to_ready_ms": 7.7506575,
+      "host_queue_ms": 0.002469,
+      "host_accept_ms": 0.263238,
+      "host_accept_end_to_feedback_ms": 17.178837
+    },
+    {
+      "frame_identity": {
+        "pts": 356919973407,
+        "sequence": 490,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.6758,
+      "callback_to_write_ms": 2.6394,
+      "write_to_feedback_ms": 24.4751015,
+      "total_ms": 42.7903015,
+      "callback_to_host_accept_end_ms": 10.7284125,
+      "generation_to_host_accept_end_ms": 26.4042125,
+      "write_to_ready_ms": 7.8483475,
+      "host_queue_ms": 0.001934,
+      "host_accept_ms": 0.238731,
+      "host_accept_end_to_feedback_ms": 16.386089
+    },
+    {
+      "frame_identity": {
+        "pts": 356922819039,
+        "sequence": 507,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.0564,
+      "callback_to_write_ms": 2.6329,
+      "write_to_feedback_ms": 23.0421015,
+      "total_ms": 42.7314015,
+      "callback_to_host_accept_end_ms": 9.8066915,
+      "generation_to_host_accept_end_ms": 26.8630915,
+      "write_to_ready_ms": 6.8766805,
+      "host_queue_ms": 0.001864,
+      "host_accept_ms": 0.295247,
+      "host_accept_end_to_feedback_ms": 15.86831
+    },
+    {
+      "frame_identity": {
+        "pts": 356926148136,
+        "sequence": 527,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.7575,
+      "callback_to_write_ms": 2.9796,
+      "write_to_feedback_ms": 22.8971015,
+      "total_ms": 42.6342015,
+      "callback_to_host_accept_end_ms": 10.4938925,
+      "generation_to_host_accept_end_ms": 27.2513925,
+      "write_to_ready_ms": 7.1678415,
+      "host_queue_ms": 0.002007,
+      "host_accept_ms": 0.344444,
+      "host_accept_end_to_feedback_ms": 15.382809
+    },
+    {
+      "frame_identity": {
+        "pts": 356929325867,
+        "sequence": 546,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.877,
+      "callback_to_write_ms": 2.8419,
+      "write_to_feedback_ms": 21.7881015,
+      "total_ms": 42.5070015,
+      "callback_to_host_accept_end_ms": 9.5575255,
+      "generation_to_host_accept_end_ms": 27.4345255,
+      "write_to_ready_ms": 6.4199065,
+      "host_queue_ms": 0.00212,
+      "host_accept_ms": 0.293599,
+      "host_accept_end_to_feedback_ms": 15.072476
+    },
+    {
+      "frame_identity": {
+        "pts": 356932480364,
+        "sequence": 565,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.4689,
+      "callback_to_write_ms": 2.3669,
+      "write_to_feedback_ms": 23.2436015,
+      "total_ms": 42.0794015,
+      "callback_to_host_accept_end_ms": 9.0011785,
+      "generation_to_host_accept_end_ms": 25.4700785,
+      "write_to_ready_ms": 6.4016835,
+      "host_queue_ms": 0.001937,
+      "host_accept_ms": 0.230658,
+      "host_accept_end_to_feedback_ms": 16.609323
+    },
+    {
+      "frame_identity": {
+        "pts": 356935670323,
+        "sequence": 584,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.6099,
+      "callback_to_write_ms": 3.6703,
+      "write_to_feedback_ms": 20.8598015,
+      "total_ms": 42.1400015,
+      "callback_to_host_accept_end_ms": 12.8874525,
+      "generation_to_host_accept_end_ms": 30.4973525,
+      "write_to_ready_ms": 8.8511615,
+      "host_queue_ms": 0.002482,
+      "host_accept_ms": 0.363509,
+      "host_accept_end_to_feedback_ms": 11.642649
+    },
+    {
+      "frame_identity": {
+        "pts": 356938977163,
+        "sequence": 604,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.5749,
+      "callback_to_write_ms": 1.8078,
+      "write_to_feedback_ms": 23.8354015,
+      "total_ms": 42.2181015,
+      "callback_to_host_accept_end_ms": 10.2535865,
+      "generation_to_host_accept_end_ms": 26.8284865,
+      "write_to_ready_ms": 8.1390965,
+      "host_queue_ms": 0.002171,
+      "host_accept_ms": 0.304519,
+      "host_accept_end_to_feedback_ms": 15.389615
+    },
+    {
+      "frame_identity": {
+        "pts": 356942482368,
+        "sequence": 625,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.2253,
+      "callback_to_write_ms": 2.6613,
+      "write_to_feedback_ms": 22.1695015,
+      "total_ms": 42.0561015,
+      "callback_to_host_accept_end_ms": 9.8208115,
+      "generation_to_host_accept_end_ms": 27.0461115,
+      "write_to_ready_ms": 6.8424985,
+      "host_queue_ms": 0.002011,
+      "host_accept_ms": 0.315002,
+      "host_accept_end_to_feedback_ms": 15.00999
+    },
+    {
+      "frame_identity": {
+        "pts": 356945837710,
+        "sequence": 645,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 18.6418,
+      "callback_to_write_ms": 2.808,
+      "write_to_feedback_ms": 20.4824015,
+      "total_ms": 41.9322015,
+      "callback_to_host_accept_end_ms": 10.4571865,
+      "generation_to_host_accept_end_ms": 29.0989865,
+      "write_to_ready_ms": 7.3597775,
+      "host_queue_ms": 0.001931,
+      "host_accept_ms": 0.287478,
+      "host_accept_end_to_feedback_ms": 12.833215
+    },
+    {
+      "frame_identity": {
+        "pts": 356949129308,
+        "sequence": 665,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 14.429,
+      "callback_to_write_ms": 2.6967,
+      "write_to_feedback_ms": 24.5509015,
+      "total_ms": 41.6766015,
+      "callback_to_host_accept_end_ms": 9.8640835,
+      "generation_to_host_accept_end_ms": 24.2930835,
+      "write_to_ready_ms": 6.2933025,
+      "host_queue_ms": 0.001812,
+      "host_accept_ms": 0.872269,
+      "host_accept_end_to_feedback_ms": 17.383518
+    },
+    {
+      "frame_identity": {
+        "pts": 356952655391,
+        "sequence": 686,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.8312,
+      "callback_to_write_ms": 1.8887,
+      "write_to_feedback_ms": 21.8176015,
+      "total_ms": 41.5375015,
+      "callback_to_host_accept_end_ms": 11.3238605,
+      "generation_to_host_accept_end_ms": 29.1550605,
+      "write_to_ready_ms": 8.7485925,
+      "host_queue_ms": 0.00426,
+      "host_accept_ms": 0.682308,
+      "host_accept_end_to_feedback_ms": 12.382441
+    },
+    {
+      "frame_identity": {
+        "pts": 356955982636,
+        "sequence": 706,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.0169,
+      "callback_to_write_ms": 2.1112,
+      "write_to_feedback_ms": 22.2470015,
+      "total_ms": 41.3751015,
+      "callback_to_host_accept_end_ms": 9.6664095,
+      "generation_to_host_accept_end_ms": 26.6833095,
+      "write_to_ready_ms": 7.1734975,
+      "host_queue_ms": 0.004251,
+      "host_accept_ms": 0.377461,
+      "host_accept_end_to_feedback_ms": 14.691792
+    },
+    {
+      "frame_identity": {
+        "pts": 356959313001,
+        "sequence": 726,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.9667,
+      "callback_to_write_ms": 2.1036,
+      "write_to_feedback_ms": 22.2642015,
+      "total_ms": 41.3345015,
+      "callback_to_host_accept_end_ms": 9.5292085,
+      "generation_to_host_accept_end_ms": 26.4959085,
+      "write_to_ready_ms": 7.1231795,
+      "host_queue_ms": 0.002448,
+      "host_accept_ms": 0.299981,
+      "host_accept_end_to_feedback_ms": 14.838593
+    },
+    {
+      "frame_identity": {
+        "pts": 356962471045,
+        "sequence": 745,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.8118,
+      "callback_to_write_ms": 2.119,
+      "write_to_feedback_ms": 23.1500015,
+      "total_ms": 41.0808015,
+      "callback_to_host_accept_end_ms": 9.3650305,
+      "generation_to_host_accept_end_ms": 25.1768305,
+      "write_to_ready_ms": 6.9713285,
+      "host_queue_ms": 0.002136,
+      "host_accept_ms": 0.272566,
+      "host_accept_end_to_feedback_ms": 15.903971
+    },
+    {
+      "frame_identity": {
+        "pts": 356965830213,
+        "sequence": 765,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 18.7172,
+      "callback_to_write_ms": 2.4875,
+      "write_to_feedback_ms": 19.9524015,
+      "total_ms": 41.1571015,
+      "callback_to_host_accept_end_ms": 10.8085715,
+      "generation_to_host_accept_end_ms": 29.5257715,
+      "write_to_ready_ms": 7.9412485,
+      "host_queue_ms": 0.002579,
+      "host_accept_ms": 0.377244,
+      "host_accept_end_to_feedback_ms": 11.63133
+    },
+    {
+      "frame_identity": {
+        "pts": 356968978256,
+        "sequence": 784,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.6235,
+      "callback_to_write_ms": 2.2215,
+      "write_to_feedback_ms": 22.1142015,
+      "total_ms": 40.9592015,
+      "callback_to_host_accept_end_ms": 9.2544635,
+      "generation_to_host_accept_end_ms": 25.8779635,
+      "write_to_ready_ms": 6.7554305,
+      "host_queue_ms": 0.00248,
+      "host_accept_ms": 0.275053,
+      "host_accept_end_to_feedback_ms": 15.081238
+    },
+    {
+      "frame_identity": {
+        "pts": 356972145285,
+        "sequence": 803,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.3438,
+      "callback_to_write_ms": 3.3283,
+      "write_to_feedback_ms": 23.3821015,
+      "total_ms": 42.0542015,
+      "callback_to_host_accept_end_ms": 11.8408695,
+      "generation_to_host_accept_end_ms": 27.1846695,
+      "write_to_ready_ms": 8.2375985,
+      "host_queue_ms": 0.001986,
+      "host_accept_ms": 0.272985,
+      "host_accept_end_to_feedback_ms": 14.869532
+    },
+    {
+      "frame_identity": {
+        "pts": 356973003267,
+        "sequence": 808,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.2775,
+      "callback_to_write_ms": 3.8739,
+      "write_to_feedback_ms": 19.5679015,
+      "total_ms": 40.7193015,
+      "callback_to_host_accept_end_ms": 10.5390065,
+      "generation_to_host_accept_end_ms": 27.8165065,
+      "write_to_ready_ms": 6.4030475,
+      "host_queue_ms": 0.002034,
+      "host_accept_ms": 0.260025,
+      "host_accept_end_to_feedback_ms": 12.902795
+    },
+    {
+      "frame_identity": {
+        "pts": 356976140927,
+        "sequence": 827,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.7317,
+      "callback_to_write_ms": 1.4511,
+      "write_to_feedback_ms": 22.6847015,
+      "total_ms": 40.8675015,
+      "callback_to_host_accept_end_ms": 11.3472165,
+      "generation_to_host_accept_end_ms": 28.0789165,
+      "write_to_ready_ms": 9.5557755,
+      "host_queue_ms": 0.004543,
+      "host_accept_ms": 0.335798,
+      "host_accept_end_to_feedback_ms": 12.788585
+    },
+    {
+      "frame_identity": {
+        "pts": 356979643570,
+        "sequence": 848,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.8086,
+      "callback_to_write_ms": 1.5691,
+      "write_to_feedback_ms": 22.4307015,
+      "total_ms": 40.8084015,
+      "callback_to_host_accept_end_ms": 8.8459095,
+      "generation_to_host_accept_end_ms": 25.6545095,
+      "write_to_ready_ms": 6.9985565,
+      "host_queue_ms": 0.002944,
+      "host_accept_ms": 0.275309,
+      "host_accept_end_to_feedback_ms": 15.153892
+    },
+    {
+      "frame_identity": {
+        "pts": 356982838021,
+        "sequence": 867,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.3605,
+      "callback_to_write_ms": 4.0691,
+      "write_to_feedback_ms": 19.0901015,
+      "total_ms": 40.5197015,
+      "callback_to_host_accept_end_ms": 10.5344445,
+      "generation_to_host_accept_end_ms": 27.8949445,
+      "write_to_ready_ms": 6.1367115,
+      "host_queue_ms": 0.00204,
+      "host_accept_ms": 0.326593,
+      "host_accept_end_to_feedback_ms": 12.624757
+    },
+    {
+      "frame_identity": {
+        "pts": 356986160184,
+        "sequence": 887,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 18.0974,
+      "callback_to_write_ms": 2.4411,
+      "write_to_feedback_ms": 20.0902015,
+      "total_ms": 40.6287015,
+      "callback_to_host_accept_end_ms": 10.1940945,
+      "generation_to_host_accept_end_ms": 28.2914945,
+      "write_to_ready_ms": 7.4460185,
+      "host_queue_ms": 0.001627,
+      "host_accept_ms": 0.305349,
+      "host_accept_end_to_feedback_ms": 12.337207
+    },
+    {
+      "frame_identity": {
+        "pts": 356989312379,
+        "sequence": 906,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.5862,
+      "callback_to_write_ms": 2.4261,
+      "write_to_feedback_ms": 21.5614015,
+      "total_ms": 40.5737015,
+      "callback_to_host_accept_end_ms": 8.4798865,
+      "generation_to_host_accept_end_ms": 25.0660865,
+      "write_to_ready_ms": 5.7985825,
+      "host_queue_ms": 0.002141,
+      "host_accept_ms": 0.253063,
+      "host_accept_end_to_feedback_ms": 15.507615
+    },
+    {
+      "frame_identity": {
+        "pts": 356992472119,
+        "sequence": 925,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.0038,
+      "callback_to_write_ms": 3.0081,
+      "write_to_feedback_ms": 21.9831015,
+      "total_ms": 39.9950015,
+      "callback_to_host_accept_end_ms": 9.1725435,
+      "generation_to_host_accept_end_ms": 24.1763435,
+      "write_to_ready_ms": 5.9069085,
+      "host_queue_ms": 0.002141,
+      "host_accept_ms": 0.255394,
+      "host_accept_end_to_feedback_ms": 15.818658
+    },
+    {
+      "frame_identity": {
+        "pts": 356995832182,
+        "sequence": 945,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 18.1547,
+      "callback_to_write_ms": 4.4323,
+      "write_to_feedback_ms": 17.3132015,
+      "total_ms": 39.9002015,
+      "callback_to_host_accept_end_ms": 12.5884475,
+      "generation_to_host_accept_end_ms": 30.7431475,
+      "write_to_ready_ms": 7.7687865,
+      "host_queue_ms": 0.002669,
+      "host_accept_ms": 0.384692,
+      "host_accept_end_to_feedback_ms": 9.157054
+    },
+    {
+      "frame_identity": {
+        "pts": 356999145974,
+        "sequence": 965,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.7473,
+      "callback_to_write_ms": 2.0862,
+      "write_to_feedback_ms": 21.1597015,
+      "total_ms": 39.9932015,
+      "callback_to_host_accept_end_ms": 9.2568525,
+      "generation_to_host_accept_end_ms": 26.0041525,
+      "write_to_ready_ms": 6.9290605,
+      "host_queue_ms": 0.002666,
+      "host_accept_ms": 0.238926,
+      "host_accept_end_to_feedback_ms": 13.989049
+    },
+    {
+      "frame_identity": {
+        "pts": 357002260769,
+        "sequence": 984,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 10.115,
+      "callback_to_write_ms": 3.5311,
+      "write_to_feedback_ms": 26.1873015,
+      "total_ms": 39.8334015,
+      "callback_to_host_accept_end_ms": 10.3724155,
+      "generation_to_host_accept_end_ms": 20.4874155,
+      "write_to_ready_ms": 5.4097855,
+      "host_queue_ms": 0.001641,
+      "host_accept_ms": 1.429889,
+      "host_accept_end_to_feedback_ms": 19.345986
+    },
+    {
+      "frame_identity": {
+        "pts": 357005496190,
+        "sequence": 1003,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 18.2836,
+      "callback_to_write_ms": 2.6004,
+      "write_to_feedback_ms": 19.0673015,
+      "total_ms": 39.9513015,
+      "callback_to_host_accept_end_ms": 11.0091535,
+      "generation_to_host_accept_end_ms": 29.2927535,
+      "write_to_ready_ms": 8.0990715,
+      "host_queue_ms": 0.002172,
+      "host_accept_ms": 0.30751,
+      "host_accept_end_to_feedback_ms": 10.658548
+    },
+    {
+      "frame_identity": {
+        "pts": 357008811105,
+        "sequence": 1023,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.9756,
+      "callback_to_write_ms": 2.9327,
+      "write_to_feedback_ms": 20.8375015,
+      "total_ms": 39.7458015,
+      "callback_to_host_accept_end_ms": 10.3516005,
+      "generation_to_host_accept_end_ms": 26.3272005,
+      "write_to_ready_ms": 7.1174545,
+      "host_queue_ms": 0.002237,
+      "host_accept_ms": 0.299209,
+      "host_accept_end_to_feedback_ms": 13.418601
+    },
+    {
+      "frame_identity": {
+        "pts": 357011964619,
+        "sequence": 1042,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.4766,
+      "callback_to_write_ms": 1.5294,
+      "write_to_feedback_ms": 22.3357015,
+      "total_ms": 39.3417015,
+      "callback_to_host_accept_end_ms": 8.8650265,
+      "generation_to_host_accept_end_ms": 24.3416265,
+      "write_to_ready_ms": 7.0834375,
+      "host_queue_ms": 0.002336,
+      "host_accept_ms": 0.249853,
+      "host_accept_end_to_feedback_ms": 15.000075
+    },
+    {
+      "frame_identity": {
+        "pts": 357015320154,
+        "sequence": 1062,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.213,
+      "callback_to_write_ms": 2.7082,
+      "write_to_feedback_ms": 19.6972015,
+      "total_ms": 39.6184015,
+      "callback_to_host_accept_end_ms": 10.8024675,
+      "generation_to_host_accept_end_ms": 28.0154675,
+      "write_to_ready_ms": 7.7503585,
+      "host_queue_ms": 0.002383,
+      "host_accept_ms": 0.341526,
+      "host_accept_end_to_feedback_ms": 11.602934
+    },
+    {
+      "frame_identity": {
+        "pts": 357018481005,
+        "sequence": 1081,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.4539,
+      "callback_to_write_ms": 2.23,
+      "write_to_feedback_ms": 19.6905015,
+      "total_ms": 39.3744015,
+      "callback_to_host_accept_end_ms": 10.9793895,
+      "generation_to_host_accept_end_ms": 28.4332895,
+      "write_to_ready_ms": 8.4603065,
+      "host_queue_ms": 0.002515,
+      "host_accept_ms": 0.286568,
+      "host_accept_end_to_feedback_ms": 10.941112
+    },
+    {
+      "frame_identity": {
+        "pts": 357021804950,
+        "sequence": 1101,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.1348,
+      "callback_to_write_ms": 2.0767,
+      "write_to_feedback_ms": 20.9881015,
+      "total_ms": 39.1996015,
+      "callback_to_host_accept_end_ms": 9.1264665,
+      "generation_to_host_accept_end_ms": 25.2612665,
+      "write_to_ready_ms": 6.7688595,
+      "host_queue_ms": 0.00316,
+      "host_accept_ms": 0.277747,
+      "host_accept_end_to_feedback_ms": 13.938335
+    },
+    {
+      "frame_identity": {
+        "pts": 357023137014,
+        "sequence": 1109,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.1443,
+      "callback_to_write_ms": 1.8403,
+      "write_to_feedback_ms": 21.0268015,
+      "total_ms": 39.0114015,
+      "callback_to_host_accept_end_ms": 10.0097555,
+      "generation_to_host_accept_end_ms": 26.1540555,
+      "write_to_ready_ms": 7.8796695,
+      "host_queue_ms": 0.002184,
+      "host_accept_ms": 0.287602,
+      "host_accept_end_to_feedback_ms": 12.857346
+    },
+    {
+      "frame_identity": {
+        "pts": 357026311339,
+        "sequence": 1128,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.0331,
+      "callback_to_write_ms": 1.8964,
+      "write_to_feedback_ms": 20.2033015,
+      "total_ms": 39.1328015,
+      "callback_to_host_accept_end_ms": 10.7932085,
+      "generation_to_host_accept_end_ms": 27.8263085,
+      "write_to_ready_ms": 8.5811075,
+      "host_queue_ms": 0.002157,
+      "host_accept_ms": 0.313544,
+      "host_accept_end_to_feedback_ms": 11.306493
+    },
+    {
+      "frame_identity": {
+        "pts": 357029643849,
+        "sequence": 1148,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.8441,
+      "callback_to_write_ms": 2.6365,
+      "write_to_feedback_ms": 20.1723015,
+      "total_ms": 38.6529015,
+      "callback_to_host_accept_end_ms": 8.8087535,
+      "generation_to_host_accept_end_ms": 24.6528535,
+      "write_to_ready_ms": 5.8730995,
+      "host_queue_ms": 0.002025,
+      "host_accept_ms": 0.297129,
+      "host_accept_end_to_feedback_ms": 14.000048
+    },
+    {
+      "frame_identity": {
+        "pts": 357032810327,
+        "sequence": 1167,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.5312,
+      "callback_to_write_ms": 1.609,
+      "write_to_feedback_ms": 20.5355015,
+      "total_ms": 38.6757015,
+      "callback_to_host_accept_end_ms": 9.4044585,
+      "generation_to_host_accept_end_ms": 25.9356585,
+      "write_to_ready_ms": 7.5496515,
+      "host_queue_ms": 0.00305,
+      "host_accept_ms": 0.242757,
+      "host_accept_end_to_feedback_ms": 12.740043
+    },
+    {
+      "frame_identity": {
+        "pts": 357035987876,
+        "sequence": 1186,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.9812,
+      "callback_to_write_ms": 1.7694,
+      "write_to_feedback_ms": 18.9027015,
+      "total_ms": 38.6533015,
+      "callback_to_host_accept_end_ms": 10.9317155,
+      "generation_to_host_accept_end_ms": 28.9129155,
+      "write_to_ready_ms": 8.8616035,
+      "host_queue_ms": 0.002412,
+      "host_accept_ms": 0.2983,
+      "host_accept_end_to_feedback_ms": 9.740386
+    },
+    {
+      "frame_identity": {
+        "pts": 357039154998,
+        "sequence": 1205,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.8689,
+      "callback_to_write_ms": 2.7952,
+      "write_to_feedback_ms": 18.8023015,
+      "total_ms": 38.4664015,
+      "callback_to_host_accept_end_ms": 9.9879865,
+      "generation_to_host_accept_end_ms": 26.8568865,
+      "write_to_ready_ms": 6.8614855,
+      "host_queue_ms": 0.002067,
+      "host_accept_ms": 0.329234,
+      "host_accept_end_to_feedback_ms": 11.609515
+    },
+    {
+      "frame_identity": {
+        "pts": 357042287447,
+        "sequence": 1224,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 14.3125,
+      "callback_to_write_ms": 1.814,
+      "write_to_feedback_ms": 22.3999015,
+      "total_ms": 38.5264015,
+      "callback_to_host_accept_end_ms": 8.9194745,
+      "generation_to_host_accept_end_ms": 23.2319745,
+      "write_to_ready_ms": 6.8286055,
+      "host_queue_ms": 0.002406,
+      "host_accept_ms": 0.274463,
+      "host_accept_end_to_feedback_ms": 15.294427
+    },
+    {
+      "frame_identity": {
+        "pts": 357045488892,
+        "sequence": 1243,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.3934,
+      "callback_to_write_ms": 2.4337,
+      "write_to_feedback_ms": 18.4252015,
+      "total_ms": 38.2523015,
+      "callback_to_host_accept_end_ms": 10.2930485,
+      "generation_to_host_accept_end_ms": 27.6864485,
+      "write_to_ready_ms": 7.4654875,
+      "host_queue_ms": 0.002175,
+      "host_accept_ms": 0.391686,
+      "host_accept_end_to_feedback_ms": 10.565853
+    },
+    {
+      "frame_identity": {
+        "pts": 357048652507,
+        "sequence": 1262,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.5143,
+      "callback_to_write_ms": 4.344,
+      "write_to_feedback_ms": 18.1123015,
+      "total_ms": 37.9706015,
+      "callback_to_host_accept_end_ms": 10.5752505,
+      "generation_to_host_accept_end_ms": 26.0895505,
+      "write_to_ready_ms": 5.9123795,
+      "host_queue_ms": 0.002119,
+      "host_accept_ms": 0.316752,
+      "host_accept_end_to_feedback_ms": 11.881051
+    },
+    {
+      "frame_identity": {
+        "pts": 357051796177,
+        "sequence": 1281,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 14.8786,
+      "callback_to_write_ms": 4.1189,
+      "write_to_feedback_ms": 18.9052015,
+      "total_ms": 37.9027015,
+      "callback_to_host_accept_end_ms": 10.1238915,
+      "generation_to_host_accept_end_ms": 25.0024915,
+      "write_to_ready_ms": 5.7253505,
+      "host_queue_ms": 0.002038,
+      "host_accept_ms": 0.277603,
+      "host_accept_end_to_feedback_ms": 12.90021
+    },
+    {
+      "frame_identity": {
+        "pts": 357055002862,
+        "sequence": 1300,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.9099,
+      "callback_to_write_ms": 4.2504,
+      "write_to_feedback_ms": 16.8986015,
+      "total_ms": 38.0589015,
+      "callback_to_host_accept_end_ms": 11.4011685,
+      "generation_to_host_accept_end_ms": 28.3110685,
+      "write_to_ready_ms": 6.5085435,
+      "host_queue_ms": 0.002262,
+      "host_accept_ms": 0.639963,
+      "host_accept_end_to_feedback_ms": 9.747833
+    },
+    {
+      "frame_identity": {
+        "pts": 357058313123,
+        "sequence": 1320,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.7431,
+      "callback_to_write_ms": 2.0371,
+      "write_to_feedback_ms": 19.0027015,
+      "total_ms": 37.7829015,
+      "callback_to_host_accept_end_ms": 9.2830865,
+      "generation_to_host_accept_end_ms": 26.0261865,
+      "write_to_ready_ms": 6.9361245,
+      "host_queue_ms": 0.007519,
+      "host_accept_ms": 0.302343,
+      "host_accept_end_to_feedback_ms": 11.756715
+    },
+    {
+      "frame_identity": {
+        "pts": 357061464880,
+        "sequence": 1339,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 14.4987,
+      "callback_to_write_ms": 2.7885,
+      "write_to_feedback_ms": 20.2521015,
+      "total_ms": 37.5393015,
+      "callback_to_host_accept_end_ms": 8.9236815,
+      "generation_to_host_accept_end_ms": 23.4223815,
+      "write_to_ready_ms": 5.8812565,
+      "host_queue_ms": 0.003848,
+      "host_accept_ms": 0.250077,
+      "host_accept_end_to_feedback_ms": 14.11692
+    },
+    {
+      "frame_identity": {
+        "pts": 357064665471,
+        "sequence": 1358,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.2096,
+      "callback_to_write_ms": 3.4715,
+      "write_to_feedback_ms": 16.7797015,
+      "total_ms": 37.4608015,
+      "callback_to_host_accept_end_ms": 11.0092225,
+      "generation_to_host_accept_end_ms": 28.2188225,
+      "write_to_ready_ms": 7.1632785,
+      "host_queue_ms": 0.002372,
+      "host_accept_ms": 0.372072,
+      "host_accept_end_to_feedback_ms": 9.241979
+    },
+    {
+      "frame_identity": {
+        "pts": 357068168840,
+        "sequence": 1379,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 18.0099,
+      "callback_to_write_ms": 3.0943,
+      "write_to_feedback_ms": 16.2723015,
+      "total_ms": 37.3765015,
+      "callback_to_host_accept_end_ms": 10.1240775,
+      "generation_to_host_accept_end_ms": 28.1339775,
+      "write_to_ready_ms": 6.6735295,
+      "host_queue_ms": 0.002649,
+      "host_accept_ms": 0.353599,
+      "host_accept_end_to_feedback_ms": 9.242524
+    },
+    {
+      "frame_identity": {
+        "pts": 357071469249,
+        "sequence": 1399,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.2695,
+      "callback_to_write_ms": 2.9027,
+      "write_to_feedback_ms": 18.3822015,
+      "total_ms": 37.5544015,
+      "callback_to_host_accept_end_ms": 9.3240755,
+      "generation_to_host_accept_end_ms": 25.5935755,
+      "write_to_ready_ms": 6.1099585,
+      "host_queue_ms": 0.003748,
+      "host_accept_ms": 0.307669,
+      "host_accept_end_to_feedback_ms": 11.960826
+    },
+    {
+      "frame_identity": {
+        "pts": 357073295486,
+        "sequence": 1410,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.1989,
+      "callback_to_write_ms": 1.5679,
+      "write_to_feedback_ms": 20.3438015,
+      "total_ms": 37.1106015,
+      "callback_to_host_accept_end_ms": 8.8254515,
+      "generation_to_host_accept_end_ms": 24.0243515,
+      "write_to_ready_ms": 6.9536575,
+      "host_queue_ms": 0.002039,
+      "host_accept_ms": 0.301855,
+      "host_accept_end_to_feedback_ms": 13.08625
+    },
+    {
+      "frame_identity": {
+        "pts": 357076487301,
+        "sequence": 1429,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.3811,
+      "callback_to_write_ms": 2.0954,
+      "write_to_feedback_ms": 17.5558015,
+      "total_ms": 37.0323015,
+      "callback_to_host_accept_end_ms": 11.0874005,
+      "generation_to_host_accept_end_ms": 28.4685005,
+      "write_to_ready_ms": 8.6319185,
+      "host_queue_ms": 0.002104,
+      "host_accept_ms": 0.357978,
+      "host_accept_end_to_feedback_ms": 8.563801
+    },
+    {
+      "frame_identity": {
+        "pts": 357079646132,
+        "sequence": 1448,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.4792,
+      "callback_to_write_ms": 2.011,
+      "write_to_feedback_ms": 18.5971015,
+      "total_ms": 37.0873015,
+      "callback_to_host_accept_end_ms": 9.7981455,
+      "generation_to_host_accept_end_ms": 26.2773455,
+      "write_to_ready_ms": 7.5066995,
+      "host_queue_ms": 0.002417,
+      "host_accept_ms": 0.278029,
+      "host_accept_end_to_feedback_ms": 10.809956
+    },
+    {
+      "frame_identity": {
+        "pts": 357082806653,
+        "sequence": 1467,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.1478,
+      "callback_to_write_ms": 2.1991,
+      "write_to_feedback_ms": 19.8976015,
+      "total_ms": 38.2445015,
+      "callback_to_host_accept_end_ms": 9.9537565,
+      "generation_to_host_accept_end_ms": 26.1015565,
+      "write_to_ready_ms": 7.4931115,
+      "host_queue_ms": 0.002645,
+      "host_accept_ms": 0.2589,
+      "host_accept_end_to_feedback_ms": 12.142945
+    },
+    {
+      "frame_identity": {
+        "pts": 357085981511,
+        "sequence": 1486,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.2358,
+      "callback_to_write_ms": 1.8022,
+      "write_to_feedback_ms": 17.7006015,
+      "total_ms": 36.7386015,
+      "callback_to_host_accept_end_ms": 10.9142955,
+      "generation_to_host_accept_end_ms": 28.1500955,
+      "write_to_ready_ms": 8.7524725,
+      "host_queue_ms": 0.003112,
+      "host_accept_ms": 0.356511,
+      "host_accept_end_to_feedback_ms": 8.588506
+    },
+    {
+      "frame_identity": {
+        "pts": 357089317994,
+        "sequence": 1506,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.4208,
+      "callback_to_write_ms": 1.5901,
+      "write_to_feedback_ms": 17.3972015,
+      "total_ms": 36.4081015,
+      "callback_to_host_accept_end_ms": 10.8267895,
+      "generation_to_host_accept_end_ms": 28.2475895,
+      "write_to_ready_ms": 8.9060095,
+      "host_queue_ms": 0.00216,
+      "host_accept_ms": 0.32852,
+      "host_accept_end_to_feedback_ms": 8.160512
+    },
+    {
+      "frame_identity": {
+        "pts": 357092468151,
+        "sequence": 1525,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.4998,
+      "callback_to_write_ms": 1.8231,
+      "write_to_feedback_ms": 19.0233015,
+      "total_ms": 36.3462015,
+      "callback_to_host_accept_end_ms": 10.1194075,
+      "generation_to_host_accept_end_ms": 25.6192075,
+      "write_to_ready_ms": 8.0208415,
+      "host_queue_ms": 0.001823,
+      "host_accept_ms": 0.273643,
+      "host_accept_end_to_feedback_ms": 10.726994
+    },
+    {
+      "frame_identity": {
+        "pts": 357095655940,
+        "sequence": 1544,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.6127,
+      "callback_to_write_ms": 2.0478,
+      "write_to_feedback_ms": 16.5641015,
+      "total_ms": 36.2246015,
+      "callback_to_host_accept_end_ms": 11.3736465,
+      "generation_to_host_accept_end_ms": 28.9863465,
+      "write_to_ready_ms": 9.0297975,
+      "host_queue_ms": 0.003242,
+      "host_accept_ms": 0.292807,
+      "host_accept_end_to_feedback_ms": 7.238255
+    },
+    {
+      "frame_identity": {
+        "pts": 357098803127,
+        "sequence": 1563,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.0515,
+      "callback_to_write_ms": 1.3187,
+      "write_to_feedback_ms": 18.8619015,
+      "total_ms": 36.2321015,
+      "callback_to_host_accept_end_ms": 9.2711305,
+      "generation_to_host_accept_end_ms": 25.3226305,
+      "write_to_ready_ms": 7.6834505,
+      "host_queue_ms": 0.002516,
+      "host_accept_ms": 0.266464,
+      "host_accept_end_to_feedback_ms": 10.909471
+    },
+    {
+      "frame_identity": {
+        "pts": 357101970343,
+        "sequence": 1582,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 15.7677,
+      "callback_to_write_ms": 2.4592,
+      "write_to_feedback_ms": 18.2432015,
+      "total_ms": 36.4701015,
+      "callback_to_host_accept_end_ms": 8.6655205,
+      "generation_to_host_accept_end_ms": 24.4332205,
+      "write_to_ready_ms": 5.9475175,
+      "host_queue_ms": 0.002154,
+      "host_accept_ms": 0.256649,
+      "host_accept_end_to_feedback_ms": 12.036881
+    },
+    {
+      "frame_identity": {
+        "pts": 357105148209,
+        "sequence": 1601,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.1928,
+      "callback_to_write_ms": 1.7532,
+      "write_to_feedback_ms": 17.0612015,
+      "total_ms": 36.0072015,
+      "callback_to_host_accept_end_ms": 10.5225515,
+      "generation_to_host_accept_end_ms": 27.7153515,
+      "write_to_ready_ms": 8.4142035,
+      "host_queue_ms": 0.002056,
+      "host_accept_ms": 0.353092,
+      "host_accept_end_to_feedback_ms": 8.29185
+    },
+    {
+      "frame_identity": {
+        "pts": 357108472092,
+        "sequence": 1621,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.5752,
+      "callback_to_write_ms": 1.6492,
+      "write_to_feedback_ms": 17.9708015,
+      "total_ms": 36.1952015,
+      "callback_to_host_accept_end_ms": 9.8264605,
+      "generation_to_host_accept_end_ms": 26.4016605,
+      "write_to_ready_ms": 7.8215555,
+      "host_queue_ms": 0.002591,
+      "host_accept_ms": 0.353114,
+      "host_accept_end_to_feedback_ms": 9.793541
+    },
+    {
+      "frame_identity": {
+        "pts": 357111637495,
+        "sequence": 1640,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 14.9852,
+      "callback_to_write_ms": 2.7791,
+      "write_to_feedback_ms": 18.0611015,
+      "total_ms": 35.8254015,
+      "callback_to_host_accept_end_ms": 8.3955555,
+      "generation_to_host_accept_end_ms": 23.3807555,
+      "write_to_ready_ms": 5.3191915,
+      "host_queue_ms": 0.001685,
+      "host_accept_ms": 0.295579,
+      "host_accept_end_to_feedback_ms": 12.444646
+    },
+    {
+      "frame_identity": {
+        "pts": 357114822916,
+        "sequence": 1659,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.2974,
+      "callback_to_write_ms": 2.7155,
+      "write_to_feedback_ms": 15.8707015,
+      "total_ms": 35.8836015,
+      "callback_to_host_accept_end_ms": 9.7917415,
+      "generation_to_host_accept_end_ms": 27.0891415,
+      "write_to_ready_ms": 6.7473785,
+      "host_queue_ms": 0.00249,
+      "host_accept_ms": 0.326373,
+      "host_accept_end_to_feedback_ms": 8.79446
+    },
+    {
+      "frame_identity": {
+        "pts": 357117989240,
+        "sequence": 1678,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 17.9069,
+      "callback_to_write_ms": 2.2434,
+      "write_to_feedback_ms": 15.7748015,
+      "total_ms": 35.9251015,
+      "callback_to_host_accept_end_ms": 10.8114995,
+      "generation_to_host_accept_end_ms": 28.7183995,
+      "write_to_ready_ms": 8.2726245,
+      "host_queue_ms": 0.001798,
+      "host_accept_ms": 0.293677,
+      "host_accept_end_to_feedback_ms": 7.206702
+    },
+    {
+      "frame_identity": {
+        "pts": 357121141785,
+        "sequence": 1697,
+        "source_protocol": "shm2"
+      },
+      "generation_to_callback_ms": 16.8058,
+      "callback_to_write_ms": 1.5307,
+      "write_to_feedback_ms": 17.3284015,
+      "total_ms": 35.6649015,
+      "callback_to_host_accept_end_ms": 9.2352715,
+      "generation_to_host_accept_end_ms": 26.0410715,
+      "write_to_ready_ms": 7.3787105,
+      "host_queue_ms": 0.002147,
+      "host_accept_ms": 0.323714,
+      "host_accept_end_to_feedback_ms": 9.62383
+    }
+  ]
+}

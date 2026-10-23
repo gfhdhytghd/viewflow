@@ -1,0 +1,11 @@
+# DXGI presentation-statistics capability probe
+
+Added default-off VIEWFLOW_FIXTURE_MEDIA_TRACE to fixture. After Present returns, query IDXGISwapChainMedia::GetFrameStatisticsMedia and GetLastPresentCount; buffer up to8192 records, emit after timed generation loop. Windows Release fixture build passed. Explicit motion-present QPC end precedes probe; aggregate present_ms currently includes probe overhead, so do not treat that aggregate as pure Present time in media-enabled runs.
+
+Official field semantics: https://learn.microsoft.com/en-us/windows/win32/api/dxgi1_3/ns-dxgi1_3-dxgi_frame_statistics_media . SyncQPCTime is a scheduler QPC sample associated with SyncRefreshCount, not automatically the completion time of the current Present call. PresentCount and API invocation counts need not be identical. Capability must be observed before inferring display timing.
+
+physical-pixel-bands-media1:1794calls, initial HRESULT0x887a000b,1793 S_OK. All1793successful results had SyncQPCTime=0; refresh and sync_refresh also zero in observed output. PresentCount progressed (1720distinct values), and GetLastPresentCount succeeded for1794calls. Thus interface exists and counts update, but this guest/driver/composition path supplies no usable synchronization timestamp. Cannot derive exact per-frame composition or GPU completion latency from these fields. analyze-media-capability.py explicitly reports this limitation rather than accepting S_OK alone.
+
+All1594host pixel markers match, no foreground change, no reported trace loss, full6K aggregate intervals, exact plugin inventory restored. Received298–299frames/~5.01s (~59.4–59.7fps),9unique-sequence gaps.80generation→Waylandfeedback samples median37.505ms,P9547.022ms,min26.540ms,max58.892ms; no photon measurement. Diagnostics experiment does not establish an optimization or achieved target.
+
+Guest native/wrapper/probe and host binary restored with runner checks; receiver active; standalone plugin unloaded. Fixture retains default-off media capability probe. Backup in build/ivshmem-backup/pixel-bands-media-native.backup. No input/focus injection. Next upstream measurement needs GPU completion/event evidence or a different Windows tracing source; this statistics API cannot provide the missing time boundary on this configuration.

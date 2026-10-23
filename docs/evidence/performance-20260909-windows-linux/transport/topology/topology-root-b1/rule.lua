@@ -1,0 +1,1 @@
+viewflow_owned_perf_root_output=hl.window_rule({name="viewflow-owned-perf-root-output",match={class="^ViewflowPerfReverse-.*$"},monitor="HEADLESS-135",workspace="7 silent",float=true,no_initial_focus=true,no_focus=true,decorate=false,border_size=0,no_shadow=true,rounding=0,no_blur=true,no_anim=true})

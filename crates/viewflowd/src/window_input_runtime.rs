@@ -325,9 +325,29 @@ pub(crate) struct AtlasInputMembership {
     pub(crate) windows: std::collections::BTreeSet<viewflow_protocol::WindowId>,
     pub(crate) withdrawals: std::collections::BTreeMap<viewflow_protocol::WindowId, u64>,
     pub(crate) authorization_floor: u64,
+    activity_epoch: u64,
 }
 
 impl AtlasInputMembership {
+    /// A lane's tiles are only its captured subset. Membership comes from the
+    /// connection-wide activity record, and an older lane completion must not
+    /// resurrect a window removed by a newer migration.
+    pub(crate) fn frame_windows(
+        &mut self,
+        activity: Option<&viewflow_protocol::AtlasActivity>,
+        tiles: impl Iterator<Item = viewflow_protocol::WindowId>,
+    ) -> Option<std::collections::BTreeSet<viewflow_protocol::WindowId>> {
+        match activity {
+            Some(activity) if activity.epoch < self.activity_epoch => None,
+            Some(activity) => {
+                self.activity_epoch = activity.epoch;
+                Some(activity.members.iter().copied().collect())
+            }
+            None if self.activity_epoch != 0 => None,
+            None => Some(tiles.collect()),
+        }
+    }
+
     pub(crate) fn update(
         &mut self,
         windows: std::collections::BTreeSet<viewflow_protocol::WindowId>,
@@ -344,6 +364,7 @@ impl AtlasInputMembership {
 }
 
 pub struct WindowInputSession {
+    activity: Option<crate::activity_priority::ActivityHandle>,
     selection_acceptances: Option<(
         tokio::sync::mpsc::Receiver<AtlasSelectionAcceptanceRequest>,
         crate::shared_control::SharedControlSender,
@@ -418,6 +439,10 @@ impl WindowInputSession {
         membership: tokio::sync::watch::Receiver<AtlasInputMembership>,
     ) {
         self.atlas_membership = Some(membership);
+    }
+
+    pub(crate) fn attach_activity(&mut self, activity: crate::activity_priority::ActivityHandle) {
+        self.activity = Some(activity);
     }
 
     pub(crate) fn recovery_unconfirmed(&self) -> Arc<AtomicBool> {
@@ -1048,6 +1073,7 @@ impl WindowInputSession {
             allow_resize_recovery: false,
             recovery_unconfirmed: Arc::new(AtomicBool::new(!deferred)),
             atlas_membership: None,
+            activity: None,
             observed_withdrawals: Default::default(),
             closed_windows: Default::default(),
             allow_buttons,
@@ -1692,6 +1718,14 @@ impl WindowInputSession {
             self.revoke();
             return Err(error.into());
         }
+        if let Some(activity) = &self.activity {
+            activity.observe(|state, now| match action {
+                PointerAction::Button(button) => state.hold(event.target_window.0, 1,
+                    button.button as u64, button.state == viewflow_protocol::InputSwitchState::Pressed, now),
+                PointerAction::Wheel(_) => state.impulse(event.target_window.0, now),
+                PointerAction::Motion => (),
+            });
+        }
         self.last_native_send = Some([
             self.sequence,
             send_started,
@@ -1788,6 +1822,9 @@ impl WindowInputSession {
     }
 
     pub fn revoke(&mut self) {
+        if let Some(activity) = &self.activity {
+            activity.observe(|state, now| state.release(None, now));
+        }
         if let Some(keyboard) = &mut self.keyboard_grant {
             keyboard.revoke();
         }
@@ -2422,6 +2459,40 @@ mod tests {
         session.resume_after_desktop_pause(actual).unwrap();
         assert_eq!(session.state, State::Beginning);
         assert!(socket::recv(native.as_raw_fd(), &mut bytes, MsgFlags::MSG_DONTWAIT).unwrap() > 0);
+    }
+
+    #[test]
+    fn activity_lane_membership_survives_partial_and_out_of_order_commits() {
+        let mut state = AtlasInputMembership::default();
+        let mut activity = viewflow_protocol::AtlasActivity {
+            lane: 1, epoch: 1, preferred: Some(Id128(3)), focus: Some(Id128(3)),
+            members: vec![Id128(3), Id128(4)],
+        };
+        let windows = state.frame_windows(Some(&activity), [Id128(3)].into_iter()).unwrap();
+        state.update(windows).unwrap();
+        activity.lane = 0;
+        let windows = state.frame_windows(Some(&activity), [Id128(4)].into_iter()).unwrap();
+        state.update(windows).unwrap();
+        assert_eq!(state.windows, [Id128(3), Id128(4)].into());
+        assert!(state.withdrawals.is_empty());
+
+        let old = activity.clone();
+        activity.epoch = 2;
+        activity.members = vec![Id128(3)];
+        let windows = state.frame_windows(Some(&activity), [Id128(3)].into_iter()).unwrap();
+        state.update(windows).unwrap();
+        assert!(state.frame_windows(Some(&old), [Id128(4)].into_iter()).is_none());
+        assert!(state.frame_windows(None, [Id128(4)].into_iter()).is_none());
+        assert_eq!(state.windows, [Id128(3)].into());
+        assert_eq!(state.withdrawals.get(&Id128(4)), Some(&1));
+
+        let mut legacy = AtlasInputMembership::default();
+        let windows = legacy.frame_windows(None, [Id128(3)].into_iter()).unwrap();
+        legacy.update(windows).unwrap();
+        let windows = legacy.frame_windows(None, [Id128(4)].into_iter()).unwrap();
+        legacy.update(windows).unwrap();
+        assert_eq!(legacy.windows, [Id128(4)].into());
+        assert_eq!(legacy.withdrawals.get(&Id128(3)), Some(&1));
     }
 
     #[test]
@@ -3159,6 +3230,7 @@ mod tests {
             height: 100,
         };
         let manifest = viewflow_protocol::AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 123,
@@ -4190,6 +4262,7 @@ mod tests {
                 SharedEnd::ForwardedPreview | SharedEnd::KeyboardForwarded
             ) {
                 let manifest = viewflow_protocol::AtlasFrame {
+                    activity: None,
                     patches: None,
                     stream_id: Id128(99),
                     frame_id: 1,
@@ -4553,6 +4626,7 @@ mod tests {
         }
         if let Some(atlas) = atlas_sender {
             let manifest = viewflow_protocol::AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 10,

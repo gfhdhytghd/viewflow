@@ -26,6 +26,7 @@ pub struct AtlasCapturePool {
     max_windows: usize,
     max_age_ns: u64,
     in_flight: bool,
+    partitioned_in_flight: BTreeSet<WindowId>,
 }
 
 impl AtlasCapturePool {
@@ -69,6 +70,28 @@ impl AtlasCapturePool {
         &self.windows
     }
 
+    pub(crate) fn poll_readable_subset(&mut self, cx: &mut std::task::Context<'_>, selected: &BTreeSet<WindowId>) -> std::task::Poll<()> {
+        if let Some(slots) = &mut self.slots {
+            for (window, slot) in slots.iter_mut().filter(|(window, slot)| selected.contains(window) && slot.pending.is_none()) {
+                let _ = window;
+                if slot.receiver.poll_readable(cx).is_ready() { return std::task::Poll::Ready(()); }
+            }
+        }
+        std::task::Poll::Pending
+    }
+
+    pub(crate) fn source_reads_pending(&self, window: WindowId) -> bool {
+        self.in_flight || self.partitioned_in_flight.contains(&window)
+    }
+
+    /// Withdraw membership immediately, but keep an in-flight native allocation
+    /// owned until its worker proves source reads complete.
+    pub(crate) fn withdraw_activity(&mut self, window: WindowId) -> Result<()> {
+        ensure!(!self.in_flight && self.windows.remove(&window), "atlas source missing or legacy batch active");
+        if let Some(slots) = &mut self.slots { slots.remove(&window); }
+        Ok(())
+    }
+
     pub(crate) fn max_age_ns(&self) -> u64 {
         self.max_age_ns
     }
@@ -77,7 +100,7 @@ impl AtlasCapturePool {
     /// dropping the socket makes no HCGR assertion. The session must explicitly
     /// stop and join the producer before reclaiming its native stream identity.
     pub(crate) fn remove_at_frame_boundary(&mut self, window: WindowId) -> Result<()> {
-        ensure!(!self.in_flight, "atlas capture batch is in flight");
+        ensure!(!self.in_flight && !self.partitioned_in_flight.contains(&window), "atlas capture batch is in flight");
         let slots = self
             .slots
             .as_mut()
@@ -172,6 +195,7 @@ impl AtlasCapturePool {
             max_windows,
             max_age_ns,
             in_flight: false,
+            partitioned_in_flight: BTreeSet::new(),
         })
     }
 
@@ -193,6 +217,7 @@ impl AtlasCapturePool {
         &mut self,
         mut now: impl FnMut() -> Result<i64>,
     ) -> Result<Option<Vec<AtlasCaptureLease>>> {
+        ensure!(self.partitioned_in_flight.is_empty(), "activity capture lanes are in flight");
         let mut slots = self
             .slots
             .take()
@@ -221,6 +246,94 @@ impl AtlasCapturePool {
                 })
                 .collect(),
         ))
+    }
+
+    /// Collect only the chosen media lane. Other windows keep their independent
+    /// capture sockets and do not delay this batch. A migration waits only for
+    /// the affected window's existing GPU lease to return.
+    pub(crate) fn poll_ready_subset(
+        &mut self, selected: &BTreeSet<WindowId>,
+    ) -> Result<Option<Vec<AtlasCaptureLease>>> {
+        self.poll_subset_with_clock(selected, crate::gpu_nvenc_runtime::monotonic_ns)
+    }
+
+    /// Admit every currently ready member of a lane without waiting for a
+    /// static, migrating, or temporarily slow peer. The activity manifest keeps
+    /// global proxy membership, so omitted tiles retain their last picture.
+    pub(crate) fn poll_available_subset(
+        &mut self, selected: &BTreeSet<WindowId>,
+    ) -> Result<Vec<AtlasCaptureLease>> {
+        self.poll_available_with_clock(selected, crate::gpu_nvenc_runtime::monotonic_ns)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn poll_available_at(&mut self, selected: &BTreeSet<WindowId>, now: i64) -> Result<Vec<AtlasCaptureLease>> {
+        self.poll_available_with_clock(selected, || Ok(now))
+    }
+
+    fn poll_available_with_clock(
+        &mut self, selected: &BTreeSet<WindowId>, mut now: impl FnMut() -> Result<i64>,
+    ) -> Result<Vec<AtlasCaptureLease>> {
+        ensure!(!self.in_flight && selected.is_subset(&self.windows), "activity capture membership");
+        let slots = self.slots.as_mut().ok_or_else(|| anyhow::anyhow!("atlas pool unavailable"))?;
+        let mut ready = Vec::new();
+        for window in selected.difference(&self.partitioned_in_flight) {
+            let slot = slots.get_mut(window).ok_or_else(|| anyhow::anyhow!("activity slot unavailable"))?;
+            poll_slot(slot, &mut now, self.max_age_ns)?;
+            if slot.pending.is_some() { ready.push(*window); }
+        }
+        let mut leases = Vec::with_capacity(ready.len());
+        for window in ready {
+            let slot = slots.remove(&window).expect("ready slot exists");
+            let (frame, deadline_monotonic_ns) = slot.pending.expect("ready frame exists");
+            leases.push(AtlasCaptureLease { window, receiver: slot.receiver, frame,
+                deadline_monotonic_ns, received_monotonic_ns: slot.received_monotonic_ns });
+            self.partitioned_in_flight.insert(window);
+        }
+        Ok(leases)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn poll_subset_at(&mut self, selected: &BTreeSet<WindowId>, now: i64) -> Result<Option<Vec<AtlasCaptureLease>>> {
+        self.poll_subset_with_clock(selected, || Ok(now))
+    }
+
+    fn poll_subset_with_clock(
+        &mut self, selected: &BTreeSet<WindowId>, mut now: impl FnMut() -> Result<i64>,
+    ) -> Result<Option<Vec<AtlasCaptureLease>>> {
+        ensure!(!self.in_flight, "legacy capture batch is in flight");
+        ensure!(selected.is_subset(&self.windows), "activity capture membership");
+        if !selected.is_disjoint(&self.partitioned_in_flight) { return Ok(None); }
+        let slots=self.slots.as_mut().ok_or_else(|| anyhow::anyhow!("atlas pool unavailable"))?;
+        for window in selected {
+            poll_slot(slots.get_mut(window).ok_or_else(|| anyhow::anyhow!("activity slot unavailable"))?, &mut now, self.max_age_ns)?;
+        }
+        if selected.iter().any(|id| slots[id].pending.is_none()) { return Ok(None); }
+        let mut leases=Vec::with_capacity(selected.len());
+        for window in selected {
+            let slot=slots.remove(window).expect("checked selected slot");
+            let (frame,deadline_monotonic_ns)=slot.pending.expect("checked ready slot");
+            leases.push(AtlasCaptureLease {window:*window,receiver:slot.receiver,frame,
+                deadline_monotonic_ns,received_monotonic_ns:slot.received_monotonic_ns});
+        }
+        self.partitioned_in_flight.extend(selected);
+        Ok(Some(leases))
+    }
+
+    pub(crate) fn restore_subset(
+        &mut self, receivers: Vec<(WindowId, HyprCaptureGpuSocketReceiver)>,
+    ) -> Result<()> {
+        let returned: BTreeSet<_>=receivers.iter().map(|(id,_)|*id).collect();
+        ensure!(returned.len()==receivers.len() && returned.is_subset(&self.partitioned_in_flight), "activity returned lease membership");
+        let slots=self.slots.as_mut().ok_or_else(|| anyhow::anyhow!("atlas pool unavailable"))?;
+        ensure!(returned.iter().all(|id| !slots.contains_key(id)), "activity slot returned twice");
+        for (window,receiver) in receivers {
+            self.partitioned_in_flight.remove(&window);
+            if self.windows.contains(&window) {
+                slots.insert(window,Slot {receiver,pending:None,received_monotonic_ns:0});
+            }
+        }
+        Ok(())
     }
 
     /// Restore only receivers released and returned by the successful batch

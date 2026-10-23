@@ -1,0 +1,22 @@
+  UNIT                                 LOAD   ACTIVE   SUB     DESCRIPTION
+  viewflow-audio-macos.service         loaded active   running Viewflow audio from macos
+  viewflow-audio-windows.service       loaded active   running Viewflow audio from windows
+  viewflow-clipboard-macos.service     loaded active   running Viewflow bidirectional clipboard with Mac
+  viewflow-desktop.service             loaded active   running Viewflow desktop streaming in the user's Hyprland session
+  viewflow-macos-hid.service           loaded active   running Viewflow Mac HID connection with capture ownership routing
+  viewflow-macos-input.service         loaded inactive dead    Viewflow macOS keyboard and mouse target
+  viewflow-macos-receiver.service      loaded active   running Viewflow native Mac windows on Linux
+  viewflow-macos-windows.service       loaded inactive dead    Viewflow Linux windows on the right Mac display
+  viewflow-multiscreen-layout.service  loaded active   exited  Viewflow three-screen layout
+  viewflow-multiscreen-macos.service   loaded active   running Viewflow simultaneous Mac input route
+  viewflow-multiscreen-windows.service loaded active   running Viewflow Linux windows on Mac in three-screen mode
+  viewflow-peer.service                loaded active   running Viewflow authenticated QUIC peer and Deskflow input bridge
+  viewflow-wallpaper.service           loaded active   running Viewflow static wallpaper sync to the Windows virtual display
+  viewflow-windows-input.service       loaded inactive dead    Viewflow Windows keyboard and mouse including pre-login
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+14 loaded units listed.
+To show all installed unit files use 'systemctl list-unit-files'.

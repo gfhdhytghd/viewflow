@@ -1,0 +1,86 @@
+{
+  "scope": "sampled Wayland feedback, not photon; periodic cached frames are not motion FPS; captures predating calibration are excluded from new-capture latency",
+  "clock_endpoint_envelope_half_width_ms": 0.136185,
+  "clock_endpoint_offset_change_us": 28.537,
+  "clock_caveat": "endpoint envelope is observed calibration uncertainty; unobserved clock drift is not bounded",
+  "outside_calibration_interval": 0,
+  "outputs": {
+    "DP-4": {
+      "atlas_to_present_ms": {
+        "n": 62,
+        "p50": 27.299865,
+        "p95": 32.321215,
+        "min": 15.413015,
+        "max": 32.997615
+      },
+      "new_capture_to_present_first_observed_ms": {
+        "n": 62,
+        "p50": 28.409965,
+        "p95": 30.724815,
+        "min": 14.003415,
+        "max": 45.197415
+      },
+      "atlas_dimensions": [
+        [
+          6144,
+          3456
+        ]
+      ],
+      "unmatched": 0
+    },
+    "HEADLESS-1": {
+      "atlas_to_present_ms": {
+        "n": 66,
+        "p50": 23.4587645,
+        "p95": 45.610712,
+        "min": 11.551736,
+        "max": 56.286152
+      },
+      "new_capture_to_present_first_observed_ms": {
+        "n": 66,
+        "p50": 23.673517,
+        "p95": 46.95287,
+        "min": 8.532546,
+        "max": 56.731252
+      },
+      "atlas_dimensions": [
+        [
+          3072,
+          2432
+        ],
+        [
+          6144,
+          3456
+        ]
+      ],
+      "unmatched": 0
+    },
+    "HEADLESS-100": {
+      "atlas_to_present_ms": {
+        "n": 62,
+        "p50": 22.2135035,
+        "p95": 46.445446,
+        "min": 12.245564,
+        "max": 61.409996
+      },
+      "new_capture_to_present_first_observed_ms": {
+        "n": 62,
+        "p50": 22.0972685,
+        "p95": 50.453964,
+        "min": 11.258253,
+        "max": 76.393596
+      },
+      "atlas_dimensions": [
+        [
+          3072,
+          2432
+        ],
+        [
+          6144,
+          3456
+        ]
+      ],
+      "unmatched": 0
+    }
+  }
+}

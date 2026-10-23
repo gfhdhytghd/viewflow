@@ -73,6 +73,13 @@ case "${1:-}" in
     temporary=$(mktemp "$state_dir/.hdmi-target.XXXXXX")
     printf '%s\n' "$requested" > "$temporary"
     mv -f "$temporary" "$state_dir/hdmi-target"
+    # The topology supervisor reads the selector after the hardware command.
+    # Its next probe reconciles Sidecar and both Mac viewports without a second
+    # button path racing service ownership.
+    if systemctl --user is-active --quiet viewflow-display-topology.service; then
+      cat "$state_dir/hdmi-target"
+      exit 0
+    fi
     previous=$(current_target)
     previous_unit=$(unit_for "$previous")
     # Discover before releasing the current input route; HDMI has already switched.

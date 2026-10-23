@@ -1,0 +1,37 @@
+{
+  "scope": "6K per-window WGC timestamps; coverage excludes before/after selected span; capture cadence is not physical display FPS",
+  "windows": {
+    "1": {
+      "profile_capture": {
+        "records": 1008,
+        "unique_captures": 1008,
+        "capture_span_fps": 37.69182791688541,
+        "capture_gap_ms": {
+          "n": 1007,
+          "p50": 16.6667,
+          "p95": 33.3334,
+          "max": 1266.6667
+        },
+        "gaps_over_25ms": 191
+      },
+      "profile_shared_capture": {
+        "records": 994,
+        "unique_captures": 993,
+        "capture_span_fps": 37.153558052434455,
+        "capture_gap_ms": {
+          "n": 992,
+          "p50": 16.6667,
+          "p95": 33.3334,
+          "max": 1266.6667
+        },
+        "gaps_over_25ms": 191
+      },
+      "selection_coverage": {
+        "captured_within_selected_span": 1007,
+        "selected_captured": 993,
+        "unselected": 14,
+        "selected_missing_capture_record": 0
+      }
+    }
+  }
+}

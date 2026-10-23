@@ -24,10 +24,10 @@ with tempfile.TemporaryDirectory() as directory:
     assert json.loads(path.read_text()) == old
     expression = autostart.special_workspace_expression('HEADLESS-6')
     assert 'hl.get_monitor("HEADLESS-6")' in expression
-    assert 'monitor:set_workspace({ workspace = "viewflow-underlay" })' in expression
-    assert 'persistent = true' in expression
+    assert 'monitor:set_workspace("name:"' not in expression
+    assert 'if hl.get_workspace' not in expression
     assert 'workspace.rename' not in expression
-    assert 'monitor:set_special_workspace({ workspace = "special:" .. "viewflow" })' in expression
+    assert 'monitor:set_special_workspace("viewflow")' in expression
 
     # An adopted output can be reset by a reload between the initial inventory
     # and a service restart.  Recovery must reapply the full geometry and wait
@@ -66,3 +66,36 @@ with tempfile.TemporaryDirectory() as directory:
     assert '3072x390' in commands[0][0][3]
     assert 'scale = 2' in commands[0][0][3]
 print('autostart configuration test passed')
+
+# Named normal workspaces are not special merely because they lack a number.
+assert not autostart.special_workspace_active({'specialWorkspace': {'type': 'normal', 'name': 'viewflow'}}, 'viewflow')
+assert autostart.special_workspace_active({'specialWorkspace': {'type': 'special', 'name': 'viewflow'}}, 'viewflow')
+assert autostart.special_workspace_active({'specialWorkspace': {'type': 'special', 'address': 'special:viewflow', 'name': 'special:viewflow'}}, 'viewflow')
+assert autostart.special_workspace_active({'specialWorkspace': {'id': -99, 'name': 'special:viewflow'}}, 'viewflow')
+assert not autostart.special_workspace_active({'specialWorkspace': {'type': '', 'name': ''}}, 'viewflow')
+assert not autostart.special_workspace_active({'specialWorkspace': {'type': 'special', 'name': 'other'}}, 'viewflow')
+
+# Run the emitted Lua against a compositor model. The setter accepts a bare
+# special name; passing a selector would create a doubled special: prefix.
+import subprocess
+migration = autostart.special_workspace_expression('HEADLESS-test', 'viewflow-route', 'viewflow-route')
+mock = """local previous = {name='viewflow-route',special=false}; local moved=0
+local monitor={active_workspace=previous}
+function monitor:set_special_workspace(name)
+    self.special='special:'..name; assert(self.special=='special:viewflow-route')
+end
+function monitor:set_workspace(number) assert(number==4); self.number=number end
+hl={dsp={window={}}}
+function hl.get_monitor(name) assert(name=='HEADLESS-test'); return monitor end
+function hl.workspace_rule(rule) end
+function hl.get_workspace_windows(ws) assert(ws==previous); return {{id=123}} end
+function hl.get_workspaces() return {{id=1},{id=2},{id=3},{name='special:other',special=true}} end
+function hl.dsp.window.move(args)
+    assert(args.workspace=='special:viewflow-route' and args.follow==false)
+    return function() moved=moved+1 end
+end
+"""
+subprocess.run(['lua', '-'], input=(mock + migration +
+    "\nassert(monitor.number==4 and moved==1)\n" +
+    "monitor.active_workspace={name='4',id=4,special=false}\n" + migration +
+    "\nassert(moved==1)\n"), text=True, check=True)

@@ -1,0 +1,63 @@
+[
+  {
+    "command": [
+      "status"
+    ],
+    "result": {
+      "schema": 1,
+      "mode": "frame-rate",
+      "max_pending": 4,
+      "scope": "configured"
+    }
+  },
+  {
+    "command": [
+      "set",
+      "latency"
+    ],
+    "result": {
+      "schema": 1,
+      "mode": "latency",
+      "max_pending": 1,
+      "scope": "configured",
+      "changed": true,
+      "restarted": false
+    }
+  },
+  {
+    "command": [
+      "status"
+    ],
+    "result": {
+      "schema": 1,
+      "mode": "latency",
+      "max_pending": 1,
+      "scope": "configured"
+    }
+  },
+  {
+    "command": [
+      "set",
+      "frame-rate"
+    ],
+    "result": {
+      "schema": 1,
+      "mode": "frame-rate",
+      "max_pending": 4,
+      "scope": "configured",
+      "changed": true,
+      "restarted": false
+    }
+  },
+  {
+    "command": [
+      "status"
+    ],
+    "result": {
+      "schema": 1,
+      "mode": "frame-rate",
+      "max_pending": 4,
+      "scope": "configured"
+    }
+  }
+]

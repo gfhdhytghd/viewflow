@@ -1,0 +1,9 @@
+# Single-buffer WGC control rejected
+
+Capture frame-pool option now accepts explicit VIEWFLOW_WGC_BUFFERS=1 as well as3; absent/other remains2. Startup logs actual requested pool buffer count after creation succeeds. Windows source and fixture Release builds passed. Experimental runner retained4ms WGC minimum, GPU fence diagnostics, same2-band raw transport and60Hz generator. Runtime verified buffers=1 and interval40000ticks. Default unchanged.
+
+physical-pixel-bands-wgc1buffer1:1429full6K paired GPU/capture samples spanning26.761s; all1429host markers matched. No foreground/residency disruption flagged, no reported trace loss, exact plugin inventory restored. GPU1798records,pending0,dropped0. Generation→WGC-entry median24.047ms,P9530.615ms versus16.545/22.142ms prior2-buffer run; observedGPU→WGC median17.180ms,P9528.769ms.80generation→Waylandfeedback samples median48.365ms,P9568.364ms.180marker gaps versus7 prior2-buffer run. Initial five accept intervals~48.2–56.6fps; final61frames/5.33s overlaps stopping and must not be treated as steady-state cadence.
+
+No improvement demonstrated; observed results support rejecting single-buffer promotion. Sequential controls cannot establish universal causal effect. Marker identity checks do not prove every rendered pixel or rule out all reuse artifacts; no stronger visual integrity claim. Original16.7ms/continuous60fps goal unmet, no photon evidence.
+
+Both binaries and guest wrapper/probe restored with runner hash checks, standalone deadline plugin unloaded, Linux receiver active. Backup moved to build/ivshmem-backup/pixel-bands-wgc1buffer-native.backup. No input/focus operations. Single-buffer option remains opt-in solely for reproducibility; ordinary2-buffer behavior preserved. Further buffer-count tuning has no demonstrated route to the remaining latency reduction; investigate composition/capture delivery mechanism or architectural overlap instead.

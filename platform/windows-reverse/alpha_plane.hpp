@@ -10,7 +10,8 @@ namespace viewflow::reverse {
 class AlphaPlane {
 public:
     HRESULT start(ID3D11Device*,unsigned,unsigned);
-    HRESULT enqueue(ID3D11ShaderResourceView*,std::int64_t);
+    // Full readback skips opacity detection but returns the exact alpha plane.
+    HRESULT enqueue(ID3D11ShaderResourceView*,std::int64_t,bool full_readback=false);
     HRESULT poll(std::int64_t&,std::vector<std::uint8_t>&,bool* opaque_hint=nullptr);
 private:
     std::unique_ptr<CompactAlphaPlane> compact_;

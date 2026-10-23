@@ -1,0 +1,28 @@
+[
+  {
+    "pid": 687589,
+    "binary": "/usr/bin/qemu-system-x86_64",
+    "arguments": [
+      [
+        "-cpu",
+        "host,hv-vpindex=on,hv-time=on,hv-synic=on,hv-stimer=on"
+      ],
+      [
+        "-smp",
+        "10,sockets=1,cores=10,threads=1"
+      ],
+      [
+        "-qmp",
+        "unix:/home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/qmp-vfio.sock,server=on,wait=off"
+      ],
+      [
+        "-netdev",
+        "tap,id=net0,ifname=tap-windows,script=no,downscript=no"
+      ],
+      [
+        "-device",
+        "e1000,netdev=net0,bus=pcie.0,addr=0x3"
+      ]
+    ]
+  }
+]

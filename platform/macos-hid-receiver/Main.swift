@@ -3,7 +3,7 @@ import CoreHID
 import IOKit
 import Darwin
 
-private let serial = "Viewflow-UserHID-MT-v1"
+private let serial = "Viewflow-UserHID-MT-v1-\(getpid())"
 private func record(_ fields: [String: Any]) {
     if let data = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]) {
         FileHandle.standardError.write(data + Data([10]))
@@ -90,25 +90,41 @@ private final class Receiver: @unchecked Sendable {
         completed.wait()
         return result.code
     }
-    func run() -> Int32 {
+    func apply(_ bytes: [UInt8]) -> Int32 {
         let context = Unmanaged.passUnretained(self).toOpaque()
-        let result = TrackpadBridge.receiveStream(inputFD: STDIN_FILENO, submit: { bytes in
-            bytes.withUnsafeBufferPointer { vf_state_apply(self.state, $0.baseAddress, $0.count, Self.submit, context) }
-        }, release: { vf_state_release(self.state, Self.submit, context) })
-        // Retained state allows one final release attempt after an I/O failure.
-        let released = vf_state_release(state, Self.submit, context)
-        record(["event": "stream_ended", "result": result, "release_result": released])
-        return released == KERN_SUCCESS ? result : 2
+        return bytes.withUnsafeBufferPointer { vf_state_apply(state, $0.baseAddress, $0.count, Self.submit, context) }
     }
+    func release() -> Int32 {
+        vf_state_release(state, Self.submit, Unmanaged.passUnretained(self).toOpaque())
+    }
+
 }
 
 @main struct ViewflowHIDReceiver {
     static func main() async {
         let args = Array(CommandLine.arguments.dropFirst())
-        guard args == ["--probe"] || args == ["--driver-status"] || args == ["--receive-stdin"] else {
+        signal(SIGPIPE, SIG_IGN)
+        let serving = args.count == 5 && args[0] == "--serve" && args[1] == "--socket" && args[3] == "--status-file"
+        guard serving || args == ["--probe"] || args == ["--driver-status"] || args == ["--receive-stdin"] else {
             print("Viewflow HID receiver: --probe (no input reports), --receive-stdin (VFTP v2 over authenticated SSH)")
             return
         }
+        // Lock before creating a device or replacing a stale socket. Two GUI
+        // instances must never silently steal each other's shared HID endpoint.
+        var serviceLock: Int32 = -1
+        if serving {
+            let socketURL = URL(fileURLWithPath: args[2])
+            do {
+                try FileManager.default.createDirectory(at: socketURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            } catch { record(["event": "service_failed", "error": String(describing: error)]); exit(1) }
+            serviceLock = open(args[2] + ".lock", O_CREAT | O_RDWR | O_CLOEXEC, 0o600)
+            guard serviceLock >= 0, flock(serviceLock, LOCK_EX | LOCK_NB) == 0 else {
+                record(["event": "service_already_running"]); exit(1)
+            }
+            try? FileManager.default.removeItem(atPath: args[4])
+        }
+        defer { if serviceLock >= 0 { close(serviceLock) } }
         var size = 0
         let descriptor = vf_descriptor(&size)!
         let properties = HIDVirtualDevice.Properties(descriptor: Data(bytes: descriptor, count: size),
@@ -123,7 +139,7 @@ private final class Receiver: @unchecked Sendable {
         let features = Features()
         await device.activate(delegate: features)
         record(["event": "activated", "serial": serial, "input_submitted": 0])
-        if args != ["--receive-stdin"] {
+        if !serving && args != ["--receive-stdin"] {
             // Observation deadline only; never a stream or performance cutoff.
             for _ in 0..<30 {
                 if nativeAttached() { break }
@@ -143,12 +159,62 @@ private final class Receiver: @unchecked Sendable {
             exit(attached ? 0 : 3)
         }
         let receiver = Receiver(device)
+        let shared = SharedInput(apply: receiver.apply, release: receiver.release)
+        if serving {
+            let server = HIDServer(path: args[2], receiver: { shared.receive($0) })
+            let stop = StopRequest()
+            signal(SIGINT, SIG_IGN); signal(SIGTERM, SIG_IGN)
+            let signals = [SIGINT, SIGTERM].map { number -> DispatchSourceSignal in
+                let source = DispatchSource.makeSignalSource(signal: number, queue: .global())
+                source.setEventHandler { stop.request() }; source.resume(); return source
+            }
+            defer { for source in signals { source.cancel() } }
+            // Parent identity is sampled before waiting. This is process ownership,
+            // not a focus or performance deadline; loss of a GUI tears down only
+            // its own helper/device.
+            let parent = getppid()
+            do { try server.start() }
+            catch { record(["event": "service_failed", "error": String(describing: error)]); exit(1) }
+            let statusURL = URL(fileURLWithPath: args[4])
+            while !stop.requested && getppid() == parent && parent > 1 {
+                var status = shared.counters()
+                status.merge(["backend": "corehid", "pid": getpid(), "owner_pid": parent,
+                              "abi": 2, "native_profile": 1, "running": true,
+                              "serial": serial, "native_multitouch_attached": nativeAttached(),
+                              "status_call_submits_input": false]) { _, new in new }
+                status["features"] = await features.counters()
+                if let data = try? JSONSerialization.data(withJSONObject: status, options: [.sortedKeys]) {
+                    try? data.write(to: statusURL, options: .atomic)
+                    _ = chmod(statusURL.path, 0o600)
+                }
+                shared.retryRelease()
+                try? await Task.sleep(for: .milliseconds(200))
+            }
+            server.stop()
+            try? FileManager.default.removeItem(at: statusURL)
+            // An explicit process exit may bound cleanup; ordinary stream delays
+            // have no cutoff. Device teardown releases contacts even if a native
+            // submission cannot finish while the application is exiting.
+            let deadline = Date().addingTimeInterval(3)
+            while !server.isStopped && Date() < deadline {
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            record(["event": "service_stopped", "clean": server.isStopped])
+            exit(server.isStopped ? 0 : 2)
+        }
         let result: Int32 = await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInteractive).async {
-                continuation.resume(returning: receiver.run())
+                continuation.resume(returning: shared.receive(STDIN_FILENO))
             }
         }
         record(["event": "receiver_complete", "counters": await features.counters()])
         exit(result)
     }
+}
+
+private final class StopRequest: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    var requested: Bool { lock.lock(); defer { lock.unlock() }; return value }
+    func request() { lock.lock(); value = true; lock.unlock() }
 }

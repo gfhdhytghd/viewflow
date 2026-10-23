@@ -1,0 +1,160 @@
+{
+  "decoder": "/tmp/viewflow-reverse-baseline-linux/viewflow_reverse_decoder_probe",
+  "decoder_sha256": "a1cc3a0d4d9b3fdf8c828fe121d78f5be519377896506ab460d064beee5e3da6",
+  "runs": [
+    {
+      "label": "cbr-a1",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 0,
+      "actual_controls": {
+        "experiment": 0,
+        "rate": 1,
+        "gpb": 16,
+        "qpi": 3000,
+        "qpp": 24000,
+        "qpb": 24000
+      },
+      "n": 100,
+      "median_ms": 17.9857,
+      "p95_ms": 18.3761,
+      "max_ms": 29.3807,
+      "stream_bytes": 5351185,
+      "stream_sha256": "8673249da886afa0cf8c47d551e04dea546a812eaa0511bf38f7270471da8efe"
+    },
+    {
+      "label": "gpb-off-b1",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 1,
+      "actual_controls": {
+        "experiment": 1,
+        "rate": 1,
+        "gpb": 32,
+        "qpi": 3000,
+        "qpp": 24000,
+        "qpb": 24000
+      },
+      "n": 100,
+      "median_ms": 18.077399999999997,
+      "p95_ms": 23.9162,
+      "max_ms": 24.092,
+      "stream_bytes": 5441710,
+      "stream_sha256": "aa27237b89578c6ca8ecd68c41c1796b82a24a6262c104572d9450589d34f35f"
+    },
+    {
+      "label": "cqp-c1",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 2,
+      "actual_controls": {
+        "experiment": 2,
+        "rate": 3,
+        "gpb": 16,
+        "qpi": 26,
+        "qpp": 26,
+        "qpb": 26
+      },
+      "n": 100,
+      "median_ms": 18.025750000000002,
+      "p95_ms": 22.8903,
+      "max_ms": 23.3057,
+      "stream_bytes": 1565250,
+      "stream_sha256": "3d42bb338c5b18cfe4968a38dd61dd08a3cfee8a7ac00e72f4eb0af20f7ca4e2"
+    },
+    {
+      "label": "cqp-gpb-off-d1",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 3,
+      "actual_controls": {
+        "experiment": 3,
+        "rate": 3,
+        "gpb": 32,
+        "qpi": 26,
+        "qpp": 26,
+        "qpb": 26
+      },
+      "n": 100,
+      "median_ms": 17.965049999999998,
+      "p95_ms": 25.8738,
+      "max_ms": 26.051,
+      "stream_bytes": 1565639,
+      "stream_sha256": "05677796cde86f0b3676283b587c500f759e64a98807c6c88dd185d0f64e2df1"
+    },
+    {
+      "label": "cqp-gpb-off-d2",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 3,
+      "actual_controls": {
+        "experiment": 3,
+        "rate": 3,
+        "gpb": 32,
+        "qpi": 26,
+        "qpp": 26,
+        "qpb": 26
+      },
+      "n": 100,
+      "median_ms": 18.042,
+      "p95_ms": 26.0275,
+      "max_ms": 27.3477,
+      "stream_bytes": 1565639,
+      "stream_sha256": "05677796cde86f0b3676283b587c500f759e64a98807c6c88dd185d0f64e2df1"
+    },
+    {
+      "label": "cqp-c2",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 2,
+      "actual_controls": {
+        "experiment": 2,
+        "rate": 3,
+        "gpb": 16,
+        "qpi": 26,
+        "qpp": 26,
+        "qpb": 26
+      },
+      "n": 100,
+      "median_ms": 17.7336,
+      "p95_ms": 26.205,
+      "max_ms": 27.4761,
+      "stream_bytes": 1565250,
+      "stream_sha256": "3d42bb338c5b18cfe4968a38dd61dd08a3cfee8a7ac00e72f4eb0af20f7ca4e2"
+    },
+    {
+      "label": "gpb-off-b2",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 1,
+      "actual_controls": {
+        "experiment": 1,
+        "rate": 1,
+        "gpb": 32,
+        "qpi": 3000,
+        "qpp": 24000,
+        "qpb": 24000
+      },
+      "n": 100,
+      "median_ms": 18.108150000000002,
+      "p95_ms": 23.9348,
+      "max_ms": 24.1571,
+      "stream_bytes": 5441710,
+      "stream_sha256": "aa27237b89578c6ca8ecd68c41c1796b82a24a6262c104572d9450589d34f35f"
+    },
+    {
+      "label": "cbr-a2",
+      "native_sha256": "A0A3C6839F49FB015B516ECC8589288A32A9CC25F8D2916BF872B6C10C0C2D56",
+      "experiment": 0,
+      "actual_controls": {
+        "experiment": 0,
+        "rate": 1,
+        "gpb": 16,
+        "qpi": 3000,
+        "qpp": 24000,
+        "qpb": 24000
+      },
+      "n": 100,
+      "median_ms": 18.06885,
+      "p95_ms": 26.0,
+      "max_ms": 26.2834,
+      "stream_bytes": 5351185,
+      "stream_sha256": "8673249da886afa0cf8c47d551e04dea546a812eaa0511bf38f7270471da8efe"
+    }
+  ],
+  "repeat_bitstreams_identical_per_configuration": true,
+  "cross_configuration_quality_equivalence_established": false
+}

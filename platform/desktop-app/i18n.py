@@ -224,6 +224,67 @@ def status_text(source, language):
     return source
 
 EN.update({
+    '设置连接组': 'Set up connection group',
+    '先选择本机作为主机或从机，再建立或加入连接组。': 'Choose Host or Client for this computer, then create or join a group.',
+    '一个连接组包含一台主机和最多两台从机。主机显示配对码，从机选择主机后加入。': 'A group has one host and up to two clients. The host shows a pairing code; clients choose that host to join.',
+    '本机角色': 'This computer’s role',
+    '请选择角色': 'Choose a role',
+    '主机': 'Host',
+    '从机': 'Client',
+    '本机': 'This computer',
+    '在线': 'Online',
+    '等待重连': 'Waiting to reconnect',
+    '由本机管理连接组，等待从机加入。': 'This computer manages the group and accepts clients.',
+    '从机只能加入一个主机的连接组。': 'A client can join only one host’s group.',
+    '切换角色会退出当前连接组。': 'Changing roles leaves the current group.',
+    '主机配对码': 'Host pairing code',
+    '连接组已满，最多三台电脑。': 'The group is full (three computers maximum).',
+    '当前连接组': 'Current group',
+    '移出连接组': 'Remove from group',
+    '重新连接主机': 'Reconnect to host',
+    '解散连接组': 'Dissolve group',
+    '退出连接组': 'Leave group',
+    '附近的主机': 'Nearby hosts',
+    '正在查找局域网中的主机。也可以在下方输入主机地址。': 'Looking for hosts on your local network. You can also enter the host address below.',
+    '主机的六位配对码': 'Host’s six-digit code',
+    '加入连接组': 'Join group',
+    '手动输入主机地址': 'Enter host address',
+    '旧版连接已归档。请选择主机或从机，建立唯一连接组。': 'Legacy connections were archived. Choose Host or Client to set up your single connection group.',
+    '请选择主机或从机，或等待从机加入当前连接组。': 'Choose Host or Client, or wait for a client to join this group.',
+    '正在同步当前连接组。': 'Updating the current group.',
+    '连接组已同步，点击启动即可连接。': 'Group updated. Click Start to connect.',
+    '请先建立或加入连接组。': 'Create or join a group first.',
+    '正在启动当前连接组。': 'Starting this connection group.',
+    '组件进程已启动；正在建立设备连接。': 'Components started; establishing device connections.',
+    '部分组件正在恢复，请查看下方状态或日志。': 'Some components are recovering. See their status or logs below.',
+    '请在配对页面选择主机或从机；旧版配对文件不能与连接组同时使用。': 'Choose Host or Client on the Pairing page. Legacy connection files cannot run alongside a group.',
+    '连接设备': 'Connect',
+    '设备已重新连接，当前会话保持运行。': 'Computer reconnected. The current session is unchanged.',
+    '正在启动接收窗口与剪贴板；共享 Windows 窗口需要一个已启用的虚拟显示器。': 'Starting window reception and clipboard sync. Sharing Windows windows requires one enabled virtual display.',
+    '选择附近的电脑，输入对方显示的配对码，即可连接。': 'Choose a nearby computer and enter its pairing code to connect.',
+    '查找电脑': 'Find computers',
+    '两台电脑都打开 Viewflow。在这里选择对方，输入对方显示的六位配对码。': 'Open Viewflow on both computers. Choose the other computer and enter its six-digit pairing code.',
+    '让另一台电脑连接我': 'Let another computer connect to me',
+    '更换配对码': 'New pairing code',
+    '显示配对码': 'Show pairing code',
+    '取消': 'Cancel',
+    '附近与已配对的电脑': 'Nearby and paired computers',
+    '正在查找局域网中的电脑。没有找到？可以在下方输入地址。': 'Looking for computers on your local network. You can also enter an address below.',
+    '已配对': 'Paired',
+    '未配对': 'Not paired',
+    '六位配对码': 'Six-digit pairing code',
+    '配对并连接': 'Pair and connect',
+    '手动输入地址': 'Enter an address',
+    '主机名或 IP 地址（可带端口）': 'Hostname or IP address (optional port)',
+    '导入旧版配对文件': 'Import a legacy connection file',
+    '设备已配对。当前连接保持运行；需要切换时请在设备列表中选择。': 'Computer paired. Your current connection is unchanged; select the new computer when you want to switch.',
+    '配对已保存，正在连接。': 'Pairing saved. Connecting.',
+    '请输入另一台机器上显示的六位配对码。': 'Enter the six-digit pairing code shown on the other computer.',
+    '连接失败：请检查地址、配对码，以及两端 Viewflow 是否已打开。': 'Connection failed. Check the address and code, and make sure Viewflow is open on both computers.',
+    '接收窗口': 'Receive windows',
+    '共享 Windows 窗口': 'Share Windows windows',
+    '共享桌面与输入': 'Share desktop and input',
+    '接收 Linux 桌面与输入': 'Receive Linux desktop and input',
     '媒体编解码': 'Media encoding and decoding',
     '停止连接后更改，下次启动生效。多 GPU 请选择具体设备。': 'Change while stopped; applies on next start. Select a specific device on multi-GPU systems.',
     '自动': 'Automatic',
@@ -237,3 +298,20 @@ EN.update({
     'VA-API 已接入媒体管线；依赖已安装不代表硬件链路可用，请运行合成媒体检查。': 'VA-API is integrated. Installed dependencies do not prove hardware operation; run the synthetic media check.',
     '待硬件验证': 'Hardware check needed',
 })
+
+EN.update({"断开连接": "Disconnect", "断开并重新连接": "Disconnect and reconnect", "剪贴板同步": "Clipboard", "接收窗口": "Receive windows", "共享桌面与输入": "Share desktop and input", "共享窗口": "Share windows"})
+
+EN.update({"连接已断开，配对关系保留。": "Disconnected. Pairing is retained.", "等待从机自动连接。": "Waiting for the client to connect automatically.", "共享 Windows 窗口": "Share Windows windows", "接收 Linux 桌面与输入": "Receive Linux desktop and input"})
+
+EN.update({
+    '显示器': 'Displays',
+    '拖动屏幕排列位置，或输入坐标微调。主机屏幕固定在原点，位置自动同步到从机。': 'Drag screens to arrange them, or fine-tune their coordinates. The host stays at the origin; positions sync to clients.',
+    '显示器位置由主机统一设置。': 'Arrange displays on the host computer.',
+    '配对后可设置显示器位置。': 'Pair a computer to arrange its display.',
+    '应用位置': 'Apply position',
+    '坐标以逻辑像素计，X 向右、Y 向下。只调整 Viewflow 的跨屏布局。': 'Positions use logical pixels: X goes right, Y goes down. This changes the Viewflow layout.',
+})
+
+EN.update({'坐标以逻辑像素计，X 向右、Y 向下。屏幕始终保持贴边，不能孤立或重叠。': "Positions use logical pixels: X goes right, Y goes down. Screens stay connected edge-to-edge without gaps or overlaps."})
+
+EN.update({"接收其他电脑的窗口": "Receive windows", "共享本机窗口": "Share this computer’s windows", "接收桌面与输入": "Receive desktop and input", "正在同步连接组。": "Updating the connection group…"})

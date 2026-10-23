@@ -3,6 +3,7 @@ use viewflowd::{USAGE, parse_args, run};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    viewflowd::managed_owner::watch()?;
     let arguments = std::env::args().skip(1).collect::<Vec<_>>();
     #[cfg(target_os = "macos")]
     if arguments.as_slice() == ["--macos-input-status"] {

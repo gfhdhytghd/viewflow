@@ -1,0 +1,64 @@
+{
+  "status": "failed",
+  "scope": "isolated QMP/QOM and sparse backing only",
+  "vfio_tested": false,
+  "gpu_dma_tested": false,
+  "guest_started": false,
+  "qmp": [
+    {
+      "request": {
+        "execute": "qmp_capabilities",
+        "id": 1
+      },
+      "response": {
+        "return": {},
+        "id": 1
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 2,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_test",
+          "mem-path": "/tmp/viewflow-dma-woa7_aix/viewflow-dma-pixels",
+          "size": 1073741824,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "id": 2,
+        "error": {
+          "class": "GenericError",
+          "desc": "Parameter 'x-viewflow-dma-managed' is unexpected"
+        }
+      }
+    }
+  ],
+  "residency": [
+    {
+      "stage": "before_object",
+      "virtual_bytes": 1073741824,
+      "resident_bytes": 0,
+      "allocated_file_bytes": 0
+    }
+  ],
+  "command": [
+    "/tmp/qemu-11.1.1/build-viewflow-demand/qemu-system-x86_64",
+    "-machine",
+    "none",
+    "-nodefaults",
+    "-display",
+    "none",
+    "-S",
+    "-qmp",
+    "unix:/tmp/viewflow-dma-woa7_aix/qmp.sock,server=on,wait=off"
+  ],
+  "owned_pid": 2950982,
+  "stderr": "qemu-system-x86_64: terminating on signal 15 from pid 2950957 (python3)\n",
+  "error": "AssertionError: Expected success: {'id': 2, 'error': {'class': 'GenericError', 'desc': \"Parameter 'x-viewflow-dma-managed' is unexpected\"}}"
+}

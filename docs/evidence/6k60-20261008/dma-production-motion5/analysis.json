@@ -1,0 +1,274 @@
+{
+  "classification": "diagnostic only; foreground changed, atlas extent changed, guest cleanup failed; not stable 6K baseline",
+  "fixture_summary": [
+    "motion-foreground-summary changes=1 scope=frame-sampled-not-event-hook",
+    "motion-fixture frames=1200 elapsed_s=20.563880 submit_fps=58.355 foreground_unchanged=0 (fixture submissions, not received fps)"
+  ],
+  "cleanup_cause": "Offline confirmed PowerShell case-insensitive typed parameter collision: [string]$Native and foreach($native in $nativeProcesses) coerce Process into string; .WaitForExit invocation fails. No captured exception available; renamed nativeProcess, added finally error phase logging.",
+  "task_exit": {
+    "exit": 1,
+    "full_20s_includes_source_startup": false,
+    "timing_origin": "fixture start gate after initial 6K capture",
+    "generation_to_present": "unavailable; no pixel stamp",
+    "actual_6k_presentation": "requires geometry evidence"
+  },
+  "host_recovery": {
+    "normal_state": "Running",
+    "status": "restored-after-confirmed-original-process-exit",
+    "forced_job_cleanup_is_not_graceful": true
+  },
+  "extent_counts": {
+    "84934656": 412,
+    "86704128": 8,
+    "88473600": 91
+  },
+  "stage_scope": "CPU fence observation upper bounds, not GPU timestamps",
+  "by_bytes": {
+    "86704128": {
+      "host_wait_ms": {
+        "n": 8,
+        "p50": 0.003,
+        "p95": 0.012,
+        "max": 0.012
+      },
+      "import_ms": {
+        "n": 8,
+        "p50": 0.002,
+        "p95": 0.003,
+        "max": 0.003
+      },
+      "submit_cpu_ms": {
+        "n": 8,
+        "p50": 0.167,
+        "p95": 0.214,
+        "max": 0.214
+      },
+      "producer_observed_ms": {
+        "n": 8,
+        "p50": 18.206,
+        "p95": 32.134,
+        "max": 32.134
+      },
+      "consumer_observed_ms": {
+        "n": 8,
+        "p50": 21.864,
+        "p95": 37.043,
+        "max": 37.043
+      },
+      "max_poll_gap_ms": {
+        "n": 8,
+        "p50": 3.345,
+        "p95": 3.731,
+        "max": 3.731
+      }
+    },
+    "84934656": {
+      "host_wait_ms": {
+        "n": 412,
+        "p50": 0.002,
+        "p95": 0.004,
+        "max": 0.01
+      },
+      "import_ms": {
+        "n": 412,
+        "p50": 0.001,
+        "p95": 0.002,
+        "max": 9.823
+      },
+      "submit_cpu_ms": {
+        "n": 412,
+        "p50": 0.143,
+        "p95": 0.216,
+        "max": 0.282
+      },
+      "producer_observed_ms": {
+        "n": 412,
+        "p50": 15.157,
+        "p95": 23.151,
+        "max": 208.184
+      },
+      "consumer_observed_ms": {
+        "n": 412,
+        "p50": 19.797,
+        "p95": 27.657,
+        "max": 410.416
+      },
+      "max_poll_gap_ms": {
+        "n": 412,
+        "p50": 2.537,
+        "p95": 3.914,
+        "max": 36.895
+      }
+    },
+    "88473600": {
+      "host_wait_ms": {
+        "n": 91,
+        "p50": 0.002,
+        "p95": 0.004,
+        "max": 0.025
+      },
+      "import_ms": {
+        "n": 91,
+        "p50": 0.001,
+        "p95": 0.003,
+        "max": 0.004
+      },
+      "submit_cpu_ms": {
+        "n": 91,
+        "p50": 0.161,
+        "p95": 0.256,
+        "max": 0.322
+      },
+      "producer_observed_ms": {
+        "n": 91,
+        "p50": 24.446,
+        "p95": 40.623,
+        "max": 314.448
+      },
+      "consumer_observed_ms": {
+        "n": 91,
+        "p50": 29.479,
+        "p95": 47.042,
+        "max": 614.256
+      },
+      "max_poll_gap_ms": {
+        "n": 91,
+        "p50": 3.175,
+        "p95": 5.088,
+        "max": 309.42
+      }
+    }
+  },
+  "generator": {
+    "loop_begin_qpc": 13115230183,
+    "loop_end_qpc": 13315231401,
+    "frequency": 10000000,
+    "loop_seconds": 20.0001218,
+    "frames": 1200,
+    "loop_submit_fps": 59.99963460222528,
+    "summary_elapsed_includes_post_loop_diagnostics": true,
+    "summary_58fps_is_not_loop_fps": true
+  },
+  "stable_baseline_valid": false,
+  "exact_loop_window": {
+    "scope": "WGC timestamp and atlas PTS selected against actual fixture loop QPC; not generation association",
+    "unique_wgc": 558,
+    "publish_pts_records": 503
+  },
+  "exact_loop_stages_by_bytes": {
+    "84934656": {
+      "host_wait_ms": {
+        "n": 407,
+        "p50": 0.002,
+        "p95": 0.004,
+        "max": 0.01
+      },
+      "import_ms": {
+        "n": 407,
+        "p50": 0.001,
+        "p95": 0.002,
+        "max": 0.004
+      },
+      "submit_cpu_ms": {
+        "n": 407,
+        "p50": 0.143,
+        "p95": 0.215,
+        "max": 0.282
+      },
+      "producer_observed_ms": {
+        "n": 407,
+        "p50": 15.198,
+        "p95": 23.151,
+        "max": 208.184
+      },
+      "consumer_observed_ms": {
+        "n": 407,
+        "p50": 19.842,
+        "p95": 27.599,
+        "max": 410.416
+      },
+      "max_poll_gap_ms": {
+        "n": 407,
+        "p50": 2.537,
+        "p95": 3.914,
+        "max": 36.895
+      }
+    },
+    "86704128": {
+      "host_wait_ms": {
+        "n": 8,
+        "p50": 0.003,
+        "p95": 0.012,
+        "max": 0.012
+      },
+      "import_ms": {
+        "n": 8,
+        "p50": 0.002,
+        "p95": 0.003,
+        "max": 0.003
+      },
+      "submit_cpu_ms": {
+        "n": 8,
+        "p50": 0.167,
+        "p95": 0.214,
+        "max": 0.214
+      },
+      "producer_observed_ms": {
+        "n": 8,
+        "p50": 18.206,
+        "p95": 32.134,
+        "max": 32.134
+      },
+      "consumer_observed_ms": {
+        "n": 8,
+        "p50": 21.864,
+        "p95": 37.043,
+        "max": 37.043
+      },
+      "max_poll_gap_ms": {
+        "n": 8,
+        "p50": 3.345,
+        "p95": 3.731,
+        "max": 3.731
+      }
+    },
+    "88473600": {
+      "host_wait_ms": {
+        "n": 88,
+        "p50": 0.002,
+        "p95": 0.004,
+        "max": 0.025
+      },
+      "import_ms": {
+        "n": 88,
+        "p50": 0.001,
+        "p95": 0.003,
+        "max": 0.004
+      },
+      "submit_cpu_ms": {
+        "n": 88,
+        "p50": 0.158,
+        "p95": 0.256,
+        "max": 0.322
+      },
+      "producer_observed_ms": {
+        "n": 88,
+        "p50": 24.819,
+        "p95": 32.605,
+        "max": 47.624
+      },
+      "consumer_observed_ms": {
+        "n": 88,
+        "p50": 29.546,
+        "p95": 44.398,
+        "max": 614.256
+      },
+      "max_poll_gap_ms": {
+        "n": 88,
+        "p50": 3.175,
+        "p95": 5.077,
+        "max": 6.198
+      }
+    }
+  }
+}

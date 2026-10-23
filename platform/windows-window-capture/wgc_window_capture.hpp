@@ -21,6 +21,9 @@ struct CapturedFrame {
     // QPC-relative units. It is not a wall clock and is not restamped here.
     std::int64_t system_relative_time_100ns = 0;
     CapturedAlpha alpha = CapturedAlpha::bgra8_alpha_preserved_unknown_mode;
+    // Optional observed CPU QPC boundaries, not compositor timestamps.
+    struct DeliveryTiming {std::int64_t entered{},locked{},acquired{},geometry_done{},surface_ready{};} delivery;
+
 };
 
 struct FrameCallbacks {

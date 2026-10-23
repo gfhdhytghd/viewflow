@@ -24,12 +24,17 @@ def identifier(prefix, path):
 def author(payload, version):
     if not (payload / 'Viewflow.exe').is_file() or not (payload / 'bundle-manifest.json').is_file():
         raise ValueError('expected a complete Viewflow application directory')
+    icon = payload / '_internal/brand/viewflow.ico'
+    if not icon.is_file():
+        raise ValueError('application bundle lacks its Viewflow brand icon')
     root = ET.Element('{' + NS + '}Wix')
     package = element(root, 'Package', Name='Viewflow', Manufacturer='Viewflow',
                       Version=version, UpgradeCode=UPGRADE_CODE, Scope='perUser', Language='1033')
     element(package, 'MajorUpgrade', DowngradeErrorMessage='A newer version of Viewflow is already installed.')
     element(package, 'MediaTemplate', EmbedCab='yes', CompressionLevel='high')
     element(package, 'Property', Id='ARPNOMODIFY', Value='1')
+    element(package, 'Icon', Id='ViewflowIcon', SourceFile=str(icon))
+    element(package, 'Property', Id='ARPPRODUCTICON', Value='ViewflowIcon')
     local = element(package, 'StandardDirectory', Id='LocalAppDataFolder')
     programs = element(local, 'Directory', Id='ProgramsFolder', Name='Programs')
     install = element(programs, 'Directory', Id='INSTALLFOLDER', Name='Viewflow')
@@ -71,7 +76,8 @@ def author(payload, version):
     element(component, 'RegistryValue', Root='HKCU', Key='Software\\Viewflow\\Installer',
             Name='StartMenuShortcut', Type='integer', Value='1', KeyPath='yes')
     element(component, 'Shortcut', Id='LaunchViewflow', Name='Viewflow',
-            Target='[INSTALLFOLDER]Viewflow.exe', WorkingDirectory='INSTALLFOLDER')
+            Target='[INSTALLFOLDER]Viewflow.exe', WorkingDirectory='INSTALLFOLDER',
+            Icon='ViewflowIcon', IconIndex='0')
     element(component, 'RemoveFolder', Id='RemoveViewflowMenu', On='uninstall')
     element(feature, 'ComponentRef', Id='StartMenuShortcut')
     return ET.ElementTree(root)

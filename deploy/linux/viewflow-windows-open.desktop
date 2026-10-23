@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Open with Windows
+Name[zh_CN]=用 Windows 应用打开
+Comment=Open the shared original file in its Windows default application
+Exec=viewflow-windows open %F
+Icon=preferences-system-windows
+Terminal=false
+NoDisplay=true
+MimeType=text/plain;text/csv;application/pdf;application/msword;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.ms-excel;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.ms-powerpoint;application/vnd.openxmlformats-officedocument.presentationml.presentation;image/png;image/jpeg;image/svg+xml;application/zip;
+Actions=Choose;
+
+[Desktop Action Choose]
+Name=Choose Windows application
+Name[zh_CN]=选择 Windows 应用
+Exec=viewflow-windows open --choose %F

@@ -111,9 +111,10 @@ extern "C" int viewflow_menu_backdrop_probe(int argc, const char* argv[]) {
             [NSApplication sharedApplication];
             const bool watch = !list && std::strcmp(argv[1], "--watch") == 0;
             const unsigned window_id = list ? 0 : static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10));
-            NSImage* image = list ? nil : [[NSImage alloc] initWithContentsOfFile:@(argv[2])];
+            const bool read_only = !list && std::strcmp(argv[2], "--read-only") == 0;
+            NSImage* image = list || read_only ? nil : [[NSImage alloc] initWithContentsOfFile:@(argv[2])];
             NSString* output = list ? nil : @(argv[3]);
-            if (!list && ((!window_id && !watch) || !image || ![NSFileManager.defaultManager createDirectoryAtPath:output withIntermediateDirectories:YES attributes:nil error:nil])) return 2;
+            if (!list && ((!window_id && !watch) || (!image && !read_only) || ![NSFileManager.defaultManager createDirectoryAtPath:output withIntermediateDirectories:YES attributes:nil error:nil])) return 2;
             __block SCShareableContent* content = nil;
             __block bool done = false;
             [SCShareableContent getShareableContentExcludingDesktopWindows:NO onScreenWindowsOnly:YES completionHandler:^(SCShareableContent* value, NSError* error) {
@@ -158,6 +159,10 @@ extern "C" int viewflow_menu_backdrop_probe(int argc, const char* argv[]) {
             success = snapshot(screen, crop, [output stringByAppendingPathComponent:@"before-display.png"]) && success;
             success = snapshot(selected, crop, [output stringByAppendingPathComponent:@"before-selected.png"]) && success;
             success = snapshot(behind, crop, [output stringByAppendingPathComponent:@"before-behind.png"]) && success;
+            if (read_only) {
+                std::fprintf(stderr,"popup snapshot display=%u menu=%u bounds=%s success=%d\n",display.displayID,menu.windowID,NSStringFromRect(menu.frame).UTF8String,success);
+                return success ? 0 : 4;
+            }
             CGRect bounds = CGRectInset(menu.frame, -64, -64);
             const double main_height = CGDisplayBounds(CGMainDisplayID()).size.height;
             NSRect cocoa = NSMakeRect(bounds.origin.x, main_height - CGRectGetMaxY(bounds), bounds.size.width, bounds.size.height);

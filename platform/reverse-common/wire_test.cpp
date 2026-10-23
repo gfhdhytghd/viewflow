@@ -8,6 +8,12 @@
 #include <functional>
 namespace vf=viewflow::reverse;
 int main() {
+    for(const auto mode:{0,2}) {
+        const auto input=vf::Input{77,9001,vf::InputKind::fullscreen_route,mode,1,mode?6144:0,mode?3456:0};
+        const auto bytes=vf::pack_input(input);assert(bytes.size()==40);
+        const auto copy=vf::unpack_input(bytes);
+        assert(copy.kind==vf::InputKind::fullscreen_route && copy.sequence==9001 && copy.a==mode && copy.b==1 && copy.c==input.c && copy.d==input.d);
+    }
     { // Variable backdrop records must stay separate from fixed-size input.
         vf::Backdrop b{4, 8, -1234000, 3000, 250000, 245000, 500, 490, {137,80,78,71}};
         const auto bytes = vf::pack_backdrop(b);
@@ -31,7 +37,34 @@ int main() {
     frame.alpha=compressed;frame.color={0,0,0,1,0x26};frame.tiles.push_back({42,0,-6144,-780,64,64,0,0,"Example"});
     frame.tiles[0].flags=3;frame.tiles[0].geometry_ack=987;
     auto bytes=vf::pack_frame(frame);auto decoded=vf::unpack_frame(bytes);
+    // DD opacity is one flag in the existing record, not a new field or
+    // envelope. Every unmarked frame must remain byte-for-byte identical.
+    assert(vf::pack_frame(decoded)==bytes);
+    auto desktop_frame=frame;desktop_frame.tiles[0].flags|=vf::windows_desktop_output_flag;
+    const auto desktop_bytes=vf::pack_frame(desktop_frame);
+    const auto desktop_copy=vf::unpack_frame(desktop_bytes);
+    assert(desktop_copy.tiles[0].flags==(frame.tiles[0].flags|vf::windows_desktop_output_flag));
+    assert(desktop_copy.color==frame.color && desktop_copy.alpha==frame.alpha && desktop_bytes.size()==bytes.size());
+    unsigned differences=0;std::size_t flag_high_byte=0;
+    for(std::size_t i=0;i<bytes.size();++i)if(bytes[i]!=desktop_bytes[i]) {
+        ++differences;flag_high_byte=i;assert((bytes[i]^desktop_bytes[i])==0x20);
+    }
+    assert(differences==1);
+    auto unknown=desktop_frame;unknown.tiles[0].flags|=16384u;rejected([&]{vf::pack_frame(unknown);});
+    unknown.tiles[0].flags=0x80000000u;rejected([&]{vf::pack_frame(unknown);});
+    auto unknown_bytes=desktop_bytes;unknown_bytes[flag_high_byte]|=0x40;rejected([&]{vf::unpack_frame(unknown_bytes);});
+    auto popup_frame=frame;popup_frame.tiles[0].flags|=vf::windows_popup_flag;
+    assert(vf::unpack_frame(vf::pack_frame(popup_frame)).tiles[0].flags&vf::windows_popup_flag);
+    auto shell_frame=frame;shell_frame.tiles[0].flags|=vf::windows_shell_flag;
+    const auto shell_copy=vf::unpack_frame(vf::pack_frame(shell_frame));
+    assert((shell_copy.tiles[0].flags&vf::windows_shell_flag) && shell_copy.tiles[0].icon_png.empty());
     assert(decoded.tiles.size()==1 && decoded.tiles[0].id==42 && decoded.tiles[0].x==-6144 && decoded.tiles[0].flags==3 && decoded.tiles[0].geometry_ack==987 && decoded.color==frame.color);
+    auto icon_frame=frame;auto& icon=icon_frame.tiles[0];icon.flags|=vf::application_icon_flag;
+    icon.app_id="macos:com.example.app";icon.icon_png={137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,32,0,0,0,32,8,6,0,0,0,0,0,0,0};
+    const auto icon_copy=vf::unpack_frame(vf::pack_frame(icon_frame));
+    assert(icon_copy.tiles[0].app_id==icon.app_id && icon_copy.tiles[0].icon_png==icon.icon_png);
+    icon.icon_png[19]=0;rejected([&]{vf::pack_frame(icon_frame);});
+    icon.icon_png[19]=32;icon.app_id.clear();rejected([&]{vf::pack_frame(icon_frame);});
     auto anchored=frame;anchored.tiles[0].flags=5;anchored.tiles[0].grab_x=1132;anchored.tiles[0].grab_y=28;
     auto fullscreen=frame;fullscreen.tiles[0].flags=32;
     assert(vf::unpack_frame(vf::pack_frame(fullscreen)).tiles[0].flags==32);
@@ -61,7 +94,7 @@ int main() {
     rejected([&]{touchpad.input({42,20,vf::InputKind::touchpad_frame,16000,11000,1,0});});
     struct Snapshot {
         struct Contact {unsigned id,x,y;int pressure,major,minor,orientation;};
-        unsigned count=2,width=16000,height=11490;
+        unsigned count=2,width=16000,height=11490; bool button=false;
         std::array<Contact,5> contacts{{{100,8000,5745,9,80,40,-1},{101,16000,0,20,120,80,1}}};
     } snapshot;
     vf::NativeTouchpadEncoder native;
@@ -71,7 +104,7 @@ int main() {
     assert(reports.size()==1 && reports[0][0]==2 && reports[0][1]==0);
     assert(reports[0][14]==0 && reports[0][15]==64 && reports[0][18]==9);
     assert(reports[0][19]==20 && reports[0][20]==10 && reports[0][22]==5);
-    const auto original=reports[0];
+    auto original=reports[0];
     native.frame(snapshot,1235,emit);assert(reports.size()==1);
     snapshot.contacts[0].x+=100;native.frame(snapshot,1236,emit);
     assert(reports.size()==2 && reports.back()[12]==original[12]);
@@ -85,6 +118,12 @@ int main() {
     snapshot.count=2;native.frame(snapshot,1241,emit);assert(reports.size()==released_count);
     snapshot.count=0;native.frame(snapshot,1242,emit);
     snapshot.count=2;native.frame(snapshot,1243,emit);assert(reports.back()[0]==2 && reports.size()==released_count+1);
+    snapshot.button=true;native.frame(snapshot,1244,emit);
+    assert(reports.back()[1]==1 && reports.back()[18]==120 && reports.back()[30]==120);
+    const auto pressed_size=reports.size();
+    native.frame(snapshot,1245,emit);assert(reports.size()==pressed_size);
+    snapshot.button=false;native.frame(snapshot,1246,emit);
+    assert(reports.size()==pressed_size+1 && reports.back()[1]==0 && reports.back()[18]==9);
     vf::NativeTouchpadAssembler assembly;vf::NativeTouchpadReport rebuilt{};
     auto chunk=[&](unsigned offset,unsigned window=42) {
         std::array<std::uint32_t,3> words{};
@@ -94,6 +133,10 @@ int main() {
     };
     for(unsigned offset=0;offset<72;offset+=12)chunk(offset);
     assert(assembly.input({42,100,vf::InputKind::native_touchpad_commit,72},rebuilt) && rebuilt==original);
+    original[1]=1;
+    for(unsigned offset=0;offset<72;offset+=12)chunk(offset);
+    assert(assembly.input({42,101,vf::InputKind::native_touchpad_commit,72},rebuilt) && rebuilt[1]==1);
+    original[1]=0;
     chunk(0);chunk(24);assert(!assembly.input({42,101,vf::InputKind::native_touchpad_commit,72},rebuilt));
     chunk(0);chunk(12,43);assert(!assembly.input({43,102,vf::InputKind::native_touchpad_commit,72},rebuilt));
     frame.tiles[0].atlas_x=0;frame.tiles[0].flags=8;

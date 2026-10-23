@@ -23,10 +23,19 @@ def eligible(client, monitors, remote_id):
             and not client.get('floating', False)
             and client.get('monitor') != remote_id):
         return False
-    visible = {m['activeWorkspace']['id'] for m in monitors}
-    visible.update(m['specialWorkspace']['id'] for m in monitors
-                   if m.get('specialWorkspace', {}).get('id', 0))
-    if client.get('workspace', {}).get('id') not in visible:
+    # Master uses an explicit type for special workspaces without numeric IDs.
+    def workspace_key(workspace):
+        selector = workspace.get('address') or workspace.get('name')
+        if selector:
+            kind = workspace.get('type') or ('special' if selector.startswith('special:') else 'normal')
+            return (kind, selector.removeprefix('special:') if kind == 'special' else selector)
+        number = workspace.get('id')
+        return ('id', number) if number not in (None, 0) else None
+
+    visible = {workspace_key(m.get(field, {})) for m in monitors
+               for field in ('activeWorkspace', 'specialWorkspace')}
+    visible.discard(None)
+    if workspace_key(client.get('workspace', {})) not in visible:
         return False
     width, height = remote['width'], remote['height']
     if remote.get('transform', 0) % 2:
@@ -40,15 +49,19 @@ def eligible(client, monitors, remote_id):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--route-config', type=Path, required=True)
+    parser.add_argument('--route-config', type=Path)
+    parser.add_argument('--routes-file', type=Path, help='JSON array of active Mac route config paths')
     parser.add_argument('--peer', type=Path, required=True)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--input-native', type=Path, required=True)
+    parser.add_argument('--runtime', type=Path, help='isolated runtime directory for an app-owned pair')
     parser.add_argument('--remote', default='172.16.105.83:44220')
     parser.add_argument('--performance-mode', choices=('frame-rate', 'latency'),
                         default=os.environ.get('VIEWFLOW_WINDOW_PERFORMANCE_MODE', 'frame-rate'))
     args = parser.parse_args()
-    runtime = Path(os.environ['XDG_RUNTIME_DIR']) / 'viewflow' / 'macos-windows'
+    if not args.route_config and not args.routes_file:
+        parser.error("--route-config or --routes-file required")
+    runtime = args.runtime or Path(os.environ['XDG_RUNTIME_DIR']) / 'viewflow' / 'macos-windows'
     runtime.mkdir(parents=True, exist_ok=True, mode=0o700)
     stopped = False
     children = {}
@@ -73,7 +86,14 @@ def main():
     try:
         while not stopped:
             try:
-                route = json.loads(args.route_config.read_text())
+                paths = json.loads(args.routes_file.read_text()) if args.routes_file else [str(args.route_config)]
+                routes = [json.loads(Path(path).read_text()) for path in paths]
+                if not routes:
+                    for child in children.values(): retire(child)
+                    children.clear()
+                    time.sleep(.25)
+                    continue
+                route = routes[0]
                 if route['remote'].rsplit(':', 1)[0] != args.remote.rsplit(':', 1)[0]:
                     raise ValueError('active input target is not the Mac window receiver')
                 socket = Path(route['desktop']['hyprland_socket'])
@@ -90,7 +110,7 @@ def main():
                 monitors = json.loads(subprocess.check_output(['hyprctl', '-j', 'monitors'], timeout=3))
                 clients = json.loads(subprocess.check_output(['hyprctl', '-j', 'clients'], timeout=3))
                 live = {(w['address'], w['pid'], w['stableId']): w for w in clients
-                        if eligible(w, monitors, route['pointer']['cursor_monitor_id'])}
+                        if any(eligible(w, monitors, item['pointer']['cursor_monitor_id']) for item in routes)}
                 # Keep a source alive while Hyprland owns its native drag,
                 # including the last pixels beyond the viewport on return.
                 try:
@@ -116,7 +136,7 @@ def main():
                         break
                     address, pid, stable = identity
                     config = {k: route[k] for k in ('server_name', 'certificate', 'private_key', 'certificate_authority')}
-                    config.update(bind='0.0.0.0:0', remote=args.remote, role='source', backend={
+                    config.update(bind='[::]:0' if args.remote.startswith('[') else '0.0.0.0:0', remote=args.remote, role='source', backend={
                         'native': str(args.source), 'args': ['--window', address, '--compositor-pid',
                         str(route['compositor_pid']), '--fps', '60', '--performance-mode',
                         args.performance_mode, '--input-native', str(args.input_native)]})

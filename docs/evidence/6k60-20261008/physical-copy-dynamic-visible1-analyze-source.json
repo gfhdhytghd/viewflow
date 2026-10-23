@@ -1,0 +1,55 @@
+{
+  "readback": {
+    "ready_ms": {
+      "n": 1583,
+      "p50": 5.134,
+      "p95": 6.417,
+      "max": 94.82
+    },
+    "map_ms": {
+      "n": 1583,
+      "p50": 0.002,
+      "p95": 0.004,
+      "max": 0.033
+    },
+    "publish_ms": {
+      "n": 1583,
+      "p50": 2.83,
+      "p95": 3.524,
+      "max": 5.482
+    }
+  },
+  "scope": "Windows QPC; enqueue-to-pack includes GPU readback, polling and shared publication",
+  "stages": {
+    "capture_to_enqueue_ms": {
+      "n": 1583,
+      "p50": -4.4074,
+      "p95": -2.128,
+      "max": 79.1437
+    },
+    "enqueue_to_pack_ms": {
+      "n": 1583,
+      "p50": 7.4963,
+      "p95": 9.5337,
+      "max": 98.9837
+    },
+    "pack_ms": {
+      "n": 1583,
+      "p50": 0.0053,
+      "p95": 0.0077,
+      "max": 0.0537
+    },
+    "pipe_write_ms": {
+      "n": 1583,
+      "p50": 0.0075,
+      "p95": 0.0105,
+      "max": 0.074
+    },
+    "atlas_to_write_ms": {
+      "n": 1583,
+      "p50": 7.5083,
+      "p95": 9.5529,
+      "max": 99.0007
+    }
+  }
+}

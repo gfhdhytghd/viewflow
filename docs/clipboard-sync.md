@@ -85,3 +85,34 @@ operator's actual clipboard or injects mouse/keyboard input.
 Native copying and pasting between real applications remains a user-operated
 acceptance check on each OS. Linux builds are locally verified; Windows/macOS
 native delivery requires verification on those systems.
+
+### Linux-to-Mac deployment recovery (2026-09-12)
+
+The Mac app already owned its clipboard listener at UDP 44141, but the Linux
+clipboard peer was absent. Enabled the user unit
+`viewflow-clipboard-macos.service` under `graphical-session.target`, using
+the existing paired `~/.config/viewflow/app/mac-clipboard.json` and installed
+`~/.local/lib/viewflow/vf-clipboard-peer`. It connects to the Mac listener
+independently of window sharing. Both endpoints logged a successful handshake.
+
+Live observation also reproduced the default 30-second idle timeout. The
+standalone peer now sets QUIC keepalive to five seconds on both client/server
+configurations. One updated endpoint suffices for this deployed connection.
+Release build and rustfmt validation passed. This preserves the connection
+and avoids repeatedly rebaselining clipboard contents after idle reconnects.
+
+After deployment the clipboard unit stayed connected beyond the previous
+30-second idle boundary without a restart. Six clipboard synchronization
+unit tests passed. Native copy acceptance is checked separately from handshake.
+
+Mac-to-Linux native acceptance passed: after re-publishing the user-copied
+Mac item while preserving all NSPasteboard representations, Linux logged
+`clipboard installed kind=1 bytes=114`. `wl-paste --type text/plain` and
+Mac `LC_CTYPE=UTF-8 pbpaste` returned identical 114-byte UTF-8 content.
+The explicit Mac locale matters: SSH pbpaste without it returned a different
+legacy encoding and was not a valid byte comparison. No keyboard/mouse input
+was injected. The unit uses SIGINT for graceful QUIC shutdown (the standalone
+peer handles ctrl_c); abrupt termination had left the Mac listener waiting
+for the old connection to expire. Optional `VIEWFLOW_CLIPBOARD_DIAGNOSTICS`
+logs lane readiness and format/length of sends/installs, never clipboard data.
+The temporary diagnostic unit override was removed after acceptance.

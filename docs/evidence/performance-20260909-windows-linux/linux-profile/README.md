@@ -1,0 +1,3 @@
+# Initial Linux profiling trial
+
+The isolated presenter adds CPU timestamps for receive, decode, CUDA upload, alpha, draw/swap and geometry IPC. It builds and passes two CTests, and the trial exits normally with full nested cleanup. Native stderr shared the parent log: 1 reverse_clock record became interleaved, so the unchanged full-route analyzer failed. The raw log and explicit analysis-rejection.json are preserved. No end-to-end result is certified and this trial is excluded from the qualified count. See [the separate-log repeat](../linux-profile-v2/README.md). No production files were changed.

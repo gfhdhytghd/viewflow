@@ -1,0 +1,5 @@
+# NV12 compute-write capability
+
+On the actual Intel adapter (vendor 32902, device 32103 / 7D67), a full 6144×3456 NV12 texture can be created with UAV only (128), RTV+UAV (160), and RTV+UAV+video-encoder (1184). Every combination successfully creates separate R8_UNORM luminance and R8G8_UNORM chroma UAV views via ID3D11Device3. Both formats report typed UAV stores. This establishes resource/view support, not conversion correctness or performance.
+
+The initial staging helper assumed a JSON array when PowerShell returned a single object for one source file. The original source/map and failure are preserved; before compiling, the resume helper verifies that exact remote source and absence of a binary, adds an explicit initializer_list include, uploads it, verifies the new hash and builds. The resulting bounded capability probe exits normally, creates no windows/input, and leaves installed C914CC47 unchanged with main task Ready. API references and full HRESULT logs are retained in method/.

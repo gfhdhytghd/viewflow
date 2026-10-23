@@ -1,0 +1,11 @@
+{
+  "run_qualified": false,
+  "reason": "Native diagnostic writes interleaved with parent clock samples. Original analyzer failed; no end-to-end summary certified. Repeating with separate native stderr.",
+  "valid_clock_lines": 314,
+  "malformed_clock_lines": [
+    {
+      "line": 4123,
+      "text": "reverse_clock seq=profile_present pts=342605284019 begin=86020147835826 submit=86020147921683 decoded=86020152665515 upload_begin=86020152666012 u270ploaded=86020152717350 alpha=86020152717574 swapped=86020153130097"
+    }
+  ]
+}

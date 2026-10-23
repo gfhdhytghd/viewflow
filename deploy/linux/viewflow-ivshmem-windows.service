@@ -1,0 +1,12 @@
+[Unit]
+Description=Windows to Linux IVSHMEM window transport
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/.local/lib/viewflow/ivshmem/session.py --config %h/.config/viewflow/ivshmem/windows.json --peer %h/.local/lib/viewflow/ivshmem/vf-window-peer
+Restart=always
+RestartSec=2
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

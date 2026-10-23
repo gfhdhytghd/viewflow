@@ -541,6 +541,8 @@ message AtlasWindowPlacement {
   // Bottom to top source compositor rank; zero means unknown.
   uint32 z_order = 4;
   uint32 raise_serial = 5;
+  // Interactive body, excluding source compositor shadows. Absent means bounds.
+  DesktopRect body_bounds = 6;
 }
 
 // Captures the complete immutable logical desktop relationship for every atlas
@@ -565,6 +567,16 @@ message AtlasPatches {
   repeated AtlasPatch patches = 1;
 }
 
+// Negotiated activity scheduling. Global membership is independent of the
+// subset carried by this decoder lane, so migration never destroys a proxy.
+message AtlasActivity {
+  uint32 lane = 1;
+  uint64 epoch = 2;
+  optional Id128 preferred = 3;
+  optional Id128 focus = 4;
+  repeated Id128 members = 5;
+}
+
 message AtlasFrame {
   uint32 version = 1;
   Id128 stream_id = 2;
@@ -581,6 +593,7 @@ message AtlasFrame {
   optional AtlasDesktopLayout desktop = 13;
   // v2: tiles retain full window geometry; only patches occupy atlas storage.
   optional AtlasPatches patches = 14;
+  optional AtlasActivity activity = 15;
 }
 
 enum DesktopWindowMovePhase {
@@ -656,6 +669,7 @@ message AtlasSession {
   uint32 sparse_patch_version = 17;
   // Optional V3 alpha references; enabled only when offered and accepted.
   bool alpha_reference = 18;
+  uint32 activity_priority_version = 19;
 }
 
 message ControlEnvelope {

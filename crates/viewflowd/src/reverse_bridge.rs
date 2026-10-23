@@ -14,12 +14,31 @@ const MAGIC: &[u8; 8] = b"VFRV\0\0\0\x01";
 const MAX_FRAME: u32 = 96 * 1024 * 1024;
 const MAX_BACKDROP: u32 = 64 * 1024 * 1024;
 
+fn peer_supports_activity(connection: &quinn::Connection) -> bool {
+    connection.handshake_data()
+        .and_then(|data| data.downcast::<quinn::crypto::rustls::HandshakeData>().ok())
+        .is_some_and(|data| data.protocol.as_deref() == Some(viewflow_transport::ACTIVITY_ALPN))
+}
+
+async fn native_supports_activity(config: &ReverseBridgeConfig) -> bool {
+    if config.activity_priority == crate::activity_priority::ActivityPriorityMode::Off { return false; }
+    let mut command = Command::new(&config.native);
+    command.arg("--activity-priority-capabilities").stdin(Stdio::null())
+        .stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    matches!(tokio::time::timeout(Duration::from_secs(2), command.output()).await,
+        Ok(Ok(output)) if output.status.success() && output.stdout == b"activity-priority-v1\n")
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReverseBridgeConfig {
     pub native: PathBuf,
     #[serde(default)]
     pub args: Vec<String>,
+    #[serde(default)]
+    pub activity_priority: crate::activity_priority::ActivityPriorityMode,
 }
 
 impl ReverseBridgeConfig {
@@ -200,6 +219,7 @@ async fn run(
     stopped: &mut watch::Receiver<bool>,
     drag: Option<&SharedNativeDrag>,
 ) -> Result<()> {
+    let activity_capable = peer_supports_activity(connection) && native_supports_activity(config).await;
     let negotiate = async {
         let (mut send, mut receive) = if windows_source {
             connection.open_bi().await?
@@ -215,15 +235,34 @@ async fn run(
         if !windows_source {
             send.write_all(MAGIC).await?;
         }
-        Ok::<_, anyhow::Error>((send, receive))
+        let activity = if peer_supports_activity(connection) {
+            send.write_all(&[u8::from(activity_capable)]).await?;
+            let peer = receive.read_u8().await?;
+            ensure!(peer <= 1, "invalid native activity capability");
+            activity_capable && peer == 1
+        } else { false };
+        Ok::<_, anyhow::Error>((send, receive, activity))
     };
-    let (mut send, mut receive) = tokio::select! {
+    let (mut send, mut receive, activity) = tokio::select! {
         result = negotiate => result?,
         _ = stopped.changed() => return Ok(()),
     };
+    let mut priority_stream = if activity {
+        let open = async {
+            let (mut send, mut receive) = if windows_source {
+                connection.open_bi().await?
+            } else { connection.accept_bi().await? };
+            send.write_all(b"VFL1").await?;
+            let mut magic = [0; 4]; receive.read_exact(&mut magic).await?;
+            ensure!(&magic == b"VFL1", "activity priority stream version");
+            Ok::<_, anyhow::Error>((send, receive))
+        };
+        Some(tokio::select! { result = open => result?, _ = stopped.changed() => return Ok(()) })
+    } else { None };
     let mut command = Command::new(&config.native);
     command
         .args(&config.args)
+        .env("VIEWFLOW_ACTIVITY_PRIORITY", if activity { "1" } else { "0" })
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -246,18 +285,34 @@ async fn run(
     let outgoing_type = if windows_source { 1 } else { 2 };
     let incoming_type = if windows_source { 2 } else { 1 };
     let child_pid = child.id().context("reverse child PID missing")?;
-    let outgoing = async {
-        if windows_source {
-            relay_records(&mut output, &mut send, outgoing_type).await
+    let session = async {
+        if let Some((priority_send, priority_receive)) = priority_stream.as_mut() {
+            if windows_source {
+                crate::activity_relay::source(&mut output, &mut input, &mut send, priority_send, &mut receive).await
+            } else {
+                tokio::select! {
+                    result = relay_reverse_inputs_with_activity(&mut output, &mut send, drag, child_pid, true) => result,
+                    result = crate::activity_relay::presenter(&mut receive, priority_receive, &mut input) => result,
+                }
+            }
         } else {
-            relay_reverse_inputs(&mut output, &mut send, drag, child_pid).await
+            let outgoing = async {
+                if windows_source { relay_records(&mut output, &mut send, outgoing_type).await }
+                else { relay_reverse_inputs(&mut output, &mut send, drag, child_pid).await }
+            };
+            tokio::select! {
+                result = outgoing => result,
+                result = relay_records(&mut receive, &mut input, incoming_type) => result,
+            }
         }
     };
     let result = tokio::select! {
-        result = outgoing => result,
-        result = relay_records(&mut receive, &mut input, incoming_type) => result,
+        result = session => result,
         _ = stopped.changed() => Ok(()),
     };
+    if let Some((mut send, mut receive)) = priority_stream {
+        let _ = send.finish(); let _ = receive.stop(0_u32.into());
+    }
     // EOF gives the Windows owner a chance to release precisely its injected
     // keys/buttons before process teardown. A reverse failure does not close
     // the other direction or its independently owned windows.
@@ -283,19 +338,40 @@ async fn run(
 // The local Wayland child reports its own PID/address only after mapping the
 // proxy. Windows native move state is carried in the paired frame metadata.
 async fn relay_reverse_inputs<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
+    reader: &mut R, writer: &mut W, drag: Option<&SharedNativeDrag>, child_pid: u32,
+) -> Result<()> {
+    relay_reverse_inputs_with_activity(reader, writer, drag, child_pid, false).await
+}
+
+async fn relay_reverse_inputs_with_activity<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
     reader: &mut R,
     writer: &mut W,
     drag: Option<&SharedNativeDrag>,
     child_pid: u32,
+    activity: bool,
 ) -> Result<()> {
     let mut next_anchor: Option<(u64, (f64, f64))> = None;
     loop {
         let mut prefix = [0u8; 4];
         reader.read_exact(&mut prefix).await.context("reverse input length")?;
         let length = u32::from_le_bytes(prefix);
-        ensure!(length == 40 || (48..=MAX_BACKDROP).contains(&length), "reverse input record length");
+        ensure!(length == 24 || length == 40 || (48..=MAX_BACKDROP).contains(&length), "reverse input record length");
         let mut tag = [0u8; 4];
         reader.read_exact(&mut tag).await?;
+        if u32::from_le_bytes(tag) == 6 {
+            ensure!(activity && length==24, "activity hint not negotiated or invalid length");
+            let mut body=[0u8;20];reader.read_exact(&mut body).await?;
+            ensure!((1..=2).contains(&u32::from_le_bytes(body[..4].try_into()?)) && u64::from_le_bytes(body[4..12].try_into()?)>0
+                && u32::from_le_bytes(body[12..16].try_into()?)<=1 && body[16..20]==[0;4], "activity hint fields");
+            writer.write_all(&prefix).await?;writer.write_all(&tag).await?;writer.write_all(&body).await?;writer.flush().await?;continue;
+        }
+        if u32::from_le_bytes(tag) == 5 {
+            ensure!(activity && length == 24, "activity feedback not negotiated or invalid length");
+            let mut body = [0u8;20];reader.read_exact(&mut body).await?;
+            ensure!(u32::from_le_bytes(body[..4].try_into()?)<=1 && u32::from_le_bytes(body[4..8].try_into()?)<=7 && u32::from_le_bytes(body[8..12].try_into()?)<=2, "activity feedback header");
+            writer.write_all(&prefix).await?;writer.write_all(&tag).await?;writer.write_all(&body).await?;writer.flush().await?;
+            continue;
+        }
         if u32::from_le_bytes(tag) == 3 {
             ensure!((48..=MAX_BACKDROP).contains(&length), "reverse backdrop length");
             writer.write_all(&prefix).await?;

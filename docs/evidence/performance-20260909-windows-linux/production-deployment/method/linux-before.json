@@ -1,0 +1,27 @@
+{
+  "desktop-source.json": {
+    "sha256": "c5dcd5a0e990bb5ca5d0af8187e1ef0c0aef8033ba828a762b6523864eb01a5a",
+    "reverse": {
+      "native": "/home/wilf/data/viewflow/build/desktop/reverse/viewflow_linux_reverse",
+      "args": [
+        "3072",
+        "390",
+        "2"
+      ]
+    },
+    "performance_mode": "latency"
+  },
+  "windows-input-source.json": {
+    "sha256": "b9343e1ed59f263d1b8fb84afe878b96afc9ee07e67d60d539d88ee1985654e3",
+    "reverse": {
+      "native": "/home/wilf/data/viewflow/build/desktop/reverse/viewflow_linux_reverse",
+      "args": [
+        "3072",
+        "390",
+        "2"
+      ]
+    },
+    "performance_mode": null
+  },
+  "services": "Id=viewflow-desktop.service\nActiveState=inactive\nSubState=dead\n\nId=viewflow-windows-input.service\nActiveState=active\nSubState=running\n"
+}

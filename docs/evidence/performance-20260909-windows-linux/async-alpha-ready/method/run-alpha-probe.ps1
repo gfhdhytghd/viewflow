@@ -1,0 +1,1 @@
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false);Set-Location 'C:\Users\wilf\Viewflow\perf-isolated-8e97c1b751fc\reverse-async-alpha-ready-20260909';cmd.exe /d /c 'build\Release\viewflow_reverse_alpha_async_probe.exe > alpha-probe.log 2>&1';$code=$LASTEXITCODE;Get-Content alpha-probe.log;exit $code

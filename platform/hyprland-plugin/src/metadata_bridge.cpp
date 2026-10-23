@@ -5,7 +5,9 @@
 
 #include <hyprland/src/SharedDefs.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowMetadata.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/output/Monitor.hpp>
@@ -36,7 +38,7 @@ std::string bounded(std::string value, std::size_t maximum) {
 
 } // namespace
 
-MetadataBridge::MetadataBridge() = default;
+MetadataBridge::MetadataBridge(std::filesystem::path path) : m_sink(std::move(path)) {}
 
 MetadataBridge::~MetadataBridge() {
   if (m_nativeTimer) wl_event_source_remove(m_nativeTimer);
@@ -355,34 +357,34 @@ WindowState MetadataBridge::readWindow(PHLWINDOW window) {
   const auto monitor = window->m_monitor.lock();
 
   std::uint32_t flags = 0;
-  if (window->m_isMapped)
+  if (window->mapped())
     flags |= protocol::WINDOW_MAPPED;
-  if (window->m_isFloating)
+  if (window->isFloating())
     flags |= protocol::WINDOW_FLOATING;
   if (Fullscreen::controller()->isFullscreen(window))
     flags |= protocol::WINDOW_FULLSCREEN;
-  if (window->m_pinned)
+  if ((window->m_state & Desktop::View::WINDOW_STATE_PINNED))
     flags |= protocol::WINDOW_PINNED;
-  if (window->m_isX11)
+  if (window->backend().isX11())
     flags |= protocol::WINDOW_X11;
-  if (window->m_class.size() > protocol::MAX_CLASS_BYTES ||
-      window->m_title.size() > protocol::MAX_TITLE_BYTES)
+  if (window->metadata().appID().size() > protocol::MAX_CLASS_BYTES ||
+      window->metadata().title().size() > protocol::MAX_TITLE_BYTES)
     flags |= protocol::WINDOW_TEXT_TRUNCATED;
 
   return {
       .id = static_cast<std::uint64_t>(
           reinterpret_cast<std::uintptr_t>(window.get())),
       .monitorId = monitor ? monitor->m_id : -1,
-      .workspaceId = window->m_workspace ? window->workspaceID() : -1,
+      .workspaceId = window->m_workspace ? (window->m_workspace->numberedID() ? static_cast<std::int64_t>(*window->m_workspace->numberedID()) : -1) : -1,
       .x = position.x,
       .y = position.y,
       .width = size.x,
       .height = size.y,
       .scale = monitor ? monitor->m_scale : 1.0,
-      .alpha = window->effectiveAlpha(),
+      .alpha = window->presentation().alphaTotal(),
       .flags = flags,
-      .className = bounded(window->m_class, protocol::MAX_CLASS_BYTES),
-      .title = bounded(window->m_title, protocol::MAX_TITLE_BYTES),
+      .className = bounded(window->metadata().appID(), protocol::MAX_CLASS_BYTES),
+      .title = bounded(window->metadata().title(), protocol::MAX_TITLE_BYTES),
   };
 }
 

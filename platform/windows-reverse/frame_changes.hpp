@@ -12,7 +12,7 @@ class FrameChangeTracker {
   bool needs_frame(const std::vector<Tile>& tiles,const Versions& versions,bool keyframe,bool refresh) const {
     if(keyframe || refresh || versions!=versions_ || tiles.size()!=tiles_.size())return true;
     return !std::equal(tiles.begin(),tiles.end(),tiles_.begin(),[](const Tile& a,const Tile& b){
-      const auto fields=[](const Tile& t){return std::tie(t.id,t.owner,t.x,t.y,t.width,t.height,t.atlas_x,t.atlas_y,t.title,t.flags,t.geometry_ack,t.grab_x,t.grab_y);};
+      const auto fields=[](const Tile& t){return std::tie(t.id,t.owner,t.x,t.y,t.width,t.height,t.atlas_x,t.atlas_y,t.title,t.flags,t.geometry_ack,t.grab_x,t.grab_y,t.resident_x,t.resident_y,t.resident_width,t.resident_height,t.body_x,t.body_y,t.body_width,t.body_height,t.logical_width,t.logical_height,t.pixel_scale);};
       return fields(a)==fields(b);
     });
   }

@@ -4,7 +4,9 @@
 #include "window_input_lifecycle.hpp"
 #include "ime_popup_scope.hpp"
 
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowMetadata.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/desktop/view/Popup.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
@@ -122,7 +124,7 @@ bool WindowInputTarget::matches(std::uint64_t windowAddress, std::uint64_t surfa
       reinterpret_cast<std::uintptr_t>(surface.get()) == surfaceAddress &&
       m_pid > 0 && static_cast<std::uint32_t>(m_pid) == pid && m_size == extent &&
       Desktop::View::validMapped(window) && !window->isHidden() &&
-      window->getPID() == m_pid && window->wlSurface() &&
+      window->backend().pid() == m_pid && window->wlSurface() &&
       window->wlSurface()->resource() == surface && surface->m_current.size == m_size;
 }
 
@@ -131,8 +133,8 @@ WindowPointerRevocation WindowInputTarget::resizeGuardReason() const {
     return revocationReason();
   const auto window = m_window.lock();
   const auto surface = m_surface.lock();
-  if (!Desktop::View::validMapped(window) || window->isHidden() || window->m_isX11 ||
-      window->getPID() != m_pid || !surface || !window->wlSurface() ||
+  if (!Desktop::View::validMapped(window) || window->isHidden() || window->backend().isX11() ||
+      window->backend().pid() != m_pid || !surface || !window->wlSurface() ||
       window->wlSurface()->resource() != surface)
     m_lifetime->reason = WindowPointerRevocation::TargetInvalid;
   else if (!PROTO::sessionLock || PROTO::sessionLock->isLocked())
@@ -140,7 +142,7 @@ WindowPointerRevocation WindowInputTarget::resizeGuardReason() const {
   else if (!g_pSeatManager || !g_pInputManager || (g_pInputManager->hasHeldButtons() &&
        !(m_captureLoopback && m_captureLoopback->active)) ||
       g_pSeatManager->m_seatGrab ||
-      std::ranges::any_of(g_pInputManager->m_exclusiveLSes,
+      std::ranges::any_of(g_pInputManager->m_exclusiveKeyboardLSes,
           [](const auto& layer) { return bool(layer.lock()); }))
     m_lifetime->reason = WindowPointerRevocation::SeatUnavailable;
   return m_lifetime->reason;
@@ -170,10 +172,10 @@ WindowInputTarget::bind(const PHLWINDOW &window, std::shared_ptr<CaptureLoopback
       !g_pInputManager || (g_pInputManager->hasHeldButtons() &&
        !(captureLoopback && captureLoopback->active)) ||
       !Desktop::View::validMapped(window) || window->isHidden() ||
-      window->m_isX11 || !window->wlSurface())
+      window->backend().isX11() || !window->wlSurface())
     return std::nullopt;
   const auto surface = window->wlSurface()->resource();
-  if (!surface || window->getPID() <= 0 ||
+  if (!surface || window->backend().pid() <= 0 ||
       surface->m_current.size.x <= 0 || surface->m_current.size.y <= 0)
     return std::nullopt;
   WindowInputTarget target;
@@ -181,7 +183,7 @@ WindowInputTarget::bind(const PHLWINDOW &window, std::shared_ptr<CaptureLoopback
   target.m_window = window;
   target.m_surface = surface;
   target.m_size = surface->m_current.size;
-  target.m_pid = window->getPID();
+  target.m_pid = window->backend().pid();
   // Callbacks never capture the movable target or retain the source window.
   // The target is move-only so one session owns the immediate cleanup callback.
   // Listener callbacks hold only a weak lifetime token, not an ownership cycle.
@@ -272,14 +274,14 @@ WindowInputTarget::resolve(const Vector2D &point) const {
   // then perform input-region-aware hit testing within each popup tree.
   // The negotiated extent remains the main surface; out-of-extent family
   // input must wait for an explicitly negotiated geometry change.
-  if (const auto head = target->window->m_popupHead) {
+  if (const auto head = target->window->popupHead()) {
     std::vector<SP<Desktop::View::CPopup>> popups;
     head->breadthfirst([&popups](SP<Desktop::View::CPopup> popup, void*) {
       popups.push_back(popup);
     }, nullptr);
     for (auto it = popups.rbegin(); it != popups.rend(); ++it) {
       const auto& popup = *it;
-      if (!popup || !popup->m_mapped || popup->inert() ||
+      if (!popup || !popup->mapped() || popup->inert() ||
           popup->getT1Owner() != target->window->wlSurface())
         continue;
       const auto wrapper = popup->wlSurface();
@@ -314,7 +316,7 @@ WindowInputTarget::resolveKeyboard() const {
   const auto window = m_window.lock();
   const auto main = m_surface.lock();
   if (!Desktop::View::validMapped(window) || window->isHidden() ||
-      window->m_isX11 || window->getPID() != m_pid || !main ||
+      window->backend().isX11() || window->backend().pid() != m_pid || !main ||
       !window->wlSurface() || window->wlSurface()->resource() != main ||
       main->m_current.size != m_size) {
     m_lifetime->reason = WindowPointerRevocation::TargetInvalid;
@@ -324,7 +326,7 @@ WindowInputTarget::resolveKeyboard() const {
       (g_pInputManager->hasHeldButtons() &&
        !(m_captureLoopback && m_captureLoopback->active)) ||
       PROTO::sessionLock->isLocked() || g_pSeatManager->m_seatGrab ||
-      std::ranges::any_of(g_pInputManager->m_exclusiveLSes,
+      std::ranges::any_of(g_pInputManager->m_exclusiveKeyboardLSes,
                          [](const auto &layer) { return bool(layer.lock()); })) {
     m_lifetime->reason = WindowPointerRevocation::SeatUnavailable;
     return std::nullopt;

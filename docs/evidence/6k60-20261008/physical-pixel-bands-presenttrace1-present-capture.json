@@ -1,0 +1,196 @@
+{
+  "scope": "same pixel identity; Present return is CPU API completion, not GPU completion, composition or scanout; negative intervals retained",
+  "fixture_records": 1800,
+  "summary": {
+    "generation_to_present_begin_ms": {
+      "n": 1564,
+      "p50": 0.009,
+      "p95": 0.0182,
+      "min": 0.0012,
+      "max": 0.1547
+    },
+    "present_cpu_ms": {
+      "n": 1564,
+      "p50": 0.0506,
+      "p95": 0.0952,
+      "min": 0.0091,
+      "max": 1.1396
+    },
+    "present_return_to_callback_ms": {
+      "n": 1564,
+      "p50": 15.73725,
+      "p95": 28.0048,
+      "min": 6.8006,
+      "max": 33.928
+    },
+    "generation_to_callback_ms": {
+      "n": 1564,
+      "p50": 15.80285,
+      "p95": 28.1125,
+      "min": 6.8484,
+      "max": 34.0206
+    }
+  },
+  "worst_20": [
+    {
+      "sequence": 1487,
+      "pts": 51315824346,
+      "generation_to_present_begin_ms": 0.0186,
+      "present_cpu_ms": 0.074,
+      "present_return_to_callback_ms": 33.928,
+      "generation_to_callback_ms": 34.0206
+    },
+    {
+      "sequence": 1486,
+      "pts": 51315662321,
+      "generation_to_present_begin_ms": 0.0096,
+      "present_cpu_ms": 0.0519,
+      "present_return_to_callback_ms": 33.7405,
+      "generation_to_callback_ms": 33.802
+    },
+    {
+      "sequence": 1512,
+      "pts": 51319969544,
+      "generation_to_present_begin_ms": 0.0122,
+      "present_cpu_ms": 0.0911,
+      "present_return_to_callback_ms": 32.1744,
+      "generation_to_callback_ms": 32.2777
+    },
+    {
+      "sequence": 325,
+      "pts": 51122136792,
+      "generation_to_present_begin_ms": 0.0031,
+      "present_cpu_ms": 0.0232,
+      "present_return_to_callback_ms": 31.8063,
+      "generation_to_callback_ms": 31.8326
+    },
+    {
+      "sequence": 1727,
+      "pts": 51355814888,
+      "generation_to_present_begin_ms": 0.0123,
+      "present_cpu_ms": 0.0859,
+      "present_return_to_callback_ms": 31.6567,
+      "generation_to_callback_ms": 31.7549
+    },
+    {
+      "sequence": 1503,
+      "pts": 51318465439,
+      "generation_to_present_begin_ms": 0.0086,
+      "present_cpu_ms": 0.0603,
+      "present_return_to_callback_ms": 31.629,
+      "generation_to_callback_ms": 31.6979
+    },
+    {
+      "sequence": 1607,
+      "pts": 51335813378,
+      "generation_to_present_begin_ms": 0.0157,
+      "present_cpu_ms": 0.1293,
+      "present_return_to_callback_ms": 31.5217,
+      "generation_to_callback_ms": 31.6667
+    },
+    {
+      "sequence": 775,
+      "pts": 51197145096,
+      "generation_to_present_begin_ms": 0.0144,
+      "present_cpu_ms": 0.0654,
+      "present_return_to_callback_ms": 31.3454,
+      "generation_to_callback_ms": 31.4252
+    },
+    {
+      "sequence": 1787,
+      "pts": 51365792051,
+      "generation_to_present_begin_ms": 0.006,
+      "present_cpu_ms": 0.03,
+      "present_return_to_callback_ms": 31.3392,
+      "generation_to_callback_ms": 31.3752
+    },
+    {
+      "sequence": 1485,
+      "pts": 51315489694,
+      "generation_to_present_begin_ms": 0.0138,
+      "present_cpu_ms": 0.0855,
+      "present_return_to_callback_ms": 31.1913,
+      "generation_to_callback_ms": 31.2906
+    },
+    {
+      "sequence": 1381,
+      "pts": 51298126241,
+      "generation_to_present_begin_ms": 0.0062,
+      "present_cpu_ms": 0.0489,
+      "present_return_to_callback_ms": 31.0109,
+      "generation_to_callback_ms": 31.066
+    },
+    {
+      "sequence": 296,
+      "pts": 51117292816,
+      "generation_to_present_begin_ms": 0.0094,
+      "present_cpu_ms": 0.0651,
+      "present_return_to_callback_ms": 30.9896,
+      "generation_to_callback_ms": 31.0641
+    },
+    {
+      "sequence": 620,
+      "pts": 51171286863,
+      "generation_to_present_begin_ms": 0.0019,
+      "present_cpu_ms": 0.0132,
+      "present_return_to_callback_ms": 30.9564,
+      "generation_to_callback_ms": 30.9715
+    },
+    {
+      "sequence": 466,
+      "pts": 51145620323,
+      "generation_to_present_begin_ms": 0.0028,
+      "present_cpu_ms": 0.017,
+      "present_return_to_callback_ms": 30.9422,
+      "generation_to_callback_ms": 30.962
+    },
+    {
+      "sequence": 712,
+      "pts": 51186618971,
+      "generation_to_present_begin_ms": 0.0044,
+      "present_cpu_ms": 0.0258,
+      "present_return_to_callback_ms": 30.8113,
+      "generation_to_callback_ms": 30.8415
+    },
+    {
+      "sequence": 528,
+      "pts": 51155954654,
+      "generation_to_present_begin_ms": 0.0033,
+      "present_cpu_ms": 0.0272,
+      "present_return_to_callback_ms": 30.793,
+      "generation_to_callback_ms": 30.8235
+    },
+    {
+      "sequence": 1475,
+      "pts": 51313785622,
+      "generation_to_present_begin_ms": 0.0062,
+      "present_cpu_ms": 0.0335,
+      "present_return_to_callback_ms": 30.7314,
+      "generation_to_callback_ms": 30.7711
+    },
+    {
+      "sequence": 1511,
+      "pts": 51319804073,
+      "generation_to_present_begin_ms": 0.0174,
+      "present_cpu_ms": 0.1066,
+      "present_return_to_callback_ms": 30.6377,
+      "generation_to_callback_ms": 30.7617
+    },
+    {
+      "sequence": 1655,
+      "pts": 51343784692,
+      "generation_to_present_begin_ms": 0.0049,
+      "present_cpu_ms": 0.0251,
+      "present_return_to_callback_ms": 30.6763,
+      "generation_to_callback_ms": 30.7063
+    },
+    {
+      "sequence": 1717,
+      "pts": 51354116556,
+      "generation_to_present_begin_ms": 0.0035,
+      "present_cpu_ms": 0.0303,
+      "present_return_to_callback_ms": 30.5772,
+      "generation_to_callback_ms": 30.611
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Passing lifecycle and exact-alpha regression
+
+2026-09-09. The same owned-window sequence, with additional actual Win32 rectangle logging, exercises the integrated candidate. All 21 frames pass Linux NVDEC/CUDA/GLES decoding and every alpha byte, including atlas padding. Coverage includes title, movement, two windows, resize, hide and destruction, and both direct and atlas-copy paths. Atlas sizes change from 256×192 to 384×192 to 448×256. Exactly one pending-resize recovery occurs. Foreground-window samples remain unchanged. This is recorded-source-to-GPU qualification, not live Wayland lifecycle or physical-input acceptance. Phase timestamps are logged after Win32 actions: signed differences in summary.json are diagnostic and are not action-to-output latency. The resized frame includes roughly 1.08 seconds of recovery and encoder reinitialization, separate from steady 6K latency.
+
+Source, methods and raw observations are retained beside this report. `sha256.json` covers all archived files except itself.

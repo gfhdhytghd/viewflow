@@ -43,6 +43,7 @@ pub struct AtlasCaptureLease {
 }
 
 pub struct AtlasBatch {
+    pub activity: Option<viewflow_protocol::AtlasActivity>,
     pub codec: CodecIdentity,
     pub layout: AtlasSnapshot,
     pub identity: GpuAtlasIdentity,
@@ -82,6 +83,7 @@ impl AtlasBatch {
 
 /// Reusable capture receivers are returned only after all releases succeeded.
 pub struct AtlasBatchSent {
+    pub capacity_limited: Option<String>,
     pub grown_canvas: Option<(u32, u32)>,
     pub submitted: bool,
     pub receivers: Vec<(WindowId, HyprCaptureGpuSocketReceiver)>,
@@ -122,6 +124,30 @@ pub struct GpuAtlasSender {
 }
 
 impl GpuAtlasSender {
+    pub(crate) fn fork_activity_lane(&mut self) -> Result<AtlasSenderSession> {
+        ensure!(self.pending.is_none(), "activity split requires idle startup");
+        self.sender.as_mut().context("atlas sender unavailable")?.fork_activity_lane()
+    }
+
+    pub(crate) async fn into_worker(mut self) -> std::result::Result<crate::gpu_atlas_worker::GpuAtlasWorker, (anyhow::Error, Self)> {
+        if self.pending.is_some() {
+            return Err((anyhow::anyhow!("atlas worker conversion requires an idle wire"), self));
+        }
+        let recipe = match self.worker_recipe() {
+            Ok(recipe) => recipe,
+            Err(error) => return Err((error, self)),
+        };
+        let Some(wire) = self.sender.take() else {
+            return Err((anyhow::anyhow!("atlas wire sender unavailable"), self));
+        };
+        match crate::gpu_atlas_worker::GpuAtlasWorker::start(recipe, wire).await {
+            Ok(worker) => Ok(worker),
+            Err((error, wire)) => { self.sender = Some(wire); Err((error, self)) }
+        }
+    }
+    pub(crate) fn worker_recipe(&self) -> Result<crate::gpu_compatible_encoder::AtlasEncoderRecipe> {
+        self.encoder.as_ref().context("atlas encoder retired")?.worker_recipe()
+    }
     pub(crate) fn occlusion_enabled(&self) -> bool {
         self.encoder
             .as_ref()
@@ -173,16 +199,20 @@ impl GpuAtlasSender {
         width: u32,
         height: u32,
     ) -> Result<Option<AtlasPublication>> {
-        ensure!(
-            width <= self.canvas_limit.0 && height <= self.canvas_limit.1,
-            "atlas growth exceeds negotiated capacity"
-        );
-        let publication = self.finish_pending().await?;
-        self.encoder
-            .as_mut()
-            .ok_or_else(|| anyhow::anyhow!("atlas encoder retired"))?
-            .grow_canvas(width, height)?;
+        let (publication, growth) = self.grow_canvas_recoverable(width, height).await?;
+        growth?;
         Ok(publication)
+    }
+
+    /// Transport failure remains an outer error. Allocation failure leaves the
+    /// old encoder untouched and is returned separately for lane fallback.
+    pub(crate) async fn grow_canvas_recoverable(&mut self, width: u32, height: u32)
+        -> Result<(Option<AtlasPublication>, Result<()>)> {
+        ensure!(width <= self.canvas_limit.0 && height <= self.canvas_limit.1,
+            "atlas growth exceeds negotiated capacity");
+        let publication = self.finish_pending().await?;
+        let growth = self.encoder.as_mut().context("atlas encoder retired")?.grow_canvas(width, height);
+        Ok((publication, growth))
     }
 
     async fn finish_pending(&mut self) -> Result<Option<AtlasPublication>> {
@@ -209,6 +239,20 @@ impl GpuAtlasSender {
         }
     }
 
+    /// Cancel-safe wait used by an idle codec worker. The task stays in its
+    /// owner if a newly queued capture wins the select; no polling timer needed.
+    pub(crate) async fn wait_feedback(&mut self) -> Result<AtlasPublication> {
+        let Some(pending) = self.pending.as_mut() else {
+            return std::future::pending().await;
+        };
+        let completed = (&mut pending.0).await
+            .map_err(|error| anyhow::anyhow!("atlas send worker: {error}"))??;
+        self.pending.take();
+        self.reference_gap |= completed.reference_gap;
+        self.sender = Some(completed.sender);
+        Ok(completed.publication)
+    }
+
     /// The encoder must have been prepared before capture leases were acquired.
     /// Native submission proves source reads complete before any HCGR is sent.
     /// One wire task retains the sender while the next batch encodes. Source
@@ -218,9 +262,21 @@ impl GpuAtlasSender {
     /// Rejects foreign leases, failed encoding/releases or failed transport.
     pub async fn submit_batch(
         &mut self,
+        batch: AtlasBatch,
+        sequence: u64,
+        deadline: Instant,
+    ) -> Result<AtlasBatchSent> {
+        self.submit_batch_with_release(batch, sequence, deadline, None).await
+    }
+
+    /// Worker lanes return capture ownership as soon as native reads finish.
+    /// Waiting for the prior network receipt must not pin a migrating source.
+    pub(crate) async fn submit_batch_with_release(
+        &mut self,
         mut batch: AtlasBatch,
         sequence: u64,
         deadline: Instant,
+        released: Option<Box<dyn FnOnce(Vec<(WindowId, HyprCaptureGpuSocketReceiver)>) -> Result<()> + Send>>,
     ) -> Result<AtlasBatchSent> {
         let mut encoder = self
             .encoder
@@ -269,6 +325,7 @@ impl GpuAtlasSender {
             .collect();
         let trace = trace_frame(batch.identity.frame_id);
         let encode_started = trace_clock(trace);
+        encoder.stable_sparse_placement = batch.activity.is_some();
         let outcome = encoder.submit_recoverable(AtlasSubmission {
             codec: batch.codec,
             layout: &batch.layout,
@@ -286,6 +343,13 @@ impl GpuAtlasSender {
             source.receiver.release_after_source_reads(&source.frame)?;
         }
         let released_at = trace_clock(trace);
+        let source_trace: Vec<_> = batch.sources.iter().map(|source| (
+            source.window, source.frame.metadata().sequence,
+            source.frame.metadata().capture_monotonic_ns, source.received_monotonic_ns,
+        )).collect();
+        if let Some(released) = released {
+            released(batch.sources.drain(..).map(|source| (source.window, source.receiver)).collect())?;
+        }
         // At most one frame is on the wire and one is encoded ahead. Keep the
         // original capture deadline when waiting for the previous disposition.
         let previous = self.finish_pending().await?;
@@ -294,6 +358,7 @@ impl GpuAtlasSender {
             .unwrap_or((None, None));
         let mut submitted = false;
         let mut grown_canvas = None;
+        let mut capacity_limited = None;
         match outcome {
             AtlasSubmitOutcome::NeedsCanvas { width, height } => {
                 ensure!(
@@ -302,9 +367,14 @@ impl GpuAtlasSender {
                 );
                 // Every producer lease was released above, and prior wire work
                 // was drained before the old encoder is replaced.
-                encoder.grow_canvas(width, height)?;
-                grown_canvas = Some((width, height));
-                eprintln!("atlas-source-canvas sparse_grew={width}x{height}");
+                match encoder.grow_canvas(width, height) {
+                    Ok(()) => {
+                        grown_canvas = Some((width, height));
+                        eprintln!("atlas-source-canvas sparse_grew={width}x{height}");
+                    }
+                    Err(error) if batch.activity.is_some() => capacity_limited = Some(format!("{error:#}")),
+                    Err(error) => return Err(error),
+                }
             }
             AtlasSubmitOutcome::ExpiredClean => {
                 encoder.request_keyframe();
@@ -315,7 +385,8 @@ impl GpuAtlasSender {
                 mut media,
                 ..
             } => {
-                let manifest = *manifest;
+                let mut manifest = *manifest;
+                manifest.activity = batch.activity.clone();
                 ensure!(media.len() == 1, "atlas encoder did not return one pair");
                 if self.reference_gap && !(manifest.color_keyframe && manifest.alpha_keyframe) {
                     // A previous clean drop invalidated this already-encoded P
@@ -369,39 +440,15 @@ impl GpuAtlasSender {
             (encode_started, encoded_at, released_at, batch_return_ns)
         {
             let captured = i64::try_from(batch.identity.capture_monotonic_ns).unwrap_or(i64::MAX);
-            let first_received = batch
-                .sources
-                .iter()
-                .map(|source| source.received_monotonic_ns)
-                .min()
-                .unwrap_or(start);
-            let max_socket_age = batch
-                .sources
-                .iter()
-                .map(|source| {
-                    source.received_monotonic_ns.saturating_sub(
-                        i64::try_from(source.frame.metadata().capture_monotonic_ns)
-                            .unwrap_or(i64::MAX),
-                    )
-                })
-                .max()
-                .unwrap_or(0);
+            let first_received = source_trace.iter().map(|s| s.3).min().unwrap_or(start);
+            let max_socket_age = source_trace.iter().map(|s|
+                s.3.saturating_sub(i64::try_from(s.2).unwrap_or(i64::MAX))
+            ).max().unwrap_or(0);
             let previous_batch_return_ns = self.last_batch_return_ns;
             let queued_before_previous_return_us = previous_batch_return_ns
                 .map(|previous| previous.saturating_sub(captured).max(0) / 1000)
                 .unwrap_or(0);
-            let identities: Vec<_> = batch
-                .sources
-                .iter()
-                .map(|source| {
-                    (
-                        source.window,
-                        source.frame.metadata().sequence,
-                        source.frame.metadata().capture_monotonic_ns,
-                        source.received_monotonic_ns,
-                    )
-                })
-                .collect();
+            let identities = source_trace;
             crate::atlas_feedback::trace_line(format_args!(
                 "atlas-source-timing frame={} source_identities_window_sequence_capture_ns_received_ns={identities:?} encode_start_ns={start} encoded_ns={encoded} released_ns={released} batch_return_ns={done} previous_batch_return_ns={previous_batch_return_ns:?} captured_before_previous_return_us={queued_before_previous_return_us} socket_age_max_us={} collector_to_encode_us={} capture_to_encode_start_us={} encode_us={} release_us={} previous_feedback_wait_us={} capture_to_batch_return_us={} encoded_ahead_submitted={submitted} published={} native_commit_time_not_measured=true",
                 batch.identity.frame_id,
@@ -418,6 +465,7 @@ impl GpuAtlasSender {
         self.last_batch_return_ns = batch_return_ns;
         self.encoder = Some(encoder);
         Ok(AtlasBatchSent {
+            capacity_limited,
             grown_canvas,
             submitted,
             receivers: batch

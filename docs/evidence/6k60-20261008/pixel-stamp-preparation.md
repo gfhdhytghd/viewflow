@@ -1,0 +1,7 @@
+# Pixel identity diagnostic preparation
+
+Added opt-in VIEWFLOW_FIXTURE_PIXEL_STAMP marker generation to the nonactivating GPU fixture and decode at the mapped Windows readback surface.192 BGRA pixels in the first row encode magic/checksum,64bit sequence and64bit generation QPC. Alpha remains1/255; channel values stay within premultiplied range. Marker time is before GPU marker submission and Present, so future generated-to-feedback analysis includes fixture submission/composition latency. It is not photon timing.
+
+Default behavior unchanged; no marker environment installed in production. Invalid markers are ignored diagnostically and never alter transmission/session state. Generation and source readback must both be explicitly enabled for the live experiment. CPU decoder test passed roundtrip at boundary sequences, every single-byte bit corruption, every truncated span and mixed sequence/checksum. Windows Release source and fixture builds passed. Actual WGC marker survival not yet tested; do not claim pixel identity verified from unit tests. No live performance gain claimed.
+
+Next bounded run: enable marker for both fixture process and diagnostic source, retain original production wrapper/native restoration, correlate decoded sequence/time with atlas PTS and sampled host presentation. Repeated pixel sequence must count as a repeated image even if WGC timestamps change. Source decode alone does not prove Linux final rendered pixel integrity; host decode under lease remains additional validation work.

@@ -1,5 +1,12 @@
 # Owned 4K motion and interaction fixture
 
+For unattended measurements, launch with `VIEWFLOW_FIXTURE_PASSIVE=1`.
+This enables Qt's transparent-for-input and non-activating flags; on Wayland,
+the fixture submits an empty surface input region. Keep any temporary headless
+output separated from existing outputs rather than adjoining a physical screen,
+so ordinary pointer travel cannot enter it. The normal interaction fixture
+remains available without this flag. See the [passive validation](../../docs/evidence/performance-20260908/passive-blur-validation/README.md).
+
 This fixture draws a moving checkerboard, gradient, and bar over a 3840 × 2400
 OpenGL ES surface. It uses a precise monotonic 60 Hz producer schedule and
 avoids catch-up bursts after a stall. `fixture-render` and `fixture-swap` are
@@ -89,3 +96,8 @@ stages for uniquely matched IDs. Repeated marker IDs are reported as ambiguous.
 The current observer also maps rotated DXGI outputs; the tested 4K output is
 rotated 180 degrees. `physical4k` aligns the captured border at monitor origin
 minus four pixels, so the entire 3840x2400 content fits the display.
+
+Use `exact4k` instead of `physical4k` for the strict 3840×2400 baseline. It
+requires exactly one active monitor of that size and rejects a larger output
+instead of selecting the first 4K-capable display. A later output-size change
+invalidates the observation; this check only affects the measurement tool.

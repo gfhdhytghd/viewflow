@@ -1,0 +1,60 @@
+{
+  "run": "vpl-probe-v7/runs/external2-b1",
+  "exit": 0,
+  "settings": {
+    "exit": 0,
+    "low_power": 1,
+    "tile_columns": 2,
+    "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v7-20260909\\probe.exe"
+  },
+  "native_sha256": "C46777BF7E47B0BF44B8CBD249702B92282C52F38C25F48F04881CDCAFE94658",
+  "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+  "encoded_sha256": "8673249da886afa0cf8c47d551e04dea546a812eaa0511bf38f7270471da8efe",
+  "warmup_frames": 20,
+  "timings_ms": {
+    "prepare": {
+      "n": 100,
+      "median": 0.38780000000000003,
+      "p95": 0.5077,
+      "min": 0.3074,
+      "max": 0.7147
+    },
+    "submit": {
+      "n": 100,
+      "median": 0.02725,
+      "p95": 0.0345,
+      "min": 0.0191,
+      "max": 0.0392
+    },
+    "sync": {
+      "n": 100,
+      "median": 17.634149999999998,
+      "p95": 25.6878,
+      "min": 17.2591,
+      "max": 26.8003
+    },
+    "total": {
+      "n": 100,
+      "median": 18.04285,
+      "p95": 26.1282,
+      "min": 17.6761,
+      "max": 27.2101
+    }
+  },
+  "gpu_command_intervals_ms": {
+    "convert": {
+      "n": 100,
+      "median": 3.8773,
+      "p95": 3.9065,
+      "min": 3.8427,
+      "max": 3.9747
+    },
+    "copy": {
+      "n": 100,
+      "median": 0.0,
+      "p95": 0.0001,
+      "min": 0.0,
+      "max": 0.0001
+    }
+  }
+}

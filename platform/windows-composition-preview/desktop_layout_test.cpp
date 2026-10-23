@@ -3,6 +3,14 @@
 
 using namespace viewflow;
 int main() {
+  const vfgp::DesktopRect captured{-120000,-80000,1440000,960000};
+  const std::optional<vfgp::DesktopRect> body=vfgp::DesktopRect{0,0,1200000,800000};
+  const vfgp::DesktopRect snapped{1920000,0,960000,1040000};
+  const auto expanded=windows_preview::FullForBody(snapped,captured,body);
+  assert(expanded.x_millidip==1800000 && expanded.y_millidip==-80000 && expanded.width_millidip==1200000 && expanded.height_millidip==1200000);
+  const auto recovered=windows_preview::BodyForFull(expanded,captured,body);
+  assert(recovered.x_millidip==snapped.x_millidip && recovered.y_millidip==snapped.y_millidip && recovered.width_millidip==snapped.width_millidip && recovered.height_millidip==snapped.height_millidip);
+
   windows_preview::DesktopDisplay display{1000, 2000, -1920, 0,
                                           1920, 1080, 1500};
   assert(windows_preview::ValidDisplay(display));

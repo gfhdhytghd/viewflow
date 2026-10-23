@@ -1,0 +1,1267 @@
+[
+  {
+    "trial": "marker-profile-a1",
+    "state_native": "C914CC47A55494EDD96B7C8BB35BD99EE769740D127156241B45246D98F293DB",
+    "linux_binaries": {
+      "/home/wilf/data/viewflow/target/release/vf-window-perf-peer": "f3ff38f190dbf6c56fc2f8dba649b7230a620a38c028d15d1687980c9a66eb2d",
+      "/tmp/viewflow-reverse-marker-profile/viewflow_linux_reverse": "5a43761198c1f7fb915f398d61421adf47292aec71686b8fe89c4573193a0840",
+      "/tmp/viewflow-reverse-desktop-observer/viewflow_reverse_desktop_observer": "2cde705bc23e66c1cfa943a6a561cd044f43f56f92b2d414e110961ebcdcb4cf"
+    },
+    "full_route": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1047,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 898,
+      "desktop_distinct_hz": 52.817604173183796,
+      "latency_low_ms": {
+        "n": 898,
+        "min": 56.485833,
+        "median": 57.513285499999995,
+        "p95": 74.319084,
+        "p99": 75.218361,
+        "max": 106.965342
+      },
+      "latency_high_ms": {
+        "n": 898,
+        "min": 57.146393,
+        "median": 58.320032499999996,
+        "p95": 75.280313,
+        "p99": 76.505368,
+        "max": 107.711071
+      },
+      "clock_envelope_width_ms": {
+        "n": 898,
+        "min": 0.517806,
+        "median": 0.796986,
+        "p95": 1.636485,
+        "p99": 1.636485,
+        "max": 1.636485
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.113544,
+        "median": 0.406483,
+        "p95": 0.718269,
+        "p99": 0.973652,
+        "max": 1.636485
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 366,
+          "mono": 93706336308579,
+          "source_pre_draw_ns": 41946642850400,
+          "latency_low_ms": 106.965342,
+          "latency_high_ms": 107.711071,
+          "clock_width_ms": 0.745729
+        },
+        {
+          "marker": 367,
+          "mono": 93706352773041,
+          "source_pre_draw_ns": 41946659507800,
+          "latency_low_ms": 106.772404,
+          "latency_high_ms": 107.518133,
+          "clock_width_ms": 0.745729
+        },
+        {
+          "marker": 967,
+          "mono": 93716386784748,
+          "source_pre_draw_ns": 41956709628400,
+          "latency_low_ms": 90.746282,
+          "latency_high_ms": 91.607121,
+          "clock_width_ms": 0.860839
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 897,
+        "min": 13.379634,
+        "median": 16.728615,
+        "p95": 33.871058,
+        "p99": 34.429072,
+        "max": 65.813726
+      }
+    },
+    "stages": {
+      "scope": "Diagnostic stage pairing for unambiguous decoded markers; original full-route criterion unchanged",
+      "decoded_images": 1664,
+      "unique_decoded_markers": 1664,
+      "duplicate_marker_ids": 0,
+      "observed_steady": 898,
+      "paired": 898,
+      "excluded": {},
+      "stages": {
+        "fixture_pre_draw_to_wgc_copy_queued_ms": {
+          "n": 898,
+          "min": 23.5582,
+          "median": 24.57345,
+          "p95": 25.6695,
+          "p99": 27.4916,
+          "max": 48.7562
+        },
+        "wgc_copy_queued_to_source_submit_ms": {
+          "n": 898,
+          "min": 0.0253,
+          "median": 1.0822,
+          "p95": 2.222,
+          "p99": 2.4246,
+          "max": 7.0257
+        },
+        "fixture_pre_draw_to_source_submit_ms": {
+          "n": 898,
+          "min": 23.9286,
+          "median": 25.66035,
+          "p95": 26.8529,
+          "p99": 29.1421,
+          "max": 48.8136
+        },
+        "source_submit_call_ms": {
+          "n": 898,
+          "min": 0.3377,
+          "median": 0.5285,
+          "p95": 0.7082,
+          "p99": 0.8051,
+          "max": 1.1764
+        },
+        "source_submit_to_color_ready_ms": {
+          "n": 898,
+          "min": 18.8511,
+          "median": 21.65325,
+          "p95": 27.6966,
+          "p99": 30.8635,
+          "max": 71.5661
+        },
+        "source_color_ready_to_pipe_write_ms": {
+          "n": 898,
+          "min": 0.0241,
+          "median": 0.03875,
+          "p95": 0.062,
+          "p99": 0.1208,
+          "max": 0.4452
+        },
+        "pipe_write_to_native_receive_low_ms": {
+          "n": 898,
+          "min": 0.202062,
+          "median": 0.795093,
+          "p95": 1.108274,
+          "p99": 1.266033,
+          "max": 1.730271
+        },
+        "pipe_write_to_native_receive_high_ms": {
+          "n": 898,
+          "min": 0.990816,
+          "median": 1.5907515,
+          "p95": 2.239385,
+          "p99": 2.705727,
+          "max": 3.134458
+        },
+        "native_receive_to_accept_ms": {
+          "n": 898,
+          "min": 0.009992,
+          "median": 0.019155,
+          "p95": 0.121651,
+          "p99": 0.175569,
+          "max": 2.676561
+        },
+        "native_accept_to_decode_submit_ms": {
+          "n": 898,
+          "min": 0.016763,
+          "median": 0.07503499999999999,
+          "p95": 0.120503,
+          "p99": 0.145621,
+          "max": 0.194116
+        },
+        "native_decode_call_ms": {
+          "n": 898,
+          "min": 4.124232,
+          "median": 4.4916115,
+          "p95": 4.872179,
+          "p99": 5.138742,
+          "max": 5.549482
+        },
+        "marker_read_ms": {
+          "n": 898,
+          "min": 0.090334,
+          "median": 0.1653125,
+          "p95": 0.4161,
+          "p99": 0.736171,
+          "max": 2.105676
+        },
+        "native_gpu_upload_call_ms": {
+          "n": 898,
+          "min": 0.038769,
+          "median": 0.06717200000000001,
+          "p95": 0.098617,
+          "p99": 0.136123,
+          "max": 2.955847
+        },
+        "native_alpha_ms": {
+          "n": 898,
+          "min": 0.000161,
+          "median": 0.000582,
+          "p95": 0.001404,
+          "p99": 0.002034,
+          "max": 0.003098
+        },
+        "native_draw_and_swap_ms": {
+          "n": 898,
+          "min": 0.248185,
+          "median": 0.344887,
+          "p95": 0.598688,
+          "p99": 1.070462,
+          "max": 1.383446
+        },
+        "native_swap_to_desktop_observed_ms": {
+          "n": 898,
+          "min": 1.328008,
+          "median": 4.695735,
+          "p95": 15.878974,
+          "p99": 16.962596,
+          "max": 18.117525
+        },
+        "full_route_upper_ms": {
+          "n": 898,
+          "min": 57.146393,
+          "median": 58.320032499999996,
+          "p95": 75.280313,
+          "p99": 76.505368,
+          "max": 107.711071
+        }
+      },
+      "marker_read_all_ms": {
+        "n": 1664,
+        "min": 0.046445,
+        "median": 0.16896899999999998,
+        "p95": 0.427521,
+        "p99": 0.618649,
+        "max": 2.105676
+      },
+      "limitations": [
+        "Marker read adds two synchronous CUDA device-to-host row copies totaling 6 KiB per decoded image. Its CPU duration is reported separately; instrumentation can affect GPU scheduling.",
+        "Stage quantiles are not additive. Decode/upload/draw timestamps measure CPU call boundaries, not isolated GPU execution.",
+        "Cross-host stages use the observed clock interval envelope within +/-0.5 seconds. Desktop observation excludes physical scanout.",
+        "Only markers decoded exactly once are paired to observed images; repeated marker IDs have no uniquely established PTS."
+      ]
+    }
+  },
+  {
+    "trial": "markerinterval-default-a1",
+    "state_native": "7D879F2EFFEAB7BB9B9FA8B0F3C61CD741DC8976ADE26687F043F841B2063FD6",
+    "linux_binaries": {
+      "/home/wilf/data/viewflow/target/release/vf-window-perf-peer": "f3ff38f190dbf6c56fc2f8dba649b7230a620a38c028d15d1687980c9a66eb2d",
+      "/tmp/viewflow-reverse-marker-profile/viewflow_linux_reverse": "5a43761198c1f7fb915f398d61421adf47292aec71686b8fe89c4573193a0840",
+      "/tmp/viewflow-reverse-desktop-observer/viewflow_reverse_desktop_observer": "2cde705bc23e66c1cfa943a6a561cd044f43f56f92b2d414e110961ebcdcb4cf"
+    },
+    "full_route": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1200,
+      "distinct_total": 1077,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 916,
+      "desktop_distinct_hz": 53.92874725906302,
+      "latency_low_ms": {
+        "n": 916,
+        "min": 64.148874,
+        "median": 64.692375,
+        "p95": 65.058135,
+        "p99": 66.720183,
+        "max": 67.433539
+      },
+      "latency_high_ms": {
+        "n": 916,
+        "min": 64.864481,
+        "median": 65.4238165,
+        "p95": 65.902956,
+        "p99": 67.394717,
+        "max": 68.321386
+      },
+      "clock_envelope_width_ms": {
+        "n": 916,
+        "min": 0.531706,
+        "median": 0.720899,
+        "p95": 0.964403,
+        "p99": 1.176512,
+        "max": 1.176512
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.129481,
+        "median": 0.43586400000000003,
+        "p95": 0.696333,
+        "p99": 0.797433,
+        "max": 1.176512
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 430,
+          "mono": 93872582796055,
+          "source_pre_draw_ns": 42112929005500,
+          "latency_low_ms": 67.433539,
+          "latency_high_ms": 68.321386,
+          "clock_width_ms": 0.887847
+        },
+        {
+          "marker": 356,
+          "mono": 93871349006296,
+          "source_pre_draw_ns": 42111695721100,
+          "latency_low_ms": 66.774994,
+          "latency_high_ms": 67.951506,
+          "clock_width_ms": 1.176512
+        },
+        {
+          "marker": 648,
+          "mono": 93876265916641,
+          "source_pre_draw_ns": 42116612386100,
+          "latency_low_ms": 67.163003,
+          "latency_high_ms": 67.876173,
+          "clock_width_ms": 0.71317
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 915,
+        "min": 13.790664,
+        "median": 16.714381,
+        "p95": 33.4173,
+        "p99": 33.653683,
+        "max": 83.249652
+      }
+    },
+    "stages": {
+      "scope": "Diagnostic stage pairing for unambiguous decoded markers; original full-route criterion unchanged",
+      "decoded_images": 1673,
+      "unique_decoded_markers": 1673,
+      "duplicate_marker_ids": 0,
+      "observed_steady": 916,
+      "paired": 916,
+      "excluded": {},
+      "stages": {
+        "fixture_pre_draw_to_wgc_copy_queued_ms": {
+          "n": 916,
+          "min": 23.8266,
+          "median": 24.479950000000002,
+          "p95": 25.0651,
+          "p99": 25.4933,
+          "max": 26.4139
+        },
+        "wgc_copy_queued_to_source_submit_ms": {
+          "n": 916,
+          "min": 0.0299,
+          "median": 1.0571000000000002,
+          "p95": 2.2947,
+          "p99": 2.4499,
+          "max": 2.6529
+        },
+        "fixture_pre_draw_to_source_submit_ms": {
+          "n": 916,
+          "min": 24.0192,
+          "median": 25.5425,
+          "p95": 26.7952,
+          "p99": 27.128,
+          "max": 28.0264
+        },
+        "source_submit_call_ms": {
+          "n": 916,
+          "min": 0.3405,
+          "median": 0.51615,
+          "p95": 0.6735,
+          "p99": 0.7517,
+          "max": 0.8835
+        },
+        "source_submit_to_color_ready_ms": {
+          "n": 916,
+          "min": 18.636,
+          "median": 21.48715,
+          "p95": 27.451,
+          "p99": 28.9051,
+          "max": 29.7923
+        },
+        "source_color_ready_to_pipe_write_ms": {
+          "n": 916,
+          "min": 0.0236,
+          "median": 0.0414,
+          "p95": 0.0577,
+          "p99": 0.094,
+          "max": 0.2716
+        },
+        "pipe_write_to_native_receive_low_ms": {
+          "n": 916,
+          "min": 0.296929,
+          "median": 0.7861255,
+          "p95": 1.081991,
+          "p99": 1.222561,
+          "max": 2.386675
+        },
+        "pipe_write_to_native_receive_high_ms": {
+          "n": 916,
+          "min": 0.981289,
+          "median": 1.5109715000000001,
+          "p95": 1.878306,
+          "p99": 2.142904,
+          "max": 3.026575
+        },
+        "native_receive_to_accept_ms": {
+          "n": 916,
+          "min": 0.010404,
+          "median": 0.019846000000000003,
+          "p95": 0.127914,
+          "p99": 0.182984,
+          "max": 0.620979
+        },
+        "native_accept_to_decode_submit_ms": {
+          "n": 916,
+          "min": 0.021848,
+          "median": 0.066764,
+          "p95": 0.103279,
+          "p99": 0.124354,
+          "max": 0.209903
+        },
+        "native_decode_call_ms": {
+          "n": 916,
+          "min": 4.113682,
+          "median": 4.417044499999999,
+          "p95": 4.764443,
+          "p99": 5.030406,
+          "max": 5.390596
+        },
+        "marker_read_ms": {
+          "n": 916,
+          "min": 0.068775,
+          "median": 0.1731185,
+          "p95": 0.421352,
+          "p99": 0.587181,
+          "max": 1.549362
+        },
+        "native_gpu_upload_call_ms": {
+          "n": 916,
+          "min": 0.038606,
+          "median": 0.067234,
+          "p95": 0.090908,
+          "p99": 0.110407,
+          "max": 3.12425
+        },
+        "native_alpha_ms": {
+          "n": 916,
+          "min": 0.000147,
+          "median": 0.000589,
+          "p95": 0.001308,
+          "p99": 0.001803,
+          "max": 0.002664
+        },
+        "native_draw_and_swap_ms": {
+          "n": 916,
+          "min": 0.251559,
+          "median": 0.34361549999999996,
+          "p95": 0.70226,
+          "p99": 0.955257,
+          "max": 1.132819
+        },
+        "native_swap_to_desktop_observed_ms": {
+          "n": 916,
+          "min": 2.25033,
+          "median": 11.7919275,
+          "p95": 13.339631,
+          "p99": 13.803126,
+          "max": 14.860606
+        },
+        "full_route_upper_ms": {
+          "n": 916,
+          "min": 64.864481,
+          "median": 65.4238165,
+          "p95": 65.902956,
+          "p99": 67.394717,
+          "max": 68.321386
+        }
+      },
+      "marker_read_all_ms": {
+        "n": 1673,
+        "min": 0.050475,
+        "median": 0.170693,
+        "p95": 0.410237,
+        "p99": 0.597118,
+        "max": 1.549362
+      },
+      "limitations": [
+        "Marker read adds two synchronous CUDA device-to-host row copies totaling 6 KiB per decoded image. Its CPU duration is reported separately; instrumentation can affect GPU scheduling.",
+        "Stage quantiles are not additive. Decode/upload/draw timestamps measure CPU call boundaries, not isolated GPU execution.",
+        "Cross-host stages use the observed clock interval envelope within +/-0.5 seconds. Desktop observation excludes physical scanout.",
+        "Only markers decoded exactly once are paired to observed images; repeated marker IDs have no uniquely established PTS."
+      ]
+    }
+  },
+  {
+    "trial": "markerinterval-zero-b1",
+    "state_native": "7D879F2EFFEAB7BB9B9FA8B0F3C61CD741DC8976ADE26687F043F841B2063FD6",
+    "linux_binaries": {
+      "/home/wilf/data/viewflow/target/release/vf-window-perf-peer": "f3ff38f190dbf6c56fc2f8dba649b7230a620a38c028d15d1687980c9a66eb2d",
+      "/tmp/viewflow-reverse-marker-profile/viewflow_linux_reverse": "5a43761198c1f7fb915f398d61421adf47292aec71686b8fe89c4573193a0840",
+      "/tmp/viewflow-reverse-desktop-observer/viewflow_reverse_desktop_observer": "2cde705bc23e66c1cfa943a6a561cd044f43f56f92b2d414e110961ebcdcb4cf"
+    },
+    "full_route": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1090,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 931,
+      "desktop_distinct_hz": 54.759309861627656,
+      "latency_low_ms": {
+        "n": 931,
+        "min": 54.146363,
+        "median": 55.109711,
+        "p95": 71.992962,
+        "p99": 72.385432,
+        "max": 76.404052
+      },
+      "latency_high_ms": {
+        "n": 931,
+        "min": 55.05116,
+        "median": 55.940107,
+        "p95": 72.848553,
+        "p99": 73.346581,
+        "max": 77.524217
+      },
+      "clock_envelope_width_ms": {
+        "n": 931,
+        "min": 0.553846,
+        "median": 0.806124,
+        "p95": 1.579817,
+        "p99": 1.611827,
+        "max": 1.611827
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.124688,
+        "median": 0.43052250000000003,
+        "p95": 0.766557,
+        "p99": 1.009841,
+        "max": 1.172142
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 975,
+          "mono": 93935776247422,
+          "source_pre_draw_ns": 42176113411500,
+          "latency_low_ms": 76.404052,
+          "latency_high_ms": 77.524217,
+          "clock_width_ms": 1.120165
+        },
+        {
+          "marker": 345,
+          "mono": 93925273223041,
+          "source_pre_draw_ns": 42165613234100,
+          "latency_low_ms": 73.647595,
+          "latency_high_ms": 74.36076,
+          "clock_width_ms": 0.713165
+        },
+        {
+          "marker": 989,
+          "mono": 93936006297821,
+          "source_pre_draw_ns": 42176346747800,
+          "latency_low_ms": 73.118151,
+          "latency_high_ms": 74.238316,
+          "clock_width_ms": 1.120165
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 930,
+        "min": 12.078216,
+        "median": 16.71998,
+        "p95": 33.345863,
+        "p99": 33.856055,
+        "max": 36.664547
+      }
+    },
+    "stages": {
+      "scope": "Diagnostic stage pairing for unambiguous decoded markers; original full-route criterion unchanged",
+      "decoded_images": 1846,
+      "unique_decoded_markers": 1846,
+      "duplicate_marker_ids": 0,
+      "observed_steady": 931,
+      "paired": 931,
+      "excluded": {},
+      "stages": {
+        "fixture_pre_draw_to_wgc_copy_queued_ms": {
+          "n": 931,
+          "min": 20.6523,
+          "median": 24.5417,
+          "p95": 25.3403,
+          "p99": 26.3707,
+          "max": 27.4333
+        },
+        "wgc_copy_queued_to_source_submit_ms": {
+          "n": 931,
+          "min": 0.0293,
+          "median": 0.9729,
+          "p95": 2.3741,
+          "p99": 2.5077,
+          "max": 2.7051
+        },
+        "fixture_pre_draw_to_source_submit_ms": {
+          "n": 931,
+          "min": 21.7387,
+          "median": 25.4998,
+          "p95": 26.9793,
+          "p99": 27.7596,
+          "max": 28.776
+        },
+        "source_submit_call_ms": {
+          "n": 931,
+          "min": 0.3779,
+          "median": 0.5428,
+          "p95": 0.7241,
+          "p99": 0.8264,
+          "max": 4.4949
+        },
+        "source_submit_to_color_ready_ms": {
+          "n": 931,
+          "min": 17.94,
+          "median": 21.1552,
+          "p95": 22.8544,
+          "p99": 25.1718,
+          "max": 29.2655
+        },
+        "source_color_ready_to_pipe_write_ms": {
+          "n": 931,
+          "min": 0.0228,
+          "median": 0.0361,
+          "p95": 0.0558,
+          "p99": 0.0813,
+          "max": 0.2098
+        },
+        "pipe_write_to_native_receive_low_ms": {
+          "n": 931,
+          "min": -0.280752,
+          "median": 0.76773,
+          "p95": 1.107183,
+          "p99": 1.251135,
+          "max": 1.749759
+        },
+        "pipe_write_to_native_receive_high_ms": {
+          "n": 931,
+          "min": 0.979382,
+          "median": 1.590468,
+          "p95": 2.01585,
+          "p99": 2.251582,
+          "max": 2.464374
+        },
+        "native_receive_to_accept_ms": {
+          "n": 931,
+          "min": 0.009672,
+          "median": 0.019111,
+          "p95": 0.112389,
+          "p99": 0.170659,
+          "max": 0.432799
+        },
+        "native_accept_to_decode_submit_ms": {
+          "n": 931,
+          "min": 0.025374,
+          "median": 0.069929,
+          "p95": 0.113458,
+          "p99": 0.135681,
+          "max": 0.16446
+        },
+        "native_decode_call_ms": {
+          "n": 931,
+          "min": 4.112102,
+          "median": 4.479107,
+          "p95": 4.78668,
+          "p99": 4.943108,
+          "max": 5.106629
+        },
+        "marker_read_ms": {
+          "n": 931,
+          "min": 0.056191,
+          "median": 0.162318,
+          "p95": 0.410487,
+          "p99": 0.655358,
+          "max": 1.064893
+        },
+        "native_gpu_upload_call_ms": {
+          "n": 931,
+          "min": 0.040419,
+          "median": 0.070495,
+          "p95": 0.095912,
+          "p99": 0.113101,
+          "max": 3.285997
+        },
+        "native_alpha_ms": {
+          "n": 931,
+          "min": 0.000145,
+          "median": 0.000588,
+          "p95": 0.001303,
+          "p99": 0.001809,
+          "max": 0.002525
+        },
+        "native_draw_and_swap_ms": {
+          "n": 931,
+          "min": 0.263927,
+          "median": 0.344162,
+          "p95": 0.767548,
+          "p99": 1.158475,
+          "max": 1.716179
+        },
+        "native_swap_to_desktop_observed_ms": {
+          "n": 931,
+          "min": 1.004538,
+          "median": 2.436137,
+          "p95": 16.176246,
+          "p99": 17.270033,
+          "max": 19.827192
+        },
+        "full_route_upper_ms": {
+          "n": 931,
+          "min": 55.05116,
+          "median": 55.940107,
+          "p95": 72.848553,
+          "p99": 73.346581,
+          "max": 77.524217
+        }
+      },
+      "marker_read_all_ms": {
+        "n": 1846,
+        "min": 0.056191,
+        "median": 0.169094,
+        "p95": 0.477693,
+        "p99": 0.886906,
+        "max": 1.799279
+      },
+      "limitations": [
+        "Marker read adds two synchronous CUDA device-to-host row copies totaling 6 KiB per decoded image. Its CPU duration is reported separately; instrumentation can affect GPU scheduling.",
+        "Stage quantiles are not additive. Decode/upload/draw timestamps measure CPU call boundaries, not isolated GPU execution.",
+        "Cross-host stages use the observed clock interval envelope within +/-0.5 seconds. Desktop observation excludes physical scanout.",
+        "Only markers decoded exactly once are paired to observed images; repeated marker IDs have no uniquely established PTS."
+      ]
+    }
+  },
+  {
+    "trial": "markerinterval-zero-b2",
+    "state_native": "7D879F2EFFEAB7BB9B9FA8B0F3C61CD741DC8976ADE26687F043F841B2063FD6",
+    "linux_binaries": {
+      "/home/wilf/data/viewflow/target/release/vf-window-perf-peer": "f3ff38f190dbf6c56fc2f8dba649b7230a620a38c028d15d1687980c9a66eb2d",
+      "/tmp/viewflow-reverse-marker-profile/viewflow_linux_reverse": "5a43761198c1f7fb915f398d61421adf47292aec71686b8fe89c4573193a0840",
+      "/tmp/viewflow-reverse-desktop-observer/viewflow_reverse_desktop_observer": "2cde705bc23e66c1cfa943a6a561cd044f43f56f92b2d414e110961ebcdcb4cf"
+    },
+    "full_route": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1184,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 1008,
+      "desktop_distinct_hz": 59.29544119484802,
+      "latency_low_ms": {
+        "n": 1008,
+        "min": 59.059236,
+        "median": 60.0406325,
+        "p95": 60.506352,
+        "p99": 65.528771,
+        "max": 210.097593
+      },
+      "latency_high_ms": {
+        "n": 1008,
+        "min": 60.172705,
+        "median": 60.8457015,
+        "p95": 61.287093,
+        "p99": 66.22494,
+        "max": 210.751158
+      },
+      "clock_envelope_width_ms": {
+        "n": 1008,
+        "min": 0.569289,
+        "median": 0.822751,
+        "p95": 1.240146,
+        "p99": 1.308721,
+        "max": 1.308721
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.121916,
+        "median": 0.414404,
+        "p95": 0.723013,
+        "p99": 0.901908,
+        "max": 1.350757
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 1073,
+          "mono": 93991360668896,
+          "source_pre_draw_ns": 42231564355000,
+          "latency_low_ms": 210.097593,
+          "latency_high_ms": 210.751158,
+          "clock_width_ms": 0.653565
+        },
+        {
+          "marker": 1074,
+          "mono": 93991377197341,
+          "source_pre_draw_ns": 42231581153500,
+          "latency_low_ms": 209.827538,
+          "latency_high_ms": 210.481103,
+          "clock_width_ms": 0.653565
+        },
+        {
+          "marker": 1072,
+          "mono": 93991326970069,
+          "source_pre_draw_ns": 42231547670600,
+          "latency_low_ms": 193.083166,
+          "latency_high_ms": 193.736731,
+          "clock_width_ms": 0.653565
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 1007,
+        "min": 12.145636,
+        "median": 16.679566,
+        "p95": 17.120658,
+        "p99": 18.646259,
+        "max": 166.284242
+      }
+    },
+    "stages": {
+      "scope": "Diagnostic stage pairing for unambiguous decoded markers; original full-route criterion unchanged",
+      "decoded_images": 1854,
+      "unique_decoded_markers": 1854,
+      "duplicate_marker_ids": 0,
+      "observed_steady": 1008,
+      "paired": 1008,
+      "excluded": {},
+      "stages": {
+        "fixture_pre_draw_to_wgc_copy_queued_ms": {
+          "n": 1008,
+          "min": 20.4994,
+          "median": 24.3914,
+          "p95": 25.1476,
+          "p99": 26.5359,
+          "max": 147.7006
+        },
+        "wgc_copy_queued_to_source_submit_ms": {
+          "n": 1008,
+          "min": 0.0177,
+          "median": 0.9659500000000001,
+          "p95": 2.3351,
+          "p99": 2.5285,
+          "max": 141.7854
+        },
+        "fixture_pre_draw_to_source_submit_ms": {
+          "n": 1008,
+          "min": 21.4558,
+          "median": 25.4048,
+          "p95": 27.0645,
+          "p99": 27.8796,
+          "max": 163.627
+        },
+        "source_submit_call_ms": {
+          "n": 1008,
+          "min": 0.2795,
+          "median": 0.5423,
+          "p95": 0.7229,
+          "p99": 0.9272,
+          "max": 4.3243
+        },
+        "source_submit_to_color_ready_ms": {
+          "n": 1008,
+          "min": 18.1225,
+          "median": 21.188899999999997,
+          "p95": 23.8491,
+          "p99": 26.2083,
+          "max": 156.6291
+        },
+        "source_color_ready_to_pipe_write_ms": {
+          "n": 1008,
+          "min": 0.021,
+          "median": 0.04025,
+          "p95": 0.0609,
+          "p99": 0.09,
+          "max": 0.4856
+        },
+        "pipe_write_to_native_receive_low_ms": {
+          "n": 1008,
+          "min": -0.099597,
+          "median": 0.722766,
+          "p95": 1.060553,
+          "p99": 1.230572,
+          "max": 2.789557
+        },
+        "pipe_write_to_native_receive_high_ms": {
+          "n": 1008,
+          "min": 1.037308,
+          "median": 1.5268275,
+          "p95": 1.904265,
+          "p99": 2.071218,
+          "max": 3.624284
+        },
+        "native_receive_to_accept_ms": {
+          "n": 1008,
+          "min": 0.008979,
+          "median": 0.019485,
+          "p95": 0.121077,
+          "p99": 0.174519,
+          "max": 3.060154
+        },
+        "native_accept_to_decode_submit_ms": {
+          "n": 1008,
+          "min": 0.014599,
+          "median": 0.064889,
+          "p95": 0.10069,
+          "p99": 0.122959,
+          "max": 0.193566
+        },
+        "native_decode_call_ms": {
+          "n": 1008,
+          "min": 4.094649,
+          "median": 4.465748,
+          "p95": 4.801959,
+          "p99": 4.979229,
+          "max": 6.02621
+        },
+        "marker_read_ms": {
+          "n": 1008,
+          "min": 0.054088,
+          "median": 0.169672,
+          "p95": 0.362121,
+          "p99": 0.524111,
+          "max": 0.651044
+        },
+        "native_gpu_upload_call_ms": {
+          "n": 1008,
+          "min": 0.036992,
+          "median": 0.068717,
+          "p95": 0.094878,
+          "p99": 0.130937,
+          "max": 3.556639
+        },
+        "native_alpha_ms": {
+          "n": 1008,
+          "min": 0.000158,
+          "median": 0.00052,
+          "p95": 0.001143,
+          "p99": 0.001653,
+          "max": 0.059266
+        },
+        "native_draw_and_swap_ms": {
+          "n": 1008,
+          "min": 0.234532,
+          "median": 0.340386,
+          "p95": 0.388619,
+          "p99": 0.627846,
+          "max": 1.344203
+        },
+        "native_swap_to_desktop_observed_ms": {
+          "n": 1008,
+          "min": 1.167016,
+          "median": 7.674106500000001,
+          "p95": 9.401063,
+          "p99": 10.722782,
+          "max": 16.421931
+        },
+        "full_route_upper_ms": {
+          "n": 1008,
+          "min": 60.172705,
+          "median": 60.8457015,
+          "p95": 61.287093,
+          "p99": 66.22494,
+          "max": 210.751158
+        }
+      },
+      "marker_read_all_ms": {
+        "n": 1854,
+        "min": 0.053386,
+        "median": 0.17106,
+        "p95": 0.346464,
+        "p99": 0.503342,
+        "max": 0.729107
+      },
+      "limitations": [
+        "Marker read adds two synchronous CUDA device-to-host row copies totaling 6 KiB per decoded image. Its CPU duration is reported separately; instrumentation can affect GPU scheduling.",
+        "Stage quantiles are not additive. Decode/upload/draw timestamps measure CPU call boundaries, not isolated GPU execution.",
+        "Cross-host stages use the observed clock interval envelope within +/-0.5 seconds. Desktop observation excludes physical scanout.",
+        "Only markers decoded exactly once are paired to observed images; repeated marker IDs have no uniquely established PTS."
+      ]
+    }
+  },
+  {
+    "trial": "markerinterval-default-a2",
+    "state_native": "7D879F2EFFEAB7BB9B9FA8B0F3C61CD741DC8976ADE26687F043F841B2063FD6",
+    "linux_binaries": {
+      "/home/wilf/data/viewflow/target/release/vf-window-perf-peer": "f3ff38f190dbf6c56fc2f8dba649b7230a620a38c028d15d1687980c9a66eb2d",
+      "/tmp/viewflow-reverse-marker-profile/viewflow_linux_reverse": "5a43761198c1f7fb915f398d61421adf47292aec71686b8fe89c4573193a0840",
+      "/tmp/viewflow-reverse-desktop-observer/viewflow_reverse_desktop_observer": "2cde705bc23e66c1cfa943a6a561cd044f43f56f92b2d414e110961ebcdcb4cf"
+    },
+    "full_route": {
+      "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+      "observer_captures": 1201,
+      "distinct_total": 1040,
+      "warmup_observer_seconds": 3,
+      "steady_distinct": 889,
+      "desktop_distinct_hz": 52.33813769926491,
+      "latency_low_ms": {
+        "n": 889,
+        "min": 56.290047,
+        "median": 57.654778,
+        "p95": 74.65289,
+        "p99": 74.986627,
+        "max": 77.49775
+      },
+      "latency_high_ms": {
+        "n": 889,
+        "min": 57.48118,
+        "median": 58.452224,
+        "p95": 75.429541,
+        "p99": 75.846412,
+        "max": 78.224474
+      },
+      "clock_envelope_width_ms": {
+        "n": 889,
+        "min": 0.411201,
+        "median": 0.766551,
+        "p95": 1.226825,
+        "p99": 1.226825,
+        "max": 1.311285
+      },
+      "clock_rtt_ms": {
+        "n": 316,
+        "min": 0.127082,
+        "median": 0.4071405,
+        "p95": 0.725908,
+        "p99": 0.845857,
+        "max": 1.226825
+      },
+      "clock_samples": 316,
+      "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+      "run_qualified": true,
+      "target_6k30_60ms_met": false,
+      "evaluation_criterion": {
+        "desktop_distinct_hz_min": 30,
+        "latency_high_p95_ms_max": 60,
+        "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+      },
+      "largest_latency_observations": [
+        {
+          "marker": 743,
+          "mono": 94039178974419,
+          "source_pre_draw_ns": 42279515163700,
+          "latency_low_ms": 77.49775,
+          "latency_high_ms": 78.224474,
+          "clock_width_ms": 0.726724
+        },
+        {
+          "marker": 1277,
+          "mono": 94048076996846,
+          "source_pre_draw_ns": 42288415323400,
+          "latency_low_ms": 75.316204,
+          "latency_high_ms": 76.147544,
+          "clock_width_ms": 0.83134
+        },
+        {
+          "marker": 1146,
+          "mono": 94045893484196,
+          "source_pre_draw_ns": 42286231961200,
+          "latency_low_ms": 75.280283,
+          "latency_high_ms": 76.029229,
+          "clock_width_ms": 0.748946
+        }
+      ],
+      "distinct_observation_gap_ms": {
+        "n": 888,
+        "min": 11.783652,
+        "median": 16.675727000000002,
+        "p95": 34.196962,
+        "p99": 34.571388,
+        "max": 37.441253
+      }
+    },
+    "stages": {
+      "scope": "Diagnostic stage pairing for unambiguous decoded markers; original full-route criterion unchanged",
+      "decoded_images": 1656,
+      "unique_decoded_markers": 1656,
+      "duplicate_marker_ids": 0,
+      "observed_steady": 889,
+      "paired": 889,
+      "excluded": {},
+      "stages": {
+        "fixture_pre_draw_to_wgc_copy_queued_ms": {
+          "n": 889,
+          "min": 21.776,
+          "median": 24.4936,
+          "p95": 25.318,
+          "p99": 26.5798,
+          "max": 42.0433
+        },
+        "wgc_copy_queued_to_source_submit_ms": {
+          "n": 889,
+          "min": 0.0247,
+          "median": 1.0217,
+          "p95": 2.3243,
+          "p99": 2.4837,
+          "max": 2.6934
+        },
+        "fixture_pre_draw_to_source_submit_ms": {
+          "n": 889,
+          "min": 22.2351,
+          "median": 25.6343,
+          "p95": 27.0133,
+          "p99": 27.7364,
+          "max": 44.1079
+        },
+        "source_submit_call_ms": {
+          "n": 889,
+          "min": 0.3742,
+          "median": 0.5382,
+          "p95": 0.7394,
+          "p99": 0.8681,
+          "max": 1.711
+        },
+        "source_submit_to_color_ready_ms": {
+          "n": 889,
+          "min": 18.5974,
+          "median": 21.5359,
+          "p95": 27.6978,
+          "p99": 29.3008,
+          "max": 31.2831
+        },
+        "source_color_ready_to_pipe_write_ms": {
+          "n": 889,
+          "min": 0.0234,
+          "median": 0.039,
+          "p95": 0.0566,
+          "p99": 0.0712,
+          "max": 0.1525
+        },
+        "pipe_write_to_native_receive_low_ms": {
+          "n": 889,
+          "min": 0.132188,
+          "median": 0.780314,
+          "p95": 1.109728,
+          "p99": 1.279752,
+          "max": 1.764218
+        },
+        "pipe_write_to_native_receive_high_ms": {
+          "n": 889,
+          "min": 1.006836,
+          "median": 1.555765,
+          "p95": 1.974974,
+          "p99": 2.201358,
+          "max": 2.597897
+        },
+        "native_receive_to_accept_ms": {
+          "n": 889,
+          "min": 0.009801,
+          "median": 0.020846,
+          "p95": 0.123422,
+          "p99": 0.166663,
+          "max": 0.193727
+        },
+        "native_accept_to_decode_submit_ms": {
+          "n": 889,
+          "min": 0.032689,
+          "median": 0.075219,
+          "p95": 0.123366,
+          "p99": 0.161208,
+          "max": 0.198083
+        },
+        "native_decode_call_ms": {
+          "n": 889,
+          "min": 4.141761,
+          "median": 4.564411,
+          "p95": 4.858626,
+          "p99": 5.066934,
+          "max": 5.495467
+        },
+        "marker_read_ms": {
+          "n": 889,
+          "min": 0.052846,
+          "median": 0.165814,
+          "p95": 0.415352,
+          "p99": 0.580217,
+          "max": 1.025123
+        },
+        "native_gpu_upload_call_ms": {
+          "n": 889,
+          "min": 0.043531,
+          "median": 0.070842,
+          "p95": 0.093546,
+          "p99": 0.110668,
+          "max": 2.832233
+        },
+        "native_alpha_ms": {
+          "n": 889,
+          "min": 0.00015,
+          "median": 0.000539,
+          "p95": 0.001204,
+          "p99": 0.001759,
+          "max": 0.002562
+        },
+        "native_draw_and_swap_ms": {
+          "n": 889,
+          "min": 0.269918,
+          "median": 0.338394,
+          "p95": 0.412624,
+          "p99": 0.87225,
+          "max": 1.343949
+        },
+        "native_swap_to_desktop_observed_ms": {
+          "n": 889,
+          "min": 0.977776,
+          "median": 5.007705,
+          "p95": 15.972591,
+          "p99": 17.046878,
+          "max": 17.464718
+        },
+        "full_route_upper_ms": {
+          "n": 889,
+          "min": 57.48118,
+          "median": 58.452224,
+          "p95": 75.429541,
+          "p99": 75.846412,
+          "max": 78.224474
+        }
+      },
+      "marker_read_all_ms": {
+        "n": 1656,
+        "min": 0.052846,
+        "median": 0.1677655,
+        "p95": 0.411203,
+        "p99": 0.593316,
+        "max": 2.521714
+      },
+      "limitations": [
+        "Marker read adds two synchronous CUDA device-to-host row copies totaling 6 KiB per decoded image. Its CPU duration is reported separately; instrumentation can affect GPU scheduling.",
+        "Stage quantiles are not additive. Decode/upload/draw timestamps measure CPU call boundaries, not isolated GPU execution.",
+        "Cross-host stages use the observed clock interval envelope within +/-0.5 seconds. Desktop observation excludes physical scanout.",
+        "Only markers decoded exactly once are paired to observed images; repeated marker IDs have no uniquely established PTS."
+      ]
+    }
+  }
+]

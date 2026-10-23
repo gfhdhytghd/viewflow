@@ -56,6 +56,7 @@ package() {{
     cp -a "$_bundle/." "$pkgdir/opt/viewflow/"
     install -m755 "$startdir/viewflow" "$pkgdir/usr/bin/viewflow"
     install -m644 "$startdir/org.viewflow.app.desktop" "$pkgdir/usr/share/applications/org.viewflow.app.desktop"
+    install -Dm644 "$_bundle/_internal/brand/viewflow.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/org.viewflow.app.svg"
     install -m644 "$_bundle/LICENSE" "$pkgdir/usr/share/licenses/viewflow/LICENSE"
 }}
 '''
@@ -66,7 +67,7 @@ package() {{
         (work / 'viewflow').write_text('#!/bin/sh\nexec /opt/viewflow/Viewflow "$@"\n')
         desktop = ('[Desktop Entry]\nType=Application\nName=Viewflow\n'
                    'Comment=Windows, input and clipboard across your computers\n'
-                   'Exec=/usr/bin/viewflow\nTerminal=false\nCategories=Network;RemoteAccess;\n')
+                   'Exec=/usr/bin/viewflow\nIcon=org.viewflow.app\nStartupWMClass=org.viewflow.app\nTerminal=false\nCategories=Network;RemoteAccess;\n')
         (work / 'org.viewflow.app.desktop').write_text(desktop)
         env = dict(os.environ, PKGDEST=str(destination), PKGEXT='.pkg.tar.zst')
         subprocess.run(['makepkg', '--noconfirm'], cwd=work, env=env, check=True)

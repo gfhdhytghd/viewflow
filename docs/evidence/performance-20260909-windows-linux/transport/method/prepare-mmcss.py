@@ -1,0 +1,16 @@
+from pathlib import Path
+b=Path('/home/wilf/data/viewflow/docs/evidence/performance-20260909-windows-linux/transport');p=b.parent/'source-mmcss/source/platform/windows-reverse/perf_runner.cpp';s=p.read_text();needle='SetEnvironmentVariableW(L"VIEWFLOW_PROFILE_SOURCE_PID",selected.c_str());';assert needle in s;s=s.replace(needle,needle+'SetEnvironmentVariableW(L"VIEWFLOW_MMCS_PLAYBACK",L"1");');p.write_text(s)
+s=(b/'source/perf_direct_runner.cpp').read_text().replace('VIEWFLOW_REVERSE_DIRECT_SINGLE_SURFACE','VIEWFLOW_MMCS_PLAYBACK');needle='SetEnvironmentVariableW(L"VIEWFLOW_MMCS_PLAYBACK",direct.c_str());';assert needle in s;s=s.replace(needle,needle+'SetEnvironmentVariableW(L"VIEWFLOW_REVERSE_DIRECT_SINGLE_SURFACE",L"0");');(b/'source/perf_mmcss_runner.cpp').write_text(s)
+s=(b/'method/build-direct-runner.cmd').read_text().replace('perf_direct_runner.cpp','perf_mmcss_runner.cpp').replace('viewflow_reverse_perf_direct_runner.exe','viewflow_reverse_perf_mmcss_runner.exe');(b/'method/build-mmcss-runner.cmd').write_text(s)
+s=(b/'method/run-direct.py').read_text().replace('reverse-direct-source-stop-20260909','reverse-source-mmcss-20260909').replace('viewflow_reverse_perf_direct_runner.exe','viewflow_reverse_perf_mmcss_runner.exe').replace("state['direct_single_surface']=int(sys.argv[2]);","state['direct_single_surface']=0;state['mmcss']=int(sys.argv[2]);")
+needle="ol=(out/'desktop.log').open('w');";assert needle in s
+probe='''state['scheduling']=json.loads(ps("$p=Get-CimInstance Win32_Process|Where-Object{$_.ExecutablePath -eq '"+wc['backend']['native']+"'};if(@($p).Count -ne 1){throw 'native process missing'};$n=Get-Process -Id $p.ProcessId;$line=(Get-Content '"+remote+"\\\\source.log'|Select-String 'atlas-mmcss role=reverse-source ' |Select-Object -Last 1).Line;if($line -notmatch 'thread=(\\\\d+)'){throw 'source thread id missing'};$tid=[int]$Matches[1];$t=@($n.Threads|Where-Object{$_.Id -eq $tid})[0];[pscustomobject]@{pid=$n.Id;path=$p.ExecutablePath;process_priority=$n.PriorityClass.ToString();thread=$tid;base_priority=$t.BasePriority;current_priority=$t.CurrentPriority;registration=$line;task_priority=(Get-ScheduledTask '"+task+"').Settings.Priority}|ConvertTo-Json"));save()
+ '''
+# PowerShell regex uses a single slash; the Python source literal needs two.
+s=s.replace(needle,probe+needle);(b/'method/run-mmcss.py').write_text(s)
+(b/'method/nested-mmcss.py').write_text((b/'method/nested-direct.py').read_text().replace('/run-direct.py','/run-mmcss.py'))
+s=(b/'method/build-direct-runner.py').read_text().replace('direct-runner','mmcss-runner').replace('perf_direct_runner.cpp','perf_mmcss_runner.cpp');(b/'method/build-mmcss-runner.py').write_text(s)
+(b/'method/prepare-mmcss.py').write_text(Path(__file__).read_text())
+for name in ['source-mmcss','alpha-summary-render']:
+ p=b.parent/name/'method/stage-build.py';s=p.read_text().replace('import tarfile,subprocess,base64,json,hashlib','import tarfile,subprocess,base64,json,hashlib,tempfile').replace("with tarfile.open('/tmp/viewflow-reverse-profile-source.tar','w') as t:","archive=Path(tempfile.mkdtemp(prefix='viewflow-'+b.name+'-stage-'))/'source.tar'\nwith tarfile.open(archive,'w') as t:").replace("'/tmp/viewflow-reverse-profile-source.tar'","str(archive)");p.write_text(s)
+compile((b/'method/run-mmcss.py').read_text(),'run-mmcss','exec')

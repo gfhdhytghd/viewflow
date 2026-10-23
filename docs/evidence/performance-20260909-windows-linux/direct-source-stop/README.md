@@ -1,0 +1,7 @@
+# Owned-source direct submission and capture cleanup
+
+2026-09-09. A single tile covering the complete atlas can submit the owned source texture directly, avoiding the atlas clear and copy. Source mutex ownership spans encoder and alpha GPU submission; WGC still copies into an owned texture. The native destructor stops captures while the map retains strong source references. Four full-chain trials compare direct disabled/enabled on the same executable. Direct improves P95 in these samples, with slightly lower distinct throughput; it does not meet 60 ms. Later matched synthetic RGB checks and the integrated candidate lifecycle test cover this route; see ../candidate-quality/README.md and ../lifecycle-v2/README.md for their precise scopes. The earlier RT candidate had one teardown failure; the lifetime hazard was identified by code inspection, but that crash was not proven to have this cause.
+
+The 35 build-input files are archived under `source/`; local and remote SHA-256 maps agree. Build logs and actual probe status are retained in `method/`.
+
+Standalone source run: 1016 decoded frames with exact opaque alpha, 29.397140 distinct frames/s after warmup; pre-draw to local output median 115.5239 ms, P95 133.5544 ms. This excludes QUIC and Linux live presentation and is not an end-to-end acceptance result. All emitted frames decoded, normal bounded exit, no remaining candidate processes, and installed native hash unchanged.

@@ -91,6 +91,25 @@ impl CFrame {
         Ok(input)
     }
 
+    fn apply_crop(&mut self, [x, y, width, height]: [u32; 4]) -> Result<()> {
+        ensure!(width > 0 && height > 0 && x <= self.crop_width as u32
+            && width <= self.crop_width as u32 - x && y <= self.crop_height as u32
+            && height <= self.crop_height as u32 - y, "source crop outside capture");
+        self.crop_x += x as i32;
+        self.crop_y += if self.flip_y != 0 { self.crop_height - y as i32 - height as i32 } else { y as i32 };
+        self.crop_width = width as i32;
+        self.crop_height = height as i32;
+        // Disabled shadow fields must remain zero at the C ABI boundary.
+        // A partially visible window still needs a crop even without a shadow.
+        if self.shadow_enabled != 0 {
+            self.shadow_left -= f64::from(x);
+            self.shadow_top -= f64::from(y);
+            self.shadow_cutout_left -= f64::from(x);
+            self.shadow_cutout_top -= f64::from(y);
+        }
+        Ok(())
+    }
+
     fn set_shadow(&mut self, shadow: &crate::hyprcapture_gpu_wire::ShadowSnapshot) {
         self.shadow_enabled = 1;
         self.shadow_left = shadow.left;
@@ -184,6 +203,7 @@ pub struct GpuSparseResult {
     pub patches: Vec<GpuSparsePatch>,
 }
 pub struct GpuSparseScene<'a> {
+    pub stable_placement: bool,
     pub prerender: bool,
     pub canvas_limit: (u32, u32),
     pub sources: &'a [GpuSparseSource],
@@ -544,9 +564,23 @@ impl GpuEncoder {
         deadline: i64,
         scene: Option<GpuSparseScene<'_>>,
     ) -> Result<GpuEncodeOutcome> {
+        self.encode_atlas_with_crops(tiles, identity, force_idr, deadline, scene, None)
+    }
+
+    /// Crop source reads in displayed pixel coordinates without mutating capture leases.
+    pub fn encode_atlas_with_crops(
+        &mut self,
+        tiles: &[GpuAtlasTile<'_>],
+        identity: GpuAtlasIdentity,
+        force_idr: bool,
+        deadline: i64,
+        scene: Option<GpuSparseScene<'_>>,
+        crops: Option<&[[u32; 4]]>,
+    ) -> Result<GpuEncodeOutcome> {
         ensure!(!self.failed, "GPU encoder session is retired");
         let result = (|| {
             ensure!(tiles.len() <= 4096, "atlas tile bound exceeded");
+            ensure!(crops.is_none_or(|c| c.len() == tiles.len()), "atlas crop count mismatch");
             let deadline = tiles.iter().fold(deadline, |current, tile| {
                 current.min(tile.deadline_monotonic_ns)
             });
@@ -557,9 +591,12 @@ impl GpuEncoder {
             }
             let native_tiles = tiles
                 .iter()
-                .map(|tile| {
+                .enumerate()
+                .map(|(index, tile)| {
+                    let mut frame = CFrame::from_gpu(tile.frame)?;
+                    if let Some(crops) = crops { frame.apply_crop(crops[index])?; }
                     Ok(CAtlasTile {
-                        frame: CFrame::from_gpu(tile.frame)?,
+                        frame,
                         x: tile.x,
                         y: tile.y,
                         deadline_monotonic_ns: tile.deadline_monotonic_ns,
@@ -585,7 +622,7 @@ impl GpuEncoder {
                     "sparse source count mismatch"
                 );
                 let scene = CSparseScene {
-                    mode: if scene.prerender { 2 } else { 1 },
+                    mode: (if scene.prerender { 2 } else { 1 }) + if scene.stable_placement { 2 } else { 0 },
                     max_width: scene.canvas_limit.0,
                     max_height: scene.canvas_limit.1,
                     source_count: u32::try_from(scene.sources.len())?,
@@ -921,6 +958,34 @@ pub(crate) fn monotonic_ns() -> Result<i64> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn resident_crop_preserves_flip_and_shadow_coordinates() {
+        let mut frame = super::CFrame { crop_x: 10, crop_y: 20, crop_width: 800, crop_height: 600,
+            flip_y: 1, shadow_enabled: 1, shadow_left: 50., shadow_top: 60., shadow_cutout_left: 70., shadow_cutout_top: 80., ..Default::default() };
+        frame.apply_crop([100, 150, 300, 200]).unwrap();
+        assert_eq!((frame.crop_x, frame.crop_y, frame.crop_width, frame.crop_height), (110, 270, 300, 200));
+        assert_eq!((frame.shadow_left, frame.shadow_top), (-50., -90.));
+        assert_eq!((frame.shadow_cutout_left, frame.shadow_cutout_top), (-30., -70.));
+        assert!(frame.apply_crop([299, 0, 2, 1]).is_err());
+        frame.flip_y = 0;
+        frame.apply_crop([1, 2, 10, 20]).unwrap();
+        assert_eq!((frame.crop_x, frame.crop_y), (111, 272));
+    }
+
+    #[test]
+    fn resident_crop_without_shadow_preserves_disabled_abi_fields() {
+        for flip_y in [0, 1] {
+            let mut frame = super::CFrame { crop_width: 800, crop_height: 600,
+                flip_y, ..Default::default() };
+            frame.apply_crop([100, 150, 300, 200]).unwrap();
+            assert_eq!(frame.shadow_enabled, 0);
+            assert_eq!((frame.shadow_left, frame.shadow_top,
+                frame.shadow_cutout_left, frame.shadow_cutout_top), (0., 0., 0., 0.));
+            assert_eq!(frame.crop_x, 100);
+            assert_eq!(frame.crop_y, if flip_y == 0 { 150 } else { 250 });
+        }
+    }
+
     #[test]
     fn completed_output_expiry_is_recoverable_only_with_explicit_opt_in() {
         for completed in [99, 100, 101, i64::MAX] {

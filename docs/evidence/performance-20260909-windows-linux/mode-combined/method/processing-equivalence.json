@@ -1,0 +1,40 @@
+{
+  "source_files": 69,
+  "unchanged_files": 63,
+  "changed": [
+    "platform/windows-reverse/main.cpp",
+    "platform/windows-reverse/performance_mode.hpp",
+    "platform/windows-reverse/performance_mode_test.cpp",
+    "platform/windows-reverse/vpl_encoder.cpp",
+    "platform/windows-window-capture/wgc_window_capture.cpp",
+    "platform/windows-window-capture/wgc_window_capture.hpp"
+  ],
+  "same_encoder_start_can_submit_submit_drain_poll": true,
+  "same_atlas_color_alpha_metadata_processing": true,
+  "same_wgc_frame_delivery": true,
+  "baseline_source_manifest_sha256": "e7d9d5eb0bbe3ffc60fb7472a439e51e43da144498f44523b872b01f76ca4950",
+  "candidate_source_manifest_sha256": "122229b56652e741c71acc7513c40559b9c1fadcfd7c3daaf4efdce3c41b2a81",
+  "inherited_quality_results_sha256": "d9203c07044bbdd109b486e416b9b7d7bc3bed793919c905240dcacb3e71c6bd",
+  "quality": {
+    "1": {
+      "exit": 0,
+      "frames": 90,
+      "pixels_per_frame": 21233664,
+      "mse": 6.433001376291111e-05,
+      "psnr_db": 41.915863556856614,
+      "max_error": 0.621881247
+    },
+    "2": {
+      "exit": 0,
+      "frames": 90,
+      "pixels_per_frame": 21233664,
+      "mse": 6.432239934388222e-05,
+      "psnr_db": 41.9163776397395,
+      "max_error": 0.621881247
+    }
+  },
+  "limitations": [
+    "The candidate changes capture cadence and when a drain starts. Frame admission and lifecycle correctness need fresh tests and are not proved by source equivalence.",
+    "The inherited 90-marker full-6K synthetic RGB comparison does not certify natural images or fine text. No new encoder bitrate, chroma, quantization or resolution setting is introduced."
+  ]
+}

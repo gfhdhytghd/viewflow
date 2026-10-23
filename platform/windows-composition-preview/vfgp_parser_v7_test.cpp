@@ -82,6 +82,16 @@ int main() {
           desktop.viewport.x_millidip == -3000 && desktop.windows.size() == 1 &&
           desktop.windows[0].window == AtlasId{0, 2} &&
           desktop.windows[0].movable && desktop.windows[0].z_order == 7 && desktop.windows[0].raise_serial == 1));
+  // Body metadata must preserve the full-image placement and payload bytes.
+  b=fixture();b.insert(b.begin()+280,32,0);put(b,8,312,4);put(b,176+44,1,4);
+  put(b,280,uint64_t(-1000),8);put(b,288,5000,8);put(b,296,3000,8);put(b,304,2500,8);
+  frames.clear();Parser body_parser(4096,true,true,true,true);
+  assert(body_parser.Push(b,&frames) && body_parser.Finish() && frames.size()==1);
+  const auto body=frames[0].atlas->desktop->windows[0].body_bounds;
+  assert(body && body->x_millidip==-1000 && body->width_millidip==3000);
+  assert(frames[0].atlas->desktop->windows[0].bounds.width_millidip==5000);
+  put(b,296,6000,8);frames.clear();Parser bad_body(4096,true,true,true,true);
+  assert(!bad_body.Push(b,&frames));
   // A reordered/mismatched desktop window is rejected before any native
   // placement.
   b = fixture();

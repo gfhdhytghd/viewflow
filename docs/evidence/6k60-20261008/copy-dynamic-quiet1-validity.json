@@ -1,0 +1,125 @@
+{
+  "scope": "Observed discontinuities only; aggregate intervals and residency logging do not prove uninterrupted60fps or photon latency. Multiple-window attribution may require manual review.",
+  "sustained_6k_evidence": "invalid_or_confounded",
+  "reasons": [
+    "observed_zero_residency_demand",
+    "observed_non_6k_accept_interval"
+  ],
+  "residency_events": [
+    {
+      "log_time": "Oct 08 17:55:45.226408",
+      "id": 1,
+      "demand": [
+        0,
+        0,
+        6144,
+        3456
+      ],
+      "window_workspace": {
+        "id": 4,
+        "name": "4"
+      },
+      "window_visible": true,
+      "outputs": [
+        {
+          "name": "HEADLESS-1",
+          "workspace": {
+            "id": -1337,
+            "name": "viewflow-gui-a4834581f2f870e0-1"
+          },
+          "dpms": false
+        },
+        {
+          "name": "HEADLESS-100",
+          "workspace": {
+            "id": 1,
+            "name": "1"
+          },
+          "dpms": true
+        },
+        {
+          "name": "DP-4",
+          "workspace": {
+            "id": 4,
+            "name": "4"
+          },
+          "dpms": true
+        }
+      ]
+    },
+    {
+      "log_time": "Oct 08 17:55:49.466634",
+      "id": 1,
+      "demand": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "window_workspace": {
+        "id": 4,
+        "name": "4"
+      },
+      "window_visible": true,
+      "outputs": [
+        {
+          "name": "HEADLESS-1",
+          "workspace": {
+            "id": -1337,
+            "name": "viewflow-gui-a4834581f2f870e0-1"
+          },
+          "dpms": false
+        },
+        {
+          "name": "HEADLESS-100",
+          "workspace": {
+            "id": 1,
+            "name": "1"
+          },
+          "dpms": true
+        },
+        {
+          "name": "DP-4",
+          "workspace": {
+            "id": 3,
+            "name": "3"
+          },
+          "dpms": true
+        }
+      ]
+    }
+  ],
+  "accept_intervals": [
+    {
+      "width": 6144,
+      "height": 3456,
+      "frames": 252,
+      "interval_ms": 5332.069
+    },
+    {
+      "width": 1,
+      "height": 1,
+      "frames": 6,
+      "interval_ms": 5995.709
+    },
+    {
+      "width": 1,
+      "height": 1,
+      "frames": 5,
+      "interval_ms": 5011.822
+    },
+    {
+      "width": 1,
+      "height": 1,
+      "frames": 5,
+      "interval_ms": 5003.059
+    },
+    {
+      "width": 1,
+      "height": 1,
+      "frames": 5,
+      "interval_ms": 5004.721
+    }
+  ],
+  "foreground_change_count": 0
+}

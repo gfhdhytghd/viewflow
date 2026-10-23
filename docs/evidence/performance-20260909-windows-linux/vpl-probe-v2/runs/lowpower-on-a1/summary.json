@@ -1,0 +1,43 @@
+{
+  "run": "vpl-probe-v2/runs/lowpower-on-a1",
+  "exit": 0,
+  "settings": {
+    "exit": 0,
+    "low_power": 1,
+    "native": "C:\\Users\\wilf\\Viewflow\\perf-isolated-8e97c1b751fc\\reverse-vpl-probe-v2-20260909\\probe.exe"
+  },
+  "native_sha256": "81E90537B2C84A504A64829D38ACEAB6A1477E6C9B19DA8060DB846027E3E8FF",
+  "runtime_sha256": "75DD1AE81BA69FFF7622B3D11C11A85F5AA5DF3B3CB4ED889B390E8E141113F4",
+  "encoded_sha256": "1abd8174e383582840aa5af030e6c8d84a0b666ce38e8f08c9efb281c31218a6",
+  "warmup_frames": 20,
+  "timings_ms": {
+    "prepare": {
+      "n": 100,
+      "median": 0.4622,
+      "p95": 0.6538,
+      "min": 0.3437,
+      "max": 0.7897
+    },
+    "submit": {
+      "n": 100,
+      "median": 0.029150000000000002,
+      "p95": 0.0378,
+      "min": 0.0215,
+      "max": 0.06
+    },
+    "sync": {
+      "n": 100,
+      "median": 25.22815,
+      "p95": 25.8239,
+      "min": 24.5144,
+      "max": 30.6328
+    },
+    "total": {
+      "n": 100,
+      "median": 25.73195,
+      "p95": 26.3175,
+      "min": 24.9992,
+      "max": 31.1955
+    }
+  }
+}

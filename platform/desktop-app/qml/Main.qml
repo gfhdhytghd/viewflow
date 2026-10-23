@@ -13,13 +13,13 @@ ApplicationWindow {
     readonly property color ink: "#23262c"
     readonly property color secondary: "#656b75"
     readonly property color accent: "#0869d8"
-    readonly property var titles: [window.t("连接"), window.t("权限设置"), window.t("配对"), window.t("诊断")]
+    readonly property var titles: [window.t("连接"), window.t("权限设置"), window.t("配对"), window.t("显示器"), window.t("诊断")]
     width: 900; height: 720
     minimumWidth: 720; minimumHeight: 520
     visible: true
     title: "Viewflow"
     color: "#fafafa"
-    font.family: Qt.platform.os === "windows" ? "Segoe UI" : "Noto Sans"
+    font.family: Qt.platform.os === "windows" ? "Segoe UI" : "Noto Sans CJK SC"
     font.pixelSize: 14
     palette.window: "#fafafa"
     palette.base: "#ffffff"
@@ -35,12 +35,14 @@ ApplicationWindow {
     }
 
     component BodyText: Label {
+        textFormat: Text.PlainText
         Layout.fillWidth: true
         wrapMode: Text.Wrap
         color: window.secondary
         lineHeight: 1.25
     }
     component Heading: Label {
+        textFormat: Text.PlainText
         Layout.fillWidth: true
         wrapMode: Text.Wrap
         font.pixelSize: 16
@@ -70,6 +72,79 @@ ApplicationWindow {
             border.color: control.activeFocus ? window.accent : control.primary ? "transparent" : "#d4d7de"
         }
     }
+    component ConnectionIcon: Button {
+        id: control
+        required property string symbol
+        required property string description
+        implicitWidth: 36; implicitHeight: 36
+        hoverEnabled: true
+        Accessible.name: description
+        ToolTip.visible: hovered
+        ToolTip.text: description
+        contentItem: Image { source: control.symbol; sourceSize.width: 20; sourceSize.height: 20; fillMode: Image.Pad; opacity: control.enabled ? 1 : 0.35 }
+        background: Rectangle { radius: 6; color: control.down ? "#dce5ef" : control.hovered ? "#eef2f7" : "transparent"; border.color: control.activeFocus ? window.accent : "#d4d7de" }
+    }
+    component ChoiceBox: ComboBox {
+        id: choice
+        implicitHeight: 36
+        font.family: window.font.family
+        font.pixelSize: 14
+        font.weight: Font.Normal
+        leftPadding: 12; rightPadding: 34
+        hoverEnabled: true
+        contentItem: Text {
+            text: choice.displayText
+            font: choice.font
+            color: choice.enabled ? window.ink : window.secondary
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+        indicator: Image {
+            source: "chevron-down.svg"
+            width: 16; height: 16
+            x: choice.width - width - 10; y: (choice.height - height) / 2
+            opacity: choice.enabled ? 1 : 0.4
+        }
+        background: Rectangle {
+            radius: 6
+            color: choice.enabled ? (choice.hovered ? "#f6f8fb" : "white") : "#edf0f4"
+            border.color: choice.activeFocus ? window.accent : "#d4d7de"
+        }
+        delegate: ItemDelegate {
+            id: option
+            required property int index
+            width: choice.width - 8
+            height: 36
+            padding: 10
+            hoverEnabled: true
+            highlighted: choice.highlightedIndex === index
+            contentItem: Text {
+                text: choice.textAt(option.index)
+                font: choice.font
+                color: window.ink
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+            background: Rectangle {
+                radius: 4
+                color: option.highlighted ? "#dbe5f4" : option.hovered ? "#eef2f7" : "transparent"
+            }
+        }
+        popup: Popup {
+            y: choice.height + 4
+            width: choice.width
+            padding: 4
+            implicitHeight: Math.min(contentItem.implicitHeight + 8, 240)
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: choice.popup.visible ? choice.delegateModel : null
+                currentIndex: choice.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator {}
+            }
+            background: Rectangle { color: "white"; radius: 7; border.color: "#d4d7de" }
+        }
+    }
     component Card: Pane {
         Layout.fillWidth: true
         padding: 16
@@ -83,7 +158,7 @@ ApplicationWindow {
         id: control
         property bool labelVisible: true
         Layout.fillWidth: labelVisible
-        implicitHeight: Math.max(36, label.implicitHeight)
+        implicitHeight: labelVisible ? Math.max(36, label.implicitHeight) : 36
         implicitWidth: labelVisible ? label.implicitWidth : 44
         spacing: 8
         Accessible.name: text
@@ -103,7 +178,7 @@ ApplicationWindow {
             id: label
             visible: control.labelVisible
             leftPadding: 48
-            text: control.text
+            text: control.labelVisible ? control.text : ""
             wrapMode: Text.Wrap
             font: control.font
             color: window.ink
@@ -142,7 +217,7 @@ ApplicationWindow {
                         contentItem: RowLayout {
                             spacing: 11
                             Image {
-                                source: ["connection.svg", "permissions.svg", "pairing.svg", "diagnostics.svg"][navigation.index]
+                                source: ["connection.svg", "permissions.svg", "pairing.svg", "connection.svg", "diagnostics.svg"][navigation.index]
                                 sourceSize.width: 20; sourceSize.height: 20
                             }
                             Label { text: navigation.modelData; color: window.ink; font.weight: navigation.highlighted ? Font.DemiBold : Font.Normal; Layout.fillWidth: true }
@@ -156,8 +231,9 @@ ApplicationWindow {
                 }
                 Item { Layout.fillHeight: true }
                 Label { text: window.t("语言"); color: window.secondary }
-                ComboBox {
+                ChoiceBox {
                     Layout.fillWidth: true
+                    objectName: "languageChoice"
                     Accessible.name: window.t("语言")
                     model: [window.t("跟随系统"), "简体中文", "English"]
                     currentIndex: ["system", "zh-CN", "en"].indexOf(window.state.languagePreference)
@@ -199,44 +275,73 @@ ApplicationWindow {
                     ColumnLayout {
                         visible: window.page === 0
                         Layout.fillWidth: true
+                        Layout.maximumWidth: 740
+                        Layout.alignment: Qt.AlignLeft
                         spacing: 16
                         BodyText { text: window.t("窗口、输入、剪贴板和触控板，在一个应用里管理。") }
                         Card {
-                            visible: !window.state.paired
+                            visible: !window.state.discovery.groupID
                             ColumnLayout {
                                 width: parent.width
                                 spacing: 10
                                 Heading { text: window.t("首次使用") }
-                                BodyText { text: window.t("1. 导入配对文件\n2. 设置这台电脑需要的权限与组件\n3. 启动连接") }
-                                ActionButton { text: window.t("导入配对文件"); primary: true; onClicked: window.backend.action("importProfile") }
+                                BodyText { text: window.t("先选择本机作为主机或从机，再建立或加入连接组。") }
+                                ActionButton { text: window.t("设置连接组"); primary: true; onClicked: window.page = 2 }
                             }
                         }
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 14
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Heading { text: window.state.profileName; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Label { text: window.state.transitioning ? window.t("正在结束连接…") : window.state.running ? window.t("已启用连接") : window.t("连接已停止"); color: window.secondary; font.pixelSize: 12 }
-                            }
-                            ActionButton {
-                                text: window.state.running ? window.t("停止全部") : window.t("启动")
-                                primary: true
-                                enabled: window.state.running || (window.state.paired && !window.state.transitioning)
-                                onClicked: window.backend.action(window.state.running ? "stop" : "start")
+                        Card {
+                            padding: 16
+                            RowLayout {
+                                width: parent.width; spacing: 14
+                                Rectangle {
+                                    implicitWidth: 42; implicitHeight: 42; radius: 10; color: "#edf3fc"
+                                    Image { anchors.centerIn: parent; source: "connection.svg"; sourceSize.width: 24; sourceSize.height: 24 }
+                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: 4
+                                    Heading { text: window.state.profileName; font.pixelSize: 15; wrapMode: Text.NoWrap; elide: Text.ElideRight }
+                                    Label {
+                                        Layout.fillWidth: true; elide: Text.ElideRight; font.pixelSize: 12; color: window.secondary
+                                        text: window.state.transitioning ? window.t("正在同步连接组。") : window.state.running ? window.t("已启用连接") : window.t("连接已停止")
+                                    }
+                                }
+                                ConnectionIcon {
+                                    symbol: "disconnect.svg"; description: window.t("断开连接")
+                                    enabled: !!window.state.discovery.groupID && !window.state.discovery.paused && !window.state.busy
+                                    onClicked: window.backend.disconnectGroup()
+                                }
+                                ConnectionIcon {
+                                    symbol: "reconnect.svg"; description: window.t("断开并重新连接")
+                                    enabled: !!window.state.discovery.groupID && !window.state.busy
+                                    onClicked: window.backend.reconnectGroup()
+                                }
                             }
                         }
                         Repeater {
                             model: window.backend.components
                             delegate: Card {
                                 required property var modelData
+                                objectName: "componentCard"
+                                Layout.fillHeight: false
+                                padding: 16
                                 RowLayout {
-                                    width: parent.width
-                                    spacing: 12
+                                    width: parent.width; spacing: 14
+                                    Item {
+                                        implicitWidth: 42; implicitHeight: 42
+                                        Image {
+                                            anchors.centerIn: parent
+                                            source: modelData.icon || "connection.svg"
+                                            sourceSize.width: 32; sourceSize.height: 32
+                                            opacity: modelData.enabled ? 1 : 0.5
+                                        }
+                                    }
                                     ColumnLayout {
-                                        Layout.fillWidth: true
-                                        Heading { text: modelData.title; Layout.fillWidth: true; wrapMode: Text.Wrap }
-                                        BodyText { text: modelData.status; font.pixelSize: 12 }
+                                        Layout.fillWidth: true; spacing: 4
+                                        Heading { text: modelData.displayTitle || modelData.title; font.pixelSize: 14; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                                        Label {
+                                            Layout.fillWidth: true; elide: Text.ElideRight; font.pixelSize: 12; color: window.secondary
+                                            text: (modelData.deviceName ? modelData.deviceName + " · " : "") + modelData.status
+                                        }
                                     }
                                     SettingSwitch {
                                         text: modelData.title
@@ -251,13 +356,20 @@ ApplicationWindow {
                             ColumnLayout {
                                 width: parent.width
                                 spacing: 10
-                                Heading { text: window.t("收回本机窗口") }
+                                RowLayout {
+                                    spacing: 10
+                                    Image { source: "recall.svg"; sourceSize.width: 20; sourceSize.height: 20 }
+                                    Heading { text: window.t("收回本机窗口"); font.pixelSize: 14 }
+                                }
                                 Flow {
                                     Layout.fillWidth: true
                                     spacing: 8
                                     TextField {
                                         id: shortcut
-                                        width: 205; height: 36
+                                        width: 190; height: 36
+                                        font: window.font
+                                        leftPadding: 10
+                                        background: Rectangle { radius: 6; color: "#f7f8fa"; border.color: shortcut.activeFocus ? window.accent : "#d4d7de" }
                                         text: window.state.recallShortcut
                                         placeholderText: "Ctrl+Alt+Shift+H"
                                         Accessible.name: window.t("收回窗口快捷键")
@@ -354,7 +466,7 @@ ApplicationWindow {
                                 width: parent.width; spacing: 10
                                 Heading { text: window.t("媒体编解码") }
                                 BodyText { text: window.t("停止连接后更改，下次启动生效。多 GPU 请选择具体设备。") }
-                                ComboBox {
+                                ChoiceBox {
                                     Layout.fillWidth: true
                                     enabled: window.state.mediaEditable
                                     model: [window.t("自动"), "NVIDIA · NVENC / NVDEC", "AMD / Intel · VA-API"]
@@ -362,7 +474,7 @@ ApplicationWindow {
                                     onActivated: window.backend.setMedia(["auto", "nvidia", "vaapi"][currentIndex], window.state.mediaRenderNode)
                                     Accessible.name: window.t("媒体后端")
                                 }
-                                ComboBox {
+                                ChoiceBox {
                                     Layout.fillWidth: true
                                     enabled: window.state.mediaEditable
                                     property var devices: [{node: "", label: window.t("自动选择设备")}].concat(window.state.mediaDevices)
@@ -414,22 +526,103 @@ ApplicationWindow {
                         visible: window.page === 2
                         Layout.fillWidth: true
                         spacing: 16
-                        BodyText { text: window.t("配对文件把设备身份与连接地址一起导入。") }
+                        BodyText { text: window.t("一个连接组包含一台主机和最多两台从机。主机显示配对码，从机选择主机后加入。") }
                         Card {
                             ColumnLayout {
                                 width: parent.width; spacing: 12
-                                Heading { text: window.t("当前配对") }
-                                BodyText { text: window.state.profileName }
-                                BodyText { visible: window.state.paired; text: window.t("连接组件：{count} 项").replace("{count}", window.state.components.length) }
+                                Heading { text: window.t("本机角色") }
+                                ChoiceBox {
+                                    objectName: "pairingRole"
+                                    Layout.fillWidth: true
+                                    model: [window.t("请选择角色"), window.t("主机"), window.t("从机")]
+                                    currentIndex: window.state.discovery.role === "host" ? 1 : window.state.discovery.role === "client" ? 2 : 0
+                                    enabled: !window.state.busy && !window.state.transitioning
+                                    onActivated: function(index) { if (index > 0) window.backend.setPairingRole(index === 1 ? "host" : "client") }
+                                }
+                                BodyText { text: window.state.discovery.role === "host" ? window.t("由本机管理连接组，等待从机加入。") : window.t("从机只能加入一个主机的连接组。") }
+                                BodyText { visible: (window.state.discovery.count || 0) > 1; text: window.t("切换角色会退出当前连接组。") }
                             }
                         }
-                        BodyText { text: window.t("在已配对电脑上使用导出工具生成 .viewflowconnection 文件，然后在这里导入。更换配对时会先结束旧连接。") }
-                        ActionButton { text: window.t("导入配对文件"); primary: true; enabled: !window.state.transitioning; onClicked: window.backend.action("importProfile") }
-                        BodyText { text: window.t("配对文件包含设备私钥，请只通过你信任的方式传送。"); font.pixelSize: 12 }
+                        Card {
+                            visible: window.state.discovery.role === "host"
+                            ColumnLayout {
+                                width: parent.width; spacing: 12
+                                Heading { text: window.t("主机配对码") }
+                                BodyText { text: window.state.discovery.name || "Viewflow" }
+                                Label { visible: !!window.state.discovery.code; text: window.state.discovery.code || ""; font.pixelSize: 36; font.letterSpacing: 6; color: window.ink }
+                                BodyText { visible: window.state.discovery.count >= 3; text: window.t("连接组已满，最多三台电脑。") }
+                                Row {
+                                    Layout.fillWidth: true; spacing: 8
+                                    ActionButton { text: window.state.discovery.code ? window.t("更换配对码") : window.t("显示配对码"); enabled: window.state.discovery.count < 3 && !window.state.busy; onClicked: window.backend.showPairingCode() }
+                                    ActionButton { visible: !!window.state.discovery.code; text: window.t("取消"); onClicked: window.backend.cancelPairingCode() }
+                                }
+                                BodyText { text: (window.state.discovery.addresses || []).join("\n"); font.pixelSize: 12 }
+                            }
+                        }
+                        Heading { visible: !!window.state.discovery.groupID; text: window.t("当前连接组") + " · " + (window.state.discovery.count || 0) + "/3" }
+                        Repeater {
+                            model: window.state.discovery.members || []
+                            delegate: Card {
+                                required property var modelData
+                                ColumnLayout {
+                                    width: parent.width; spacing: 8
+                                    Heading { text: modelData.name }
+                                    BodyText { text: modelData.platform + " · " + (modelData.role === "host" ? window.t("主机") : window.t("从机")) + (modelData.local ? " · " + window.t("本机") : " · " + (modelData.online ? window.t("在线") : window.t("等待重连"))) }
+                                    BodyText { visible: !!modelData.address; text: modelData.address || ""; font.pixelSize: 12 }
+                                    ActionButton { visible: window.state.discovery.role === "host" && !modelData.local; text: window.t("移出连接组"); enabled: !window.state.busy; onClicked: window.backend.removeGroupMember(modelData.id) }
+                                }
+                            }
+                        }
+                        Row {
+                            visible: !!window.state.discovery.groupID
+                            Layout.fillWidth: true; spacing: 8
+                            ConnectionIcon { symbol: "disconnect.svg"; description: window.t("断开连接"); enabled: !window.state.busy && !window.state.discovery.paused; onClicked: window.backend.disconnectGroup() }
+                            ConnectionIcon { symbol: "reconnect.svg"; description: window.t("断开并重新连接"); enabled: !window.state.busy; onClicked: window.backend.reconnectGroup() }
+                            ActionButton { text: window.state.discovery.role === "host" ? window.t("解散连接组") : window.t("退出连接组"); enabled: !window.state.busy && !window.state.transitioning; onClicked: window.backend.leaveGroup() }
+                        }
+                        ColumnLayout {
+                            visible: window.state.discovery.role === "client" && !window.state.discovery.groupID
+                            Layout.fillWidth: true; spacing: 12
+                            Heading { text: window.t("附近的主机") }
+                            BodyText { visible: !(window.state.discovery.machines || []).length; text: window.t("正在查找局域网中的主机。也可以在下方输入主机地址。") }
+                            Repeater {
+                                model: window.state.discovery.machines || []
+                                delegate: Card {
+                                    required property var modelData
+                                    ColumnLayout {
+                                        width: parent.width; spacing: 8
+                                        Heading { text: modelData.name }
+                                        BodyText { text: modelData.platform + " · " + modelData.address + " · " + modelData.count + "/3" }
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            TextField { id: machineCode; placeholderText: window.t("主机的六位配对码"); maximumLength: 6; inputMethodHints: Qt.ImhDigitsOnly; Layout.fillWidth: true; Layout.minimumWidth: 80 }
+                                            ActionButton { Layout.maximumWidth: 220; text: window.t("加入连接组"); primary: true; enabled: !window.state.busy && !window.state.transitioning && modelData.count < 3 && machineCode.text.length === 6; onClicked: window.backend.connectMachine(modelData.address, machineCode.text, modelData.id) }
+                                        }
+                                    }
+                                }
+                            }
+                            Heading { text: window.t("手动输入主机地址") }
+                            TextField { id: manualAddress; Layout.fillWidth: true; placeholderText: window.t("主机名或 IP 地址（可带端口）") }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                TextField { id: manualCode; Layout.fillWidth: true; Layout.minimumWidth: 80; placeholderText: window.t("主机的六位配对码"); maximumLength: 6; inputMethodHints: Qt.ImhDigitsOnly }
+                                ActionButton { Layout.maximumWidth: 220; text: window.t("加入连接组"); primary: true; enabled: !window.state.busy && !window.state.transitioning && manualAddress.text.length > 0 && manualCode.text.length === 6; onClicked: window.backend.connectMachine(manualAddress.text, manualCode.text, "") }
+                            }
+                        }
+                        BodyText { visible: !!window.state.discovery.warning; text: window.state.discovery.warning || "" }
+                    }
+
+                    DisplayLayout {
+                        visible: window.page === 3
+                        Layout.fillWidth: true
+                        displays: window.state.discovery.displays || []
+                        editable: window.state.discovery.role === "host" && !window.state.busy && !window.state.transitioning
+                        translations: window.state.translations
+                        onPositionChanged: function(identity,x,y) { window.backend.setDisplayPosition(identity,x,y) }
                     }
 
                     ColumnLayout {
-                        visible: window.page === 3
+                        visible: window.page === 4
                         Layout.fillWidth: true
                         spacing: 16
                         RowLayout {

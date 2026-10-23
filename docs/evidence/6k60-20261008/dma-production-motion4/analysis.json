@@ -1,0 +1,105 @@
+{
+  "status": "completed task exit0; normal restored; not 6K60/sub-frame pass",
+  "fixture": {
+    "frames": 1200,
+    "elapsed_s": 20.000818,
+    "submit_fps": 59.998,
+    "scope": "generator submissions only"
+  },
+  "clock": {
+    "start_uncertainty_ms": 0.0778585,
+    "end_uncertainty_ms": 0.0701305,
+    "offset_shift_ms": -0.006562
+  },
+  "window": {
+    "selection": "host gate-open timestamp converted through calibration; approximate, not actual fixture loop-start QPC (not logged)",
+    "qpc100ns_start": 10904246682.01,
+    "qpc100ns_end": 11104246682.01,
+    "no_motion_warmup_removed": true
+  },
+  "wgc": {
+    "all_unique_captures": 662,
+    "approx_motion_unique_captures": 659,
+    "approx_motion_count_per_20s": 32.95,
+    "timestamp_gap_ms": {
+      "count": 658,
+      "p50": 16.6667,
+      "p95": 33.3334,
+      "min": 16.6666,
+      "max": 683.3333
+    },
+    "future_of_callback_ms": {
+      "count": 190,
+      "p50": 2.5918,
+      "p95": 7.9073,
+      "min": 0.048,
+      "max": 11.2567
+    },
+    "scope": "WGC system-relative capture timestamps, not generation"
+  },
+  "d12": {
+    "published_log_records": 640,
+    "approx_motion_publish_records": 633,
+    "approx_motion_publish_per_20s": 31.65,
+    "capture_to_output_write_end_ms": {
+      "count": 632,
+      "p50": 38.2491,
+      "p95": 125.144,
+      "min": 6.0647,
+      "max": 780.0874
+    },
+    "latency_scope": "capture to output write completion includes scheduling/D12/metadata; not isolated GPU copy",
+    "all_profile_d12_fallbacks_zero": true,
+    "all_profile_d12_cpu_frames_zero": true
+  },
+  "feedback": {
+    "all_capture_to_wayland_ms": {
+      "count": 54,
+      "p50": 74.39675,
+      "p95": 3163.94205,
+      "min": 41.14875,
+      "max": 5196.60305
+    },
+    "approx_motion_capture_to_wayland_ms": {
+      "count": 47,
+      "p50": 62.24545,
+      "p95": 345.87805,
+      "min": 41.14875,
+      "max": 792.12605
+    },
+    "scope": "subsampled Wayland presentation feedback; not presented FPS or photon",
+    "accepted_fps_windows": [
+      0.946,
+      1.191,
+      1.244,
+      32.754,
+      36.324,
+      33.29
+    ],
+    "presented_fps": null
+  },
+  "geometry": {
+    "output": "DP-4",
+    "mode": [
+      6144,
+      3456
+    ],
+    "refresh_hz": 60.021,
+    "scale": 2,
+    "fixture_logical_size": [
+      3072,
+      1728
+    ],
+    "fixture_physical_extent": [
+      6144,
+      3456
+    ],
+    "scope": "6K surface extent on 6K output; does not prove every pixel unobscured or fullscreen route"
+  },
+  "limitations": [
+    "No actual fixture gate-open QPC, so exact 20s motion-boundary analysis unavailable; host timestamp is approximate.",
+    "Gate initialization static capture contaminates full-run tail latency.",
+    "No generation\u2192presentation association without pixel stamp.",
+    "D12 GPU-only duration not instrumented in these logs."
+  ]
+}

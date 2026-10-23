@@ -1,12 +1,16 @@
 #include "compact_alpha_plane.hpp"
-#include <d3dcompiler.h>
+#include "alpha_summary_cs.hpp"
+#include "alpha_extract_vs.hpp"
+#include "alpha_extract_ps.hpp"
 #include <algorithm>
 #include <cstring>
 #include <cstdio>
+#include <chrono>
 namespace viewflow::reverse {
 using Microsoft::WRL::ComPtr;
 #define CHECK_HR(expr) do {const HRESULT vf_compact_status=(expr);if(FAILED(vf_compact_status)){std::fprintf(stderr,"compact_alpha_failure expr=%s hr=%08lx\n",#expr,static_cast<unsigned long>(vf_compact_status));return vf_compact_status;}}while(0)
 HRESULT CompactAlphaPlane::start(ID3D11Device* device,unsigned width,unsigned height) {
+    auto stage_at=std::chrono::steady_clock::now();const auto stage=[&](const char* name){auto now=std::chrono::steady_clock::now();std::fprintf(stderr,"alpha_init_stage name=%s us=%lld\n",name,static_cast<long long>(std::chrono::duration_cast<std::chrono::microseconds>(now-stage_at).count()));stage_at=now;};
     if(!device || !width || !height)return E_INVALIDARG;
     UINT support{};CHECK_HR(device->CheckFormatSupport(DXGI_FORMAT_R8_UNORM,&support));
     if(!(support&D3D11_FORMAT_SUPPORT_RENDER_TARGET) || !(support&D3D11_FORMAT_SUPPORT_SHADER_LOAD))return E_NOTIMPL;
@@ -20,38 +24,15 @@ HRESULT CompactAlphaPlane::start(ID3D11Device* device,unsigned width,unsigned he
         d.Usage=D3D11_USAGE_STAGING;d.CPUAccessFlags=D3D11_CPU_ACCESS_READ;d.BindFlags=0;CHECK_HR(device->CreateTexture2D(&d,nullptr,&slot.summary_staging));
         const D3D11_QUERY_DESC query{D3D11_QUERY_EVENT,0};CHECK_HR(device->CreateQuery(&query,&slot.ready));
     }
-    const char* source=R"(
-Texture2D<float> color:register(t0);
-RWTexture2D<uint> summary:register(u0);
-groupshared uint opaque_group[256];
-[numthreads(16,16,1)]
-void main(uint3 group:SV_GroupID,uint3 local:SV_GroupThreadID) {
-    uint width,height;color.GetDimensions(width,height);uint opaque=1;
-    [unroll] for(uint y=0;y<4;++y) [unroll] for(uint x=0;x<4;++x) {
-        uint2 p=group.xy*64+local.xy*4+uint2(x,y);
-        if(p.x<width && p.y<height) {
-            uint value=uint(round(saturate(color.Load(int3(p,0)))*255.0));
-            opaque&=uint(value==255);
-        }
-    }
-    uint index=local.y*16+local.x;opaque_group[index]=opaque;GroupMemoryBarrierWithGroupSync();
-    [unroll] for(uint stride=128;stride>0;stride>>=1) {
-        if(index<stride)opaque_group[index]&=opaque_group[index+stride];
-        GroupMemoryBarrierWithGroupSync();
-    }
-    if(index==0)summary[group.xy]=opaque_group[0];
-})";
-    ComPtr<ID3DBlob> code,error;const auto compiled=D3DCompile(source,std::strlen(source),nullptr,nullptr,nullptr,"main","cs_5_0",D3DCOMPILE_OPTIMIZATION_LEVEL3,0,&code,&error);if(FAILED(compiled) && error)std::fprintf(stderr,"alpha_summary_shader %s\n",static_cast<const char*>(error->GetBufferPointer()));CHECK_HR(compiled);
-    CHECK_HR(device->CreateComputeShader(code->GetBufferPointer(),code->GetBufferSize(),nullptr,&shader_));
-    const char* extract=R"(
-Texture2D<float4> color:register(t0);
-float4 vs(uint id:SV_VertexID):SV_Position{float2 p=float2((id<<1)&2,id&2);return float4(p*float2(2,-2)+float2(-1,1),0,1);}
-float ps(float4 pos:SV_Position):SV_Target{return color.Load(int3(pos.xy,0)).a;}
-)";
-    code.Reset();error.Reset();CHECK_HR(D3DCompile(extract,std::strlen(extract),nullptr,nullptr,nullptr,"vs","vs_5_0",D3DCOMPILE_OPTIMIZATION_LEVEL3,0,&code,&error));CHECK_HR(device->CreateVertexShader(code->GetBufferPointer(),code->GetBufferSize(),nullptr,&vertex_));
-    code.Reset();error.Reset();CHECK_HR(D3DCompile(extract,std::strlen(extract),nullptr,nullptr,nullptr,"ps","ps_5_0",D3DCOMPILE_OPTIMIZATION_LEVEL3,0,&code,&error));CHECK_HR(device->CreatePixelShader(code->GetBufferPointer(),code->GetBufferSize(),nullptr,&pixel_));return S_OK;
+    stage("resources");
+
+    CHECK_HR(device->CreateComputeShader(vf_alpha_summary_cs,sizeof(vf_alpha_summary_cs),nullptr,&shader_));
+    stage("compute-shader");
+
+    CHECK_HR(device->CreateVertexShader(vf_alpha_extract_vs,sizeof(vf_alpha_extract_vs),nullptr,&vertex_));
+    CHECK_HR(device->CreatePixelShader(vf_alpha_extract_ps,sizeof(vf_alpha_extract_ps),nullptr,&pixel_));stage("extract-shaders");return S_OK;
 }
-HRESULT CompactAlphaPlane::enqueue(ID3D11ShaderResourceView* source,std::int64_t tag) {
+HRESULT CompactAlphaPlane::enqueue(ID3D11ShaderResourceView* source,std::int64_t tag,bool full_readback) {
     if(!context_ || !source)return E_INVALIDARG;if(count_==slots_.size())return S_FALSE;
     auto& slot=slots_[(head_+count_)%slots_.size()];
     // Preserve the original fast R8 render-target extraction. Summarize that
@@ -63,6 +44,10 @@ HRESULT CompactAlphaPlane::enqueue(ID3D11ShaderResourceView* source,std::int64_t
     context_->IASetInputLayout(nullptr);context_->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);context_->VSSetShader(vertex_.Get(),nullptr,0);context_->PSSetShader(pixel_.Get(),nullptr,0);
     context_->PSSetShaderResources(0,1,&source);context_->Draw(3,0);ID3D11ShaderResourceView* empty_source=nullptr;
     context_->PSSetShaderResources(0,1,&empty_source);context_->OMSetRenderTargets(0,nullptr,nullptr);
+    if(full_readback){
+        context_->CopyResource(slot.staging.Get(),slot.alpha.Get());context_->End(slot.ready.Get());context_->Flush();
+        slot.tag=tag;slot.copying_alpha=true;++count_;return S_OK;
+    }
     auto* summary=slot.summary_view.Get();auto* plane=slot.alpha_source.Get();
     context_->CSSetShader(shader_.Get(),nullptr,0);context_->CSSetShaderResources(0,1,&plane);context_->CSSetUnorderedAccessViews(0,1,&summary,nullptr);context_->Dispatch(groups_x_,groups_y_,1);
     ID3D11UnorderedAccessView* empty_output=nullptr;context_->CSSetShaderResources(0,1,&empty_source);context_->CSSetUnorderedAccessViews(0,1,&empty_output,nullptr);context_->CSSetShader(nullptr,nullptr,0);

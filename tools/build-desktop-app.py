@@ -21,14 +21,15 @@ COMMON = ['viewflowd', 'vf-media-peer', 'vf-window-peer', 'vf-clipboard-peer', '
 PROGRAMS = {
     'linux': COMMON + ['vf-hyprland-windows', 'viewflow_linux_reverse', 'viewflow-linux-window-input', 'viewflow-media-probe'],
     'windows': COMMON + ['vf-input-service', 'viewflow_windows_reverse', 'viewflow_windows_composition_preview',
-                        'viewflow-windows-windows', 'viewflow_virtual_display'],
+                        'viewflow-windows-windows', 'viewflow_virtual_display', 'viewflow-window-recall'],
 }
 NATIVE = {
     'linux': {'linux-media': ['viewflow-media-probe'], 'linux-reverse': ['viewflow_linux_reverse'], 'linux-window-input': ['viewflow-linux-window-input'],
               'hyprland-plugin': ['viewflow-hyprland'], 'viewflow-capture': ['viewflow-capture']},
     'windows': {'windows-reverse': ['viewflow_windows_reverse', 'viewflow_virtual_display'],
                 'windows-composition-preview': ['viewflow_windows_composition_preview'],
-                'windows-window-presenter': ['viewflow-windows-windows']},
+                'windows-window-presenter': ['viewflow-windows-windows'],
+                'window-recall': ['viewflow-window-recall']},
 }
 
 
@@ -118,7 +119,9 @@ def linux_dependencies(app):
             name = Path(name).name
             if name.startswith(host_prefixes): continue
             dependencies[name] = path
-    for name, path in dependencies.items(): shutil.copy2(path, libraries / name)
+    for name, path in dependencies.items():
+        destination = libraries / name
+        if Path(path).resolve() != destination.resolve(): shutil.copy2(path, destination)
     for binary in (app / 'bin').iterdir(): run(['patchelf', '--set-rpath', '$ORIGIN/../lib', binary])
     for library in libraries.iterdir(): run(['patchelf', '--set-rpath', '$ORIGIN', library])
     return sorted(dependencies)
@@ -177,7 +180,9 @@ def package(args):
         payload = args.payload.resolve() if args.payload else native_build(target, native_work)
         inspect_payload(payload, target)
         scripts = work / 'scripts'; scripts.mkdir()
-        for name in ('desktop-autostart-linux.py', 'desktop-drag-linux.sh', 'macos-window-source.py'):
+        for name in ('desktop-autostart-linux.py', 'desktop-drag-linux.sh', 'macos-window-source.py',
+                     'desktop_peer_discovery.py', 'windows_virtual_display_scale.py', 'windows_session_route.py',
+                     'paired-linux-session.py', 'macos-window-share-linux.py', 'multiscreen-input-linux.py'):
             shutil.copy2(ROOT / 'tools' / name, scripts / name)
         for name in ('linux_native_forward.py', 'linux_forward.py'):
             shutil.copy2(ROOT / 'platform/macos-trackpad-probe' / name, scripts / name)
@@ -185,10 +190,12 @@ def package(args):
              '--distpath', work / 'dist', '--workpath', work / 'freeze', '--specpath', work,
              '--paths', ROOT / 'platform/desktop-app', '--add-data', str(scripts) + os.pathsep + 'scripts',
              '--add-data', str(ROOT / 'platform/desktop-app/qml') + os.pathsep + 'qml',
+             '--add-data', str(ROOT / 'platform/branding') + os.pathsep + 'brand',
              '--hidden-import', 'PySide6.QtQuick', '--hidden-import', 'PySide6.QtSvg',
              '--hidden-import', 'fcntl' if target == 'linux' else 'ctypes.wintypes',
              '--hidden-import', 'shlex', '--hidden-import', 'select',
-             *(['--windowed'] if target == 'windows' else []),
+             '--collect-submodules', 'zeroconf',
+             *(['--windowed', '--icon', ROOT / 'platform/branding/viewflow.ico'] if target == 'windows' else []),
              ROOT / 'platform/desktop-app/main.py'])
         app = work / 'dist/Viewflow'
         for directory in ('bin', 'plugins', 'lib'):
@@ -220,7 +227,7 @@ def package(args):
                     'build_system': platform.platform(), 'libc': platform.libc_ver() if target == 'linux' else None,
                     'programs': {x: 'bin/' + x + extension for x in PROGRAMS[target]},
                     'build': dict(build_source, desktop_input_verified=False),
-                    'scripts': ['desktop-autostart-linux', 'native-trackpad-forward'] if target == 'linux' else [],
+                    'scripts': ['desktop-autostart-linux', 'native-trackpad-forward', 'paired-linux-session', 'linux-window-share', 'group-input-route'] if target == 'linux' else [],
                     'hid': 'windows-system-input-api' if target == 'windows' else 'hyprland-and-evdev',
                     'libraries': extra_libraries}
         if target == 'linux':

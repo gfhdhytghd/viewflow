@@ -4,7 +4,7 @@ set -euo pipefail
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 tmp=$(mktemp -d)
-trap 'rm -rf -- "$tmp"' EXIT
+trap 'result=$?; if (( result != 0 )); then cat "$TEST_LOG" >&2; fi; rm -rf -- "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/runtime" "$tmp/plugins"
 export XDG_RUNTIME_DIR="$tmp/runtime"
 export TEST_LOG="$tmp/commands.log"
@@ -17,6 +17,7 @@ cat >"$tmp/bin/hyprctl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 log=${TEST_LOG:?}; state=${TEST_STATE:?}
+if [[ ${1:-} == -q ]]; then shift; fi
 printf '%q ' "$@" >>"$log"; printf '\n' >>"$log"
 initial='[{"name":"DP-4","activeWorkspace":{"id":1},"specialWorkspace":{"id":0,"name":""},"x":0,"y":0,"width":2000,"height":1000,"scale":2,"transform":0}]'
 monitors() {
@@ -24,8 +25,8 @@ monitors() {
     local special='{"id":0,"name":""}'
     local active='{"id":2,"name":"2"}'
     if [[ -e "$state/special-workspace" ]]; then
-      special='{"id":-99,"name":"special:viewflow"}'
-      active='{"id":-100,"name":"viewflow-underlay"}'
+      special='{"type":"special","address":"special:viewflow","name":"special:viewflow"}'
+      active='{"id":2,"type":"normal","name":"2"}'
     fi
     if [[ ${TEST_ZERO_OUTPUT:-0} == 1 ]]; then
       printf '%s\n' "$initial" | jq --argjson active "$active" --argjson special "$special" '. + [{"id":99,"name":"HEADLESS-99","activeWorkspace":$active,"specialWorkspace":$special,"x":1000,"y":0,"width":0,"height":0,"scale":1}]'
@@ -55,7 +56,7 @@ if [[ $1 == eval ]]; then
     [[ $2 == *'position = "1000x0"'* ]] || exit 4
     if [[ ${TEST_RESET_EXISTING:-0} == 1 ]]; then mkdir -p "$state"; : >"$state/recovered-output"; fi
   elif [[ $2 == *'monitor:set_special_workspace("viewflow")'* ]]; then
-    [[ $2 == *'monitor:set_workspace("name:viewflow-underlay")'* ]] || exit 4
+    [[ $2 != *'set_workspace({'* ]] || exit 4
     : >"$state/special-workspace"
   else
     exit 4
@@ -114,7 +115,7 @@ EOF
 rg -q 'output create headless' "$TEST_LOG"
 rg -q 'eval .*hl\.monitor' "$TEST_LOG"
 rg -q 'eval .*set_special_workspace.*viewflow' "$TEST_LOG"
-rg -q 'eval .*set_workspace.*viewflow-underlay' "$TEST_LOG"
+rg -q 'eval .*set_special_workspace.*viewflow' "$TEST_LOG"
 [[ $(rg -c 'plugin load' "$TEST_LOG") == 2 ]]
 ! rg -q 'keyword' "$TEST_LOG"
 jq -e '.pointer.cursor_monitor_id == 99 and .desktop.candidates[0].stable_id == "org.example.test" and .windows[0].width == 640 and .windows[0].geometry_epoch == 7' "$tmp/runtime/owned/config" >/dev/null

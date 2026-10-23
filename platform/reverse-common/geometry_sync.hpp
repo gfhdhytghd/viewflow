@@ -1,7 +1,14 @@
 #pragma once
 #include <cstdint>
 #include <algorithm>
+#include <string>
 namespace viewflow::reverse {
+// Negative compositor IDs identify named workspaces, but negative dispatcher
+// selectors mean relative moves. Address those workspaces by name instead.
+inline std::string workspace_selector(int id,const std::string& name) {
+    if(id>=0)return std::to_string(id);
+    return name.starts_with("special:")?name:"name:"+name;
+}
 struct Geometry { int x{},y{},width{},height{};bool operator==(const Geometry&) const=default; };
 // Confirm the application's own interpretation of a held click before taking
 // over a titlebar drag. Content clicks and resizes keep their native handling.

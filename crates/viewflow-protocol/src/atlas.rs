@@ -30,7 +30,46 @@ pub struct AtlasPatch {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AtlasActivity {
+    pub lane: u32,
+    pub epoch: u64,
+    pub preferred: Option<WindowId>,
+    pub focus: Option<WindowId>,
+    pub members: Vec<WindowId>,
+}
+impl AtlasActivity {
+    pub fn validate(&self) -> Result<(), WireError> {
+        if self.lane>1 || self.epoch==0 || self.members.len()>4096
+            || self.members.iter().any(|id|id.0==0)
+            || self.members.windows(2).any(|ids|ids[0]>=ids[1])
+            || self.preferred.is_some_and(|id|self.members.binary_search(&id).is_err())
+            || self.focus.is_some_and(|id|self.members.binary_search(&id).is_err()) {
+            return Err(WireError::InvalidField("atlas_activity"));
+        }
+        Ok(())
+    }
+}
+impl TryFrom<wire::AtlasActivity> for AtlasActivity {
+    type Error=WireError;
+    fn try_from(value:wire::AtlasActivity)->Result<Self,Self::Error>{
+        let result=Self{lane:value.lane,epoch:value.epoch,
+            preferred:value.preferred.map(|id|required_id(Some(id),"activity.preferred")).transpose()?,
+            focus:value.focus.map(|id|required_id(Some(id),"activity.focus")).transpose()?,
+            members:value.members.into_iter().map(|id|required_id(Some(id),"activity.member")).collect::<Result<_,_>>()?};
+        result.validate()?;Ok(result)
+    }
+}
+impl From<AtlasActivity> for wire::AtlasActivity {
+    #[allow(clippy::cast_possible_truncation)]
+    fn from(value:AtlasActivity)->Self{
+        let id=|value:Id128|wire::Id128{high:(value.0>>64)as u64,low:value.0 as u64};
+        Self{lane:value.lane,epoch:value.epoch,preferred:value.preferred.map(id),focus:value.focus.map(id),members:value.members.into_iter().map(id).collect()}
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AtlasFrame {
+    pub activity: Option<AtlasActivity>,
     pub stream_id: Id128,
     pub frame_id: u64,
     pub geometry_epoch: u64,
@@ -56,6 +95,10 @@ impl AtlasFrame {
     /// out-of-bounds pixels and attempts to renew an older tile's timestamp.
     pub fn validate(&self) -> Result<(), WireError> {
         let invalid = || WireError::InvalidField("atlas_frame");
+        if let Some(activity)=&self.activity {
+            activity.validate()?;
+            if activity.members.contains(&self.stream_id) || self.tiles.iter().any(|tile|activity.members.binary_search(&tile.window_id).is_err()) { return Err(invalid()); }
+        }
         if self.stream_id.0 == 0
             || self.frame_id == 0
             || self.geometry_epoch == 0
@@ -209,13 +252,15 @@ impl AtlasFrame {
 impl TryFrom<wire::AtlasFrame> for AtlasFrame {
     type Error = WireError;
     fn try_from(value: wire::AtlasFrame) -> Result<Self, Self::Error> {
-        if !matches!(value.version, 1 | 2)
-            || (value.version == 2) != value.patches.is_some()
+        if !matches!(value.version, 1 | 2 | 3)
+            || (value.version == 3) != value.activity.is_some()
+            || (value.version != 3 && (value.version == 2) != value.patches.is_some())
             || value.tiles.len() > 4096
         {
             return Err(WireError::InvalidField("atlas_frame.version_or_count"));
         }
         let frame = Self {
+            activity: value.activity.map(TryInto::try_into).transpose()?,
             stream_id: required_id(value.stream_id, "atlas_frame.stream_id")?,
             color_keyframe: value.color_keyframe,
             alpha_keyframe: value.alpha_keyframe,
@@ -272,7 +317,8 @@ impl From<AtlasFrame> for wire::AtlasFrame {
             low: value.0 as u64,
         };
         Self {
-            version: if value.patches.is_some() { 2 } else { 1 },
+            version: if value.activity.is_some() {3} else if value.patches.is_some() { 2 } else { 1 },
+            activity: value.activity.map(Into::into),
             color_keyframe: value.color_keyframe,
             alpha_keyframe: value.alpha_keyframe,
             desktop: value.desktop.map(Into::into),
@@ -509,6 +555,7 @@ mod tests {
 
     fn frame() -> AtlasFrame {
         AtlasFrame {
+            activity: None,
             patches: None,
             color_keyframe: true,
             alpha_keyframe: true,

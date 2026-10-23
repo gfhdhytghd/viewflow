@@ -1,0 +1,17 @@
+#8  0x0000555eb9fd8c67 in Render::CRenderPass::clear() ()
+   0x555eb9fd8c4f <_ZN6Render11CRenderPass5clearEv+95>:	jne    0x555eb9fd8c30 <_ZN6Render11CRenderPass5clearEv+64>
+   0x555eb9fd8c51 <_ZN6Render11CRenderPass5clearEv+97>:	mov    0x10(%rbx),%rdi
+   0x555eb9fd8c55 <_ZN6Render11CRenderPass5clearEv+101>:	test   %rdi,%rdi
+   0x555eb9fd8c58 <_ZN6Render11CRenderPass5clearEv+104>:	je     0x555eb9fd8cc8 <_ZN6Render11CRenderPass5clearEv+216>
+   0x555eb9fd8c5a <_ZN6Render11CRenderPass5clearEv+106>:	cmpb   $0x0,0x18(%rbx)
+   0x555eb9fd8c5e <_ZN6Render11CRenderPass5clearEv+110>:	jne    0x555eb9fd8cc8 <_ZN6Render11CRenderPass5clearEv+216>
+   0x555eb9fd8c60 <_ZN6Render11CRenderPass5clearEv+112>:	movb   $0x1,0x18(%rbx)
+   0x555eb9fd8c64 <_ZN6Render11CRenderPass5clearEv+116>:	call   *0x20(%rbx)
+=> 0x555eb9fd8c67 <_ZN6Render11CRenderPass5clearEv+119>:	movq   $0x0,0x10(%rbx)
+   0x555eb9fd8c6f <_ZN6Render11CRenderPass5clearEv+127>:	movb   $0x0,0x18(%rbx)
+   0x555eb9fd8c73 <_ZN6Render11CRenderPass5clearEv+131>:	mov    0x18(%r12),%rbx
+   0x555eb9fd8c78 <_ZN6Render11CRenderPass5clearEv+136>:	mov    0x4(%rbx),%edx
+#7  0x00007f1715375660 in ?? ()
+rax            0x1                 1
+rdi            0x555ecd7d6b60      93865662835552
+rip            0x7f1715375660      0x7f1715375660

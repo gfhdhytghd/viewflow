@@ -1,0 +1,54 @@
+{
+  "socket": "/home/wilf/data/PDL_ASP_Monitor/runtime/windows-vm/qmp-vfio.sock",
+  "read_only_commands": true,
+  "greeting": {
+    "QMP": {
+      "version": {
+        "qemu": {
+          "micro": 1,
+          "minor": 1,
+          "major": 11
+        },
+        "package": ""
+      },
+      "capabilities": [
+        "oob"
+      ]
+    }
+  },
+  "capabilities": {
+    "return": {}
+  },
+  "name": {
+    "return": {
+      "name": "Windows-AutoShop"
+    }
+  },
+  "before_status": {
+    "return": {
+      "status": "running",
+      "running": true
+    }
+  },
+  "cpu_count": 10,
+  "properties": {
+    "hv-vpindex": {
+      "return": true
+    },
+    "hv-time": {
+      "return": true
+    },
+    "hv-synic": {
+      "return": true
+    },
+    "hv-stimer": {
+      "return": true
+    }
+  },
+  "after_status": {
+    "return": {
+      "status": "running",
+      "running": true
+    }
+  }
+}

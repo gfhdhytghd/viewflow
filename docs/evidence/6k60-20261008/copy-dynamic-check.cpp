@@ -1,0 +1,3 @@
+#include "../../../platform/reverse-common/shared_copy.hpp"
+#include <cassert>
+int main(){for(unsigned threads:{1u,2u,4u,8u})for(bool avx:{false,true})for(bool cached:{false,true})for(unsigned h:{1u,3u,9u,63u,64u,65u,129u,3456u}){size_t row=h==3456?24576:137,pitch=row+17;std::vector<unsigned char>s(pitch*h),d(row*h+2,0xad);for(size_t i=0;i<s.size();++i)s[i]=i*37;viewflow::reverse::shm::ParallelCopy c(threads,avx,cached);for(int n=0;n<3;++n)c.copy(d.data()+1,s.data(),row,pitch,h);for(unsigned y=0;y<h;++y)assert(!memcmp(d.data()+1+y*row,s.data()+y*pitch,row));assert(d.front()==0xad&&d.back()==0xad);}}

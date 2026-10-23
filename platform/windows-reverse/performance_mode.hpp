@@ -48,6 +48,8 @@ struct ReverseOptions {
     std::filesystem::path mode_file;
     bool explicit_mode{};
     bool status_only{};
+    std::optional<unsigned> shared_memory;
+    std::filesystem::path fusion_file;
 };
 
 inline ReverseOptions parse_options(const std::vector<std::string_view>& arguments) {
@@ -56,7 +58,15 @@ inline ReverseOptions parse_options(const std::vector<std::string_view>& argumen
     bool explicit_file = false;
     for (std::size_t i = 0; i < arguments.size(); ++i) {
         const auto argument = arguments[i];
-        if (argument == "--performance-status") {
+        if(argument=="--fusion-file") {
+            if(++i==arguments.size() || arguments[i].empty() || !options.fusion_file.empty())throw std::invalid_argument("invalid fusion file");
+            options.fusion_file=std::filesystem::path(std::string(arguments[i]));
+        } else if(argument=="--ivshmem") {
+            if(++i==arguments.size() || options.shared_memory)throw std::invalid_argument("invalid IVSHMEM option");
+            unsigned index{};const auto value=arguments[i];const auto parsed=std::from_chars(value.data(),value.data()+value.size(),index);
+            if(parsed.ec!=std::errc{} || parsed.ptr!=value.data()+value.size())throw std::invalid_argument("invalid IVSHMEM index");
+            options.shared_memory=index;
+        } else if (argument == "--performance-status") {
             if (options.status_only) throw std::invalid_argument("duplicate reverse status option");
             options.status_only = true;
         } else if (argument == "--performance-mode" || argument == "--mode-file") {

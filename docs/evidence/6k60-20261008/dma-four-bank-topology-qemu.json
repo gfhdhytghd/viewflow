@@ -1,0 +1,3830 @@
+{
+  "status": "passed",
+  "guest_cpus_started": false,
+  "gpu_or_vfio_used": false,
+  "firmware_resource_assignment_verified": false,
+  "qmp": [
+    {
+      "request": {
+        "execute": "qmp_capabilities",
+        "id": 1
+      },
+      "response": {
+        "return": {},
+        "id": 1
+      }
+    },
+    {
+      "request": {
+        "execute": "query-pci",
+        "id": 2
+      },
+      "response": {
+        "return": [
+          {
+            "bus": 0,
+            "devices": [
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "",
+                "slot": 0,
+                "class_info": {
+                  "class": 1536,
+                  "desc": "Host bridge"
+                },
+                "id": {
+                  "device": 10688,
+                  "subsystem-vendor": 6900,
+                  "vendor": 32902,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": []
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "",
+                "slot": 6,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 1073741824,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "",
+                "slot": 7,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 1073741824,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "",
+                "slot": 8,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 1073741824,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "",
+                "slot": 9,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 1073741824,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s0",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s1",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s2",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s3",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s4",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s5",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s6",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s7",
+                "slot": 10,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s8",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s9",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s10",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s11",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s12",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s13",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s14",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b0s15",
+                "slot": 11,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s0",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s1",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s2",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s3",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s4",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s5",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s6",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s7",
+                "slot": 12,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s8",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s9",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s10",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s11",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s12",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s13",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s14",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b1s15",
+                "slot": 13,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s0",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s1",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s2",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s3",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s4",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s5",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s6",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s7",
+                "slot": 14,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s8",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s9",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s10",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s11",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s12",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s13",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s14",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b2s15",
+                "slot": 15,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s0",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s1",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s2",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s3",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s4",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s5",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s6",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s7",
+                "slot": 16,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s8",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s9",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 1,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s10",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s11",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s12",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 4,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s13",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 5,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s14",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 6,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "vf_dma_b3s15",
+                "slot": 17,
+                "class_info": {
+                  "class": 1280,
+                  "desc": "RAM controller"
+                },
+                "id": {
+                  "device": 4368,
+                  "subsystem-vendor": 6900,
+                  "vendor": 6900,
+                  "subsystem": 4352
+                },
+                "function": 7,
+                "regions": [
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 0,
+                    "size": 256,
+                    "address": -1,
+                    "type": "memory"
+                  },
+                  {
+                    "prefetch": true,
+                    "mem_type_64": true,
+                    "bar": 2,
+                    "size": 67108864,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 0,
+                "bus": 0,
+                "qdev_id": "",
+                "slot": 31,
+                "class_info": {
+                  "class": 1537,
+                  "desc": "ISA bridge"
+                },
+                "id": {
+                  "device": 10520,
+                  "subsystem-vendor": 6900,
+                  "vendor": 32902,
+                  "subsystem": 4352
+                },
+                "function": 0,
+                "regions": []
+              },
+              {
+                "irq_pin": 1,
+                "bus": 0,
+                "qdev_id": "",
+                "irq": 0,
+                "slot": 31,
+                "class_info": {
+                  "class": 262,
+                  "desc": "SATA controller"
+                },
+                "id": {
+                  "device": 10530,
+                  "subsystem-vendor": 6900,
+                  "vendor": 32902,
+                  "subsystem": 4352
+                },
+                "function": 2,
+                "regions": [
+                  {
+                    "bar": 4,
+                    "size": 32,
+                    "address": -1,
+                    "type": "io"
+                  },
+                  {
+                    "prefetch": false,
+                    "mem_type_64": false,
+                    "bar": 5,
+                    "size": 4096,
+                    "address": -1,
+                    "type": "memory"
+                  }
+                ]
+              },
+              {
+                "irq_pin": 1,
+                "bus": 0,
+                "qdev_id": "",
+                "irq": 0,
+                "slot": 31,
+                "class_info": {
+                  "class": 3077,
+                  "desc": "SMBus"
+                },
+                "id": {
+                  "device": 10544,
+                  "subsystem-vendor": 6900,
+                  "vendor": 32902,
+                  "subsystem": 4352
+                },
+                "function": 3,
+                "regions": [
+                  {
+                    "bar": 4,
+                    "size": 64,
+                    "address": -1,
+                    "type": "io"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "id": 2
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 3,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 3
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 4,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 4
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 5,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 5
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 6,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment3",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 6
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 7,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment4",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 7
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 8,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment5",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 8
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 9,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment6",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 9
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 10,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment7",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 10
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 11,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment8",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 11
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 12,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment9",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 12
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 13,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment10",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 13
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 14,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment11",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 14
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 15,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment12",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 15
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 16,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment13",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 16
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 17,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment14",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 17
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 18,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank0_segment15",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 18
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 19,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 19
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 20,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 20
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 21,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 21
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 22,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment3",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 22
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 23,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment4",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 23
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 24,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment5",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 24
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 25,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment6",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 25
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 26,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment7",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 26
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 27,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment8",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 27
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 28,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment9",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 28
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 29,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment10",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 29
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 30,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment11",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 30
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 31,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment12",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 31
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 32,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment13",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 32
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 33,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment14",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 33
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 34,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank1_segment15",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 34
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 35,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 35
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 36,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 36
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 37,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 37
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 38,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment3",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 38
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 39,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment4",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 39
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 40,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment5",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 40
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 41,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment6",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 41
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 42,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment7",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 42
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 43,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment8",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 43
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 44,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment9",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 44
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 45,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment10",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 45
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 46,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment11",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 46
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 47,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment12",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 47
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 48,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment13",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 48
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 49,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment14",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 49
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 50,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank2_segment15",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 50
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 51,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment0",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 51
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 52,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment1",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 52
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 53,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment2",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 53
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 54,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment3",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 54
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 55,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment4",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 55
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 56,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment5",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 56
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 57,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment6",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 57
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 58,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment7",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 58
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 59,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment8",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 59
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 60,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment9",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 60
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 61,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment10",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 61
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 62,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment11",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 62
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 63,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment12",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 63
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 64,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment13",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 64
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 65,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment14",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 65
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 66,
+        "arguments": {
+          "path": "/objects/viewflow_dma_bank3_segment15",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 66
+      }
+    },
+    {
+      "request": {
+        "execute": "quit",
+        "id": 67
+      },
+      "response": {
+        "return": {},
+        "id": 67
+      }
+    }
+  ],
+  "segments": 64,
+  "bdfs": [
+    [
+      0,
+      10,
+      0
+    ],
+    [
+      0,
+      10,
+      1
+    ],
+    [
+      0,
+      10,
+      2
+    ],
+    [
+      0,
+      10,
+      3
+    ],
+    [
+      0,
+      10,
+      4
+    ],
+    [
+      0,
+      10,
+      5
+    ],
+    [
+      0,
+      10,
+      6
+    ],
+    [
+      0,
+      10,
+      7
+    ],
+    [
+      0,
+      11,
+      0
+    ],
+    [
+      0,
+      11,
+      1
+    ],
+    [
+      0,
+      11,
+      2
+    ],
+    [
+      0,
+      11,
+      3
+    ],
+    [
+      0,
+      11,
+      4
+    ],
+    [
+      0,
+      11,
+      5
+    ],
+    [
+      0,
+      11,
+      6
+    ],
+    [
+      0,
+      11,
+      7
+    ],
+    [
+      0,
+      12,
+      0
+    ],
+    [
+      0,
+      12,
+      1
+    ],
+    [
+      0,
+      12,
+      2
+    ],
+    [
+      0,
+      12,
+      3
+    ],
+    [
+      0,
+      12,
+      4
+    ],
+    [
+      0,
+      12,
+      5
+    ],
+    [
+      0,
+      12,
+      6
+    ],
+    [
+      0,
+      12,
+      7
+    ],
+    [
+      0,
+      13,
+      0
+    ],
+    [
+      0,
+      13,
+      1
+    ],
+    [
+      0,
+      13,
+      2
+    ],
+    [
+      0,
+      13,
+      3
+    ],
+    [
+      0,
+      13,
+      4
+    ],
+    [
+      0,
+      13,
+      5
+    ],
+    [
+      0,
+      13,
+      6
+    ],
+    [
+      0,
+      13,
+      7
+    ],
+    [
+      0,
+      14,
+      0
+    ],
+    [
+      0,
+      14,
+      1
+    ],
+    [
+      0,
+      14,
+      2
+    ],
+    [
+      0,
+      14,
+      3
+    ],
+    [
+      0,
+      14,
+      4
+    ],
+    [
+      0,
+      14,
+      5
+    ],
+    [
+      0,
+      14,
+      6
+    ],
+    [
+      0,
+      14,
+      7
+    ],
+    [
+      0,
+      15,
+      0
+    ],
+    [
+      0,
+      15,
+      1
+    ],
+    [
+      0,
+      15,
+      2
+    ],
+    [
+      0,
+      15,
+      3
+    ],
+    [
+      0,
+      15,
+      4
+    ],
+    [
+      0,
+      15,
+      5
+    ],
+    [
+      0,
+      15,
+      6
+    ],
+    [
+      0,
+      15,
+      7
+    ],
+    [
+      0,
+      16,
+      0
+    ],
+    [
+      0,
+      16,
+      1
+    ],
+    [
+      0,
+      16,
+      2
+    ],
+    [
+      0,
+      16,
+      3
+    ],
+    [
+      0,
+      16,
+      4
+    ],
+    [
+      0,
+      16,
+      5
+    ],
+    [
+      0,
+      16,
+      6
+    ],
+    [
+      0,
+      16,
+      7
+    ],
+    [
+      0,
+      17,
+      0
+    ],
+    [
+      0,
+      17,
+      1
+    ],
+    [
+      0,
+      17,
+      2
+    ],
+    [
+      0,
+      17,
+      3
+    ],
+    [
+      0,
+      17,
+      4
+    ],
+    [
+      0,
+      17,
+      5
+    ],
+    [
+      0,
+      17,
+      6
+    ],
+    [
+      0,
+      17,
+      7
+    ]
+  ],
+  "prefixes": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "resident_bytes_by_bank": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "metadata": {
+    "version": 2,
+    "generation": 17357637084335739125,
+    "capacity": 1073741824,
+    "owner_uid": 1000,
+    "devices": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "inodes": [
+      409987,
+      409988,
+      409989,
+      409990
+    ]
+  },
+  "stderr": ""
+}

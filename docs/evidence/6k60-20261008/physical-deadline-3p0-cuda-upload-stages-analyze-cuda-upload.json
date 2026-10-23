@@ -1,0 +1,31 @@
+{
+  "scope": "CPU wall durations including implicit synchronization; not GPU execution; excludes host registration before map",
+  "extents": {
+    "6144x3456": {
+      "map_ms": {
+        "n": 1453,
+        "p50": 0.019,
+        "p95": 0.031,
+        "max": 0.153
+      },
+      "array_ms": {
+        "n": 1453,
+        "p50": 0.001,
+        "p95": 0.002,
+        "max": 0.069
+      },
+      "copy_ms": {
+        "n": 1453,
+        "p50": 2.58,
+        "p95": 3.512,
+        "max": 7.805
+      },
+      "unmap_ms": {
+        "n": 1453,
+        "p50": 0.019,
+        "p95": 0.039,
+        "max": 1.03
+      }
+    }
+  }
+}

@@ -8,7 +8,9 @@
 #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
 #include <hyprland/src/managers/eventLoop/EventLoopTimer.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowMetadata.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
@@ -54,7 +56,7 @@ struct Capture {
     void draw(const PHLMONITOR& monitor) {
         if (dead) { release_gpu(); return; }
         const auto target = window.lock();
-        if (!target || !target->m_isMapped || !memory || monitor->m_transform != WL_OUTPUT_TRANSFORM_NORMAL) return;
+        if (!target || !target->mapped() || !memory || monitor->m_transform != WL_OUTPUT_TRANSFORM_NORMAL) return;
         GLint previous = 0; glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &previous);
         if (fence) {
             const auto ready = glClientWaitSync(fence, 0, 0);
@@ -148,7 +150,7 @@ struct RendererAccess : Render::IHyprRenderer {
 };
 void render_desktop(const std::shared_ptr<Capture>& capture, PHLMONITOR monitor) {
     auto& renderer = *g_pHyprRenderer;
-    if (drawing_desktop || renderer.m_renderData.pMonitor || monitor->m_transform != WL_OUTPUT_TRANSFORM_NORMAL) return;
+    if (drawing_desktop || renderer.context().active() || monitor->m_transform != WL_OUTPUT_TRANSFORM_NORMAL) return;
     if (capture->fence && Clock::now() < capture->next) {capture->draw(monitor); return;}
     if (!capture->framebuffer || capture->framebuffer->m_size != monitor->m_pixelSize) {
         capture->framebuffer = renderer.createFB("Viewflow Linux desktop background");
@@ -160,25 +162,25 @@ void render_desktop(const std::shared_ptr<Capture>& capture, PHLMONITOR monitor)
     CRegion damage{CBox{{}, monitor->m_transformedSize}};
     if (!renderer.beginFullFakeRender(monitor, damage, capture->framebuffer)) return;
     drawing_desktop = true;
-    renderer.draw(CClearPassElement::SClearData{CHyprColor(0, 0, 0, 1)});
-    renderer.startRenderPass();
+    renderer.draw(renderer.context(), CClearPassElement::SClearData{CHyprColor(0, 0, 0, 1)});
+    renderer.startRenderPass(renderer.context());
     const auto now = Time::steadyNow();
-    (renderer.*&RendererAccess::renderBackground)(monitor);
+    (renderer.*&RendererAccess::renderBackground)(renderer.context(), monitor);
     auto layers = [&](size_t layer) {
         for (const auto& weak : monitor->m_layerSurfaceLayers[layer])
             if (auto surface = weak.lock())
-                (renderer.*&RendererAccess::renderLayer)(surface, monitor, now, false, false);
+                (renderer.*&RendererAccess::renderLayer)(renderer.context(), surface, monitor, now, false, false);
     };
     layers(0); layers(1);
     // The compositor window order is bottom to top within each plane.
     // Rebuild all visible Linux windows, including content behind Mac proxies.
     for (int plane = 0; plane < 3; ++plane) {
         for (const auto& window : Desktop::windowState()->windows()) {
-            if (!window->m_isMapped || window->isHidden() || window->m_class.starts_with("ViewflowReverse-") ||
+            if (!window->mapped() || window->isHidden() || window->metadata().appID().starts_with("ViewflowReverse-") ||
                 !renderer.shouldRenderWindow(window, monitor)) continue;
-            const int window_plane = window->m_pinned ? 2 : (window->m_isFloating ? 1 : 0);
+            const int window_plane = (window->m_state & Desktop::View::WINDOW_STATE_PINNED) ? 2 : (window->isFloating() ? 1 : 0);
             if (window_plane != plane) continue;
-            (renderer.*&RendererAccess::renderWindow)(window, monitor, now, true, Render::RENDER_PASS_ALL, false, false);
+            (renderer.*&RendererAccess::renderWindow)(renderer.context(), window, monitor, window->presentation().renderPresentation(), now, true, Render::RENDER_PASS_ALL, false, false);
         }
     }
     layers(2); layers(3);
@@ -189,7 +191,7 @@ void render_desktop(const std::shared_ptr<Capture>& capture, PHLMONITOR monitor)
     capture->framebuffer->bind();
     capture->draw(monitor);
     glFlush();
-    renderer.m_renderPass.clear();
+    renderer.context().m_pass.clear();
 }
 
 }
@@ -235,7 +237,7 @@ struct PopupBackdrops::Impl {
             if(memory==MAP_FAILED){close(fd);continue;}
             PHLWINDOW window;
             if(memory->magic==vf::backdrop_shm_magic)for(const auto& w:Desktop::windowState()->windows())
-                if(reinterpret_cast<uintptr_t>(w.get())==memory->window && w->m_isMapped && w->getPID()==static_cast<pid_t>(memory->pid) && w->m_class.starts_with("ViewflowReverse-MacNative-")){window=w;break;}
+                if(reinterpret_cast<uintptr_t>(w.get())==memory->window && w->mapped() && w->backend().pid()==static_cast<pid_t>(memory->pid) && w->metadata().appID().starts_with("ViewflowReverse-MacNative-")){window=w;break;}
             if(!window){if(memory->magic==vf::backdrop_shm_magic && memory->pid>1 && kill(static_cast<pid_t>(memory->pid),0)<0 && errno==ESRCH)unlink(name.c_str());munmap(memory,vf::backdrop_shm_size);close(fd);continue;}
             auto capture=std::make_shared<Capture>();capture->fd=fd;capture->memory=memory;capture->window=window;
             entries.emplace(name,Entry{capture});

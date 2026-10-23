@@ -137,6 +137,8 @@ pub async fn run_until(
     }
     let layout = config.layout()?;
     let mut plan = config.media.plan()?;
+    plan.activity_priority_version = u32::from(config.activity_priority == crate::activity_priority::ActivityPriorityMode::Auto
+        && config.pointer.is_some() && config.disposition_recovery);
     for descriptor in [&mut plan.color, &mut plan.alpha] {
         descriptor.coded_width = layout.width;
         descriptor.coded_height = layout.height;
@@ -223,7 +225,7 @@ pub async fn run_until(
         };
         let _connection_sampler =
             crate::atlas_feedback::sample_connection(&peer.connection, "source", native_now);
-        let (_shared_writer, input) = match setup_input(&config, &mut peer, desktop_setup.clone()) {
+        let (_shared_writer, mut input) = match setup_input(&config, &mut peer, desktop_setup.clone()) {
             Ok(setup) => setup,
             Err(error) => {
                 return match warmup.shutdown().await {
@@ -247,9 +249,14 @@ pub async fn run_until(
                 )
             })
             .transpose()?;
-        let session = warmup.into_live(peer.sender).await?;
-        let mut session = session;
+        let negotiated_activity = peer.sender.activity_enabled();
+        let mut session = warmup.into_live(peer.sender).await?;
         session.set_occlusion(config.occlusion)?;
+        if negotiated_activity {
+            let handle = crate::activity_priority::ActivityHandle::default();
+            if let Some(input) = &mut input { input.attach_activity(handle.clone()); }
+            session.enable_activity(handle, config.fps).await?;
+        }
         let desktop = if let Some(lane) = desktop_setup {
             session.attach_desktop_source(lane.clone())?;
             Some(crate::desktop_source::DesktopEnrollmentSupervisor::new(
@@ -540,7 +547,8 @@ mod tests {
         eprintln!("owned capture geometry={geometry:?}");
         let root = std::env::temp_dir();
         let config = AtlasSourceConfig {
-            occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
+                        activity_priority: Default::default(),
+occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
             reverse: None,
             pointer: None,
             desktop: None,

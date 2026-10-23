@@ -21,6 +21,7 @@ public:
     // This queues work without waiting or resetting the encoder.
     HRESULT request_output();
 private:
+    HRESULT start_impl(ID3D11Device*, unsigned, unsigned, unsigned, unsigned, bool fast);
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

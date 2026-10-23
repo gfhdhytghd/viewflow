@@ -9,7 +9,9 @@ audio, file export, notification UI or global compositor settings.
 
 The GPU core and Hyprland render/control entry build independently into
 `viewflow-capture.so`. The Lua namespace is `hl.plugin.viewflow_capture`, with
-private-file `window_stream_start` and `window_stream_stop` controls. The atlas
+private-file `window_stream_start`, `window_stream_start_commit`, and
+`window_stream_stop` controls. The optional commit entry defers capture after
+content changes and retains a periodic fallback for other visual changes. The atlas
 source defaults to `capture_provider: "viewflow"`; explicit `"hyprcapture"`
 retains the old diagnostic backend, with no automatic fallback.
 Nested Wayland runtime load, three-frame DMA-BUF/fence/release, visual readback,
@@ -66,3 +68,7 @@ scope and the screenshot helper's shutdown error.
 Shadow/alpha visual parity and event-driven capture remain to validate. Periodic
 capture now aligns equal-fps streams to the same monotonic tick grid instead of
 accumulating each window's render time into its next timeout.
+
+The source `performance_mode` selects `frame-rate` (default grid) or `latency`
+(commit scheduling). Both preserve renderer output and GPU ownership. See
+[mode selection and validation](../../docs/performance-modes.md).

@@ -1,0 +1,99 @@
+{
+  "run": "docs/evidence/6k60-20261008/dma-production-motion11",
+  "window_precision": "exact logged loop boundaries converted to QPC100ns",
+  "in_flight": 1,
+  "loop": {
+    "begin_qpc": 31223421316.0,
+    "end_qpc": 31423420972.0,
+    "seconds": 19.9999656,
+    "generator_submit_fps": 60.000103200177506,
+    "original_qpc_frequency": 10000000
+  },
+  "foreground_changes": 0,
+  "wgc_raw_all_log_count": 994,
+  "wgc_exact_loop_unique": {
+    "count": 991,
+    "per_second": 49.55008522614659
+  },
+  "source_published_atlas_pts_in_loop": {
+    "count": 977,
+    "per_second": 48.85008402214452
+  },
+  "host_accept_end_events_in_loop": {
+    "count": 973,
+    "per_second": 48.65008367814393
+  },
+  "host_accept_scope": "accept_end CPU submission completion; not presentation",
+  "wayland_feedback_sample_count_in_loop": 63,
+  "wayland_presented_fps": null,
+  "wayland_scope": "feedback trace subsampled; full frame count unavailable",
+  "capture_to_wayland_ms_for_loop_captures": {
+    "n": 63,
+    "p50": 45.566922,
+    "p95": 62.676322,
+    "max": 129.406722
+  },
+  "gpu_d12_ms_for_loop_atlas_pts": {
+    "n": 0
+  },
+  "gpu_d12_scope": "GPU copy timestamp duration excluding producer wait; linked to following completed PTS",
+  "gpu_d11_ms_all_log_including_gate": {
+    "n": 0
+  },
+  "gpu_d11_scope": "ALL-ROLES aggregate, not bridge-only; all-session including gate; snapshot-local sequence lacks PTS join, not exact motion-window selection",
+  "gpu_d11_by_scope_ms_all_log_including_gate": {},
+  "clock_uncertainty_ms": 0.0924205,
+  "clock_offset_shift_ms": -0.013918,
+  "cpu_fallback_counts": [
+    0
+  ],
+  "cpu_frame_counts": [
+    0
+  ],
+  "atlas_extents": {
+    "('6144', '3456')": 1
+  },
+  "last_input": {
+    "values_ms": [
+      1806546,
+      1806546,
+      1806546
+    ],
+    "changed": false,
+    "scope": "session last input, not evidence of injected input"
+  },
+  "extent_changed": false,
+  "stable_focus": true,
+  "stable_baseline": true,
+  "restore": {
+    "task-result.json": {
+      "exit": 0,
+      "full_20s_includes_source_startup": false,
+      "timing_origin": "fixture start gate after initial 6K capture",
+      "generation_to_present": "unavailable; no pixel stamp",
+      "actual_6k_presentation": "requires geometry evidence"
+    },
+    "restore.json": {
+      "wrapper_unchanged": true,
+      "normal_state": "Running",
+      "native_drained": true
+    },
+    "host-recovery.json": {
+      "forced_job_cleanup_is_not_graceful": true,
+      "status": "not-needed"
+    }
+  },
+  "droptrace": {
+    "records": 0,
+    "reasons": {},
+    "scope": "all-session logged drops only; absence does not establish no drops"
+  },
+  "wgc_future_of_callback_ms": {
+    "n": 326,
+    "p50": 2.647,
+    "p95": 6.0317,
+    "max": 10.9822
+  },
+  "timestamp_scope": "WGC system-relative timestamps are not generation timestamps; future-of-callback samples retained without reinterpretation",
+  "d12_association_warning": "Adjacent GPU query/stage/completed lines are diagnostic association, not explicit PTS carried by query; inspect interleaved/multilane logs"
+}

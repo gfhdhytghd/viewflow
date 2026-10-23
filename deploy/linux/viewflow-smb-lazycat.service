@@ -1,0 +1,14 @@
+[Unit]
+Description=Viewflow Samba access to the existing Lazycat mount
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/mountpoint -q /home/wilf/lazycat_automount/wilfmeo
+ExecStart=/home/wilf/.local/lib/viewflow/bindfs/bin/bindfs -f --no-allow-other -o allow_root /home/wilf/lazycat_automount/wilfmeo /home/wilf/.local/share/viewflow/smb-lazycat
+ExecStop=/usr/bin/fusermount3 -u /home/wilf/.local/share/viewflow/smb-lazycat
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

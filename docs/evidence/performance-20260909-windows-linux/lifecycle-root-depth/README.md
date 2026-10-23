@@ -1,0 +1,3 @@
+# Drain barrier and window lifecycle
+
+All seven owned-window phases pass: static first frame, title, move, second window, resize, hide and close. All 21 frames pass Linux NVDEC/CUDA/GLES upload, exact alpha and metadata checks. Every accepted PTS outputs once in order, every null-input request starts after existing encode tasks finish, and all drain cycles complete without interleaved fresh inputs. Three live mode changes retain the same process. Foreground samples remain unchanged; normal exit and private cleanup pass. This recording test excludes physical input and live Wayland lifecycle acceptance. See raw signed phase timing in runs/root-depth/summary.json.

@@ -1,0 +1,27 @@
+--- /home/wilf/.config/HyprV/quickshell/scripts/control-panel-status.sh
++++ /home/wilf/.config/HyprV/quickshell/scripts/control-panel-status.sh
+@@ -14,21 +14,9 @@
+ fi
+ printf 'wifi_enabled=%s\n' "$wifi_enabled"
+ 
+-# Screen brightness
+-brightness=50
+-brightness_script="${HOME}/.config/HyprV/hypr/scripts/brightness"
+-if [[ -x "$brightness_script" ]]; then
+-    pct="$(run_quick "$brightness_script" --get-level)"
+-    if [[ -n "$pct" && "$pct" =~ ^[0-9]+$ ]]; then
+-        brightness="$pct"
+-    fi
+-elif command -v brightnessctl >/dev/null 2>&1; then
+-    pct="$(timeout 2s sh -lc "brightnessctl -m 2>/dev/null | cut -d, -f4 | tr -d '%'" 2>/dev/null || true)"
+-    if [[ -n "$pct" && "$pct" =~ ^[0-9]+$ ]]; then
+-        brightness="$pct"
+-    fi
+-fi
+-printf 'brightness=%s\n' "$brightness"
++# Brightness is read by quickAdjustBrightnessProbe on panel open and after
++# user adjustments. Periodic DDC/CI queries stall the NVIDIA import path.
++# Omit brightness here so unrelated status polling keeps the current UI value.
+ 
+ # DND (Do Not Disturb) state
+ dnd=false

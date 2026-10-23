@@ -1,0 +1,5 @@
+# Publication cost budget after immediate polling
+
+Run42 completed-frame diagnostics: map total median0.005/P950.008ms,max0.081; CPU publication(copy intoIVSHMEM) median4.719/P955.522ms,max12.129. Query max perframe median0.003/P950.066,max1.001;unmap max median0.002/P950.003,max0.014. Firstpoll0.023/P954.927/max32.869;pollgapmax1.983/P954.202/max11.658ms. Separate percentile distributions are not additive. Source publication touches84,934,656bytes per full6Kframe; median copy time implies roughly18GB/s effective frame throughput, not measured DRAM bandwidth.
+
+Existing pixel-bands-flush1.md documents per-bandFlush exposing early readiness1063/1550 vs0/1532 for unifiedFlush. Reverting blindly would remove observed early-prefix opportunity; no new trial justified solely by reducing API call count. Current data suggests work on copy/publication overlap and scheduling tails, not Map/Unmap micro-optimization. Need per-band absolute timestamps to establish when first copy publishes relative to host DMA; current aggregate copy durations cannot prove concurrent overlap duration. No production change, no target completion.

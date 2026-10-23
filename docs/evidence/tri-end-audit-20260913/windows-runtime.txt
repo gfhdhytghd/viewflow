@@ -1,0 +1,99 @@
+2026-09-13T16:21:36.3754296-04:00
+[
+    {
+        "ProcessId":  7744,
+        "Name":  "viewflowd.exe",
+        "ExecutablePath":  "C:\\Users\\wilf\\Viewflow\\current-build-20260909\\target\\release\\viewflowd.exe",
+        "CommandLine":  "\"C:\\Users\\wilf\\Viewflow\\current-build-20260909\\target\\release\\viewflowd.exe\" serve --bind 0.0.0.0:44149 --cert C:\\Users\\wilf\\Viewflow\\desktop-test\\receiver.pem --key C:\\Users\\wilf\\Viewflow\\desktop-test\\receiver.key --ca C:\\Users\\wilf\\Viewflow\\desktop-test\\pair-ca.pem --input-backend native --device-id b80867d70352713620878217838c1bb7 "
+    },
+    {
+        "ProcessId":  14332,
+        "Name":  "viewflowd.exe",
+        "ExecutablePath":  "C:\\Users\\wilf\\AppData\\Local\\Programs\\Viewflow\\viewflowd.exe",
+        "CommandLine":  "\"C:\\Users\\wilf\\AppData\\Local\\Programs\\Viewflow\\viewflowd.exe\" connect --peer 172.16.105.62:44119 --server-name viewflow-linux --cert C:\\Users\\wilf\\AppData\\Local\\Programs\\Viewflow\\identity\\peer.pem --key C:\\Users\\wilf\\AppData\\Local\\Programs\\Viewflow\\identity\\peer.key --ca C:\\Users\\wilf\\AppData\\Local\\Programs\\Viewflow\\identity\\ca.pem --input-backend native --device-id 00000000000000000000000000000002 --probe-interval-ms 1000 --probe-timeout-ms 3000"
+    },
+    {
+        "ProcessId":  18612,
+        "Name":  "vf-input-service.exe",
+        "ExecutablePath":  "C:\\Program Files\\ViewflowInput\\vf-input-service.exe",
+        "CommandLine":  "\"C:\\Program Files\\ViewflowInput\\vf-input-service.exe\" service S-1-5-21-1940417919-1835306932-1635351729-1001"
+    },
+    {
+        "ProcessId":  4348,
+        "Name":  "vf-input-service.exe",
+        "ExecutablePath":  "C:\\Program Files\\ViewflowInput\\vf-input-service.exe",
+        "CommandLine":  "\"C:\\Program Files\\ViewflowInput\\vf-input-service.exe\" worker S-1-5-21-1940417919-1835306932-1635351729-1001 Global\\ViewflowInputStop-18612-1 18612"
+    },
+    {
+        "ProcessId":  3144,
+        "Name":  "vf-audio-peer.exe",
+        "ExecutablePath":  "C:\\Users\\wilf\\AppData\\Local\\Viewflow\\audio\\vf-audio-peer.exe",
+        "CommandLine":  "\"C:\\Users\\wilf\\AppData\\Local\\Viewflow\\audio\\vf-audio-peer.exe\" --config C:\\Users\\wilf\\AppData\\Local\\Viewflow\\audio\\send.json "
+    },
+    {
+        "ProcessId":  6332,
+        "Name":  "viewflow-audio.exe",
+        "ExecutablePath":  "C:\\Users\\wilf\\AppData\\Local\\Viewflow\\audio\\viewflow-audio.exe",
+        "CommandLine":  "\"C:\\Users\\wilf\\AppData\\Local\\Viewflow\\audio\\viewflow-audio.exe\" capture --scope system --exclude-pid 0"
+    },
+    {
+        "ProcessId":  2112,
+        "Name":  "vf-window-peer.exe",
+        "ExecutablePath":  "C:\\Users\\wilf\\Viewflow\\windows-macos-20260910\\vf-window-peer.exe",
+        "CommandLine":  "\"C:\\Users\\wilf\\Viewflow\\windows-macos-20260910\\vf-window-peer.exe\" --config C:\\Users\\wilf\\Viewflow\\windows-macos-20260910\\send.json "
+    },
+    {
+        "ProcessId":  13588,
+        "Name":  "vf-window-peer.exe",
+        "ExecutablePath":  "C:\\Users\\wilf\\Viewflow\\windows-macos-20260910\\vf-window-peer.exe",
+        "CommandLine":  "\"C:\\Users\\wilf\\Viewflow\\windows-macos-20260910\\vf-window-peer.exe\" --config C:\\Users\\wilf\\Viewflow\\windows-macos-20260910\\receive.json "
+    },
+    {
+        "ProcessId":  10996,
+        "Name":  "viewflow_windows_reverse.exe",
+        "ExecutablePath":  "C:\\Users\\wilf\\Viewflow\\desktop-test\\viewflow_windows_reverse.exe",
+        "CommandLine":  "\"C:/Users/wilf/Viewflow/desktop-test/viewflow_windows_reverse.exe\" 0 2400 3078 4710 --performance-mode frame-rate"
+    }
+]
+[
+    {
+        "TaskName":  "ViewflowMain-Active",
+        "State":  3
+    },
+    {
+        "TaskName":  "ViewflowWindowsMacReceiver",
+        "State":  4
+    },
+    {
+        "TaskName":  "ViewflowWindowsMacSource",
+        "State":  4
+    }
+]
+window peer connected: 172.16.105.83:44223
+reverse-window-bridge ready native_role=source paired_connection=true
+reverse_performance mode=frame-rate max_pending=4
+reverse_direct_single_surface enabled=1
+reverse_capture_changes enabled=1
+reverse-inventory windows=219 viewport=0,2400,3078,4710
+reverse-window-added id=1 hwnd=0000000000040352 ime_popup=0
+reverse-window-added id=2 hwnd=0000000000050732 ime_popup=0
+encoder_vpl api=2.16 query=0 width=4288 height=1600 low=16 usage=7 async=2 refdist=1 refs=1 tiles=2 rows=1 slices=2 bitrate=24000
+encoder_vpl_pool depth=2 minimum=3 suggested=3 allocated=3
+encoder_backend selected=vpl vendor=32902 forced=0
+reverse_alpha_summary enabled=1 hr=00000000 width=4288 height=1600
+reverse-atlas hardware=mf-hevc width=4288 height=1600
+reverse-window-added id=3 hwnd=00000000000207C4 ime_popup=0
+encoder_vpl api=2.16 query=0 width=7360 height=1600 low=16 usage=7 async=2 refdist=1 refs=1 tiles=2 rows=1 slices=2 bitrate=24000
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "BB6973EDDE8ACB05F829ACF45D08DED3524277F6A9CEF6ABDA5D1E849060DD74",
+        "Path":  "C:\\Users\\wilf\\Viewflow\\desktop-test\\viewflow_windows_reverse.exe"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "86A50A43D9E3E4FEC94B8081EAE05BB82AAAC3C170BB67F2778EA3F4D885508A",
+        "Path":  "C:\\Users\\wilf\\Viewflow\\windows-macos-20260910\\build\\presenter\\Release\\viewflow-windows-windows.exe"
+    }
+]
+

@@ -1,0 +1,401 @@
+{
+  "scope": "Exact motion-loop PTS window; adjacent clock/stage/publication diagnostic association. Producer wait vs queue scheduling not separately resolved. End-to-observed is estimated, not pure polling sleep.",
+  "runs": {
+    "8": {
+      "analysis": {
+        "run": "docs/evidence/6k60-20261008/dma-production-motion8",
+        "window_precision": "exact logged loop boundaries converted to QPC100ns",
+        "in_flight": 1,
+        "loop": {
+          "begin_qpc": 29514736281.0,
+          "end_qpc": 29714733982.0,
+          "seconds": 19.9997701,
+          "generator_submit_fps": 60.000689707928196,
+          "original_qpc_frequency": 10000000
+        },
+        "foreground_changes": 0,
+        "wgc_raw_all_log_count": 988,
+        "wgc_exact_loop_unique": {
+          "count": 985,
+          "per_second": 49.25056613525773
+        },
+        "source_published_atlas_pts_in_loop": {
+          "count": 618,
+          "per_second": 30.90035519958302
+        },
+        "host_accept_end_events_in_loop": {
+          "count": 616,
+          "per_second": 30.800354050069807
+        },
+        "host_accept_scope": "accept_end CPU submission completion; not presentation",
+        "wayland_feedback_sample_count_in_loop": 59,
+        "wayland_presented_fps": null,
+        "wayland_scope": "feedback trace subsampled; full frame count unavailable",
+        "capture_to_wayland_ms_for_loop_captures": {
+          "n": 59,
+          "p50": 60.268036,
+          "p95": 76.754536,
+          "max": 109.780136
+        },
+        "gpu_d12_ms_for_loop_atlas_pts": {
+          "n": 618,
+          "p50": 3.632344,
+          "p95": 3.952396,
+          "max": 5.103854
+        },
+        "gpu_d12_scope": "GPU copy timestamp duration excluding producer wait; linked to following completed PTS",
+        "gpu_d11_ms_all_log_including_gate": {
+          "n": 625,
+          "p50": 2.903073,
+          "p95": 3.521146,
+          "max": 4.198021
+        },
+        "gpu_d11_scope": "ALL-ROLES aggregate, not bridge-only; all-session including gate; snapshot-local sequence lacks PTS join, not exact motion-window selection",
+        "gpu_d11_by_scope_ms_all_log_including_gate": {
+          "owned-bridge-GPU-copy-not-WGC-source-copy": {
+            "n": 625,
+            "p50": 2.903073,
+            "p95": 3.521146,
+            "max": 4.198021
+          }
+        },
+        "clock_uncertainty_ms": 0.0869685,
+        "clock_offset_shift_ms": -0.005915,
+        "cpu_fallback_counts": [
+          0
+        ],
+        "cpu_frame_counts": [
+          0
+        ],
+        "atlas_extents": {
+          "('6144', '3456')": 1
+        },
+        "last_input": {
+          "values_ms": [
+            1806546,
+            1806546,
+            1806546
+          ],
+          "changed": false,
+          "scope": "session last input, not evidence of injected input"
+        },
+        "extent_changed": false,
+        "stable_focus": true,
+        "stable_baseline": true,
+        "restore": {
+          "task-result.json": {
+            "exit": 0,
+            "full_20s_includes_source_startup": false,
+            "timing_origin": "fixture start gate after initial 6K capture",
+            "generation_to_present": "unavailable; no pixel stamp",
+            "actual_6k_presentation": "requires geometry evidence"
+          },
+          "restore.json": {
+            "wrapper_unchanged": true,
+            "normal_state": "Running",
+            "native_drained": true
+          },
+          "host-recovery.json": {
+            "forced_job_cleanup_is_not_graceful": true,
+            "status": "not-needed"
+          }
+        },
+        "droptrace": {
+          "records": 0,
+          "reasons": {},
+          "scope": "all-session logged drops only; absence does not establish no drops"
+        },
+        "wgc_future_of_callback_ms": {
+          "n": 436,
+          "p50": 1.9804,
+          "p95": 4.6225,
+          "max": 10.4232
+        },
+        "timestamp_scope": "WGC system-relative timestamps are not generation timestamps; future-of-callback samples retained without reinterpretation",
+        "d12_association_warning": "Adjacent GPU query/stage/completed lines are diagnostic association, not explicit PTS carried by query; inspect interleaved/multilane logs"
+      },
+      "queue_metrics": {
+        "host_wait_ms": {
+          "count": 618,
+          "p50": 0.002,
+          "p95": 0.005,
+          "max": 0.024
+        },
+        "import_ms": {
+          "count": 618,
+          "p50": 0.002,
+          "p95": 0.003,
+          "max": 0.007
+        },
+        "submit_cpu_ms": {
+          "count": 618,
+          "p50": 0.2,
+          "p95": 0.275,
+          "max": 0.432
+        },
+        "producer_observed_ms": {
+          "count": 618,
+          "p50": 15.015,
+          "p95": 18.763,
+          "max": 25.267
+        },
+        "consumer_observed_ms": {
+          "count": 618,
+          "p50": 30.366,
+          "p95": 37.109,
+          "max": 114.94
+        },
+        "max_poll_gap_ms": {
+          "count": 618,
+          "p50": 2.644,
+          "p95": 4.089,
+          "max": 4.459
+        },
+        "gpu_ms": {
+          "count": 618,
+          "p50": 3.632344,
+          "p95": 3.952396,
+          "max": 5.103854
+        },
+        "submit_end_to_gpu_start_ms": {
+          "count": 618,
+          "p50": 14.200004,
+          "p95": 21.042619,
+          "max": 25.62354
+        },
+        "calibration_call_ms": {
+          "count": 618,
+          "p50": 0.0197,
+          "p95": 0.0397,
+          "max": 0.2472
+        },
+        "estimated_gpu_end_to_cpu_observed_ms": {
+          "count": 618,
+          "p50": 12.286999999999995,
+          "p95": 16.3304,
+          "max": 96.957
+        },
+        "submit_interval_ms": {
+          "count": 617,
+          "p50": 32.3881,
+          "p95": 39.8582,
+          "max": 188.8798
+        },
+        "previous_gpu_end_to_next_submit_ms": {
+          "count": 617,
+          "p50": 14.2412,
+          "p95": 18.4132,
+          "max": 169.653
+        }
+      },
+      "adopt_records_all_session": 0,
+      "bridge_records_all_session": 625,
+      "restore": {
+        "wrapper_unchanged": true,
+        "normal_state": "Running",
+        "native_drained": true
+      }
+    },
+    "9": {
+      "analysis": {
+        "run": "docs/evidence/6k60-20261008/dma-production-motion9",
+        "window_precision": "exact logged loop boundaries converted to QPC100ns",
+        "in_flight": 1,
+        "loop": {
+          "begin_qpc": 30057069070.0,
+          "end_qpc": 30257067606.0,
+          "seconds": 19.9998536,
+          "generator_submit_fps": 60.00043920321496,
+          "original_qpc_frequency": 10000000
+        },
+        "foreground_changes": 0,
+        "wgc_raw_all_log_count": 1007,
+        "wgc_exact_loop_unique": {
+          "count": 1004,
+          "per_second": 50.200367466689855
+        },
+        "source_published_atlas_pts_in_loop": {
+          "count": 876,
+          "per_second": 43.80032061834692
+        },
+        "host_accept_end_events_in_loop": {
+          "count": 874,
+          "per_second": 43.70031988634157
+        },
+        "host_accept_scope": "accept_end CPU submission completion; not presentation",
+        "wayland_feedback_sample_count_in_loop": 62,
+        "wayland_presented_fps": null,
+        "wayland_scope": "feedback trace subsampled; full frame count unavailable",
+        "capture_to_wayland_ms_for_loop_captures": {
+          "n": 62,
+          "p50": 56.11474,
+          "p95": 71.89044,
+          "max": 140.20124
+        },
+        "gpu_d12_ms_for_loop_atlas_pts": {
+          "n": 876,
+          "p50": 4.338125,
+          "p95": 4.832396,
+          "max": 5.979948
+        },
+        "gpu_d12_scope": "GPU copy timestamp duration excluding producer wait; linked to following completed PTS",
+        "gpu_d11_ms_all_log_including_gate": {
+          "n": 1012,
+          "p50": 3.505,
+          "p95": 6.096667,
+          "max": 18.276615
+        },
+        "gpu_d11_scope": "ALL-ROLES aggregate, not bridge-only; all-session including gate; snapshot-local sequence lacks PTS join, not exact motion-window selection",
+        "gpu_d11_by_scope_ms_all_log_including_gate": {
+          "WGC-to-owned-source-GPU-copy": {
+            "n": 1006,
+            "p50": 3.510521,
+            "p95": 6.096667,
+            "max": 18.276615
+          },
+          "owned-bridge-GPU-copy-not-WGC-source-copy": {
+            "n": 6,
+            "p50": 3.14,
+            "p95": 3.16349,
+            "max": 3.16349
+          }
+        },
+        "clock_uncertainty_ms": 0.098451,
+        "clock_offset_shift_ms": -0.00502,
+        "cpu_fallback_counts": [
+          0
+        ],
+        "cpu_frame_counts": [
+          0
+        ],
+        "atlas_extents": {
+          "('6144', '3456')": 1
+        },
+        "last_input": {
+          "values_ms": [
+            1806546,
+            1806546,
+            1806546
+          ],
+          "changed": false,
+          "scope": "session last input, not evidence of injected input"
+        },
+        "extent_changed": false,
+        "stable_focus": true,
+        "stable_baseline": true,
+        "restore": {
+          "task-result.json": {
+            "exit": 0,
+            "full_20s_includes_source_startup": false,
+            "timing_origin": "fixture start gate after initial 6K capture",
+            "generation_to_present": "unavailable; no pixel stamp",
+            "actual_6k_presentation": "requires geometry evidence"
+          },
+          "restore.json": {
+            "wrapper_unchanged": true,
+            "normal_state": "Running",
+            "native_drained": true
+          },
+          "host-recovery.json": {
+            "forced_job_cleanup_is_not_graceful": true,
+            "status": "not-needed"
+          }
+        },
+        "droptrace": {
+          "records": 0,
+          "reasons": {},
+          "scope": "all-session logged drops only; absence does not establish no drops"
+        },
+        "wgc_future_of_callback_ms": {
+          "n": 421,
+          "p50": 1.89,
+          "p95": 5.0626,
+          "max": 7.9449
+        },
+        "timestamp_scope": "WGC system-relative timestamps are not generation timestamps; future-of-callback samples retained without reinterpretation",
+        "d12_association_warning": "Adjacent GPU query/stage/completed lines are diagnostic association, not explicit PTS carried by query; inspect interleaved/multilane logs"
+      },
+      "queue_metrics": {
+        "host_wait_ms": {
+          "count": 876,
+          "p50": 0.002,
+          "p95": 0.004,
+          "max": 0.017
+        },
+        "import_ms": {
+          "count": 876,
+          "p50": 0.001,
+          "p95": 0.003,
+          "max": 0.014
+        },
+        "submit_cpu_ms": {
+          "count": 876,
+          "p50": 0.185,
+          "p95": 0.253,
+          "max": 0.446
+        },
+        "producer_observed_ms": {
+          "count": 876,
+          "p50": 3.062,
+          "p95": 13.885,
+          "max": 17.9
+        },
+        "consumer_observed_ms": {
+          "count": 876,
+          "p50": 18.417,
+          "p95": 30.639,
+          "max": 225.308
+        },
+        "max_poll_gap_ms": {
+          "count": 876,
+          "p50": 2.534,
+          "p95": 3.974,
+          "max": 5.582
+        },
+        "gpu_ms": {
+          "count": 876,
+          "p50": 4.338125,
+          "p95": 4.832396,
+          "max": 5.979948
+        },
+        "submit_end_to_gpu_start_ms": {
+          "count": 876,
+          "p50": 2.243458,
+          "p95": 12.655621,
+          "max": 21.197723
+        },
+        "calibration_call_ms": {
+          "count": 876,
+          "p50": 0.019,
+          "p95": 0.0312,
+          "max": 0.2667
+        },
+        "estimated_gpu_end_to_cpu_observed_ms": {
+          "count": 876,
+          "p50": 11.880599999999998,
+          "p95": 14.549300000000002,
+          "max": 208.28369999999998
+        },
+        "submit_interval_ms": {
+          "count": 875,
+          "p50": 20.2413,
+          "p95": 32.4858,
+          "max": 227.4402
+        },
+        "previous_gpu_end_to_next_submit_ms": {
+          "count": 875,
+          "p50": 13.6687,
+          "p95": 20.3482,
+          "max": 210.3888
+        }
+      },
+      "adopt_records_all_session": 878,
+      "bridge_records_all_session": 6,
+      "restore": {
+        "wrapper_unchanged": true,
+        "normal_state": "Running",
+        "native_drained": true
+      }
+    }
+  }
+}

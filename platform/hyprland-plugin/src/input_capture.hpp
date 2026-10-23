@@ -2,6 +2,7 @@
 #pragma once
 
 #include "input_capture_core.hpp"
+#include "window_recall.hpp"
 #include "touchpad_capture.hpp"
 #include "gesture_route.hpp"
 #include "metadata_bridge.hpp"
@@ -21,18 +22,19 @@ namespace viewflow::hyprland {
 
 class InputCapture {
 public:
-  explicit InputCapture(MetadataBridge &bridge);
+  explicit InputCapture(MetadataBridge &bridge, bool auxiliary = false);
   ~InputCapture();
 
   InputCapture(const InputCapture &) = delete;
   InputCapture &operator=(const InputCapture &) = delete;
 
   void start();
+  void forceDetach();
   [[nodiscard]] std::string pointerTimingsJson() const { return m_windowPointer.timingsJson(); }
   bool suppressConvenienceMotion() const { return m_windowPointer.suppressConvenienceMotion(); }
   [[nodiscard]] std::string captureStatusJson() const;
   bool captured() const { return m_core.captured(); }
-  bool forwardedMotion = false; // Synchronous compositor-thread cursor dispatch only.
+  inline static bool forwardedMotion = false; // Synchronous compositor-thread cursor dispatch only.
   void forwardedButton(uint32_t code, bool down, uint32_t time);
   void forwardedAxis(uint32_t axis, double delta, int32_t discrete, uint32_t source, uint32_t time);
 
@@ -66,14 +68,15 @@ private:
   void onPointerAxis(const IPointer::SAxisEvent &event);
   void onPointerFrame();
   void drainTouchpad();
-  bool remoteGesture() const;
+  bool remoteGesture(unsigned fingers=0) const;
   enum class TouchpadMode : std::uint8_t { Derived = 0, QuicRaw = 1, ExternalNative = 2 };
   bool suppressesDerivedTouchpad() const {
     return m_touchpadMode != TouchpadMode::Derived && m_touchpad && m_touchpad->available();
   }
   bool rawTouchpad() const { return m_touchpadMode == TouchpadMode::QuicRaw && m_touchpad && m_touchpad->available(); }
   bool externalTouchpad() const { return m_touchpadMode == TouchpadMode::ExternalNative && m_touchpad && m_touchpad->available(); }
-  void onKey(const IKeyboard::SKeyEvent &event);
+  bool onKey(const IKeyboard::SKeyEvent &event);
+  viewflow::recall::EvdevShortcut m_recallKeys, m_detachKeys;
   void suppressKeyboard(KeyboardListeners &listeners);
   void suppressLocalKeyboards();
   void restoreLocalKeyboards();
@@ -86,14 +89,17 @@ private:
   [[nodiscard]] bool physical(IPointer &pointer) const;
   [[nodiscard]] bool physical(IKeyboard &keyboard) const;
 
+  inline static CaptureSeat s_seat;
+  bool m_auxiliary = false;
   TouchpadMode m_touchpadMode{TouchpadMode::QuicRaw};
   bool m_buttonPhysical = true, m_axisPhysical = true, m_keyPhysical = true;
-  uint64_t m_returnedButtons = 0;
+  uint64_t m_returnedButtons = 0, m_inheritedButtons = 0;
   std::unique_ptr<TouchpadCapture> m_touchpad;
   IPointer* m_touchpadPointer{};
   std::uint64_t m_touchpadFrames{}, m_suppressedGestureEvents{}, m_localGestureEvents{};
   std::array<CHyprSignalListener, 6> m_gestures;
   GestureRoute m_swipeRoute, m_pinchRoute;
+  unsigned m_swipeFingers{}, m_pinchFingers{};
   bool m_cancelLocalGesture{};
   MetadataBridge &m_bridge;
   WindowPointerController m_windowPointer;

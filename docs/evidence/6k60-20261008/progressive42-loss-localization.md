@@ -1,0 +1,7 @@
+# Source versus receiver omissions
+
+Run42 generation-aligned interior20s:1200generated,1188unique published,1188announced,1188ready,1188accepted. No published identity missing locally, no superseded_active/superseded_queued/producer_aborted/replaced_by_ordinary reasons. Exact missing generated sequence identities saved in physical-pixel-progressive42-missing-identities.json, compared against all publication marker records to avoid shifted arrival-window accounting.
+
+Source callback-clock5s bins298,294,297,299; all successful staged captures selected, poolbusy0. Different bin time origins prevent per-sequence causal inference, and no pixel identity exists for frames never delivered to the application. Evidence locates omissions before publication and contradicts blaming host queue replacement. It does not identify DWM selection versus WGC runtime delivery versus other upstream loss.
+
+Code audit: main D3D11 immediate context shared between capture and publisher with ID3D11Multithread protection enabled. Source callback CPU copy/flush timing already instrumented. The optional WGC latest-drain path is opt-in; absence of a closure summary cannot establish skipped-frame count. Do not remove multithread protection or force stale-frame queuing as a performance fix. Next experiment should reduce/measure source capture/readback contention while preserving snapshot semantics; no more receiver queue tuning justified by these12missing frames.

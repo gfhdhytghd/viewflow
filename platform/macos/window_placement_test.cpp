@@ -1,6 +1,13 @@
 #include "window_placement.hpp"
 #include <cassert>
 int main() {
+    viewflow::macos::PendingGeometry geometry;
+    geometry.queue({10,1,2,800,600});
+    geometry.queue({12,100,200,800,600}); // Latest drag position replaces a failed AX request.
+    geometry.queue({11,50,60,800,600});
+    assert(geometry.latest->sequence == 12 && geometry.latest->x == 100);
+    assert(!geometry.complete(10) && geometry.latest); // An old completion cannot acknowledge final mouse-up.
+    assert(geometry.complete(12) && !geometry.latest);
     viewflow::macos::WindowPlacement p;
     p.observe(200, 100);
     assert(p.pointer_x(240) == 240);

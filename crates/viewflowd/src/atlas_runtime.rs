@@ -286,6 +286,7 @@ mod tests {
     }
     fn layout(frame_id: u64) -> AtlasFrame {
         AtlasFrame {
+            activity: None,
             patches: None,
             color_keyframe: true,
             alpha_keyframe: true,

@@ -49,26 +49,4 @@ let background = canvas(NSSize(width: 760, height: 500), pixels: 1520) {
 }
 try background.tiffRepresentation!.write(to: output.appendingPathComponent("background.tiff"))
 try background.representation(using: .png, properties: [:])!.write(to: output.appendingPathComponent("background-preview.png"))
-let iconset = output.appendingPathComponent("Viewflow.iconset")
-try FileManager.default.createDirectory(at: iconset, withIntermediateDirectories: true)
-func icon(_ pixels: Int) -> NSBitmapImageRep {
-    canvas(NSSize(width: 1024, height: 1024), pixels: pixels) {
-        let base = NSBezierPath(roundedRect: NSRect(x: 62, y: 62, width: 900, height: 900), xRadius: 205, yRadius: 205)
-        NSGradient(starting: color(0x27647D), ending: color(0x123749))!.draw(in: base, angle: 65)
-        let rear = NSBezierPath(roundedRect: NSRect(x: 209, y: 384, width: 430, height: 355), xRadius: 43, yRadius: 43)
-        color(0xB8DCE8, 0.9).setFill(); rear.fill()
-        color(0xEFFAFF, 0.8).setStroke(); rear.lineWidth = 7; rear.stroke()
-        let front = NSBezierPath(roundedRect: NSRect(x: 385, y: 264, width: 430, height: 355), xRadius: 43, yRadius: 43)
-        color(0xF6FCFE).setFill(); front.fill()
-        color(0x87C6D9).setFill(); NSBezierPath(roundedRect: NSRect(x: 422, y: 507, width: 355, height: 72), xRadius: 16, yRadius: 16).fill()
-        // The shared horizontal stroke joins the two window planes.
-        line([NSPoint(x: 273, y: 462), NSPoint(x: 647, y: 462)], tint: 0x2F829F, width: 24)
-        line([NSPoint(x: 608, y: 501), NSPoint(x: 647, y: 462), NSPoint(x: 608, y: 423)], tint: 0x2F829F, width: 24)
-    }
-}
-for size in [16, 32, 128, 256, 512] {
-    for scale in [1, 2] {
-        let name = "icon_\(size)x\(size)\(scale == 2 ? "@2x" : "").png"
-        try icon(size * scale).representation(using: .png, properties: [:])!.write(to: iconset.appendingPathComponent(name))
-    }
-}
+// App and volume icons come from platform/branding/Viewflow.icns.

@@ -74,6 +74,10 @@ struct ProbedCandidate {
 type EnrollmentTask = tokio::task::JoinHandle<Result<Option<ProbedCandidate>>>;
 
 impl DesktopSourceLane {
+    pub(crate) fn activity_activation(&self) -> (Option<WindowId>, u32) {
+        (self.active_window, self.raise_serial)
+    }
+
     pub(crate) fn new(
         viewport: DesktopViewport,
         candidates: Vec<DesktopCandidate>,
@@ -205,6 +209,7 @@ impl DesktopSourceLane {
                 self.bindings.insert(source.window, binding);
             }
             windows.push(AtlasWindowPlacement {
+                body_bounds: source.frame.input_geometry().map(|input| logical_bounds(input.content[0],input.content[1],input.content[2],input.content[3])).transpose()?,
                 window_id: candidate.window,
                 bounds: hcgf_bounds(source.frame.metadata())?,
                 movable: true,

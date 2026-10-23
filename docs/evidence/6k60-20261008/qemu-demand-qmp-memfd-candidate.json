@@ -1,0 +1,1010 @@
+{
+  "status": "passed",
+  "scope": "isolated QMP/QOM and sparse backing only",
+  "vfio_tested": false,
+  "gpu_dma_tested": false,
+  "guest_started": false,
+  "qmp": [
+    {
+      "request": {
+        "execute": "qmp_capabilities",
+        "id": 1
+      },
+      "response": {
+        "return": {},
+        "id": 1
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 2,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_test",
+          "mem-path": "/tmp/viewflow-dma-sur5qyv2/viewflow-dma-pixels",
+          "size": 1073741824,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 2
+      }
+    },
+    {
+      "request": {
+        "execute": "query-migrate",
+        "id": 3
+      },
+      "response": {
+        "return": {
+          "blocked-reasons": [
+            "Viewflow managed DMA RAM has no prefix migration state; migration and save/restore are unsupported"
+          ]
+        },
+        "id": 3
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 4,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 4
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 5,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-managed"
+        }
+      },
+      "response": {
+        "return": true,
+        "id": 5
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 6,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 0
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 6
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 7,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 7
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 8,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 1048576
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 8
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 9,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 1048576,
+        "id": 9
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 10,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 84934656
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 10
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 11,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 11
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 12,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 84934656
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 12
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 13,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 13
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 14,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 14
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 15,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 1048576
+        }
+      },
+      "response": {
+        "id": 15,
+        "error": {
+          "class": "GenericError",
+          "desc": "DMA prefix must grow, be 1 MiB aligned, and fit RAM"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 16,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 16
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 17,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 17
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 18,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 18
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 19,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 1074790400
+        }
+      },
+      "response": {
+        "id": 19,
+        "error": {
+          "class": "GenericError",
+          "desc": "DMA prefix must grow, be 1 MiB aligned, and fit RAM"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 20,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 20
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 21,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 21
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 22,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 22
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 23,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 84934657
+        }
+      },
+      "response": {
+        "id": 23,
+        "error": {
+          "class": "GenericError",
+          "desc": "DMA prefix must grow, be 1 MiB aligned, and fit RAM"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 24,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 24
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 25,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 25
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 26,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-managed"
+        }
+      },
+      "response": {
+        "return": true,
+        "id": 26
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 27,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-managed",
+          "value": false
+        }
+      },
+      "response": {
+        "id": 27,
+        "error": {
+          "class": "GenericError",
+          "desc": "x-viewflow-dma-managed cannot change after allocation"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 28,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-managed"
+        }
+      },
+      "response": {
+        "return": true,
+        "id": 28
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 29,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 29
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 30,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-managed"
+        }
+      },
+      "response": {
+        "return": true,
+        "id": 30
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 31,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-managed",
+          "value": true
+        }
+      },
+      "response": {
+        "id": 31,
+        "error": {
+          "class": "GenericError",
+          "desc": "x-viewflow-dma-managed cannot change after allocation"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 32,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-managed"
+        }
+      },
+      "response": {
+        "return": true,
+        "id": 32
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 33,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 33
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 34,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "prealloc"
+        }
+      },
+      "response": {
+        "return": false,
+        "id": 34
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 35,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "prealloc",
+          "value": true
+        }
+      },
+      "response": {
+        "id": 35,
+        "error": {
+          "class": "GenericError",
+          "desc": "'prealloc=on' and 'reserve=off' are incompatible"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 36,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "prealloc"
+        }
+      },
+      "response": {
+        "return": false,
+        "id": 36
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 37,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 37
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 38,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "reserve"
+        }
+      },
+      "response": {
+        "return": false,
+        "id": 38
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 39,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "reserve",
+          "value": true
+        }
+      },
+      "response": {
+        "id": 39,
+        "error": {
+          "class": "GenericError",
+          "desc": "cannot change property value"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 40,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "reserve"
+        }
+      },
+      "response": {
+        "return": false,
+        "id": 40
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 41,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 84934656,
+        "id": 41
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 42,
+        "arguments": {
+          "id": "viewflow_dma_test"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 42
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 43,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_test",
+          "mem-path": "/tmp/viewflow-dma-sur5qyv2/viewflow-dma-pixels",
+          "size": 1073741824,
+          "share": true,
+          "reserve": false,
+          "prealloc": true,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "id": 43,
+        "error": {
+          "class": "GenericError",
+          "desc": "'prealloc=on' and 'reserve=off' are incompatible"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 44,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "id": 44,
+        "error": {
+          "class": "DeviceNotFound",
+          "desc": "Device '/objects/viewflow_dma_test' not found"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 45,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_test",
+          "mem-path": "/tmp/viewflow-dma-sur5qyv2/viewflow-dma-pixels",
+          "size": 1073741824,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 45
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 46,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 46
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 47,
+        "arguments": {
+          "id": "viewflow_dma_test"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 47
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 48,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_test",
+          "mem-path": "/tmp/viewflow-dma-sur5qyv2/viewflow-dma-pixels",
+          "size": 1073741824,
+          "share": true,
+          "reserve": true,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "id": 48,
+        "error": {
+          "class": "GenericError",
+          "desc": "managed DMA RAM requires share=on,reserve=off,prealloc=off,discard-data=off, writable ordinary RAM and 1 MiB aligned size/offset"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 49,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "id": 49,
+        "error": {
+          "class": "DeviceNotFound",
+          "desc": "Device '/objects/viewflow_dma_test' not found"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 50,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_test",
+          "mem-path": "/tmp/viewflow-dma-sur5qyv2/viewflow-dma-pixels",
+          "size": 1073741824,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 50
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 51,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 51
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 52,
+        "arguments": {
+          "id": "viewflow_dma_test"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 52
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 53,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "viewflow_dma_test",
+          "mem-path": "/tmp/viewflow-dma-sur5qyv2/viewflow-dma-pixels",
+          "size": 1073741824,
+          "share": true,
+          "reserve": false,
+          "prealloc": false,
+          "x-viewflow-dma-managed": true
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 53
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 54,
+        "arguments": {
+          "path": "/objects/viewflow_dma_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 1048576
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 54
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 55,
+        "arguments": {
+          "id": "viewflow_dma_test"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 55
+      }
+    },
+    {
+      "request": {
+        "execute": "query-migrate",
+        "id": 56
+      },
+      "response": {
+        "return": {},
+        "id": 56
+      }
+    },
+    {
+      "request": {
+        "execute": "object-add",
+        "id": 57,
+        "arguments": {
+          "qom-type": "memory-backend-file",
+          "id": "ordinary_test",
+          "mem-path": "/tmp/viewflow-dma-sur5qyv2/ordinary-file",
+          "size": 1073741824,
+          "share": true,
+          "reserve": true,
+          "prealloc": false
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 57
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 58,
+        "arguments": {
+          "path": "/objects/ordinary_test",
+          "property": "x-viewflow-dma-managed"
+        }
+      },
+      "response": {
+        "return": false,
+        "id": 58
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 59,
+        "arguments": {
+          "path": "/objects/ordinary_test",
+          "property": "reserve"
+        }
+      },
+      "response": {
+        "return": true,
+        "id": 59
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-set",
+        "id": 60,
+        "arguments": {
+          "path": "/objects/ordinary_test",
+          "property": "x-viewflow-dma-prefix",
+          "value": 1048576
+        }
+      },
+      "response": {
+        "id": 60,
+        "error": {
+          "class": "GenericError",
+          "desc": "x-viewflow-dma-prefix requires allocated managed RAM"
+        }
+      }
+    },
+    {
+      "request": {
+        "execute": "qom-get",
+        "id": 61,
+        "arguments": {
+          "path": "/objects/ordinary_test",
+          "property": "x-viewflow-dma-prefix"
+        }
+      },
+      "response": {
+        "return": 0,
+        "id": 61
+      }
+    },
+    {
+      "request": {
+        "execute": "object-del",
+        "id": 62,
+        "arguments": {
+          "id": "ordinary_test"
+        }
+      },
+      "response": {
+        "return": {},
+        "id": 62
+      }
+    },
+    {
+      "request": {
+        "execute": "quit",
+        "id": 63
+      },
+      "response": {
+        "return": {},
+        "id": 63
+      }
+    }
+  ],
+  "residency": [
+    {
+      "stage": "before_object",
+      "virtual_bytes": 1073741824,
+      "resident_bytes": 0,
+      "allocated_file_bytes": 0
+    },
+    {
+      "stage": "created_zero_prefix",
+      "virtual_bytes": 1073741824,
+      "resident_bytes": 0,
+      "allocated_file_bytes": 0
+    },
+    {
+      "stage": "grown_81_mib",
+      "virtual_bytes": 1073741824,
+      "resident_bytes": 0,
+      "allocated_file_bytes": 0
+    },
+    {
+      "stage": "rejected_mutations",
+      "virtual_bytes": 1073741824,
+      "resident_bytes": 0,
+      "allocated_file_bytes": 0
+    },
+    {
+      "stage": "deleted_recreated_deleted",
+      "virtual_bytes": 1073741824,
+      "resident_bytes": 0,
+      "allocated_file_bytes": 0
+    }
+  ],
+  "command": [
+    "/tmp/qemu-11.1.1/build-viewflow-demand/qemu-system-x86_64",
+    "-machine",
+    "none",
+    "-nodefaults",
+    "-display",
+    "none",
+    "-S",
+    "-qmp",
+    "unix:/tmp/viewflow-dma-sur5qyv2/qmp.sock,server=on,wait=off"
+  ],
+  "owned_pid": 3072571,
+  "ordinary_backend": "default unmanaged/reserve=true lifecycle passed",
+  "stderr": ""
+}

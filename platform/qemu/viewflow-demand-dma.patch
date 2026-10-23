@@ -1,0 +1,331 @@
+From: Viewflow experimental integration
+Subject: [EXPERIMENTAL] hostmem-file: opt-in grow-only demand DMA prefix
+
+Based on QEMU 11.1.1 backends/hostmem-file.c and the upstream
+RamDiscardSource/RamDiscardManager interfaces. Original QEMU copyright
+and GNU GPL version 2 or later terms remain applicable; additions are
+provided under GPL-2.0-or-later. No VFIO ioctl implementation is copied.
+
+For isolated experiments only. Requires distinct backend IDs viewflow_dma_*
+and share=on,reserve=off,prealloc=off. Backing paths have no basename restriction.
+Attach with x-viewflow-dma-managed=on; prefix begins at zero. Increase
+x-viewflow-dma-prefix via QOM only before submitting DMA to new pages.
+The normal VFIO RDM listener maps notified prefixes. No shrink, migration
+protocol, producer handshake, or production configuration is provided.
+A migration blocker explicitly rejects migration/save while this managed
+backend exists because its prefix has no VMState representation.
+
+
+---
+--- a/backends/hostmem-file.c
++++ b/backends/hostmem-file.c
+@@ -16,6 +16,8 @@
+ #include "qemu/module.h"
+ #include "qemu/madvise.h"
+ #include "system/hostmem.h"
++#include "system/ram-discard-manager.h"
++#include "migration/blocker.h"
+ #include "qom/object_interfaces.h"
+ #include "qom/object.h"
+ #include "qapi/visitor.h"
+@@ -34,7 +36,128 @@
+     bool is_pmem;
+     bool readonly;
+     OnOffAuto rom;
++
++    /* Viewflow experimental demand-DMA prefix; GPL-2.0-or-later. */
++    bool viewflow_dma_managed;
++    bool viewflow_dma_attached;
++    bool viewflow_dma_mr_ref;
++    bool viewflow_dma_required;
++    uint64_t viewflow_dma_prefix;
++    Error *viewflow_dma_migration_blocker;
+ };
++
++/*
++ * A producer must request and await a prefix increase before DMA into it.
++ * This source controls VFIO mappings, not CPU access or allocation of pages.
++ * Deliberately experimental: no shrinking, migration, or preallocation.
++ */
++#define VIEWFLOW_DMA_GRANULARITY (1ULL << 20)
++
++static uint64_t viewflow_dma_granularity(const RamDiscardSource *rds,
++                                       const MemoryRegion *mr)
++{
++    const HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(rds);
++
++    g_assert(mr == &fb->parent_obj.mr);
++    return VIEWFLOW_DMA_GRANULARITY;
++}
++
++static bool viewflow_dma_populated(const RamDiscardSource *rds,
++                                   const MemoryRegionSection *section)
++{
++    const HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(rds);
++    uint64_t offset = section->offset_within_region;
++
++    g_assert(section->mr == &fb->parent_obj.mr);
++    return offset <= fb->viewflow_dma_prefix &&
++           int128_le(section->size,
++                     int128_make64(fb->viewflow_dma_prefix - offset));
++}
++
++static bool viewflow_dma_get_managed(Object *obj, Error **errp)
++{
++    return MEMORY_BACKEND_FILE(obj)->viewflow_dma_managed;
++}
++
++static void viewflow_dma_set_managed(Object *obj, bool value, Error **errp)
++{
++    HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(obj);
++
++    if (host_memory_backend_mr_inited(MEMORY_BACKEND(obj))) {
++        error_setg(errp,
++                   "x-viewflow-dma-managed cannot change after allocation");
++        return;
++    }
++    fb->viewflow_dma_managed = value;
++}
++
++static void viewflow_dma_get_prefix(Object *obj, Visitor *v, const char *name,
++                                    void *opaque, Error **errp)
++{
++    uint64_t prefix = MEMORY_BACKEND_FILE(obj)->viewflow_dma_prefix;
++
++    visit_type_uint64(v, name, &prefix, errp);
++}
++
++static void viewflow_dma_set_prefix(Object *obj, Visitor *v, const char *name,
++                                    void *opaque, Error **errp)
++{
++    HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(obj);
++    HostMemoryBackend *backend = MEMORY_BACKEND(obj);
++    uint64_t prefix;
++    int ret;
++
++    if (!visit_type_uint64(v, name, &prefix, errp)) {
++        return;
++    }
++    /* Runtime only: always attach the source initially empty. */
++    if (!fb->viewflow_dma_managed || !fb->viewflow_dma_attached) {
++        error_setg(errp,
++                   "x-viewflow-dma-prefix requires allocated managed RAM");
++        return;
++    }
++    if (prefix < fb->viewflow_dma_prefix || prefix > backend->size ||
++        !QEMU_IS_ALIGNED(prefix, VIEWFLOW_DMA_GRANULARITY)) {
++        error_setg(errp, "DMA prefix must grow, be 1 MiB aligned, and fit RAM");
++        return;
++    }
++    if (prefix == fb->viewflow_dma_prefix) {
++        return;
++    }
++    ret = ram_discard_manager_notify_populate(
++        memory_region_get_ram_discard_manager(&backend->mr),
++        RAM_DISCARD_SOURCE(fb), fb->viewflow_dma_prefix,
++        prefix - fb->viewflow_dma_prefix);
++    if (ret) {
++        /* RDM rolls back listeners; the advertised prefix remains unchanged. */
++        error_setg_errno(errp, -ret, "DMA prefix population rejected");
++        return;
++    }
++    fb->viewflow_dma_prefix = prefix;
++}
++
++static void viewflow_dma_detach(HostMemoryBackendFile *fb)
++{
++    if (fb->viewflow_dma_attached) {
++        RamDiscardManager *rdm =
++            memory_region_get_ram_discard_manager(&fb->parent_obj.mr);
++        int ret;
++
++        /* Removing a source while listeners exist would populate the tail. */
++        if (!QLIST_EMPTY(&rdm->rdl_list)) {
++            return;
++        }
++        ret = memory_region_del_ram_discard_source(
++            &fb->parent_obj.mr, RAM_DISCARD_SOURCE(fb));
++
++        g_assert(ret == 0);
++        fb->viewflow_dma_attached = false;
++    }
++    if (fb->viewflow_dma_required) {
++        ram_block_coordinated_discard_require(false);
++        fb->viewflow_dma_required = false;
++    }
++}
+ 
+ static bool
+ file_backend_memory_alloc(HostMemoryBackend *backend, Error **errp)
+@@ -55,6 +178,19 @@
+     if (!fb->mem_path) {
+         error_setg(errp, "mem-path property not set");
+         return false;
++    }
++
++    if (fb->viewflow_dma_managed) {
++        if (!backend->share || backend->reserve || backend->prealloc ||
++            backend->guest_memfd || fb->discard_data || fb->readonly ||
++            fb->rom == ON_OFF_AUTO_ON || fb->is_pmem ||
++            !QEMU_IS_ALIGNED(backend->size, VIEWFLOW_DMA_GRANULARITY) ||
++            !QEMU_IS_ALIGNED(fb->offset, VIEWFLOW_DMA_GRANULARITY)) {
++            error_setg(errp, "managed DMA RAM requires "
++                       "share=on,reserve=off,prealloc=off,discard-data=off, "
++                       "writable ordinary RAM and 1 MiB aligned size/offset");
++            return false;
++        }
+     }
+ 
+     switch (fb->rom) {
+@@ -82,6 +218,15 @@
+ 
+     backend->aligned = true;
+     name = host_memory_backend_get_name(backend);
++    if (fb->viewflow_dma_managed) {
++        g_autofree char *base = g_path_get_basename(name);
++
++        if (!g_str_has_prefix(base, "viewflow_dma_")) {
++            error_setg(errp, "managed DMA backend ID must start viewflow_dma_; "
++                       "never reuse viewflow_cpu_only_ banks");
++            return false;
++        }
++    }
+     ram_flags = backend->share ? RAM_SHARED : RAM_PRIVATE;
+     ram_flags |= fb->readonly ? RAM_READONLY_FD : 0;
+     ram_flags |= fb->rom == ON_OFF_AUTO_ON ? RAM_READONLY : 0;
+@@ -89,9 +234,41 @@
+     ram_flags |= backend->guest_memfd ? RAM_GUEST_MEMFD : 0;
+     ram_flags |= fb->is_pmem ? RAM_PMEM : 0;
+     ram_flags |= RAM_NAMED_FILE;
+-    return memory_region_init_ram_from_file(&backend->mr, OBJECT(backend), name,
+-                                            backend->size, fb->align, ram_flags,
+-                                            fb->mem_path, fb->offset, errp);
++    if (!memory_region_init_ram_from_file(&backend->mr, OBJECT(backend), name,
++                                         backend->size, fb->align, ram_flags,
++                                         fb->mem_path, fb->offset, errp)) {
++        return false;
++    }
++    if (fb->viewflow_dma_managed) {
++        if (host_memory_backend_pagesize(backend) > VIEWFLOW_DMA_GRANULARITY) {
++            error_setg(errp, "managed DMA backing page size exceeds 1 MiB");
++            return false;
++        }
++        if (ram_block_coordinated_discard_require(true)) {
++            error_setg(errp, "coordinated RAM discard is unavailable");
++            return false;
++        }
++        fb->viewflow_dma_required = true;
++        if (memory_region_add_ram_discard_source(&backend->mr,
++                                                 RAM_DISCARD_SOURCE(fb))) {
++            viewflow_dma_detach(fb);
++            error_setg(errp, "cannot attach managed DMA discard source");
++            return false;
++        }
++        fb->viewflow_dma_attached = true;
++        /* QOM deletes child properties before the parent's finalizer. */
++        object_ref(OBJECT(&backend->mr));
++        fb->viewflow_dma_mr_ref = true;
++        error_setg(&fb->viewflow_dma_migration_blocker,
++                   "Viewflow managed DMA RAM has no prefix migration state; "
++                   "migration and save/restore are unsupported");
++        if (migrate_add_blocker(&fb->viewflow_dma_migration_blocker,
++                               errp) < 0) {
++            viewflow_dma_detach(fb);
++            return false;
++        }
++    }
++    return true;
+ #endif
+ }
+ 
+@@ -124,7 +301,13 @@
+ static void file_memory_backend_set_discard_data(Object *o, bool value,
+                                                Error **errp)
+ {
+-    MEMORY_BACKEND_FILE(o)->discard_data = value;
++    HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(o);
++
++    if (fb->viewflow_dma_managed && value) {
++        error_setg(errp, "discard-data=on is unsupported for managed DMA RAM");
++        return;
++    }
++    fb->discard_data = value;
+ }
+ 
+ static void file_memory_backend_get_align(Object *o, Visitor *v,
+@@ -261,6 +444,7 @@
+     HostMemoryBackend *backend = MEMORY_BACKEND(obj);
+     HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(obj);
+ 
++    viewflow_dma_detach(fb);
+     if (host_memory_backend_mr_inited(backend) && fb->discard_data) {
+         void *ptr = memory_region_get_ram_ptr(&backend->mr);
+         uint64_t sz = memory_region_size(&backend->mr);
+@@ -273,6 +457,16 @@
+ file_backend_class_init(ObjectClass *oc, const void *data)
+ {
+     HostMemoryBackendClass *bc = MEMORY_BACKEND_CLASS(oc);
++    RamDiscardSourceClass *rdsc = RAM_DISCARD_SOURCE_CLASS(oc);
++
++    rdsc->get_min_granularity = viewflow_dma_granularity;
++    rdsc->is_populated = viewflow_dma_populated;
++    object_class_property_add_bool(oc, "x-viewflow-dma-managed",
++                                  viewflow_dma_get_managed,
++                                  viewflow_dma_set_managed);
++    object_class_property_add(oc, "x-viewflow-dma-prefix", "uint64",
++                              viewflow_dma_get_prefix,
++                              viewflow_dma_set_prefix, NULL, NULL);
+ 
+     bc->alloc = file_backend_memory_alloc;
+     oc->unparent = file_backend_unparent;
+@@ -308,6 +502,13 @@
+ {
+     HostMemoryBackendFile *fb = MEMORY_BACKEND_FILE(o);
+ 
++    viewflow_dma_detach(fb);
++    g_assert(!fb->viewflow_dma_attached);
++    /* Keep the blocker through unparent until the managed object dies. */
++    migrate_del_blocker(&fb->viewflow_dma_migration_blocker);
++    if (fb->viewflow_dma_mr_ref) {
++        object_unref(OBJECT(&fb->parent_obj.mr));
++    }
+     g_free(fb->mem_path);
+ }
+ 
+@@ -317,6 +518,10 @@
+     .class_init = file_backend_class_init,
+     .instance_finalize = file_backend_instance_finalize,
+     .instance_size = sizeof(HostMemoryBackendFile),
++    .interfaces = (const InterfaceInfo[]) {
++        { TYPE_RAM_DISCARD_SOURCE },
++        { }
++    },
+ };
+ 
+ static void register_types(void)
+--- a/qapi/qom.json
++++ b/qapi/qom.json
+@@ -743,6 +743,13 @@
+ #     ROM, and want to set this property to 'off'.  (default: auto,
+ #     since 8.2)
+ #
++# @x-viewflow-dma-managed: experimental Viewflow grow-only DMA prefix
++#     tracking.  Requires a dedicated viewflow_dma_* backend,
++#     writable shared backing and reserve=false.
++#     The initial prefix is zero.  Grow x-viewflow-dma-prefix with
++#     qom-set after object creation.  Managed backends do not support
++#     migration or save/restore.  (default: false)
++#
+ # Since: 2.1
+ ##
+ { 'struct': 'MemoryBackendFileProperties',
+@@ -753,7 +760,8 @@
+             'mem-path': 'str',
+             '*pmem': { 'type': 'bool', 'if': 'CONFIG_LIBPMEM' },
+             '*readonly': 'bool',
+-            '*rom': 'OnOffAuto' } }
++            '*rom': 'OnOffAuto',
++            '*x-viewflow-dma-managed': 'bool' } }
+ 
+ ##
+ # @MemoryBackendMemfdProperties:

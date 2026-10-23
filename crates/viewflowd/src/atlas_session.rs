@@ -81,6 +81,7 @@ fn check_wait_deadline(deadline: Instant) -> Result<()> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AtlasSessionPlan {
+    pub activity_priority_version: u32,
     pub policy: AtlasReceiverPolicy,
     pub color: CodecDescriptor,
     pub alpha: CodecDescriptor,
@@ -101,6 +102,7 @@ impl std::error::Error for AtlasFrameExpiredBeforeSend {}
 
 impl AtlasSessionPlan {
     pub(crate) fn validate(self) -> Result<CodecSession> {
+        ensure!(self.activity_priority_version <= 1, "unsupported atlas activity version");
         AtlasReceiver::new(self.policy)
             .map_err(|error| anyhow::anyhow!("invalid atlas policy: {error:?}"))?;
         for descriptor in [self.color, self.alpha] {
@@ -141,6 +143,7 @@ impl AtlasSessionPlan {
             )
             .map_err(|_| anyhow::anyhow!("atlas TLS connection binding unavailable"))?;
         Ok(wire::AtlasSession {
+            activity_priority_version: self.activity_priority_version,
             alpha_reference: false,
             selection_rejection_version: 1,
             sparse_patch_version: 1,
@@ -182,12 +185,32 @@ pub struct AtlasSenderSession {
     alpha_reference: bool,
     alpha_cache: Option<crate::alpha_reference::AlphaReferenceCache>,
     feedback: Option<quinn::RecvStream>,
+    activity_feedback: Option<std::sync::Arc<crate::atlas_activity_feedback::AtlasActivityFeedback>>,
     last_disposition: Option<crate::atlas_feedback::AtlasFrameDisposition>,
     shared_control: Option<crate::shared_control::SharedControlSender>,
     control_started: std::sync::atomic::AtomicBool,
 }
 
+// Only picture-local state moves when dispatching the other lane. The QUIC
+// readers, ordered input controls and feedback writer remain connection-owned.
+struct AtlasReceiveLane {
+    admission: AtlasReceiver,
+    codec: CodecSession,
+    assembler: viewflow_transport::MediaAssembler,
+    staged: Option<AtlasFrame>,
+    color: Option<viewflow_transport::AssembledPlane>,
+    alpha: Option<viewflow_transport::AssembledPlane>,
+    reference_gap: bool,
+    last_coded_frame: Option<u64>,
+    early: Option<EarlyAtlas>,
+    feedback_pending: Option<AtlasFrame>,
+    alpha_cache: Option<crate::alpha_reference::AlphaReferenceCache>,
+}
+
 pub struct AtlasReceiverSession {
+    activity_priority_version: u32,
+    selected_lane: u32,
+    other_lane: Option<AtlasReceiveLane>,
     receive_traces: std::collections::BTreeMap<u64, ReceiveTrace>,
     connection: Connection,
     pub admission: AtlasReceiver,
@@ -206,6 +229,7 @@ pub struct AtlasReceiverSession {
     // Recovery keeps input/clock controls flowing without admitting pictures.
     // The stop-and-wait sender can have at most one next manifest outstanding.
     fenced_manifest: Option<AtlasFrame>,
+    second_fenced_manifest: Option<AtlasFrame>,
     pump_started: bool,
     feedback: Option<quinn::SendStream>,
     feedback_pending: Option<AtlasFrame>,
@@ -288,6 +312,7 @@ pub async fn offer_atlas(
             alpha_reference: false,
             alpha_cache: None,
             feedback: None,
+            activity_feedback: None,
             last_disposition: None,
             shared_control: None,
             control_started: std::sync::atomic::AtomicBool::new(false),
@@ -333,6 +358,21 @@ fn receiver_session(
     codec: CodecSession,
 ) -> AtlasReceiverSession {
     AtlasReceiverSession {
+        activity_priority_version: plan.activity_priority_version,
+        selected_lane: 0,
+        other_lane: (plan.activity_priority_version == 1).then(|| AtlasReceiveLane {
+            admission: AtlasReceiver::new(plan.policy).expect("validated atlas policy"),
+            codec: plan.validate().expect("validated atlas codec"),
+            assembler: atlas_assembler(plan.policy),
+            staged: None,
+            color: None,
+            alpha: None,
+            reference_gap: true,
+            last_coded_frame: None,
+            early: None,
+            feedback_pending: None,
+            alpha_cache: None,
+        }),
         receive_traces: std::collections::BTreeMap::new(),
         connection: connection.clone(),
         admission,
@@ -349,6 +389,7 @@ fn receiver_session(
         control_sequence: ControlSequencer::default(),
         control_read: None,
         fenced_manifest: None,
+        second_fenced_manifest: None,
         pump_started: false,
         feedback: None,
         feedback_pending: None,
@@ -445,7 +486,7 @@ pub async fn offer_warmed_atlas_dispositions(
 
 async fn offer_warmed_atlas_mode(
     connection: &Connection,
-    plan: AtlasSessionPlan,
+    mut plan: AtlasSessionPlan,
     frames: &[crate::atlas_presenter::AtlasWarmupFrame; 3],
     deadline: Instant,
     dispositions: bool,
@@ -487,6 +528,10 @@ async fn offer_warmed_atlas_mode(
             "unsolicited atlas alpha reference capability"
         );
         accepted.alpha_reference = false;
+        ensure!(accepted.activity_priority_version <= plan.activity_priority_version,
+            "unsolicited atlas activity capability");
+        plan.activity_priority_version = accepted.activity_priority_version;
+        expected.activity_priority_version = plan.activity_priority_version;
         ensure!(accepted == expected, "atlas warmup acceptance mismatch");
         let feedback = if dispositions {
             let mut stream = connection.accept_uni().await?;
@@ -505,6 +550,7 @@ async fn offer_warmed_atlas_mode(
             alpha_reference,
             alpha_cache: None,
             feedback,
+            activity_feedback: None,
             last_disposition: None,
             shared_control: None,
             control_started: std::sync::atomic::AtomicBool::new(false),
@@ -592,6 +638,9 @@ where
         let mut expected = plan.message(connection, false)?;
         expected.version = if dispositions { 3 } else { 2 };
         expected.alpha_reference = offer.alpha_reference;
+        ensure!(offer.activity_priority_version <= 1, "unsupported atlas activity offer");
+        expected.activity_priority_version = offer.activity_priority_version;
+        plan.activity_priority_version = plan.activity_priority_version.min(offer.activity_priority_version);
         if offer != expected {
             // Keep pairing material out of diagnostics; show the mismatched
             // public plan so deployment/configuration failures are actionable.
@@ -666,6 +715,23 @@ async fn read_warmup_frames(
 }
 
 impl AtlasSenderSession {
+    pub(crate) fn activity_enabled(&self) -> bool { self.plan.activity_priority_version == 1 }
+    pub(crate) fn fork_activity_lane(&mut self) -> Result<Self> {
+        ensure!(self.plan.activity_priority_version == 1 && !self.frame_send_poisoned
+            && !self.control_started.load(std::sync::atomic::Ordering::Acquire)
+            && self.activity_feedback.is_none() && self.shared_control.is_some(),
+            "atlas activity fork requires negotiated idle shared control");
+        let input = self.feedback.take().context("atlas activity requires dispositions")?;
+        let feedback = crate::atlas_activity_feedback::AtlasActivityFeedback::new(input);
+        self.activity_feedback = Some(feedback.clone());
+        Ok(Self {
+            connection: self.connection.clone(), plan: self.plan, frame_send_poisoned: false,
+            alpha_reference: self.alpha_reference, alpha_cache: None, feedback: None,
+            activity_feedback: Some(feedback), last_disposition: None,
+            shared_control: self.shared_control.clone(),
+            control_started: std::sync::atomic::AtomicBool::new(false),
+        })
+    }
     pub(crate) fn canvas_limit(&self) -> (u32, u32) {
         (self.plan.policy.width, self.plan.policy.height)
     }
@@ -828,6 +894,7 @@ impl AtlasSenderSession {
         );
         self.frame_send_poisoned = true;
         let pending = manifest.clone();
+        let feedback_ticket = self.activity_feedback.as_ref().map(|hub| hub.register(&pending)).transpose()?;
         let fragmented = trace.then(Instant::now);
         // The internal call must bypass only the poison guard while retaining
         // all manifest validation. The flag stays set throughout every await.
@@ -859,7 +926,10 @@ impl AtlasSenderSession {
             "media_enqueued",
             started.map_or(0, |t| t.elapsed().as_micros()),
         );
-        if let Some(feedback) = &mut self.feedback {
+        if let Some(ticket) = feedback_ticket {
+            self.last_disposition = Some(timeout_at(deadline + std::time::Duration::from_secs(5), ticket.wait())
+                .await.context("atlas activity disposition feedback stalled")??);
+        } else if let Some(feedback) = &mut self.feedback {
             let feedback_deadline = deadline + std::time::Duration::from_millis(150);
             let mut record = [0; crate::atlas_feedback::RECORD_BYTES];
             timeout_at(feedback_deadline, feedback.read_exact(&mut record))
@@ -877,8 +947,8 @@ impl AtlasSenderSession {
         }
         if self.alpha_reference
             && !alpha_referenced
-            && self.last_disposition
-                == Some(crate::atlas_feedback::AtlasFrameDisposition::Committed)
+            && matches!(self.last_disposition, Some(crate::atlas_feedback::AtlasFrameDisposition::Committed
+                | crate::atlas_feedback::AtlasFrameDisposition::Superseded))
         {
             self.alpha_cache = Some(crate::alpha_reference::AlphaReferenceCache::new(
                 alpha_identity(&pending),
@@ -916,7 +986,7 @@ impl AtlasSenderSession {
         deadline: Instant,
     ) -> Result<()> {
         ensure!(
-            self.feedback.is_none(),
+            self.feedback.is_none() && self.activity_feedback.is_none(),
             "V3 requires complete stop-and-wait frame send"
         );
         ensure!(
@@ -936,6 +1006,8 @@ impl AtlasSenderSession {
         manifest
             .validate()
             .map_err(|error| anyhow::anyhow!("invalid atlas manifest: {error:?}"))?;
+        ensure!(manifest.activity.is_none() || self.plan.activity_priority_version == 1,
+            "atlas activity was not negotiated");
         let policy = self.plan.policy;
         ensure!(
             sequence > 0
@@ -971,6 +1043,38 @@ impl AtlasSenderSession {
 }
 
 impl AtlasReceiverSession {
+    pub(crate) fn activity_enabled(&self) -> bool { self.activity_priority_version == 1 }
+    fn select_receive_lane(&mut self, lane: u32) -> Result<()> {
+        ensure!(lane <= 1, "invalid atlas receive lane");
+        if lane == self.selected_lane {
+            return Ok(());
+        }
+        let other = self.other_lane.as_mut().context("atlas lanes not negotiated")?;
+        std::mem::swap(&mut self.admission, &mut other.admission);
+        std::mem::swap(&mut self.codec, &mut other.codec);
+        std::mem::swap(&mut self.assembler, &mut other.assembler);
+        std::mem::swap(&mut self.staged, &mut other.staged);
+        std::mem::swap(&mut self.color, &mut other.color);
+        std::mem::swap(&mut self.alpha, &mut other.alpha);
+        std::mem::swap(&mut self.reference_gap, &mut other.reference_gap);
+        std::mem::swap(&mut self.last_coded_frame, &mut other.last_coded_frame);
+        std::mem::swap(&mut self.early, &mut other.early);
+        std::mem::swap(&mut self.feedback_pending, &mut other.feedback_pending);
+        std::mem::swap(&mut self.alpha_cache, &mut other.alpha_cache);
+        self.selected_lane = lane;
+        Ok(())
+    }
+
+    fn select_manifest_lane(&mut self, frame: &AtlasFrame) -> Result<()> {
+        if let Some(activity) = &frame.activity {
+            ensure!(self.activity_priority_version == 1, "atlas activity was not negotiated");
+            ensure!(frame.frame_id % 2 == u64::from(activity.lane),
+                "atlas frame identity does not match lane");
+            self.select_receive_lane(activity.lane)
+        } else {
+            self.select_receive_lane(0)
+        }
+    }
     /// Forward only receiver-side input/clock controls from the same sequenced
     /// read that receives manifests. Never start a second connection reader.
     /// # Errors
@@ -1001,6 +1105,7 @@ impl AtlasReceiverSession {
         result: crate::atlas_feedback::AtlasFrameDisposition,
         deadline: Instant,
     ) -> Result<()> {
+        self.select_manifest_lane(frame)?;
         ensure!(
             !self.retired && self.feedback_pending.as_ref() == Some(frame),
             "atlas feedback has no exact pending handoff"
@@ -1043,7 +1148,7 @@ impl AtlasReceiverSession {
         fence: Option<&crate::atlas_receiver_presenter::AtlasInputRecoveryFence>,
     ) -> Result<crate::atlas_runtime::AdmittedAtlas> {
         ensure!(
-            self.feedback_pending.is_none(),
+            self.activity_priority_version == 1 || self.feedback_pending.is_none(),
             "atlas native handoff still pending"
         );
         ensure!(!self.retired, "atlas receiver session is retired");
@@ -1060,6 +1165,7 @@ impl AtlasReceiverSession {
             // read can consume partial bytes, so its boxed future is retained.
             let receive = async {
                 Ok(if let Some(manifest) = self.fenced_manifest.take() {
+                    self.fenced_manifest = self.second_fenced_manifest.take();
                     PumpEvent::DeferredManifest(manifest)
                 } else {
                     let reader = self
@@ -1165,9 +1271,14 @@ impl AtlasReceiverSession {
                 let control = DomainControl::try_from(result?)
                     .map_err(|e| anyhow::anyhow!("invalid fenced atlas control: {e:?}"))?;
                 if let DomainControl::AtlasFrame(manifest) = control {
-                    ensure!(self.fenced_manifest.is_none(),
-                        "atlas sender advanced twice while recovery withheld frame disposition");
-                    self.fenced_manifest = Some(manifest);
+                    if let Some(previous) = &self.fenced_manifest {
+                        ensure!(self.activity_priority_version == 1
+                            && self.second_fenced_manifest.is_none()
+                            && previous.activity.as_ref().zip(manifest.activity.as_ref())
+                                .is_some_and(|(first, second)| first.lane != second.lane),
+                            "atlas lane advanced twice while recovery withheld disposition");
+                        self.second_fenced_manifest = Some(manifest);
+                    } else { self.fenced_manifest = Some(manifest); }
                 } else {
                     self.process_domain_control(control, 0)?;
                 }
@@ -1369,6 +1480,8 @@ impl AtlasReceiverSession {
         manifest: AtlasFrame,
         now: u64,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
+        self.select_manifest_lane(&manifest)?;
+        ensure!(self.feedback_pending.is_none(), "atlas lane advanced before native disposition");
         if crate::atlas_feedback::trace_frame(manifest.frame_id) {
             self.receive_traces
                 .entry(manifest.frame_id)
@@ -1393,7 +1506,7 @@ impl AtlasReceiverSession {
         if self.staged.is_some()
             || self
                 .last_coded_frame
-                .is_some_and(|last| last.checked_add(1) != Some(manifest.frame_id))
+                .is_some_and(|last| last.checked_add(if manifest.activity.is_some() { 2 } else { 1 }) != Some(manifest.frame_id))
         {
             self.reference_gap = true;
         }
@@ -1445,6 +1558,9 @@ impl AtlasReceiverSession {
         now: u64,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
         ensure!(!self.retired, "atlas receiver session is retired");
+        if self.activity_priority_version == 1 {
+            self.select_receive_lane((packet.frame_id % 2) as u32)?;
+        }
         if packet.window_id == self.policy.stream_id
             && crate::atlas_feedback::trace_frame(packet.frame_id)
         {
@@ -1667,6 +1783,7 @@ impl AtlasReceiverSession {
     }
 
     fn retire_media(&mut self) {
+        self.other_lane = None;
         self.receive_traces.clear();
         self.shared_controls = None;
         self.pending_shared_control = None;
@@ -1677,6 +1794,7 @@ impl AtlasReceiverSession {
         self.early = None;
         self.control_read = None;
         self.fenced_manifest = None;
+        self.second_fenced_manifest = None;
         self.assembler = atlas_assembler(self.policy);
     }
 
@@ -1910,6 +2028,81 @@ pub(crate) mod tests {
         AlphaInterpretation, CodedPixelFormat, Colorimetry, VideoCodec, VideoPlaneRole,
     };
 
+    #[tokio::test]
+    async fn activity_receiver_keeps_both_handoffs_and_feedback_independent() {
+        use crate::atlas_feedback::AtlasFrameDisposition;
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let frames = warmup_frames();
+        let mut policy = plan();
+        policy.activity_priority_version = 1;
+        let (sender, receiver) = tokio::join!(
+            offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+            accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) })
+        );
+        let mut background = sender.unwrap();
+        let mut receiver = receiver.unwrap();
+        let writer = crate::shared_control::SharedControlWriter::start(&outbound).unwrap();
+        background.attach_shared_control(writer.sender()).unwrap();
+        let mut priority = background.fork_activity_lane().unwrap();
+        let manifest = |id| AtlasFrame {
+            activity: Some(viewflow_protocol::AtlasActivity {
+                lane: (id % 2) as u32, epoch: 1, preferred: None, focus: None, members: vec![],
+            }),
+            patches: None, stream_id: Id128(99), frame_id: id,
+            geometry_epoch: 1, config_generation: 1, layout_revision: 0,
+            width: 64, height: 64, source_submitted_ns: 100,
+            tiles: vec![], color_keyframe: true, alpha_keyframe: true, desktop: None,
+        };
+        let receiving = async {
+            let first = receiver.next_frame(|| 101, deadline).await.unwrap();
+            // Neither picture has received a native disposition yet. Receiving
+            // the other lane must not reset its decoder or pending feedback.
+            let second = receiver.next_frame(|| 101, deadline).await.unwrap();
+            assert_ne!(first.layout.frame_id, second.layout.frame_id);
+            let (bg, fg) = if first.layout.frame_id == 4 {
+                (first.layout, second.layout)
+            } else { (second.layout, first.layout) };
+            receiver.report_disposition(&fg, AtlasFrameDisposition::Committed, deadline).await.unwrap();
+            receiver.select_receive_lane(0).unwrap();
+            assert_eq!(receiver.feedback_pending.as_ref(), Some(&bg));
+            receiver.report_disposition(&bg, AtlasFrameDisposition::Superseded, deadline).await.unwrap();
+            assert!(!receiver.retired);
+        };
+        let (bg, fg, ()) = tokio::join!(
+            background.send_frame(manifest(4), frames[0].color.clone(), frames[0].alpha.clone(), 1, deadline),
+            priority.send_frame(manifest(5), frames[0].color.clone(), frames[0].alpha.clone(), 1, deadline),
+            receiving,
+        );
+        bg.unwrap();
+        fg.unwrap();
+        assert_eq!(background.last_disposition(), Some(AtlasFrameDisposition::Superseded));
+        assert_eq!(priority.last_disposition(), Some(AtlasFrameDisposition::Committed));
+    }
+
+    #[tokio::test]
+    async fn activity_negotiation_downgrades_without_reopening_connection() {
+        for (source, destination, negotiated) in [(1, 0, 0), (0, 1, 0), (1, 1, 1), (0, 0, 0)] {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let frames = warmup_frames();
+            let mut send_plan = plan();
+            send_plan.activity_priority_version = source;
+            let mut receive_plan = plan();
+            receive_plan.activity_priority_version = destination;
+            let (sender, receiver) = tokio::join!(
+                offer_warmed_atlas_dispositions(&outbound, send_plan, &frames, deadline),
+                accept_warmed_atlas_dispositions(&inbound, receive_plan, deadline, |_| async { Ok(()) })
+            );
+            let sender = sender.unwrap();
+            let receiver = receiver.unwrap();
+            assert_eq!(sender.plan.activity_priority_version, negotiated);
+            assert_eq!(receiver.activity_priority_version, negotiated);
+            assert_eq!(receiver.other_lane.is_some(), negotiated == 1);
+            assert!(outbound.close_reason().is_none());
+        }
+    }
+
     pub(crate) fn plan() -> AtlasSessionPlan {
         let color = CodecDescriptor {
             codec: VideoCodec::H264,
@@ -1923,6 +2116,7 @@ pub(crate) mod tests {
             config_generation: 1,
         };
         AtlasSessionPlan {
+            activity_priority_version: 0,
             policy: AtlasReceiverPolicy {
                 stream_id: Id128(99),
                 geometry_epoch: 1,
@@ -1971,7 +2165,7 @@ pub(crate) mod tests {
         (client, server, outbound.unwrap(), inbound)
     }
 
-    fn warmup_frames() -> [crate::atlas_presenter::AtlasWarmupFrame; 3] {
+    pub(crate) fn warmup_frames() -> [crate::atlas_presenter::AtlasWarmupFrame; 3] {
         std::array::from_fn(|_| crate::atlas_presenter::AtlasWarmupFrame {
             width: 64,
             height: 64,
@@ -2011,6 +2205,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 10,
@@ -2064,6 +2259,7 @@ pub(crate) mod tests {
         let mut sender = sender.unwrap();
         let mut receiver = receiver.unwrap();
         let mut manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 1,
@@ -2146,6 +2342,7 @@ pub(crate) mod tests {
                     .unwrap();
             }
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
@@ -2268,6 +2465,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 1,
@@ -2317,6 +2515,7 @@ pub(crate) mod tests {
         assert!(sender.alpha_reference && receiver.alpha_reference);
         for id in 1..=6 {
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: id,
@@ -2402,6 +2601,7 @@ pub(crate) mod tests {
         let mut receiver = receiver.unwrap();
         for id in 1..=2 {
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: id,
@@ -2512,6 +2712,7 @@ pub(crate) mod tests {
                 .contains("future timestamp")
         );
         let manifest = |id, timestamp| AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: id,
@@ -2614,6 +2815,7 @@ pub(crate) mod tests {
             let (controls, mut events) = tokio::sync::mpsc::channel(4);
             receiver.attach_shared_controls(controls).unwrap();
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
@@ -2753,6 +2955,7 @@ pub(crate) mod tests {
         receiver.attach_shared_controls(controls).unwrap();
         for frame_id in [1, 2] {
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id,
@@ -2844,6 +3047,7 @@ pub(crate) mod tests {
             let (controls, mut events) = tokio::sync::mpsc::channel(1);
             receiver.attach_shared_controls(controls).unwrap();
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
@@ -2951,6 +3155,7 @@ pub(crate) mod tests {
         let (controls, mut events) = tokio::sync::mpsc::channel(4);
         receiver.attach_shared_controls(controls).unwrap();
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 1,
@@ -3038,6 +3243,7 @@ pub(crate) mod tests {
         let (controls, _events) = tokio::sync::mpsc::channel(4);
         receiver.attach_shared_controls(controls).unwrap();
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 1,
@@ -3361,6 +3567,7 @@ pub(crate) mod tests {
                 .is_some()
         );
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 1,
@@ -3417,6 +3624,7 @@ pub(crate) mod tests {
         .unwrap();
         let mut owner = GpuAtlasSender::new(encoder, sender.unwrap());
         let batch = || AtlasBatch {
+            activity: None,
             codec: crate::compatible_encoder::CodecIdentity {
                 window_id: Id128(99),
                 config_generation: 1,
@@ -3462,6 +3670,7 @@ pub(crate) mod tests {
         let mut sender = sender.unwrap();
         let mut receiver = receiver.unwrap();
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             color_keyframe: true,
             alpha_keyframe: true,
@@ -3553,6 +3762,7 @@ pub(crate) mod tests {
             let sender = sender.unwrap();
             let mut receiver = receiver.unwrap();
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 color_keyframe: true,
                 alpha_keyframe: true,
@@ -3683,6 +3893,7 @@ pub(crate) mod tests {
             let mut sequence = ControlSequencer::default();
             for frame_id in [1, 2, 4] {
                 let manifest = AtlasFrame {
+                    activity: None,
                     patches: None,
                     stream_id: Id128(99),
                     frame_id,
@@ -3799,6 +4010,7 @@ pub(crate) mod tests {
                     .all(|packet| packet.received_ns == 110)
             );
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
@@ -3844,6 +4056,7 @@ pub(crate) mod tests {
             assert!(receiver.push_media(packet.clone(), 110).unwrap().is_none());
             assert!(receiver.push_media(packet, 1000).unwrap().is_none()); // exact duplicate does not renew
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
@@ -3917,6 +4130,7 @@ pub(crate) mod tests {
                     assert!(receiver.push_media(bad, 110).is_err());
                 } else {
                     let manifest = AtlasFrame {
+                        activity: None,
                         patches: None,
                         stream_id: Id128(99),
                         frame_id: 1,
@@ -3959,6 +4173,7 @@ pub(crate) mod tests {
                 receiver.push_media(early_packet(1, plane), 110).unwrap();
             }
             let manifest = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
@@ -4000,6 +4215,7 @@ pub(crate) mod tests {
             let sender = sender.unwrap();
             let mut receiver = receiver.unwrap();
             let first = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 1,
@@ -4016,6 +4232,7 @@ pub(crate) mod tests {
             };
             sender.send_manifest(first, 1, deadline).await.unwrap();
             let second = AtlasFrame {
+                activity: None,
                 patches: None,
                 stream_id: Id128(99),
                 frame_id: 2,
@@ -4130,6 +4347,7 @@ pub(crate) mod tests {
             .await
             .unwrap();
         let manifest = AtlasFrame {
+            activity: None,
             patches: None,
             stream_id: Id128(99),
             frame_id: 1,

@@ -4,11 +4,13 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowMetadata.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <hyprland/src/managers/SessionLockManager.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/state/MonitorState.hpp>
-#include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/workspace/HLWorkspace.hpp>
 #include <hyprland/src/layout/target/Target.hpp>
 #include <nlohmann/json.hpp>
 
@@ -128,9 +130,9 @@ struct DesktopWindowController::Impl {
       throw std::runtime_error("session locked");
     const auto window = owned.window.lock();
     const auto surface = owned.surface.lock();
-    if (!window || !surface || !window->m_isMapped ||
+    if (!window || !surface || !window->mapped() ||
         reinterpret_cast<std::uintptr_t>(window.get()) != owned.address ||
-        window->m_stableID != owned.stable_id || window->getPID() != owned.pid ||
+        window->metadata().stableID() != owned.stable_id || window->backend().pid() != owned.pid ||
         reinterpret_cast<std::uintptr_t>(surface.get()) != owned.surface_address ||
         window->resource().get() != surface.get())
       throw std::runtime_error("enrolled window lifetime or identity changed");
@@ -166,7 +168,7 @@ struct DesktopWindowController::Impl {
 
     for (const auto& window : Desktop::windowState()->windows()) {
       if (!window || reinterpret_cast<std::uintptr_t>(window.get()) != address ||
-          !window->m_isMapped || window->getPID() != static_cast<pid_t>(pid64))
+          !window->mapped() || window->backend().pid() != static_cast<pid_t>(pid64))
         continue;
       const auto surface = window->resource();
       if (!surface || (surface_address != 0 &&
@@ -178,11 +180,11 @@ struct DesktopWindowController::Impl {
       owned.original_workspace = window->m_workspace;
       owned.address = address;
       owned.surface_address = reinterpret_cast<std::uintptr_t>(surface.get());
-      owned.stable_id = window->m_stableID;
-      owned.pid = window->getPID();
+      owned.stable_id = window->metadata().stableID();
+      owned.pid = window->backend().pid();
       owned.original_position =
           window->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
-      owned.original_floating = window->m_isFloating;
+      owned.original_floating = window->isFloating();
       owned.token = mintToken();
       owned.expires_at_ns = deadline;
       const auto token = owned.token;
@@ -205,7 +207,7 @@ struct DesktopWindowController::Impl {
       return failure("invalid full-capture coordinates");
     const auto window = owned->window.lock();
     if (!window) return failure("enrolled window destroyed");
-    if (!window->m_isFloating) {
+    if (!window->isFloating()) {
       if (!succeeded(Config::Actions::floatWindow(Config::Actions::TOGGLE_ACTION_ENABLE, window)))
         return failure("could not make owned window floating");
       owned->forced_floating = true;
@@ -223,7 +225,7 @@ struct DesktopWindowController::Impl {
     if (monitor && monitor->m_activeWorkspace) {
       const auto workspace = monitor->m_activeSpecialWorkspace ? monitor->m_activeSpecialWorkspace : monitor->m_activeWorkspace;
       if (window->m_workspace != workspace)
-        window->layoutTarget()->assignToSpace(workspace->m_space);
+        window->layoutTarget()->assignToSpace(workspace->space());
     }
     const auto width = request.value("desiredFullCaptureWidth", 0.0);
     const auto height = request.value("desiredFullCaptureHeight", 0.0);

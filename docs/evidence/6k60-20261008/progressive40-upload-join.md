@@ -1,0 +1,7 @@
+# Live same-frame upload/presentation attribution
+
+Run40 uses39 settings plus PTS-bearing upload and release traces. Runner exit0; no foreground changes or diagnostic drops.80sampledSHM2presentations all join exact upload PTS,missing0. Cleanup CPU median0.004/P950.024/max0.364ms; setup0.0395/0.079/max0.86; pin0.001/0.002/max4.138; submitCPU0.039/0.060/max0.066;finaleventwait1.386/2.509/max3.048;uploadtotal5.899/14.098/max18.745ms. Total upload includes source-prefix availability and scheduling, not pure GPU copy; it overlaps source publication and is not additive with all source stages.
+
+Slowest sampled framePTS14441208325:total79.525ms,source→callback21.755ms,accept→feedback10.667ms,upload18.745ms including pin4.138ms,cleanup0.005ms. This rejects a claim that completed-upload cleanup explains the slowest frame. Cold pinning contributes but is not typical. Do not infer a performance win from removing the previous redundant sync based on these absolute values alone.
+
+Whole sampled software latency median42.290/P9557.871/max79.525ms,80samples,not photons. Interior20s generator1180/hostaccepted1151:even source generation missed60Hz in this run, so it cannot certify sustained60fps. Original plugin inventory restored,normalnative/probe/wrapper restored by runner,Linuxserviceactive. No production promotion or target completion. Next distinguish source-prefix wait from GPU activity before changing overlap/band policy.

@@ -71,6 +71,7 @@ impl DesktopRect {
 pub struct AtlasWindowPlacement {
     pub window_id: WindowId,
     pub bounds: DesktopRect,
+    pub body_bounds: Option<DesktopRect>,
     pub movable: bool,
     pub z_order: u32,
     pub raise_serial: u32,
@@ -98,6 +99,7 @@ impl AtlasDesktopLayout {
             if placement.window_id.0 == 0
                 || previous.is_some_and(|id| id >= placement.window_id)
                 || placement.bounds.validate().is_err()
+                || placement.body_bounds.is_some_and(|body| body.validate().is_err())
             {
                 return Err(WireError::InvalidField("atlas_desktop_layout.windows"));
             }
@@ -286,6 +288,7 @@ impl TryFrom<wire::AtlasDesktopLayout> for AtlasDesktopLayout {
                             .bounds
                             .ok_or(WireError::MissingField("atlas_desktop.bounds"))?
                             .try_into()?,
+                        body_bounds: placement.body_bounds.map(TryInto::try_into).transpose()?,
                         movable: placement.movable,
                         z_order: placement.z_order,
                         raise_serial: placement.raise_serial,
@@ -309,6 +312,7 @@ impl From<AtlasDesktopLayout> for wire::AtlasDesktopLayout {
                 .map(|placement| wire::AtlasWindowPlacement {
                     window_id: Some(id(placement.window_id)),
                     bounds: Some(placement.bounds.into()),
+                    body_bounds: placement.body_bounds.map(Into::into),
                     movable: placement.movable,
                     z_order: placement.z_order,
                     raise_serial: placement.raise_serial,
@@ -467,6 +471,7 @@ mod tests {
                 height_millidip: 4_000,
             },
             windows: vec![AtlasWindowPlacement {
+                body_bounds: None,
                 window_id: Id128(2),
                 bounds: rect(0, 0),
                 movable: true,
@@ -474,6 +479,14 @@ mod tests {
                 raise_serial: 1,
             }],
         }
+    }
+
+    #[test]
+    fn body_bounds_round_trip_without_changing_capture_bounds() {
+        let mut value=layout();
+        value.windows[0].body_bounds=Some(rect(1,1));
+        let wire=wire::AtlasDesktopLayout::from(value.clone());
+        assert_eq!(AtlasDesktopLayout::try_from(wire).unwrap(),value);
     }
 
     #[test]

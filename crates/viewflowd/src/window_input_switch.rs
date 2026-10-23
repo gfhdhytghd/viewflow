@@ -30,6 +30,11 @@ impl super::RoutedWindowInput<'_> {
         {
             let geometry = authorized.geometry;
             self.session.switch_window_mode(authorized, keyboard_mode)?;
+            if selection.activate_keyboard {
+                if let Some(activity) = &self.session.activity {
+                    activity.observe(|state, _| state.focus(selection.window_id.0));
+                }
+            }
             let (owner, presentations) = tokio::sync::watch::channel(geometry);
             self.presentations = presentations;
             self.selected_presentation_owner = Some(owner);
@@ -45,7 +50,13 @@ impl super::RoutedWindowInput<'_> {
                 "keyboard activation requires an idle or confirmed-ended route"
             );
         }
-        self.install_selected_authorization(authorized)
+        self.install_selected_authorization(authorized)?;
+        if selection.activate_keyboard {
+            if let Some(activity) = &self.session.activity {
+                activity.observe(|state, _| state.focus(selection.window_id.0));
+            }
+        }
+        Ok(())
     }
 
     pub(super) fn install_selected_authorization(

@@ -1,0 +1,21 @@
+{
+  "probe": "/tmp/viewflow-reverse-cuvid-probe/viewflow_reverse_decoder_probe",
+  "probe_sha256": "d7301f73b66c1da03de1dab9cd7b9daf1d314b1bb7474259c0eb0ce2eff65d2f",
+  "runs": [
+    {
+      "decoder": "native",
+      "exit": 7,
+      "units": 1,
+      "decoded": 1,
+      "gl_error": 0
+    },
+    {
+      "decoder": "cuvid",
+      "exit": 7,
+      "units": 1,
+      "decoded": 0,
+      "gl_error": 0
+    }
+  ],
+  "note": "Exit 7 is the old generic probe minimum-of-59-output threshold, expected for this one-unit test; counts determine this diagnosis."
+}

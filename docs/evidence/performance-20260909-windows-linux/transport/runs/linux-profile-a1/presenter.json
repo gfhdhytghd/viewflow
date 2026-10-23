@@ -1,0 +1,18 @@
+{
+  "certificate": "/tmp/viewflow-full-glass-9hp_jra7/source.pem",
+  "private_key": "/tmp/viewflow-full-glass-9hp_jra7/source.key",
+  "certificate_authority": "/tmp/viewflow-full-glass-9hp_jra7/ca.pem",
+  "bind": "0.0.0.0:0",
+  "remote": "172.16.105.70:49073",
+  "server_name": "glass-receiver.test",
+  "role": "presenter",
+  "backend": {
+    "native": "/tmp/viewflow-reverse-linux-profile/viewflow_linux_reverse",
+    "args": [
+      "3072",
+      "390",
+      "2"
+    ]
+  },
+  "diagnostic_duration_ms": 32000
+}

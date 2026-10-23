@@ -1,0 +1,23 @@
+{
+  "scope": "two source bands with matching first upload row extent; CPU enqueue only, no proof DMA execution overlap; published timestamp follows actual release store; clock-order violations retained",
+  "matched": 1474,
+  "clock_halfwidth_ms": 0.0955425,
+  "enqueued_before_final_publish_conservative": 1471,
+  "clock_order_violations": 0,
+  "summary": {
+    "prefix_to_enqueue_ms": {
+      "n": 1474,
+      "p50": 0.5865644999999999,
+      "p95": 1.2434065,
+      "min": 0.0216975,
+      "max": 10.2469925
+    },
+    "enqueue_before_final_publish_ms": {
+      "n": 1474,
+      "p50": 2.030389,
+      "p95": 13.5697895,
+      "min": -3.5165045,
+      "max": 18.7158975
+    }
+  }
+}

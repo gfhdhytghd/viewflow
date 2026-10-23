@@ -1,0 +1,44 @@
+2026-09-13T16:20:49-04:00
+  UNIT                                 LOAD   ACTIVE   SUB     DESCRIPTION
+  viewflow-audio-macos.service         loaded active   running Viewflow audio from macos
+  viewflow-audio-windows.service       loaded active   running Viewflow audio from windows
+  viewflow-clipboard-macos.service     loaded active   running Viewflow bidirectional clipboard with Mac
+  viewflow-desktop.service             loaded inactive dead    Viewflow desktop streaming in the user's Hyprland session
+  viewflow-macos-hid.service           loaded active   running Viewflow Mac HID connection with capture ownership routing
+  viewflow-macos-input.service         loaded inactive dead    Viewflow macOS keyboard and mouse target
+  viewflow-macos-receiver.service      loaded active   running Viewflow native Mac windows on Linux
+  viewflow-macos-windows.service       loaded inactive dead    Viewflow Linux windows on the right Mac display
+  viewflow-multiscreen-layout.service  loaded active   exited  Viewflow three-screen layout
+  viewflow-multiscreen-macos.service   loaded active   running Viewflow simultaneous Mac input route
+  viewflow-multiscreen-windows.service loaded active   running Viewflow Linux windows on Mac in three-screen mode
+  viewflow-peer.service                loaded active   running Viewflow authenticated QUIC peer and Deskflow input bridge
+  viewflow-wallpaper.service           loaded inactive dead    Viewflow static wallpaper sync to the Windows virtual display
+  viewflow-windows-input.service       loaded active   running Viewflow Windows keyboard and mouse including pre-login
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+14 loaded units listed.
+To show all installed unit files use 'systemctl list-unit-files'.
+ 787290 /usr/bin/python3 /home/wilf/data/viewflow/tools/desktop-autostart-linux.py --config /home/wilf/.config/viewflow/windows-input-source.json --monitor DP-4 --peer /home/wilf/.local/lib/viewflow/input/vf-cursor-peer
+ 787293 /usr/bin/python3 /home/wilf/data/viewflow/tools/macos-window-share-linux.py --route-config /run/user/1000/viewflow/macos/config --remote 172.16.105.83:44221 --peer /home/wilf/.local/lib/viewflow/macos/vf-window-peer --source /home/wilf/.local/lib/viewflow/macos/vf-hyprland-windows --input-native /home/wilf/data/viewflow/build/macos-window-input/viewflow-linux-window-input
+ 787457 /home/wilf/.local/lib/viewflow/input/vf-cursor-peer send --config /run/user/1000/viewflow/desktop-drag/config
+ 794863 /usr/bin/python3 /home/wilf/data/viewflow/tools/multiscreen-input-linux.py --config /home/wilf/.config/viewflow/macos-multiscreen-source.json --route macos --peer /home/wilf/data/viewflow/target/debug/vf-cursor-peer
+1454371 /home/wilf/data/viewflow/target/debug/vf-cursor-peer send --config /run/user/1000/viewflow/macos/config
+1924650 /home/wilf/.local/lib/viewflow/vf-clipboard-peer --config /home/wilf/.config/viewflow/app/mac-clipboard.json
+2034455 /home/wilf/.local/lib/viewflow/macos/vf-window-peer --config /home/wilf/.local/state/viewflow/window-mesh-20260910/linux-receive.json
+2328130 /home/wilf/data/viewflow/build/window-mesh-linux/viewflow_linux_reverse 3072 1590 1
+2463869 /home/wilf/data/viewflow/build/window-mesh-linux/viewflow_linux_reverse 3072 1590 1
+2572263 /home/wilf/data/viewflow/build/window-mesh-linux/viewflow_linux_reverse 3072 1590 1
+2649108 /home/wilf/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo build --release -p viewflowd --features native-gpu-nvenc --bin vf-media-peer
+3051432 /home/wilf/.local/lib/viewflow/audio/vf-audio-peer --config /home/wilf/.config/viewflow/audio/macos-receive.json
+3051433 /home/wilf/.local/lib/viewflow/audio/vf-audio-peer --config /home/wilf/.config/viewflow/audio/windows-receive.json
+viewflowd server peer 172.16.105.83:44139 probe=4219 responder_us=0
+viewflowd window-source peer 172.16.105.83:44139 probe=16771 rtt_us=1296 offset_us=27102183 uncertainty_us=648 clock_decision=accepted active_age_us=0
+viewflowd window-source peer 172.16.105.83:44139 probe=16772 rtt_us=722 offset_us=27102136 uncertainty_us=361 clock_decision=accepted active_age_us=0
+viewflowd window-source peer 172.16.105.83:44139 probe=16773 rtt_us=1096 offset_us=27102260 uncertainty_us=548 clock_decision=accepted active_age_us=0
+viewflowd server peer 172.16.105.131:44149 probe=6500 responder_us=0
+viewflowd window-source peer 172.16.105.131:44149 probe=26090 rtt_us=1022 offset_us=91976250474 uncertainty_us=511 clock_decision=accepted active_age_us=0
+viewflowd window-source peer 172.16.105.131:44149 probe=26091 rtt_us=1448 offset_us=91976250350 uncertainty_us=724 clock_decision=accepted active_age_us=0
+viewflowd window-source peer 172.16.105.131:44149 probe=26092 rtt_us=1236 offset_us=91976250316 uncertainty_us=618 clock_decision=accepted active_age_us=0

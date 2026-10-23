@@ -1,0 +1,24 @@
+{"name":"atlas_session.rs","hash":"C3FB5A1DC83708901C3520624F9B788267D5098376BC1722B9D1C758BA787613"}
+{"name":"atlas_receiver_presenter.rs","hash":"D5964A4A8FB671AEE1D93C17AE2EAF24B5814BDB03334817BCA697600BD4EDFF"}
+{"name":"atlas_pointer.rs","hash":"8499083C966B3649735865B9E51580C298988A8EB1436A802BAB7E6FF86C5F5C"}
+{"name":"atlas_preview_input.rs","hash":"84ACBCE1EC2AC0292C78E128EF23C3CB497765CB3BEF05E05839DACE3D661ED2"}
+atlas-native-alpha frame=2760 reused=1 bytes=8388608
+atlas-native-timing frame=2760 phase=decoded qpc=764905406526 frequency=10000000 remaining_us=27715
+atlas-sparse-opacity frame=2760 patches=219 hidden_backdrops=0 backdrop_pixels=2952128 total_pixels=2952128
+atlas-native-timing frame=2760 phase=proxy-ready qpc=764905423315 frequency=10000000 remaining_us=26036
+atlas-native-timing frame=2760 phase=copy-ready qpc=764905423396 frequency=10000000 remaining_us=26028
+atlas-sparse-nodes frame=2760 nodes=26 backgrounds=26
+atlas-native-timing frame=2760 phase=committed qpc=764905424306 frequency=10000000 remaining_us=25937
+viewflowd atlas-selected-preview clock probe 255 delayed; resynchronizing
+clipboard lane recovering: connection lost: closed by peer: atlas clock stream retired (code 0)
+shared control latency target missed by 9279596us; ordered send completed
+atlas-peer-retirement-finished
+Error: atlas clock worker ended: deadline has elapsed
+
+Caused by:
+    0: atlas input ended: atlas input producer ended
+    1: atlas recovery receiver stopped after 2740 native visual submissions (not physical receipts), expired_unbound=0
+    2: atlas handoff control also ended: QUIC connection error: closed: closed
+    3: atlas child retirement also failed: atlas child termination wait expired
+    4: atlas disposition receipt deadline expired
+    5: deadline has elapsed

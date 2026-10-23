@@ -1,0 +1,32 @@
+﻿[
+    {
+        "Id":  253,
+        "Task":  "ETWGUID_RTCAPTURE",
+        "Template":  ""
+    },
+    {
+        "Id":  254,
+        "Task":  "ETWGUID_RTCAPTURE",
+        "Template":  ""
+    },
+    {
+        "Id":  255,
+        "Task":  "ETWGUID_RTCAPTURE_GETBITS",
+        "Template":  ""
+    },
+    {
+        "Id":  303,
+        "Task":  "SCHEDULE_FRAME_VSYNCDEADLINES",
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"cDisplays\" inType=\"win:UInt32\" outType=\"win:HexInt32\"/\u003e\r\n  \u003cstruct name=\"rgcDXRefresh\" count=\"cDisplays\"\u003e\r\n    \u003cdata name=\"vSync\" inType=\"win:UInt32\" outType=\"win:HexInt32\"/\u003e\r\n    \u003cdata name=\"vSyncTarget\" inType=\"win:UInt32\" outType=\"win:HexInt32\"/\u003e\r\n    \u003cdata name=\"qpcRefreshPeriod\" inType=\"win:UInt64\" outType=\"win:HexInt64\"/\u003e\r\n  \u003c/struct\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  385,
+        "Task":  "SCHEDULED_COMPOSITION_REASON",
+        "Template":  "\u003ctemplate xmlns=\"http://schemas.microsoft.com/win/2004/08/events\"\u003e\r\n  \u003cdata name=\"Reasons\" inType=\"win:UInt32\" outType=\"xs:unsignedInt\"/\u003e\r\n\u003c/template\u003e\r\n"
+    },
+    {
+        "Id":  386,
+        "Task":  "UNPRESENTED_FRAME",
+        "Template":  ""
+    }
+]

@@ -33,7 +33,9 @@ def captured_for_route(status, config, peer_pid, alive, destination):
 
 
 class ViewflowRoute:
-    def __init__(self, config_path, destination):
+    def __init__(self, config_path, destination, ready_file=None, capture_route=None):
+        self.ready_file = ready_file
+        self.capture_route = capture_route
         self.config_path = config_path
         self.destination = destination.rsplit('@', 1)[-1]
         self.last_active = False
@@ -44,7 +46,7 @@ class ViewflowRoute:
         try:
             with open(self.config_path) as f:
                 config = json.load(f)
-            ready = os.path.join(os.environ['XDG_RUNTIME_DIR'], 'viewflow/cursor-ready')
+            ready = self.ready_file or os.path.join(os.environ['XDG_RUNTIME_DIR'], 'viewflow/cursor-ready')
             with open(ready) as f:
                 pid = int(f.read())
             alive = os.path.basename(os.readlink(f'/proc/{pid}/exe')) == 'vf-cursor-peer'
@@ -64,7 +66,8 @@ class ViewflowRoute:
             self.identity = None
             return False
         try:
-            result = subprocess.run(['hyprctl', 'repl', 'return hl.plugin.viewflow.capture_status()'],
+            argument = json.dumps(self.capture_route) if self.capture_route else ''
+            result = subprocess.run(['hyprctl', 'repl', f'return hl.plugin.viewflow.capture_status({argument})'],
                                     capture_output=True, text=True, timeout=0.2, check=True)
             status = json.loads(result.stdout)
             if not isinstance(status, dict) or not {'connected', 'phase', 'remote'} <= status.keys():
@@ -81,6 +84,16 @@ class ViewflowRoute:
                 print('HID capture query unavailable; retaining confirmed route', file=sys.stderr)
             self.query_failed = True
             return self.last_active
+
+
+class CompositeRoute:
+    """One HID stream follows either Mac viewport, never two device writers."""
+    def __init__(self, routes):
+        self.routes = routes
+
+    def active(self):
+        # Inspect every route, so the previously active route records its release.
+        return any([route.active() for route in self.routes])
 
 
 class AsyncRoute:
@@ -281,6 +294,10 @@ def main():
     p.add_argument('--ssh')
     p.add_argument('--receiver', default='/Applications/Viewflow.app/Contents/MacOS/Viewflow')
     p.add_argument('--route-config', help='Follow this active Viewflow cursor route; release while local')
+    p.add_argument('--ready-file', help='Readiness file for this cursor route')
+    p.add_argument('--capture-route', help='Named compositor input route')
+    p.add_argument('--additional-route', action='append', default=[], metavar='CONFIG,READY,NAME',
+                   help='Another viewport for the same Mac HID receiver')
     args = p.parse_args()
     if args.mode == 'forward' and (not args.ssh or args.ssh.startswith('-')):
         p.error('forward requires an SSH destination')
@@ -298,7 +315,11 @@ def main():
     trace_buttons = os.environ.get('VIEWFLOW_HID_TRACE_BUTTONS') == '1'
     traced_button = False
     encoder = NativeEncoder(dev.x_range, dev.y_range)
-    route = AsyncRoute(ViewflowRoute(args.route_config, args.ssh or '')) if args.route_config else None
+    routes = [ViewflowRoute(args.route_config, args.ssh or '', args.ready_file, args.capture_route)] if args.route_config else []
+    for item in args.additional_route:
+        config, ready, name = item.split(',', 2)
+        routes.append(ViewflowRoute(config, args.ssh or '', ready, name or None))
+    route = AsyncRoute(CompositeRoute(routes)) if routes else None
     try:
         if args.mode == 'inspect':
             print(json.dumps(dict(name=dev.name, slots=dev.capacity, x=dev.x_range,

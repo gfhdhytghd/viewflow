@@ -1,0 +1,1 @@
+_G.viewflow_passive_fixture_rule=hl.window_rule({name="viewflow-passive-owned",match={class="^viewflow-full-glass-fixture$"},monitor="HEADLESS-34",workspace="7 silent",float=true,size="1920 1200",move="0 0",no_initial_focus=true,no_focus=true,no_anim=true,no_shadow=true,no_blur=true,border_size=0,rounding=0})

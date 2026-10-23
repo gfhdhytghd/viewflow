@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "macos_shadow.hpp"
+#include "../../reverse-common/shadow_corner.hpp"
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/event/EventBus.hpp>
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
-#include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowMetadata.hpp>
+#define private public
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+#undef private
+#include <hyprland/src/workspace/HLWorkspace.hpp>
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/render/pass/PassElement.hpp>
@@ -25,37 +30,53 @@ class ShadowPass final : public IPassElement {
   PHLWINDOWREF m_window;
   PHLMONITORREF m_monitor;
   float m_alpha;
+  Render::SWindowRenderPresentation m_presentation;
 public:
-  ShadowPass(PHLWINDOW window, PHLMONITOR monitor, float alpha):m_window(window),m_monitor(monitor),m_alpha(alpha) {}
-  bool needsLiveBlur() override {return false;}
-  bool needsPrecomputeBlur() override {return false;}
+  ShadowPass(PHLWINDOW window, PHLMONITOR monitor, float alpha, const Render::SWindowRenderPresentation& presentation):m_window(window),m_monitor(monitor),m_alpha(alpha),m_presentation(presentation) {}
+  bool needsLiveBlur(Render::CRenderContext&) override {return false;}
+  bool needsPrecomputeBlur(Render::CRenderContext&) override {return false;}
   const char* passName() override {return "Viewflow Mac simulated shadow";}
   ePassElementType type() override {return EK_CUSTOM;}
-  bool disableSimplification() override {return true;}
-  std::vector<UP<IPassElement>> draw() override {
+  bool disableSimplification(Render::CRenderContext&) override {return true;}
+  std::vector<UP<IPassElement>> draw(Render::CRenderContext& ctx) override {
     const auto window=m_window.lock();const auto monitor=m_monitor.lock();
-    if(!window || !monitor || !window->m_isMapped)return {};
+    if(!window || !monitor || !window->mapped())return {};
     CBox base{window->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT),window->size(Desktop::View::IGeometric::GEOMETRIC_CURRENT)};
     if(base.w<1 || base.h<1)return {};
-    if(window->m_workspace && !window->m_pinned)base.translate(window->m_workspace->m_renderOffset->value());
-    base.translate(window->m_floatingOffset-monitor->m_position);
-    const auto saved=g_pHyprRenderer->m_renderData.currentWindow;
-    g_pHyprRenderer->m_renderData.currentWindow=m_window;
+    const bool popup=viewflow::reverse::windows_popup_shadow(window->metadata().appID());
+    const auto popupRadius=popup?viewflow::reverse::windows_shadow_radius(window->metadata().appID()):std::nullopt;
+    // Unknown alpha edges may be transparent padding or an embedded shadow.
+    // Preserve the source pixels; a rectangular cutout would detach a second
+    // synthetic shadow from the visible body. Do not guess/crop translucent UI.
+    if(popup && !popupRadius)return {};
+    if(window->m_workspace && !(window->m_state & Desktop::View::WINDOW_STATE_PINNED))base.translate(window->m_workspace->m_renderOffset->value());
+    base.translate(window->presentation().floatingOffset()-monitor->m_position);
+    const auto saved=ctx.m_data.currentWindow;
+    ctx.m_data.currentWindow=m_window;
     const auto lobe=[&](int range,double insetX,double insetY,double offset,double radius,float opacity) {
       insetX=std::min(insetX,base.w*.25);insetY=std::min(insetY,base.h*.25);
       CBox box{base.x+insetX,base.y+insetY,base.w-2*insetX,base.h-2*insetY};
       box.expand(range).translate(Vector2D{0.0,offset}).scale(monitor->m_scale).round();
       const Config::CGradientValueData color{CHyprColor{0.F,0.F,0.F,opacity}};
       radius=std::min(radius,std::min(base.w-2*insetX,base.h-2*insetY)*.5);
-      g_pHyprRenderer->drawShadow(box,static_cast<int>(radius*monitor->m_scale),2.F,
-          static_cast<int>(static_cast<double>(range)*monitor->m_scale),color,m_alpha);
+      g_pHyprRenderer->drawShadow(ctx,box,static_cast<int>(radius*monitor->m_scale),2.F,
+          static_cast<int>(static_cast<double>(range)*monitor->m_scale),color,m_alpha,m_presentation);
     };
-    lobe(88,13.0,14.0,17.5,35.5,0.233F);
-    lobe(74,0.0,0.0,19.0,27.0,0.107F);
+    if(popup) {
+      // A validated, tight body silhouette: no inset or displaced body box.
+      // The profile belongs to a compact transient surface, not a main window.
+      lobe(12,0.0,0.0,0.0,*popupRadius,0.22F);
+    } else {
+      lobe(88,13.0,14.0,17.5,35.5,0.233F);
+      lobe(74,0.0,0.0,19.0,27.0,0.107F);
+    }
     // The contact edge must follow the actual surface corner, not the
     // broader radius fitted for the soft shadow.
-    lobe(2,0.0,0.0,0.0,window->rounding(),0.32F);
-    g_pHyprRenderer->m_renderData.currentWindow=saved;
+    if(window->metadata().appID().starts_with("ViewflowReverse-WindowsNative-")) {
+      if(const auto radius=viewflow::reverse::windows_shadow_radius(window->metadata().appID()))
+        lobe(2,0.0,0.0,0.0,*radius,0.32F);
+    } else lobe(2,0.0,0.0,0.0,window->presentation().rounding(),0.32F);
+    ctx.m_data.currentWindow=saved;
     return {};
   }
 };
@@ -73,9 +94,9 @@ public:
     return info;
   }
   void onPositioningReply(const SDecorationPositioningReply&) override {}
-  void draw(PHLMONITOR monitor,float const& alpha) override {
-    const auto window=m_window.lock();if(!window || !window->m_isMapped)return;
-    g_pHyprRenderer->addPassElement(makeUnique<ShadowPass>(window,monitor,alpha));
+  void draw(Render::CRenderContext& ctx,PHLMONITOR monitor,float const& alpha,const Render::SWindowRenderPresentation& presentation) override {
+    const auto window=m_window.lock();if(!window || !window->mapped())return;
+    g_pHyprRenderer->addPassElement(ctx,makeUnique<ShadowPass>(window,monitor,alpha,presentation));
   }
   eDecorationType getDecorationType() override {return DECORATION_CUSTOM;}
   eDecorationLayer getDecorationLayer() override {return DECORATION_LAYER_BOTTOM;}
@@ -91,30 +112,34 @@ public:
 }
 struct MacOsShadows::Impl {
   void* handle;
-  CHyprSignalListener opened,closed;
+  CHyprSignalListener opened,closed,classChanged;
   std::map<void*,std::pair<PHLWINDOWREF,Decoration*>> decorations;
   void attach(PHLWINDOW window) {
     std::erase_if(decorations,[](const auto& entry){return entry.second.first.expired();});
-    if(!window || !window->m_isMapped ||
-       (!window->m_class.starts_with("ViewflowReverse-Mac-") && !window->m_class.starts_with("ViewflowReverse-MacNative-")) ||
+    if(!window || !window->mapped() ||
+       (!window->metadata().appID().starts_with("ViewflowReverse-Mac-") && !window->metadata().appID().starts_with("ViewflowReverse-MacNative-") && !window->metadata().appID().starts_with("ViewflowReverse-WindowsNative-")) ||
        decorations.contains(window.get()))return;
-    auto decoration=makeUnique<Decoration>(window);auto* ptr=decoration.get();
+    auto decoration=makeShared<Decoration>(window);auto* ptr=decoration.get();
     if(HyprlandAPI::addWindowDecoration(handle,window,std::move(decoration)))decorations.emplace(window.get(),std::make_pair(PHLWINDOWREF{window},ptr));
   }
   explicit Impl(void* h):handle(h) {
     opened=Event::bus()->m_events.window.open.listen([this](PHLWINDOW window){attach(window);});
+    classChanged=Event::bus()->m_events.window.class_.listen([this](PHLWINDOW window){
+      attach(window);
+      if(const auto found=decorations.find(window.get());found!=decorations.end())found->second.second->damageEntire();
+    });
     // Closed windows may still be retained for fade-out, with decorations
     // whose code belongs to this plugin. Keep weak ownership until destruction.
     for(const auto& window:Desktop::windowState()->windows())attach(window);
   }
   ~Impl() {
-    opened.reset();closed.reset();
+    opened.reset();closed.reset();classChanged.reset();
     for(const auto& [_,entry]:decorations)if(const auto window=entry.first.lock()) {
       HyprlandAPI::removeWindowDecoration(handle,entry.second);
       // Hyprland defers decoration removal for hidden/unmapped windows.
       // Those windows can outlive this plugin through fade-out or grouping.
-      std::erase(window->m_decosToRemove,entry.second);
-      std::erase_if(window->m_windowDecorations,[&](const auto& decoration) {
+      std::erase(window->presentation().m_decosToRemove,entry.second);
+      std::erase_if(window->presentation().m_windowDecorations,[&](const auto& decoration) {
         if(decoration.get()!=entry.second)return false;
         g_pDecorationPositioner->uncacheDecoration(decoration.get());
         return true;
@@ -123,9 +148,9 @@ struct MacOsShadows::Impl {
     // Render passes retain plugin-defined deleters until the next render,
     // including off-screen overview snapshots. Dispose after decorations so
     // no decoration can enqueue another pass while its cleanup runs.
-    g_pHyprRenderer->m_renderPass.removeAllOfType("Viewflow Mac simulated shadow");
-    if(&g_pHyprRenderer->currentPass()!=&g_pHyprRenderer->m_renderPass)
-      g_pHyprRenderer->currentPass().removeAllOfType("Viewflow Mac simulated shadow");
+    g_pHyprRenderer->context().m_pass.removeAllOfType("Viewflow Mac simulated shadow");
+    if(&g_pHyprRenderer->currentPass(g_pHyprRenderer->context())!=&g_pHyprRenderer->context().m_pass)
+      g_pHyprRenderer->currentPass(g_pHyprRenderer->context()).removeAllOfType("Viewflow Mac simulated shadow");
   }
 };
 MacOsShadows::MacOsShadows(void* handle):m_impl(std::make_unique<Impl>(handle)){}

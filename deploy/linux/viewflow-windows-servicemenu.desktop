@@ -1,0 +1,18 @@
+[Desktop Entry]
+Type=Service
+MimeType=all/allfiles;
+X-KDE-ServiceTypes=KonqPopupMenu/Plugin
+X-KDE-Priority=TopLevel
+Actions=WindowsOpen;WindowsChoose;
+
+[Desktop Action WindowsOpen]
+Name=Open with Windows
+Name[zh_CN]=用 Windows 应用打开
+Icon=preferences-system-windows
+Exec=viewflow-windows open %F
+
+[Desktop Action WindowsChoose]
+Name=Choose Windows application
+Name[zh_CN]=选择 Windows 应用
+Icon=preferences-system-windows
+Exec=viewflow-windows open --choose %F

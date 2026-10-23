@@ -1,5 +1,44 @@
 # Linux → Windows 多指触控板
 
+## 2026-09-08 独立坐标通道
+
+`vf-cursor-peer` 读取 `VIEWFLOW_CURSOR_RAW_TOUCHPAD`，接受 `1/true`
+启用原始触点，`0/false` 或未设置时关闭。Windows 输入服务设置为 `1`。
+Mac 使用独立且常驻的 DriverKit HID 连接时，应设置
+`VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD=1`（并保持 `RAW_TOUCHPAD` 为 `0`）。这会让
+Hyprland 在远端捕获期间抑制该物理触控板的 finger 派生滚动和本地 gesture，
+但不会在此 QUIC 连接发送 `INPUT_TOUCHPAD_FRAME`；两个环境变量同时启用会被
+启动程序拒绝。
+
+Windows 触点与坐标共用已配对的 QUIC 连接，只有 Hyprland 插件处于
+`REMOTE_CAPTURED` 时发送触点；返回 Linux 时沿现有租约释放流程收尾，
+保留连接，不继续转发 Linux 的本地手势。Mac HID 路由会检查实际坐标
+进程的配置身份，Windows 占有控制权时不会误发送到 Mac。
+
+部署后只读确认：Windows 接收端 `172.16.105.70:44149` 已连接，输入
+服务及其会话 worker 运行，原生 API 导出存在；Linux 插件
+`connected=1, raw_touchpad=1, phase=0, touchpad_frames=0`，表示能力已启用、
+控制仍在 Linux 且没有发送触点。Mac HID 进程和连接保持，无重启。
+Linux 新程序构建、原生触点/控制权状态测试，以及包含五指和抬手空帧的
+QUIC 模拟接收测试通过。没有发送系统测试输入，真实 Windows 手势仍由
+用户操作验收。当前登录会话用独立坐标服务启动，未改动其他性能实验。
+
+### 2026-09-08 坐标被拒绝的修复
+
+独立坐标客户端连接的是普通 `viewflowd serve`，不是 Atlas 专用接收器。
+实机日志显示这条路径仍调用带新鲜度门槛的 `apply_event`，连续拒绝
+`DesktopPointerPosition`，结果为 `RejectedExpired`；与此同时触点成功
+注入。登录会话只读查询得到 `CURSOR_SUPPRESSED`，连接本身正常。
+
+普通可靠控制流的输入回执处理现在统一调用 `apply_ordered_event`，保留
+目标、控制权代次、事件序号及断线释放校验，不再以发送时间或时钟估计
+拒绝有序输入。回归测试经过实际回执入口，覆盖无时钟、过期坐标成功
+和重复序号拒绝；测试后端不注入系统输入。实体跨屏效果由用户验收。
+
+Windows 已切换至 `cursor-fix-build\target\debug\viewflowd.exe`，
+SHA-256 为 `53c7103e88980da917d739dd8ff056da23237002e1188f3b95c1999b35c51c50`。
+登录启动任务的原脚本已备份；Linux 坐标服务重连后 QUIC 探测恢复正常。
+
 2026-09-07：接入 Magic Trackpad 的多触点转发，覆盖跨屏控制 Windows
 桌面和 Linux 上的 Windows 代理窗口。实现双指滚动、捏合缩放及三／四指
 滑动的原生触控板输入；具体系统手势动作由 Windows 的触控板设置决定。

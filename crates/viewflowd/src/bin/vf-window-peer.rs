@@ -70,6 +70,7 @@ async fn stop_signal() -> std::io::Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    viewflowd::managed_owner::watch()?;
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args == ["--help"] || args == ["-h"] {
         println!("{USAGE}");

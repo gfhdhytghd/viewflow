@@ -1,0 +1,55 @@
+{
+  "scope": "sampled Wayland feedback, not photon; periodic cached frames are not motion FPS; captures predating calibration are excluded from new-capture latency",
+  "clock_endpoint_envelope_half_width_ms": 0.083806,
+  "clock_endpoint_offset_change_us": 12.589,
+  "clock_caveat": "endpoint envelope is observed calibration uncertainty; unobserved clock drift is not bounded",
+  "outside_calibration_interval": 3,
+  "outputs": {
+    "HEADLESS-1": {
+      "atlas_to_present_ms": {
+        "n": 48,
+        "p50": 17.307073000000003,
+        "p95": 26.50965,
+        "min": 11.486463,
+        "max": 41.713081
+      },
+      "new_capture_to_present_first_observed_ms": {
+        "n": 47,
+        "p50": 16.677802,
+        "p95": 26.263731,
+        "min": 8.20096,
+        "max": 39.937981
+      },
+      "atlas_dimensions": [
+        [
+          6144,
+          3456
+        ]
+      ],
+      "unmatched": 1
+    },
+    "DP-4": {
+      "atlas_to_present_ms": {
+        "n": 80,
+        "p50": 25.943320999999997,
+        "p95": 32.798671,
+        "min": 14.714271,
+        "max": 33.601871
+      },
+      "new_capture_to_present_first_observed_ms": {
+        "n": 80,
+        "p50": 25.954371000000002,
+        "p95": 32.896071,
+        "min": 10.999371,
+        "max": 49.434371
+      },
+      "atlas_dimensions": [
+        [
+          6144,
+          3456
+        ]
+      ],
+      "unmatched": 0
+    }
+  }
+}

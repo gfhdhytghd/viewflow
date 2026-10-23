@@ -1,0 +1,3 @@
+# Deferred drain lifecycle validation
+
+The same 01A82E3C candidate used for the four transport runs produces 21 of 21 accepted frames, decoded through NVDEC/CUDA/GLES with exact alpha verification. Static updates, rename, movement, second window, resize, removal and empty atlas all appear. Actual admission modes are 4, 2, 4, 2. All 20 drain cycles end, each null input follows completed GPU tasks, and no fresh input is interleaved during drain. Foreground samples remain unchanged; private tasks and processes are removed. See runs/depth-limit-v2/summary.json and encoder-accounting.json for bounded assertions and timing limitations.

@@ -109,7 +109,7 @@ void InputCaptureCore::observePosition(double x, double y,
   // while buttons/modifiers prevent capture. Resume at that exact coordinate
   // after release; never strand the user behind the seam.
   if (m_remote && contains(*m_remote, x, y)) {
-    if (!m_physicalButtons.empty() || !m_physicalKeys.empty()) {
+    if ((!m_physicalButtons.empty() && !continuingHeldLeft()) || !m_physicalKeys.empty()) {
       m_phase = CapturePhase::LOCAL;
       return;
     }
@@ -211,7 +211,7 @@ void InputCaptureCore::observePosition(double x, double y,
 
 std::optional<EdgeCandidate>
 InputCaptureCore::observeMotion(double unacceleratedX, double unacceleratedY) {
-  if (m_phase != CapturePhase::EDGE_ARMED || !m_physicalButtons.empty() || !m_physicalKeys.empty())
+  if (m_phase != CapturePhase::EDGE_ARMED || (!m_physicalButtons.empty() && !continuingHeldLeft()) || !m_physicalKeys.empty())
     return std::nullopt;
 
   const auto selected = std::ranges::max_element(
@@ -233,7 +233,7 @@ bool InputCaptureCore::activate(InputLeaseIdentity lease) {
       lease.targetDevice, [](std::uint8_t byte) { return byte == 0; });
   if (m_phase != CapturePhase::CAPTURE_PENDING ||
       lease.generation <= m_lastGeneration || targetIsZero ||
-      !m_physicalButtons.empty() || !m_physicalKeys.empty())
+      (!m_physicalButtons.empty() && !continuingHeldLeft()) || !m_physicalKeys.empty())
     return false;
   m_pendingReturnGeneration = 0;
   m_lease = lease;
@@ -252,11 +252,12 @@ ReleaseState InputCaptureCore::release() {
   m_activeEdge.reset();
   m_armedEdges.clear();
   m_phase = CapturePhase::LOCAL;
+  m_heldLeftReturn = false;
   return result;
 }
 
 bool InputCaptureCore::button(std::uint32_t code, bool pressed) {
-  if (code == 272) m_pendingReturnGeneration = 0;
+  if (code == 272) { m_pendingReturnGeneration = 0; m_heldLeftReturn = false; }
   if (pressed) m_physicalButtons.insert(code);
   else m_physicalButtons.erase(code);
   if (!captured())

@@ -1,0 +1,9 @@
+# Installed virtual-display scheduling audit
+
+Read current Windows driver SHA256 B1DECFADC04ED658162C21CDE7E3894392360C01B7019439AC06B68C793C259D. It matches the previously built/installed per-monitor swapchain and cursor-handle ownership repair archived at docs/evidence/windows-vdd-stutter-20260914/fix/build-and-observations.tar. Thus the known old shared-processor defect is not evidence for replacing the current driver. One current process snapshot: DWM1552 handles1433;WUDFHost1276 handles385. A single snapshot does not prove absence of leaks.
+
+Inspected exact archived source Driver.cpp RunCore1960–2095: acquisition returns E_PENDING then waits on new-buffer AND termination events with16ms timeout. This is interruptible by new-frame events, not an unconditional16ms delay. Successful acquisition releases the surface and immediately calls IddCxSwapChainFinishedProcessingFrame. There is no intervening Sleep or frame processing. Do not lower this timeout blindly and claim a frame of latency removed.
+
+IddCxSwapChainReportFrameStatistics remains commented out. This limits driver-side presentation evidence; it does not by itself prove why DWM query fields are zero or establish a causal latency bottleneck. No driver replacement, hot reload, display mode switch or reboot performed.
+
+Checked installed WPR10.0.26100: no active WPR recording. Available profiles include GPU and DesktopComposition. Next actionable diagnostic is a bounded GPU/composition ETW recording synchronized with the existing pixel-identified6K workload, capturing actual scheduler/delivery events before altering driver timing. Inspect current recording ownership again before starting; stop only the recorder created for this experiment. Trace overhead must be reported and its run not promoted as a clean performance baseline. No input/focus injection required.

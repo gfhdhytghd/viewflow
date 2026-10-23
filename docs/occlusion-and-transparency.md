@@ -1,7 +1,49 @@
 # Occlusion, viewport clipping, and transparent precomposition
 
-Implemented for the Hyprland-to-Windows forward atlas. The reverse pipeline
-uses a different wire format and does not yet use this patch representation.
+The full sparse patch policy below is implemented for the Hyprland-to-Windows
+forward atlas. Native window routes use a different wire format. They now
+support destination viewport residency as described below, but do not yet use
+the forward atlas's alpha-cell classification or multi-patch occlusion policy.
+
+## Native window route viewport residency
+
+Linux→Mac, Windows→Mac, Mac→Linux, and Mac→Windows sources accept viewport
+feedback from the destination. A window keeps its full geometry, identity,
+input coordinates, and lifetime while only one resident rectangle occupies
+atlas slots. A fully off-screen or minimized window retains metadata with an
+empty resident rectangle; revealing it restores pixels from the next completed
+frame. No source-desktop stacking or window-style flag is treated as evidence
+that a destination pixel is hidden.
+
+Destinations round the requested area outward, add 256 source pixels of
+prefetch, then align outward to a 128-pixel grid. Multiple displays use a
+conservative bounding rectangle. Mac and Windows presenters report minimized
+windows as empty; the Linux presenter currently uses monitor bounds, retaining
+pixels for non-visible workspaces and covered windows. Capture buffers remain
+full-sized for recovery. Linux and Windows native sources resize their encoded
+canvas to the requested residency; Mac keeps its popup reserve but releases a
+sustained large unused canvas after demand settles and pending encoding drains.
+The Mac log reports full, resident, and encoded-canvas pixel counts separately.
+
+The native protocol advertises source capability bit 512. Updated receivers
+send visibility record kind 16 only after that capability appears; updated
+sources send crop extension bit 256 only after feedback. Upgrade receivers
+before sources: old receivers reject the new source capability. A crop's pixel
+mapping is carried with its encoded frame and alpha, preserving the old image
+until the matching new decoded frame completes.
+
+| Optimization | Hyprland→Windows forward atlas | Native window routes involving Mac |
+| --- | --- | --- |
+| Outside viewport pixel residency | Sparse patches, seam cache | One resident rectangle, seam prefetch |
+| Fully transparent cell removal | GPU alpha classification | Not implemented |
+| Lower pixels hidden by opaque windows | Conservative GPU cell rejection | Not implemented |
+| Transparent overlap precomposition | Optional `prerender` | Not implemented |
+| Window metadata retained with zero pixels | Yes | Yes |
+| Capture uses only visible area | No, full capture buffers | No, full capture buffers |
+
+These are equivalent viewport savings, not full parity with every forward-atlas
+optimization. No live input or focus change is required to test the crop math,
+wire representation, or owned-buffer encode/decode path.
 
 The source JSON accepts `"occlusion": "opaque"` (default), `"prerender"`, or
 `"off"`. The paired launcher exposes the same setting as
@@ -24,12 +66,20 @@ covers that lower cell. Partial coverage, unknown stacking, different capture
 scales, and fractional grid placement conservatively retain independent
 layers. Native style flags are not evidence of opacity.
 
-The configured remote desktop viewport clips residency in source coordinates.
-After scrolling a layout, a completely off-viewport window retains its metadata
-but has no resident patches. A partially visible window keeps only its visible
-source pixels; fractional pixel boundaries round outward. Returning into view
-restores patches in the next completed frame. This also applies when stacking
-is unknown. Ordinary viewport departure does not mean the window was closed.
+The remote desktop viewport defines display and input clipping. Pixel residency
+also includes a bounded strip beyond a shared edge with the configured local
+display: `desktop.seam_cache_dip` defaults to 256 logical pixels, accepts 0 to
+1024, and 0 disables this prefetch. Only an adjoining edge expands; gaps and
+corner-only contact do not. Already-enrolled windows can reveal these cached
+pixels while the next source frame is still in flight. The wire viewport, full
+window bounds, native HWND region, and input coordinates remain unchanged.
+
+A window farther outside than the cache strip retains its metadata but has no
+resident patches. Partial pixels round outward at fractional scales. Residency
+is refreshed in each completed frame, rather than retaining old pixels across
+unrelated atlas mappings. This also applies when stacking is unknown. Ordinary
+viewport departure does not mean the window was closed. Prefetch does not
+start capture of unrelated local windows before their normal enrollment.
 
 Windows proxies display cropped sprites referencing shared atlas surfaces.
 They do not allocate a full texture for each window. The atlas uses two shared

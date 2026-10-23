@@ -1,0 +1,22 @@
+[package]
+name = "viewflow-transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes = "1.11.1"
+prost = "0.13.5"
+quinn = { version = "0.11.11", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rustls = { version = "0.23.43", default-features = false, features = ["ring", "std"] }
+rustls-pemfile = "2.2.0"
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "time"] }
+viewflow-protocol = { path = "../viewflow-protocol" }
+
+[dev-dependencies]
+viewflow-core = { path = "../viewflow-core" }
+viewflow-platform = { path = "../viewflow-platform" }
+
+[lints]
+workspace = true

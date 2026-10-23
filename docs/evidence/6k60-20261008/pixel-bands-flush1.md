@@ -1,0 +1,7 @@
+# Per-band Flush exposes partial completion
+
+1550valid6Kbandobservations:1063(68.58%) last-bandnotready beforefirstMap,487allready. Previoussingleflush0/1532eligible. This establishes earlierobservablecompletionwithper-bandflush onthisdriver/path;notameasureofGPU/CPUoverlapduration.1552hostmarkersallmatchsource,1551unique,1repeat,53gaps.Foregroundchanges0. Originalplugininventoryequal;allproductionwrapper/binary/probehashrestored.
+
+80matchedcallback→writeP50 7.478ms/P95 11.904 vswholebaseline8.434/10.430. Medianlocallyimproves~0.96ms buttaildoesnot;sequentialcomparisonisnotrandomizedAB. Generation→feedback49.493/60.107ms,receiverrate~55.8–60fps,goalunmet. Sourcecompositionphaseandtailsstillmatter;donotpromotemedianreadbackgaintoendtoendsuccess.
+
+Next compare2bandswithsameper-bandflush,pacing,pixelidentity,compositorconfiguration. AddedacceptedCAPTURE_BANDS2value(defaultoffunchanged)andtwo-bandtestcase;notyetbuilt/livevalidatedinthisturn. Two21/42MBbandsretainparallelcopythreshold,reducecommandandquerycount,maytradeearlierprefixcompletionforloweroverhead. Needactualevidence.

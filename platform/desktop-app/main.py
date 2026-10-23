@@ -25,7 +25,7 @@ def run_script(name, args):
         path = repository / ('platform/macos-trackpad-probe' if name == 'native-trackpad-forward' else 'tools') / SCRIPTS[name]
     sys.path.insert(0, str(path.parent))
     if name == 'native-trackpad-forward' and not any(value == '--receiver' or value.startswith('--receiver=') for value in args):
-        args = [*args, '--receiver', '/Applications/Viewflow.app/Contents/MacOS/Viewflow']
+        args = [*args, '--receiver', '/Applications/ViewflowHIDReceiver.app/Contents/MacOS/ViewflowHIDReceiver']
     sys.argv = [str(path), *args]
     runpy.run_path(str(path), run_name='__main__')
 
@@ -91,6 +91,8 @@ def desktop_entry(executable, arguments=''):
     escaped = executable.replace('\\', '\\\\\\\\').replace('"', '\\\\"').replace('`', '\\\\`').replace('$', '\\\\$').replace('%', '%%')
     if '\n' in escaped or '\r' in escaped: raise ValueError('unsupported newline in installation path')
     entry = '[Desktop Entry]\nType=Application\nName=Viewflow\nComment=Windows, input and clipboard across your computers\nExec="' + escaped + '"' + (' ' + arguments if arguments else '') + '\nTerminal=false\nCategories=Network;RemoteAccess;\n'
+    icon = str(resources() / 'qml/viewflow.svg')
+    entry += 'Icon=' + icon.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r') + '\nStartupWMClass=org.viewflow.app\n'
     return entry
 
 

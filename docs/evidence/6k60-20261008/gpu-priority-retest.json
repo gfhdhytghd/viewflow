@@ -1,0 +1,666 @@
+{
+  "12": {
+    "pixel-stamp": {
+      "scope": "fixture generation before GPU submission to sampled Wayland feedback; host marker matches reported separately; GPU rendered pixels not validated, excludes photon latency; samples do not establish continuous presentation fps",
+      "host_pixel_markers": {
+        "records": 1152,
+        "matched_source": 1152,
+        "mismatched_source": 0,
+        "unmatched_source": 0
+      },
+      "generation_to_callback_ms": {
+        "n": 1382,
+        "p50": 24.65285,
+        "p95": 36.2307,
+        "min": 10.5071,
+        "max": 61.8023
+      },
+      "source_publications": 1384,
+      "early_announcements": 1380,
+      "decoded_records": 1382,
+      "unique_sequences": 1380,
+      "duplicate_records": 2,
+      "sequence_gaps": 202,
+      "generated_to_sampled_feedback_ms": {
+        "n": 80,
+        "p50": 48.7297215,
+        "p95": 69.7861715,
+        "min": 33.3235715,
+        "max": 144.7365715
+      },
+      "clock_envelope_half_width_ms": 0.1079865
+    },
+    "run-validity": {
+      "scope": "Observed discontinuities only; aggregate intervals and residency logging do not prove uninterrupted60fps or photon latency. Multiple-window attribution may require manual review.",
+      "sustained_6k_evidence": "invalid_or_confounded",
+      "reasons": [
+        "observed_foreground_change"
+      ],
+      "trace_drops_last_observed": 0,
+      "residency_events": [
+        {
+          "log_time": "Oct 09 03:26:40.508162",
+          "id": 1,
+          "demand": [
+            0,
+            0,
+            6016,
+            3456
+          ],
+          "window_workspace": {
+            "id": 2,
+            "name": "2"
+          },
+          "window_visible": true,
+          "outputs": [
+            {
+              "name": "DP-4",
+              "workspace": {
+                "id": 2,
+                "name": "2"
+              },
+              "dpms": true
+            }
+          ]
+        },
+        {
+          "log_time": "Oct 09 03:26:40.544931",
+          "id": 1,
+          "demand": [
+            0,
+            0,
+            6144,
+            3456
+          ],
+          "window_workspace": {
+            "id": 2,
+            "name": "2"
+          },
+          "window_visible": true,
+          "outputs": [
+            {
+              "name": "DP-4",
+              "workspace": {
+                "id": 2,
+                "name": "2"
+              },
+              "dpms": true
+            }
+          ]
+        }
+      ],
+      "accept_intervals": [
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 237,
+          "interval_ms": 5009.969
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 219,
+          "interval_ms": 5030.848
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 207,
+          "interval_ms": 5018.031
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 214,
+          "interval_ms": 5000.956
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 213,
+          "interval_ms": 5011.893
+        }
+      ],
+      "foreground_change_count": 1
+    },
+    "gpu-capture": {
+      "scope": "fence follows fixture drawing before Present; observed time includes CPU scheduling/poll delay and is an upper bound; observed-to-WGC gap is a lower bound on actual completion-to-WGC gap; negative values retained",
+      "gpu_summaries": [
+        "motion-gpu-summary hr=0x00000000 observed=1792 pending=0 dropped=0 scope=cpu-observed-fence-upper-bound"
+      ],
+      "gpu_records": 1792,
+      "matched_atlas_extents": {
+        "(6144, 3456)": 1382
+      },
+      "excluded_non_6k": 0,
+      "matched_6k_span_ms": 26432.6573,
+      "summary": {
+        "generation_to_observed_gpu_ms": {
+          "n": 1382,
+          "p50": 2.8028500000000003,
+          "p95": 11.859,
+          "min": 0.2284,
+          "max": 19.6423
+        },
+        "fence_submit_to_observed_ms": {
+          "n": 1382,
+          "p50": 2.6437,
+          "p95": 11.6009,
+          "min": 0.0066,
+          "max": 19.4557
+        },
+        "observed_gpu_to_wgc_ms": {
+          "n": 1382,
+          "p50": 18.356250000000003,
+          "p95": 33.3228,
+          "min": 6.72,
+          "max": 59.5702
+        },
+        "generation_to_wgc_ms": {
+          "n": 1382,
+          "p50": 24.643749999999997,
+          "p95": 36.2243,
+          "min": 10.4991,
+          "max": 61.7872
+        }
+      },
+      "worst_20": [
+        {
+          "pts": 329176759193,
+          "sequence": 210,
+          "generation_to_observed_gpu_ms": 2.217,
+          "fence_submit_to_observed_ms": 2.0658,
+          "observed_gpu_to_wgc_ms": 59.5702,
+          "generation_to_wgc_ms": 61.7872
+        },
+        {
+          "pts": 329202212098,
+          "sequence": 364,
+          "generation_to_observed_gpu_ms": 19.0139,
+          "fence_submit_to_observed_ms": 18.8447,
+          "observed_gpu_to_wgc_ms": 34.3617,
+          "generation_to_wgc_ms": 53.3756
+        },
+        {
+          "pts": 329201866515,
+          "sequence": 362,
+          "generation_to_observed_gpu_ms": 19.6423,
+          "fence_submit_to_observed_ms": 19.4557,
+          "observed_gpu_to_wgc_ms": 29.3171,
+          "generation_to_wgc_ms": 48.9594
+        },
+        {
+          "pts": 329202082619,
+          "sequence": 363,
+          "generation_to_observed_gpu_ms": 5.5142,
+          "fence_submit_to_observed_ms": 5.3841,
+          "observed_gpu_to_wgc_ms": 40.6475,
+          "generation_to_wgc_ms": 46.1617
+        },
+        {
+          "pts": 329178413470,
+          "sequence": 221,
+          "generation_to_observed_gpu_ms": 14.2334,
+          "fence_submit_to_observed_ms": 14.0134,
+          "observed_gpu_to_wgc_ms": 27.9467,
+          "generation_to_wgc_ms": 42.1801
+        },
+        {
+          "pts": 329288758072,
+          "sequence": 878,
+          "generation_to_observed_gpu_ms": 10.9069,
+          "fence_submit_to_observed_ms": 10.7527,
+          "observed_gpu_to_wgc_ms": 30.3437,
+          "generation_to_wgc_ms": 41.2506
+        },
+        {
+          "pts": 329290755997,
+          "sequence": 890,
+          "generation_to_observed_gpu_ms": 9.4714,
+          "fence_submit_to_observed_ms": 9.1191,
+          "observed_gpu_to_wgc_ms": 31.1336,
+          "generation_to_wgc_ms": 40.605
+        },
+        {
+          "pts": 329341911403,
+          "sequence": 1197,
+          "generation_to_observed_gpu_ms": 13.5308,
+          "fence_submit_to_observed_ms": 13.3299,
+          "observed_gpu_to_wgc_ms": 26.7696,
+          "generation_to_wgc_ms": 40.3004
+        },
+        {
+          "pts": 329218730813,
+          "sequence": 462,
+          "generation_to_observed_gpu_ms": 4.3085,
+          "fence_submit_to_observed_ms": 4.0069,
+          "observed_gpu_to_wgc_ms": 35.7712,
+          "generation_to_wgc_ms": 40.0797
+        },
+        {
+          "pts": 329284073850,
+          "sequence": 850,
+          "generation_to_observed_gpu_ms": 14.1923,
+          "fence_submit_to_observed_ms": 14.0077,
+          "observed_gpu_to_wgc_ms": 25.7652,
+          "generation_to_wgc_ms": 39.9575
+        },
+        {
+          "pts": 329204738297,
+          "sequence": 379,
+          "generation_to_observed_gpu_ms": 2.5164,
+          "fence_submit_to_observed_ms": 2.4357,
+          "observed_gpu_to_wgc_ms": 37.2953,
+          "generation_to_wgc_ms": 39.8117
+        },
+        {
+          "pts": 329421066900,
+          "sequence": 1671,
+          "generation_to_observed_gpu_ms": 14.2006,
+          "fence_submit_to_observed_ms": 13.977,
+          "observed_gpu_to_wgc_ms": 25.3664,
+          "generation_to_wgc_ms": 39.567
+        },
+        {
+          "pts": 329236564340,
+          "sequence": 569,
+          "generation_to_observed_gpu_ms": 14.6041,
+          "fence_submit_to_observed_ms": 14.4248,
+          "observed_gpu_to_wgc_ms": 24.9446,
+          "generation_to_wgc_ms": 39.5487
+        },
+        {
+          "pts": 329403053585,
+          "sequence": 1563,
+          "generation_to_observed_gpu_ms": 3.5689,
+          "fence_submit_to_observed_ms": 3.406,
+          "observed_gpu_to_wgc_ms": 35.8758,
+          "generation_to_wgc_ms": 39.4447
+        },
+        {
+          "pts": 329312915791,
+          "sequence": 1023,
+          "generation_to_observed_gpu_ms": 0.4138,
+          "fence_submit_to_observed_ms": 0.2387,
+          "observed_gpu_to_wgc_ms": 38.8884,
+          "generation_to_wgc_ms": 39.3022
+        },
+        {
+          "pts": 329330391078,
+          "sequence": 1128,
+          "generation_to_observed_gpu_ms": 14.0233,
+          "fence_submit_to_observed_ms": 13.7948,
+          "observed_gpu_to_wgc_ms": 25.2379,
+          "generation_to_wgc_ms": 39.2612
+        },
+        {
+          "pts": 329346409375,
+          "sequence": 1224,
+          "generation_to_observed_gpu_ms": 13.0259,
+          "fence_submit_to_observed_ms": 12.8305,
+          "observed_gpu_to_wgc_ms": 26.164,
+          "generation_to_wgc_ms": 39.1899
+        },
+        {
+          "pts": 329367879199,
+          "sequence": 1353,
+          "generation_to_observed_gpu_ms": 3.7481,
+          "fence_submit_to_observed_ms": 3.601,
+          "observed_gpu_to_wgc_ms": 35.1983,
+          "generation_to_wgc_ms": 38.9464
+        },
+        {
+          "pts": 329316876638,
+          "sequence": 1047,
+          "generation_to_observed_gpu_ms": 4.5091,
+          "fence_submit_to_observed_ms": 4.1422,
+          "observed_gpu_to_wgc_ms": 34.3291,
+          "generation_to_wgc_ms": 38.8382
+        },
+        {
+          "pts": 329441084889,
+          "sequence": 1791,
+          "generation_to_observed_gpu_ms": 1.3426,
+          "fence_submit_to_observed_ms": 1.0774,
+          "observed_gpu_to_wgc_ms": 37.3069,
+          "generation_to_wgc_ms": 38.6495
+        }
+      ]
+    },
+    "priority": [
+      "wgc_gpu_priority requested=0 before=0 after=0 before_hr=0x00000000 set_hr=0x00000000 after_hr=0x00000000 shared_device=1 scope=relative-device-priority"
+    ],
+    "plugin_restored": true
+  },
+  "13": {
+    "pixel-stamp": {
+      "scope": "fixture generation before GPU submission to sampled Wayland feedback; host marker matches reported separately; GPU rendered pixels not validated, excludes photon latency; samples do not establish continuous presentation fps",
+      "host_pixel_markers": {
+        "records": 1324,
+        "matched_source": 1324,
+        "mismatched_source": 0,
+        "unmatched_source": 0
+      },
+      "generation_to_callback_ms": {
+        "n": 1379,
+        "p50": 16.938,
+        "p95": 22.1714,
+        "min": 8.4134,
+        "max": 44.5184
+      },
+      "source_publications": 1381,
+      "early_announcements": 1376,
+      "decoded_records": 1379,
+      "unique_sequences": 1377,
+      "duplicate_records": 2,
+      "sequence_gaps": 11,
+      "generated_to_sampled_feedback_ms": {
+        "n": 64,
+        "p50": 39.5403075,
+        "p95": 49.7007575,
+        "min": 29.5113575,
+        "max": 131.4497575
+      },
+      "clock_envelope_half_width_ms": 0.0823745
+    },
+    "run-validity": {
+      "scope": "Observed discontinuities only; aggregate intervals and residency logging do not prove uninterrupted60fps or photon latency. Multiple-window attribution may require manual review.",
+      "sustained_6k_evidence": "not_disproved_but_not_certified",
+      "reasons": [],
+      "trace_drops_last_observed": 0,
+      "residency_events": [
+        {
+          "log_time": "Oct 09 03:32:57.009874",
+          "id": 1,
+          "demand": [
+            0,
+            0,
+            6016,
+            3456
+          ],
+          "window_workspace": {
+            "id": 5,
+            "name": "5"
+          },
+          "window_visible": true,
+          "outputs": [
+            {
+              "name": "DP-4",
+              "workspace": {
+                "id": 5,
+                "name": "5"
+              },
+              "dpms": true
+            }
+          ]
+        },
+        {
+          "log_time": "Oct 09 03:32:57.051314",
+          "id": 1,
+          "demand": [
+            0,
+            0,
+            6144,
+            3456
+          ],
+          "window_workspace": {
+            "id": 5,
+            "name": "5"
+          },
+          "window_visible": true,
+          "outputs": [
+            {
+              "name": "DP-4",
+              "workspace": {
+                "id": 5,
+                "name": "5"
+              },
+              "dpms": true
+            }
+          ]
+        }
+      ],
+      "accept_intervals": [
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 276,
+          "interval_ms": 5017.188
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 292,
+          "interval_ms": 5000.545
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 287,
+          "interval_ms": 5000.782
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 289,
+          "interval_ms": 5008.947
+        },
+        {
+          "width": 6144,
+          "height": 3456,
+          "frames": 181,
+          "interval_ms": 5200.404
+        }
+      ],
+      "foreground_change_count": 0
+    },
+    "gpu-capture": {
+      "scope": "fence follows fixture drawing before Present; observed time includes CPU scheduling/poll delay and is an upper bound; observed-to-WGC gap is a lower bound on actual completion-to-WGC gap; negative values retained",
+      "gpu_summaries": [
+        "motion-gpu-summary hr=0x00000000 observed=1798 pending=0 dropped=0 scope=cpu-observed-fence-upper-bound"
+      ],
+      "gpu_records": 1798,
+      "matched_atlas_extents": {
+        "(6144, 3456)": 1379
+      },
+      "excluded_non_6k": 0,
+      "matched_6k_span_ms": 23122.3933,
+      "summary": {
+        "generation_to_observed_gpu_ms": {
+          "n": 1379,
+          "p50": 2.3475,
+          "p95": 5.6143,
+          "min": 0.1758,
+          "max": 17.4888
+        },
+        "fence_submit_to_observed_ms": {
+          "n": 1379,
+          "p50": 2.0997,
+          "p95": 5.4091,
+          "min": 0.0071,
+          "max": 17.3049
+        },
+        "observed_gpu_to_wgc_ms": {
+          "n": 1379,
+          "p50": 14.8608,
+          "p95": 17.9195,
+          "min": 5.9522,
+          "max": 43.8194
+        },
+        "generation_to_wgc_ms": {
+          "n": 1379,
+          "p50": 16.9265,
+          "p95": 22.1577,
+          "min": 8.4055,
+          "max": 44.5011
+        }
+      },
+      "worst_20": [
+        {
+          "pts": 332942182105,
+          "sequence": 413,
+          "generation_to_observed_gpu_ms": 0.6817,
+          "fence_submit_to_observed_ms": 0.5355,
+          "observed_gpu_to_wgc_ms": 43.8194,
+          "generation_to_wgc_ms": 44.5011
+        },
+        {
+          "pts": 332943392687,
+          "sequence": 421,
+          "generation_to_observed_gpu_ms": 17.0403,
+          "fence_submit_to_observed_ms": 16.8162,
+          "observed_gpu_to_wgc_ms": 18.8589,
+          "generation_to_wgc_ms": 35.8992
+        },
+        {
+          "pts": 332943669286,
+          "sequence": 423,
+          "generation_to_observed_gpu_ms": 10.5602,
+          "fence_submit_to_observed_ms": 10.3948,
+          "observed_gpu_to_wgc_ms": 24.8902,
+          "generation_to_wgc_ms": 35.4504
+        },
+        {
+          "pts": 332943148636,
+          "sequence": 420,
+          "generation_to_observed_gpu_ms": 17.4888,
+          "fence_submit_to_observed_ms": 17.3049,
+          "observed_gpu_to_wgc_ms": 17.0641,
+          "generation_to_wgc_ms": 34.5529
+        },
+        {
+          "pts": 332944163089,
+          "sequence": 426,
+          "generation_to_observed_gpu_ms": 3.0339,
+          "fence_submit_to_observed_ms": 2.7726,
+          "observed_gpu_to_wgc_ms": 29.2037,
+          "generation_to_wgc_ms": 32.2376
+        },
+        {
+          "pts": 332944001756,
+          "sequence": 425,
+          "generation_to_observed_gpu_ms": 1.9389,
+          "fence_submit_to_observed_ms": 1.3177,
+          "observed_gpu_to_wgc_ms": 28.436,
+          "generation_to_wgc_ms": 30.3749
+        },
+        {
+          "pts": 332943820332,
+          "sequence": 424,
+          "generation_to_observed_gpu_ms": 0.9542,
+          "fence_submit_to_observed_ms": 0.6922,
+          "observed_gpu_to_wgc_ms": 27.3109,
+          "generation_to_wgc_ms": 28.2651
+        },
+        {
+          "pts": 332954371420,
+          "sequence": 488,
+          "generation_to_observed_gpu_ms": 10.2351,
+          "fence_submit_to_observed_ms": 9.4208,
+          "observed_gpu_to_wgc_ms": 17.3655,
+          "generation_to_wgc_ms": 27.6006
+        },
+        {
+          "pts": 332954537620,
+          "sequence": 489,
+          "generation_to_observed_gpu_ms": 11.8561,
+          "fence_submit_to_observed_ms": 11.3354,
+          "observed_gpu_to_wgc_ms": 15.6085,
+          "generation_to_wgc_ms": 27.4646
+        },
+        {
+          "pts": 332985669542,
+          "sequence": 676,
+          "generation_to_observed_gpu_ms": 0.7067,
+          "fence_submit_to_observed_ms": 0.5345,
+          "observed_gpu_to_wgc_ms": 24.7049,
+          "generation_to_wgc_ms": 25.4116
+        },
+        {
+          "pts": 333121504866,
+          "sequence": 1491,
+          "generation_to_observed_gpu_ms": 0.6541,
+          "fence_submit_to_observed_ms": 0.5272,
+          "observed_gpu_to_wgc_ms": 24.7197,
+          "generation_to_wgc_ms": 25.3738
+        },
+        {
+          "pts": 333085501379,
+          "sequence": 1275,
+          "generation_to_observed_gpu_ms": 0.3256,
+          "fence_submit_to_observed_ms": 0.1503,
+          "observed_gpu_to_wgc_ms": 24.5418,
+          "generation_to_wgc_ms": 24.8674
+        },
+        {
+          "pts": 332975840622,
+          "sequence": 617,
+          "generation_to_observed_gpu_ms": 7.8303,
+          "fence_submit_to_observed_ms": 7.6443,
+          "observed_gpu_to_wgc_ms": 16.9433,
+          "generation_to_wgc_ms": 24.7736
+        },
+        {
+          "pts": 333108159540,
+          "sequence": 1411,
+          "generation_to_observed_gpu_ms": 0.432,
+          "fence_submit_to_observed_ms": 0.2837,
+          "observed_gpu_to_wgc_ms": 24.1564,
+          "generation_to_wgc_ms": 24.5884
+        },
+        {
+          "pts": 332954197455,
+          "sequence": 487,
+          "generation_to_observed_gpu_ms": 3.9842,
+          "fence_submit_to_observed_ms": 1.9637,
+          "observed_gpu_to_wgc_ms": 20.4077,
+          "generation_to_wgc_ms": 24.3919
+        },
+        {
+          "pts": 332968337152,
+          "sequence": 572,
+          "generation_to_observed_gpu_ms": 6.6253,
+          "fence_submit_to_observed_ms": 6.4595,
+          "observed_gpu_to_wgc_ms": 17.711,
+          "generation_to_wgc_ms": 24.3363
+        },
+        {
+          "pts": 332955506022,
+          "sequence": 495,
+          "generation_to_observed_gpu_ms": 0.3736,
+          "fence_submit_to_observed_ms": 0.1756,
+          "observed_gpu_to_wgc_ms": 23.8938,
+          "generation_to_wgc_ms": 24.2674
+        },
+        {
+          "pts": 333137502198,
+          "sequence": 1587,
+          "generation_to_observed_gpu_ms": 7.2231,
+          "fence_submit_to_observed_ms": 7.0277,
+          "observed_gpu_to_wgc_ms": 16.9478,
+          "generation_to_wgc_ms": 24.1709
+        },
+        {
+          "pts": 333156170807,
+          "sequence": 1699,
+          "generation_to_observed_gpu_ms": 8.575,
+          "fence_submit_to_observed_ms": 8.3085,
+          "observed_gpu_to_wgc_ms": 15.5777,
+          "generation_to_wgc_ms": 24.1527
+        },
+        {
+          "pts": 332996828649,
+          "sequence": 743,
+          "generation_to_observed_gpu_ms": 0.6344,
+          "fence_submit_to_observed_ms": 0.5543,
+          "observed_gpu_to_wgc_ms": 23.2604,
+          "generation_to_wgc_ms": 23.8948
+        }
+      ]
+    },
+    "priority": [
+      "wgc_gpu_priority requested=7 before=0 after=7 before_hr=0x00000000 set_hr=0x00000000 after_hr=0x00000000 shared_device=1 scope=relative-device-priority"
+    ],
+    "plugin_restored": true
+  }
+}

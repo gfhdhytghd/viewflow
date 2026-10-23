@@ -49,6 +49,15 @@ the VoodooInput kernel extension. Native M4 initialization remains an experiment
 
 ## Wire format
 
+When sharing HID with Mac proxy windows, the Linux sender must use
+`/Applications/Viewflow.app/Contents/MacOS/Viewflow --receive-stdin` (the default),
+which relays to the GUI's current HID server. The historical standalone
+VFTrackpadHost receiver can retain driver ownership between gestures and block
+window producers. Do not mix that older receiver with the unified window path.
+The persistent HID service explicitly selects the unified receiver so reboot
+cannot silently restore the historical path. The stream receiver regression
+uses a fake driver to test idle desktop/window ownership handoff without input.
+
 SSH header: `VFTP 02 00 00 00`. Each snapshot is 72 bytes:
 
 | Offset | Field |
@@ -73,6 +82,13 @@ Apple Size or anatomical finger identity through these evdev fields: Size uses
 mean contact diameter and classification uses ordinary finger (2). These are
 explicit approximations to evaluate in physical acceptance, not raw-HID parity.
 
+In the legacy evdev path, physical-button reports normalize contact pressure to 120 while pressed, matching
+the referenced VoodooInput `constructReportGated` native click representation.
+Release restores the measured contact pressure. Button transitions and scan
+timestamps are unchanged; short clicks are not stretched. This sender correction
+is covered by an 11 ms press/release regression; system-level short-click
+reliability still requires user-operated acceptance.
+
 ### Shared receiver clock (2026-09-12)
 
 `TrackpadBridge.receiveStream` replaces incoming scan ticks with the Mac
@@ -93,6 +109,64 @@ subsequent report cadence; failed submissions do not advance the source anchor.
 The user confirmed on 2026-09-13 that the issue was resolved after restarting
 the Mac to complete the pending driver upgrade. See the
 [verification record](../../docs/evidence/macos-hid-clock-20260912/README.md).
+
+### Native field preservation (2026-09-11)
+
+`--hidraw auto` (or `VIEWFLOW_HIDRAW=auto`) selects the hidraw node belonging to
+the configured evdev device. The reader validates the physical HID identity,
+opens read-only, sends no feature reports, and does not grab the device. This
+path supports the Bluetooth Magic Trackpad 2 / USB-C 0x31 contact reports.
+
+Reserved classification recovery (2026-09-12): physical classification 7
+previously terminated the sender and triggered a three-second service restart.
+The sender now maps only that reserved value to ABI 2 Undefined (0), as defined
+by the [reference classification enum](https://github.com/acidanthera/VoodooInput/blob/master/VoodooInput/VoodooInputMultitouch/VoodooInputTransducer.h).
+This is an explicit compatibility conversion, not byte-identical forwarding of
+that field. Contact identity, coordinates, pressure, size, button transitions,
+and release remain intact; known classifications are unchanged. One diagnostic
+per process records the fallback without per-frame logging. Offline tests cover
+reserved begin/move, button down/up, return to a known class, and final release.
+
+Physical sampling also observed touch state 5. Linux's `hid-magicmouse` uses
+`(tdata[3] & 0xc0) == 0x80` for contact, so both 4 and 5 are down. The native
+sender preserves start state 3 and accepts 4/5 without an artificial lift;
+6/7 remain departure/stop. A 3→4→5→4→5→7 regression verifies stable IDs and one
+final release. This fixes a concrete gesture truncation path; physical Mac
+cursor/gesture acceptance is still user-operated.
+
+Physical sampling found Size 21 with diameters 96/86: the old mean-diameter
+estimate would transmit Size 91. Classification 5 was also being replaced by
+2. The native reader preserves Size, classification, pressure, diameters and
+orientation from the packet. Pressed pressure is not overridden in this path.
+Repeated active packets are retained. Button duration is not stretched.
+
+This still uses the existing five-contact ABI 2 bridge, with contact ID and
+lifecycle reconstruction and host acquisition timestamps. It is not generic
+USB/HID passthrough, and does not relay all interfaces or feature transactions.
+Malformed native packets fail the HID producer and use existing disconnect
+cleanup. Other window streams are not stopped.
+
+Deployment selected this reader through the HID service's environment. The
+running process was verified to hold `/dev/hidraw1`; a device-specific udev rule
+grants read access after reconnect. Twelve sender tests pass, including native
+Size/classification preservation, unchanged active packets, short button
+transitions, malformed packets and release. Physical click acceptance remains
+pending; the previous pressure-only change did not solve the problem.
+
+After a host reboot, hidraw numbering can change. The device-specific permission
+rule must import the HID parent's properties before checking `HID_ID` and
+`HID_UNIQ`; hidraw's initial event does not supply those fields itself. A later
+third-party rule may import them, which can make a manual retry misleading.
+Place this line before the existing device-specific permission match:
+
+```udev
+SUBSYSTEM=="hidraw", IMPORT{file}="/sys$devpath/../../uevent"
+```
+
+The 2026-09-12 recovery verified the initial-add rule path assigns the expected
+group and mode, and the running sender opens the new hidraw node. Match physical
+identity rather than a fixed hidraw number. A real reboot acceptance remains
+user-operated.
 
 The driver turns each snapshot into a 12-byte native header plus 9 bytes per
 contact, including packed signed 13-bit coordinates, begin/move/end state,
@@ -123,7 +197,7 @@ alone does not prove native device attachment or usable gestures.
 ## User-operated trial
 
 For combined Viewflow coordinate and HID operation, keep the HID receiver
-connected and add `--route-config /run/user/1000/viewflow/macos-cursor.json` to
+connected and add `--route-config /run/user/1000/viewflow/desktop-drag/config` to
 the forwarding command. This follows the compositor's actual capture phase
 and matching Mac peer/output, not keyboard focus or a guessed cursor position.
 On return to Linux it sends the contact/button release and suppresses local

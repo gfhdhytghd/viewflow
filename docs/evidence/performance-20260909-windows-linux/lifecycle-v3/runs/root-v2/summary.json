@@ -1,0 +1,80 @@
+{
+  "scope": "owned Windows source -> recorded HEVC/exact alpha -> Linux NVDEC/CUDA/GLES upload; includes resizing and window metadata, excludes live Wayland proxy and physical input acceptance",
+  "mode_events": [
+    {
+      "mode": "frame-rate",
+      "max_pending": "4"
+    },
+    {
+      "mode": "latency",
+      "max_pending": "1"
+    },
+    {
+      "mode": "frame-rate",
+      "max_pending": "4"
+    },
+    {
+      "mode": "latency",
+      "max_pending": "1"
+    }
+  ],
+  "frames": 20,
+  "decoded": 20,
+  "atlas_sizes": [
+    [
+      256,
+      192
+    ],
+    [
+      384,
+      192
+    ],
+    [
+      448,
+      256
+    ]
+  ],
+  "phase_coverage": [
+    {
+      "phase": 0,
+      "matching_frames": 4,
+      "first_frame_pts_minus_post_action_log_ms": 1609.1585
+    },
+    {
+      "phase": 1,
+      "matching_frames": 2,
+      "first_frame_pts_minus_post_action_log_ms": 0.8811
+    },
+    {
+      "phase": 2,
+      "matching_frames": 2,
+      "first_frame_pts_minus_post_action_log_ms": 0.0903
+    },
+    {
+      "phase": 3,
+      "matching_frames": 2,
+      "first_frame_pts_minus_post_action_log_ms": 537.637
+    },
+    {
+      "phase": 4,
+      "matching_frames": 2,
+      "first_frame_pts_minus_post_action_log_ms": 513.5163
+    },
+    {
+      "phase": 5,
+      "matching_frames": 2,
+      "first_frame_pts_minus_post_action_log_ms": 52.6064
+    },
+    {
+      "phase": 6,
+      "matching_frames": 5,
+      "first_frame_pts_minus_post_action_log_ms": 0.0626
+    }
+  ],
+  "timing_note": "Phase markers were recorded after each Win32 action. A concurrent source update can precede that marker; signed differences are diagnostic, not action-to-output latency. Initial source/codec startup is included.",
+  "resize_recoveries": 0,
+  "periodic_refreshes": 14,
+  "unchanged_iterations_skipped": 7683,
+  "focus_unchanged_at_all_phase_samples": true,
+  "qualified": true
+}

@@ -1,0 +1,74 @@
+{
+  "scope": "Sparse CPU-wall samples every120copies; start includes wake/dispatch, copy includes descheduling; not pure bandwidth",
+  "samples": 14,
+  "workers": {
+    "0": {
+      "start": {
+        "n": 14,
+        "p50_ms": 0.007,
+        "p95_ms": 0.024,
+        "max_ms": 0.024
+      },
+      "copy": {
+        "n": 14,
+        "p50_ms": 2.9444999999999997,
+        "p95_ms": 3.55,
+        "max_ms": 3.55
+      }
+    },
+    "1": {
+      "start": {
+        "n": 14,
+        "p50_ms": 0.0155,
+        "p95_ms": 0.211,
+        "max_ms": 0.211
+      },
+      "copy": {
+        "n": 14,
+        "p50_ms": 2.9705,
+        "p95_ms": 3.373,
+        "max_ms": 3.373
+      }
+    },
+    "2": {
+      "start": {
+        "n": 14,
+        "p50_ms": 0.0165,
+        "p95_ms": 0.377,
+        "max_ms": 0.377
+      },
+      "copy": {
+        "n": 14,
+        "p50_ms": 2.9234999999999998,
+        "p95_ms": 3.273,
+        "max_ms": 3.273
+      }
+    },
+    "3": {
+      "start": {
+        "n": 14,
+        "p50_ms": 0.0135,
+        "p95_ms": 0.451,
+        "max_ms": 0.451
+      },
+      "copy": {
+        "n": 14,
+        "p50_ms": 2.846,
+        "p95_ms": 3.336,
+        "max_ms": 3.336
+      }
+    }
+  },
+  "max_start_per_copy": {
+    "n": 14,
+    "p50_ms": 0.022,
+    "p95_ms": 0.451,
+    "max_ms": 0.451
+  },
+  "copy_spread_per_copy": {
+    "n": 14,
+    "p50_ms": 0.11449999999999982,
+    "p95_ms": 0.5189999999999997,
+    "max_ms": 0.5189999999999997
+  }
+}

@@ -35,8 +35,8 @@ float ps(float4 pos:SV_Position):SV_Target {return color.Load(int3(pos.xy,0)).a;
     CHECK_HR(device->CreatePixelShader(code->GetBufferPointer(),code->GetBufferSize(),nullptr,&pixel_));
     return S_OK;
 }
-HRESULT AlphaPlane::enqueue(ID3D11ShaderResourceView* source,std::int64_t tag) {
-    if(compact_)return compact_->enqueue(source,tag);
+HRESULT AlphaPlane::enqueue(ID3D11ShaderResourceView* source,std::int64_t tag,bool full_readback) {
+    if(compact_)return compact_->enqueue(source,tag,full_readback);
     if(!context_ || !source)return E_INVALIDARG;
     if(count_==slots_.size())return S_FALSE;
     auto& slot=slots_[(head_+count_)%slots_.size()];

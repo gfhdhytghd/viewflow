@@ -1,0 +1,24 @@
+cadence=unpaced
+renderer=NVIDIA RTX PRO 6000 Blackwell Workstation Edition/PCIe/SSE2
+source=isolated_tmpfs_shared
+strategy=sync
+registered_host_to_linear bytes=84934656 samples=120 median_ms=1.6270 p95_ms=1.7689 median_GBps=52.205
+byte_verification=pass
+registered_host_to_array bytes=84934656 samples=120 median_ms=1.6177 p95_ms=1.7333 median_GBps=52.505
+byte_verification=pass
+registered_host_to_GL_texture bytes=84934656 samples=120 median_ms=1.9898 p95_ms=3.1407 median_GBps=42.684
+byte_verification=pass
+strategy=async_default_wait
+registered_host_to_linear bytes=84934656 samples=120 median_ms=1.5800 p95_ms=1.7199 median_GBps=53.756
+byte_verification=pass
+registered_host_to_array bytes=84934656 samples=120 median_ms=1.6470 p95_ms=1.7538 median_GBps=51.570
+byte_verification=pass
+registered_host_to_GL_texture bytes=84934656 samples=120 median_ms=1.9758 p95_ms=3.1560 median_GBps=42.988
+byte_verification=pass
+strategy=async_nonblocking_wait
+registered_host_to_linear bytes=84934656 samples=120 median_ms=1.5746 p95_ms=1.6910 median_GBps=53.940
+byte_verification=pass
+registered_host_to_array bytes=84934656 samples=120 median_ms=1.6388 p95_ms=1.7394 median_GBps=51.826
+byte_verification=pass
+registered_host_to_GL_texture bytes=84934656 samples=120 median_ms=1.9335 p95_ms=3.1289 median_GBps=43.928
+byte_verification=pass

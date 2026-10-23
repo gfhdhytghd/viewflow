@@ -1,0 +1,20 @@
+e1000 options:
+  acpi-index=<uint32>    -  (default: 0)
+  addr=<str>             - Slot and optional function number, example: 06.0 or 06 (default: -1)
+  bootindex=<int32>
+  busnr=<busnr>
+  failover_pair_id=<str>
+  init-vet=<bool>        - on/off (default: on)
+  mac=<str>              - Ethernet 6-byte MAC Address, example: 52:54:00:12:34:56
+  migrate_tso_props=<bool> - on/off (default: on)
+  multifunction=<bool>   - on/off (default: off)
+  netdev=<str>           - ID of a netdev to use as a backend
+  rombar=<int32>         -  (default: -1)
+  romfile=<str>
+  romsize=<uint32>       -  (default: 4294967295)
+  sriov-pf=<str>
+  x-max-bounce-buffer-size=<size> - Maximum buffer size allocated for bounce buffers used for mapped access to indirect DMA memory (default: 4096)
+  x-pcie-ari-nextfn-1=<bool> - on/off (default: off)
+  x-pcie-err-unc-mask=<bool> - on/off (default: on)
+  x-pcie-ext-tag=<bool>  - on/off (default: on)
+  x-pcie-lnksta-dllla=<bool> - on/off (default: on)

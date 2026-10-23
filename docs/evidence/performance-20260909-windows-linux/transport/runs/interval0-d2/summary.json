@@ -1,0 +1,83 @@
+{
+  "scope": "Windows fixture pre-draw -> WGC -> HEVC+exact alpha -> paired QUIC -> Linux NVDEC/CUDA/GLES/Wayland -> nested Hyprland desktop ROI observed; no physical scanout measurement",
+  "observer_captures": 1201,
+  "distinct_total": 783,
+  "warmup_observer_seconds": 3,
+  "steady_distinct": 675,
+  "desktop_distinct_hz": 39.725663695172166,
+  "latency_low_ms": {
+    "n": 675,
+    "min": 67.979264,
+    "median": 69.937398,
+    "p95": 86.268255,
+    "p99": 86.861843,
+    "max": 102.671956
+  },
+  "latency_high_ms": {
+    "n": 675,
+    "min": 68.860565,
+    "median": 70.829148,
+    "p95": 87.264986,
+    "p99": 87.795145,
+    "max": 103.553257
+  },
+  "clock_envelope_width_ms": {
+    "n": 675,
+    "min": 0.628248,
+    "median": 0.86023,
+    "p95": 1.380799,
+    "p99": 1.380799,
+    "max": 1.380799
+  },
+  "clock_rtt_ms": {
+    "n": 315,
+    "min": 0.116179,
+    "median": 0.492384,
+    "p95": 0.778162,
+    "p99": 1.016284,
+    "max": 1.380799
+  },
+  "clock_samples": 315,
+  "clock_estimation": "envelope of observed offset intervals within +/-0.5s; no assumed symmetric network delay; does not certify clock drift between samples",
+  "run_qualified": true,
+  "target_6k30_60ms_met": false,
+  "evaluation_criterion": {
+    "desktop_distinct_hz_min": 30,
+    "latency_high_p95_ms_max": 60,
+    "note": "Operational analysis criterion; not a session timeout. Physical scanout remains unmeasured."
+  },
+  "largest_latency_observations": [
+    {
+      "marker": 724,
+      "mono": 85850236021106,
+      "source_pre_draw_ns": 34090542315900,
+      "latency_low_ms": 102.671956,
+      "latency_high_ms": 103.553257,
+      "clock_width_ms": 0.881301
+    },
+    {
+      "marker": 786,
+      "mono": 85851272283061,
+      "source_pre_draw_ns": 34091592491500,
+      "latency_low_ms": 88.838143,
+      "latency_high_ms": 89.692862,
+      "clock_width_ms": 0.854719
+    },
+    {
+      "marker": 1015,
+      "mono": 85855088618082,
+      "source_pre_draw_ns": 34095409035900,
+      "latency_low_ms": 88.648936,
+      "latency_high_ms": 89.437846,
+      "clock_width_ms": 0.78891
+    }
+  ],
+  "distinct_observation_gap_ms": {
+    "n": 674,
+    "min": 13.081557,
+    "median": 32.514762000000005,
+    "p95": 33.860727,
+    "p99": 34.356939,
+    "max": 36.919162
+  }
+}

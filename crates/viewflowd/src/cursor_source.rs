@@ -47,6 +47,12 @@ pub async fn run(path: &Path) -> Result<()> {
         width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0,
         "invalid output size"
     );
+    // Quartz coordinates are desktop-global. A secondary Sidecar display may
+    // start below the HDMI screen rather than at the main display origin.
+    let native_origin = std::env::var("VIEWFLOW_CURSOR_OUTPUT_ORIGIN").unwrap_or_else(|_| "0,0".into());
+    let (native_x, native_y) = parse_native_origin(&native_origin)?;
+    let scale_x = width * desktop.remote_display.scale / f64::from(desktop.remote_display.width);
+    let scale_y = height * desktop.remote_display.scale / f64::from(desktop.remote_display.height);
     let (target, owner) = pointer.devices.devices()?;
     let identity = viewflow_transport::PeerIdentity::from_pem(
         &std::fs::read(&config.certificate)?,
@@ -103,12 +109,12 @@ pub async fn run(path: &Path) -> Result<()> {
             reverse_drag: Default::default(),
             remote_scale: desktop.remote_display.scale,
             position_offset: (
-                -f64::from(desktop.remote_display.x),
-                -f64::from(desktop.remote_display.y),
+                -f64::from(desktop.remote_display.x) + native_x / scale_x,
+                -f64::from(desktop.remote_display.y) + native_y / scale_y,
             ),
             position_scale: (
-                width * desktop.remote_display.scale / f64::from(desktop.remote_display.width),
-                height * desktop.remote_display.scale / f64::from(desktop.remote_display.height),
+                scale_x,
+                scale_y,
             ),
             ready_file: ready.clone(),
             raw_touchpad,
@@ -158,6 +164,27 @@ impl Drop for SocketCleanup {
             if current.dev() == self.1.dev() && current.ino() == self.1.ino() {
                 let _ = std::fs::remove_file(&self.0);
             }
+        }
+    }
+}
+
+fn parse_native_origin(value: &str) -> Result<(f64, f64)> {
+    let (x, y) = value.split_once(',').context("invalid native cursor origin; expected X,Y")?;
+    let (x, y) = (x.parse::<f64>()?, y.parse::<f64>()?);
+    anyhow::ensure!(x.is_finite() && y.is_finite() && x.abs() <= 1_000_000.0 && y.abs() <= 1_000_000.0,
+        "invalid native cursor origin");
+    Ok((x, y))
+}
+
+#[cfg(test)]
+mod topology_tests {
+    use super::*;
+    #[test]
+    fn native_origin_accepts_secondary_screens_and_rejects_invalid_values() {
+        assert_eq!(parse_native_origin("0,1200").unwrap(), (0.0, 1200.0));
+        assert_eq!(parse_native_origin("-1920,-390").unwrap(), (-1920.0, -390.0));
+        for invalid in ["0", "0,1,2", "NaN,0", "0,inf", "1000001,0"] {
+            assert!(parse_native_origin(invalid).is_err());
         }
     }
 }

@@ -1,0 +1,969 @@
+diff --git a/crates/viewflowd/src/atlas_peer.rs b/crates/viewflowd/src/atlas_peer.rs
+index 37cfdcd..c09feff 100644
+--- a/crates/viewflowd/src/atlas_peer.rs
++++ b/crates/viewflowd/src/atlas_peer.rs
+@@ -96,6 +96,9 @@ pub struct AtlasSourceConfig {
+     pub pointer: Option<AtlasSourcePointerConfig>,
+     #[serde(default)]
+     pub capture_provider: AtlasCaptureProvider,
++    /// Capture scheduling preference; image quality and session recovery are unchanged.
++    #[serde(default)]
++    pub performance_mode: AtlasPerformanceMode,
+     #[serde(default)]
+     pub disposition_recovery: bool,
+     pub bind: SocketAddr,
+@@ -145,6 +148,17 @@ pub enum AtlasCaptureProvider {
+     Hyprcapture,
+ }
+ 
++/// Local capture scheduling preference. Both modes retain full visual effects.
++#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
++#[serde(rename_all = "kebab-case")]
++pub enum AtlasPerformanceMode {
++    /// Pace captures on the common fixed-rate grid.
++    #[default]
++    FrameRate,
++    /// Capture newly committed content promptly, retaining periodic fallback.
++    Latency,
++}
++
+ impl AtlasSourceConfig {
+     /// # Errors
+     /// Rejects invalid configuration before starting capture or networking.
+@@ -158,6 +172,11 @@ impl AtlasSourceConfig {
+     /// # Errors
+     /// Validates authorized membership and deterministically packs capture pixels.
+     pub fn layout(&self) -> Result<viewflow_core::AtlasSnapshot> {
++        ensure!(
++            self.performance_mode != AtlasPerformanceMode::Latency
++                || matches!(self.capture_provider, AtlasCaptureProvider::Viewflow),
++            "latency performance mode requires the Viewflow capture provider"
++        );
+         if let Some(reverse) = &self.reverse {
+             reverse.validate()?;
+         }
+@@ -1191,6 +1210,7 @@ mod tests {
+             desktop: None,
+             pointer: None,
+             capture_provider: AtlasCaptureProvider::Viewflow,
++            performance_mode: AtlasPerformanceMode::FrameRate,
+             disposition_recovery: false,
+             bind: receiver.bind,
+             remote: "127.0.0.1:9000".parse().unwrap(),
+@@ -1213,6 +1233,18 @@ mod tests {
+                 })
+                 .collect(),
+         };
++        let mut encoded = serde_json::to_value(&source).unwrap();
++        encoded.as_object_mut().unwrap().remove("performance_mode");
++        let legacy: AtlasSourceConfig = serde_json::from_value(encoded.clone()).unwrap();
++        assert_eq!(legacy.performance_mode, AtlasPerformanceMode::FrameRate);
++        encoded["performance_mode"] = serde_json::json!("latency");
++        let mut latency: AtlasSourceConfig = serde_json::from_value(encoded.clone()).unwrap();
++        assert_eq!(latency.performance_mode, AtlasPerformanceMode::Latency);
++        assert!(latency.layout().is_ok());
++        latency.capture_provider = AtlasCaptureProvider::Hyprcapture;
++        assert!(latency.layout().unwrap_err().to_string().contains("Viewflow capture provider"));
++        encoded["performance_mode"] = serde_json::json!("unknown-mode");
++        assert!(serde_json::from_value::<AtlasSourceConfig>(encoded).is_err());
+         let mut overlapping = source.clone();
+         overlapping.media.width = 1024;
+         overlapping.media.height = 1024;
+diff --git a/crates/viewflowd/src/atlas_source.rs b/crates/viewflowd/src/atlas_source.rs
+index 999556d..cb58ca4 100644
+--- a/crates/viewflowd/src/atlas_source.rs
++++ b/crates/viewflowd/src/atlas_source.rs
+@@ -68,11 +68,12 @@ async fn start_sources(
+         let pid = config.compositor_pid;
+         let timeout = deadline.saturating_duration_since(Instant::now());
+         let provider = config.capture_provider;
++        let performance_mode = config.performance_mode;
+         jobs.spawn(async move {
+             let stream = match provider {
+                 crate::atlas_peer::AtlasCaptureProvider::Viewflow => {
+-                    crate::hyprcapture_runtime::start_viewflow_gpu_stream(
+-                        &address, fps, pid, timeout,
++                    crate::hyprcapture_runtime::start_viewflow_gpu_stream_with_mode(
++                        &address, fps, pid, timeout, performance_mode,
+                     )
+                     .await
+                 }
+@@ -242,6 +243,7 @@ pub async fn run_until(
+                 lane,
+                 config.desktop.as_ref().expect("desktop setup has config"),
+                 config.capture_provider,
++                config.performance_mode,
+                 u16::try_from(config.fps)?,
+                 config.compositor_pid,
+                 plan.policy.stream_id,
+@@ -530,6 +532,7 @@ mod tests {
+             pointer: None,
+             desktop: None,
+             capture_provider: crate::atlas_peer::AtlasCaptureProvider::Hyprcapture,
++            performance_mode: crate::atlas_peer::AtlasPerformanceMode::FrameRate,
+             disposition_recovery: false,
+             bind: "127.0.0.1:0".parse().unwrap(),
+             remote: "127.0.0.1:9000".parse().unwrap(),
+diff --git a/crates/viewflowd/src/cursor_source.rs b/crates/viewflowd/src/cursor_source.rs
+index 56a137d..7e5d508 100644
+--- a/crates/viewflowd/src/cursor_source.rs
++++ b/crates/viewflowd/src/cursor_source.rs
+@@ -10,6 +10,13 @@ use std::{
+ };
+ 
+ pub async fn run(path: &Path) -> Result<()> {
++    // Windows consumes native Precision Touchpad frames on this connection.
++    // macOS uses the separately connected DriverKit HID bridge instead.
++    let raw_touchpad = match std::env::var("VIEWFLOW_CURSOR_RAW_TOUCHPAD").as_deref() {
++        Ok("1" | "true") => true,
++        Ok("0" | "false") | Err(std::env::VarError::NotPresent) => false,
++        _ => anyhow::bail!("VIEWFLOW_CURSOR_RAW_TOUCHPAD must be 0, 1, false or true"),
++    };
+     let ready = std::env::var_os("VIEWFLOW_CURSOR_READY_FILE").map(std::path::PathBuf::from);
+     if let Some(path) = &ready {
+         let _ = std::fs::remove_file(path);
+@@ -95,7 +102,7 @@ pub async fn run(path: &Path) -> Result<()> {
+                 height * desktop.remote_display.scale / f64::from(desktop.remote_display.height),
+             ),
+             ready_file: ready.clone(),
+-            raw_touchpad: false,
++            raw_touchpad,
+             local: crate::atlas_cursor_handoff::local_displays(&desktop.hyprland_socket, pointer.cursor_monitor_id.context("cursor monitor missing")?)?,
+             remote: desktop.remote_display.rect()?,
+             monitor_id: pointer
+diff --git a/crates/viewflowd/src/desktop_source.rs b/crates/viewflowd/src/desktop_source.rs
+index 42a28b6..5271133 100644
+--- a/crates/viewflowd/src/desktop_source.rs
++++ b/crates/viewflowd/src/desktop_source.rs
+@@ -241,6 +241,7 @@ pub(crate) struct DesktopEnrollmentSupervisor {
+     lane: SharedDesktopSourceLane,
+     queued: VecDeque<DesktopCandidate>,
+     provider: crate::atlas_peer::AtlasCaptureProvider,
++    performance_mode: crate::atlas_peer::AtlasPerformanceMode,
+     fps: u16,
+     compositor_pid: u32,
+     socket: PathBuf,
+@@ -267,6 +268,7 @@ impl DesktopEnrollmentSupervisor {
+         lane: SharedDesktopSourceLane,
+         desktop: &crate::desktop_config::AtlasSourceDesktopConfig,
+         provider: crate::atlas_peer::AtlasCaptureProvider,
++        performance_mode: crate::atlas_peer::AtlasPerformanceMode,
+         fps: u16,
+         compositor_pid: u32,
+         stream_id: Id128,
+@@ -276,6 +278,7 @@ impl DesktopEnrollmentSupervisor {
+             lane,
+             queued: VecDeque::new(),
+             provider,
++            performance_mode,
+             fps,
+             compositor_pid,
+             socket: desktop.hyprland_socket.clone(),
+@@ -444,6 +447,7 @@ impl DesktopEnrollmentSupervisor {
+                 self.probe = Some(tokio::spawn(probe_candidate(
+                     candidate,
+                     self.provider,
++                    self.performance_mode,
+                     self.fps,
+                     self.compositor_pid,
+                     self.socket.clone(),
+@@ -821,6 +825,7 @@ fn discover_local_candidates(
+ async fn probe_candidate(
+     candidate: DesktopCandidate,
+     provider: crate::atlas_peer::AtlasCaptureProvider,
++    performance_mode: crate::atlas_peer::AtlasPerformanceMode,
+     fps: u16,
+     compositor_pid: u32,
+     socket: PathBuf,
+@@ -828,11 +833,12 @@ async fn probe_candidate(
+ ) -> Result<Option<ProbedCandidate>> {
+     let started = match provider {
+         crate::atlas_peer::AtlasCaptureProvider::Viewflow => {
+-            crate::hyprcapture_runtime::start_viewflow_gpu_stream(
++            crate::hyprcapture_runtime::start_viewflow_gpu_stream_with_mode(
+                 &candidate.address,
+                 fps,
+                 compositor_pid,
+                 Duration::from_millis(250),
++                performance_mode,
+             )
+             .await
+         }
+@@ -902,11 +908,12 @@ async fn probe_candidate(
+     // producer gives the real session its first unread HCGF.
+     let fresh = match provider {
+         crate::atlas_peer::AtlasCaptureProvider::Viewflow => {
+-            crate::hyprcapture_runtime::start_viewflow_gpu_stream(
++            crate::hyprcapture_runtime::start_viewflow_gpu_stream_with_mode(
+                 &candidate.address,
+                 fps,
+                 compositor_pid,
+                 Duration::from_millis(250),
++                performance_mode,
+             )
+             .await
+         }
+diff --git a/crates/viewflowd/src/hyprcapture_runtime.rs b/crates/viewflowd/src/hyprcapture_runtime.rs
+index 6b85758..5d8d290 100644
+--- a/crates/viewflowd/src/hyprcapture_runtime.rs
++++ b/crates/viewflowd/src/hyprcapture_runtime.rs
+@@ -472,6 +472,35 @@ pub async fn start_viewflow_gpu_stream(
+     fps: u16,
+     compositor_pid: u32,
+     timeout: Duration,
++) -> Result<GpuStreamSession> {
++    start_viewflow_gpu_stream_with_mode(
++        window_address, fps, compositor_pid, timeout,
++        crate::atlas_peer::AtlasPerformanceMode::FrameRate,
++    ).await
++}
++
++fn viewflow_start_expression(expression: &str, mode: crate::atlas_peer::AtlasPerformanceMode) -> String {
++    let expression = provider_expression(expression, true);
++    if mode == crate::atlas_peer::AtlasPerformanceMode::Latency {
++        expression.replacen(
++            "hl.plugin.viewflow_capture.window_stream_start(",
++            "hl.plugin.viewflow_capture.window_stream_start_commit(", 1,
++        )
++    } else {
++        expression
++    }
++}
++
++/// Start a Viewflow stream with the requested capture scheduling mode.
++/// # Errors
++/// Latency mode requires the plugin's `window_stream_start_commit` API.
++/// Startup and cleanup otherwise retain the same GPU ownership contract.
++pub async fn start_viewflow_gpu_stream_with_mode(
++    window_address: &str,
++    fps: u16,
++    compositor_pid: u32,
++    timeout: Duration,
++    mode: crate::atlas_peer::AtlasPerformanceMode,
+ ) -> Result<GpuStreamSession> {
+     let address = window_address.to_owned();
+     tokio::task::spawn_blocking(move || {
+@@ -485,10 +514,11 @@ pub async fn start_viewflow_gpu_stream(
+             Instant::now() + timeout,
+             &base,
+             &mut |expression, deadline| {
+-                invoke_hyprctl(&provider_expression(expression, true), deadline)
++                invoke_hyprctl(&viewflow_start_expression(expression, mode), deadline)
+             },
+         )?;
+         session.independent_provider = true;
++        eprintln!("viewflow-capture-mode requested={mode:?} fps={fps} stream={}", session.request_id);
+         Ok(session)
+     })
+     .await
+@@ -1280,6 +1310,19 @@ fn effective_uid() -> u32 {
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn performance_mode_selects_capture_start_without_changing_cleanup() {
++        use crate::atlas_peer::AtlasPerformanceMode::{FrameRate, Latency};
++        let start = "hl.plugin.hyprcapture.window_stream_start(\"/private/request.json\")";
++        assert_eq!(super::viewflow_start_expression(start, FrameRate),
++            "hl.plugin.viewflow_capture.window_stream_start(\"/private/request.json\")");
++        assert_eq!(super::viewflow_start_expression(start, Latency),
++            "hl.plugin.viewflow_capture.window_stream_start_commit(\"/private/request.json\")");
++        let stop = "hl.plugin.hyprcapture.window_stream_stop(\"/private/request.json\")";
++        assert_eq!(super::viewflow_start_expression(stop, FrameRate),
++            super::viewflow_start_expression(stop, Latency));
++    }
++
+     #[test]
+     fn independent_provider_only_changes_the_lua_namespace() {
+         let command = "hl.plugin.hyprcapture.window_stream_stop(\"/private/request.json\")";
+diff --git a/crates/viewflowd/src/lib.rs b/crates/viewflowd/src/lib.rs
+index 2fe83a6..ef75440 100644
+--- a/crates/viewflowd/src/lib.rs
++++ b/crates/viewflowd/src/lib.rs
+@@ -3465,7 +3465,10 @@ async fn acknowledge_input_result(
+     clock: Option<ClockSnapshot>,
+     local_now_ns: u64,
+ ) -> Result<()> {
+-    let result = match input.apply_event(&event, clock, local_now_ns) {
++    // The authenticated QUIC control stream already preserves input order.
++    // Clock drift and queue delay must not discard cursor or key transitions.
++    let _ = (clock, local_now_ns);
++    let result = match input.apply_ordered_event(&event) {
+         Ok(()) => InputAppliedResult::Applied,
+         Err(error) => error.result(),
+     };
+@@ -4567,6 +4570,39 @@ mod tests {
+         event
+     }
+ 
++    #[tokio::test]
++    async fn reliable_input_accepts_delayed_cursor_and_still_rejects_replay() {
++        let (controls, mut received) = mpsc::channel(4);
++        let outbound = OutboundSender::new(controls);
++        let mut input = InputReceiver::new(InputBackendMode::Disabled, Some(Id128(2))).unwrap();
++        let lease = viewflow_protocol::InputLease {
++            generation: 1, owner: Id128(1), route_to: Id128(2),
++            state: viewflow_protocol::InputLeaseState::Offered,
++        };
++        input.apply_lease(lease).unwrap();
++        input.apply_lease(viewflow_protocol::InputLease {
++            generation: 2, state: viewflow_protocol::InputLeaseState::Active, ..lease
++        }).unwrap();
++        let event = InputEvent {
++            lease_generation: 2, target_device: Id128(2), sequence: 1,
++            sender_not_after_ns: 1,
++            event: viewflow_protocol::InputEventKind::DesktopPointerPosition(
++                viewflow_protocol::DesktopPointerPosition { x_millidip: 100, y_millidip: 200 }
++            ),
++        };
++        for (event, expected) in [
++            (event, InputAppliedResult::Applied),
++            (event, InputAppliedResult::RejectedEventSequence),
++        ] {
++            acknowledge_input_result(&outbound, "127.0.0.1:1".parse().unwrap(), "test",
++                &mut input, event, None, 10_000_000_000).await.unwrap();
++            let wire::control_envelope::Payload::InputAppliedAck(ack) = received.recv().await.unwrap().payload else {
++                panic!("expected input acknowledgment");
++            };
++            assert_eq!(ack.result, wire::InputAppliedResult::from(expected) as i32);
++        }
++    }
++
+     #[tokio::test]
+     async fn input_success_waits_for_exact_remote_event_identity() {
+         let (controls, mut received) = mpsc::channel(4);
+diff --git a/platform/linux-frame-fixture/README.md b/platform/linux-frame-fixture/README.md
+index ec4174a..c8bd7fd 100644
+--- a/platform/linux-frame-fixture/README.md
++++ b/platform/linux-frame-fixture/README.md
+@@ -1,5 +1,12 @@
+ # Owned 4K motion and interaction fixture
+ 
++For unattended measurements, launch with `VIEWFLOW_FIXTURE_PASSIVE=1`.
++This enables Qt's transparent-for-input and non-activating flags; on Wayland,
++the fixture submits an empty surface input region. Keep any temporary headless
++output separated from existing outputs rather than adjoining a physical screen,
++so ordinary pointer travel cannot enter it. The normal interaction fixture
++remains available without this flag. See the [passive validation](../../docs/evidence/performance-20260908/passive-blur-validation/README.md).
++
+ This fixture draws a moving checkerboard, gradient, and bar over a 3840 × 2400
+ OpenGL ES surface. It uses a precise monotonic 60 Hz producer schedule and
+ avoids catch-up bursts after a stall. `fixture-render` and `fixture-swap` are
+@@ -89,3 +96,8 @@ stages for uniquely matched IDs. Repeated marker IDs are reported as ambiguous.
+ The current observer also maps rotated DXGI outputs; the tested 4K output is
+ rotated 180 degrees. `physical4k` aligns the captured border at monitor origin
+ minus four pixels, so the entire 3840x2400 content fits the display.
++
++Use `exact4k` instead of `physical4k` for the strict 3840×2400 baseline. It
++requires exactly one active monitor of that size and rejects a larger output
++instead of selecting the first 4K-capable display. A later output-size change
++invalidates the observation; this check only affects the measurement tool.
+diff --git a/platform/linux-frame-fixture/main.cpp b/platform/linux-frame-fixture/main.cpp
+index 7f92e60..57d2213 100644
+--- a/platform/linux-frame-fixture/main.cpp
++++ b/platform/linux-frame-fixture/main.cpp
+@@ -23,7 +23,12 @@ class Fixture final : public QWindow, protected QOpenGLExtraFunctions {
+ public:
+   Fixture() {
+     setTitle(QStringLiteral("Viewflow isolated 4K frame fixture"));
+-    setFlags(Qt::Window | Qt::FramelessWindowHint);
++    auto flags = Qt::Window | Qt::FramelessWindowHint;
++    const bool passive = qEnvironmentVariableIntValue("VIEWFLOW_FIXTURE_PASSIVE") == 1;
++    if (passive)
++      flags |= Qt::WindowTransparentForInput | Qt::WindowDoesNotAcceptFocus;
++    setFlags(flags);
++    std::printf("fixture-input-policy passive=%u\n", unsigned(passive));
+     setSurfaceType(QSurface::OpenGLSurface);
+     frame_timer_.setSingleShot(true);
+     frame_timer_.setTimerType(Qt::PreciseTimer);
+diff --git a/platform/viewflow-capture/CMakeLists.txt b/platform/viewflow-capture/CMakeLists.txt
+index c97dff1..832e1a2 100644
+--- a/platform/viewflow-capture/CMakeLists.txt
++++ b/platform/viewflow-capture/CMakeLists.txt
+@@ -20,6 +20,13 @@ target_compile_options(viewflow-capture PRIVATE -Wall -Wextra --no-gnu-unique)
+ # later Lua invocation because of a lazily resolved missing symbol.
+ target_link_options(viewflow-capture PRIVATE "LINKER:-z,now")
+ set_target_properties(viewflow-capture PROPERTIES PREFIX "" OUTPUT_NAME "viewflow-capture")
++# Isolated runtime experiments can use their own plugin and Lua namespace.
++set(VIEWFLOW_CAPTURE_PLUGIN_NAME "viewflow-capture" CACHE STRING "Plugin output/name")
++set(VIEWFLOW_CAPTURE_LUA_NAMESPACE "viewflow_capture" CACHE STRING "Lua namespace")
++target_compile_definitions(viewflow-capture PRIVATE
++    VIEWFLOW_CAPTURE_PLUGIN_NAME="${VIEWFLOW_CAPTURE_PLUGIN_NAME}"
++    VIEWFLOW_CAPTURE_LUA_NAMESPACE="${VIEWFLOW_CAPTURE_LUA_NAMESPACE}")
++set_target_properties(viewflow-capture PROPERTIES OUTPUT_NAME "${VIEWFLOW_CAPTURE_PLUGIN_NAME}")
+ add_library(viewflow-capture-core STATIC
+     src/window_gpu_wire.cpp src/window_gpu_input_wire.cpp src/window_gpu_sender.cpp src/window_gpu_export.cpp)
+ set_target_properties(viewflow-capture-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
+@@ -30,7 +37,7 @@ if(BUILD_TESTING)
+     add_test(NAME lua_c_linkage COMMAND ${CMAKE_COMMAND}
+         -DNM=${CMAKE_NM} -DPLUGIN=$<TARGET_FILE:viewflow-capture>
+         -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_lua_linkage.cmake)
+-    foreach(name window_gpu_wire window_gpu_input_wire window_gpu_sender capture_cadence capture_geometry_epoch ime_popup_scope)
++    foreach(name window_gpu_wire window_gpu_input_wire window_gpu_sender capture_cadence capture_commit_schedule capture_geometry_epoch ime_popup_scope)
+         add_executable(${name}_test tests/${name}_test.cpp)
+         target_link_libraries(${name}_test PRIVATE viewflow-capture-core)
+         target_compile_options(${name}_test PRIVATE -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+diff --git a/platform/viewflow-capture/src/main.cpp b/platform/viewflow-capture/src/main.cpp
+index 5351d7c..6ae7cb0 100644
+--- a/platform/viewflow-capture/src/main.cpp
++++ b/platform/viewflow-capture/src/main.cpp
+@@ -1,8 +1,13 @@
+ // SPDX-License-Identifier: GPL-3.0-only
+ #include "window_renderer.hpp"
+ #include "capture_cadence.hpp"
++#include "capture_commit_schedule.hpp"
+ #include <hyprland/src/plugins/PluginAPI.hpp>
+ #include <hyprland/src/managers/eventLoop/EventLoopManager.hpp>
++#include <hyprland/src/desktop/state/WindowState.hpp>
++#include <hyprland/src/desktop/view/Window.hpp>
++#include <hyprland/src/desktop/view/WLSurface.hpp>
++#include <hyprland/src/protocols/core/Compositor.hpp>
+ #include <nlohmann/json.hpp>
+ extern "C" {
+ #include <lua.h>
+@@ -15,6 +20,8 @@ extern "C" {
+ #include <map>
+ #include <memory>
+ #include <stdexcept>
++#include <cstdio>
++#include <vector>
+ 
+ namespace {
+ using Json = nlohmann::json;
+@@ -44,14 +51,91 @@ struct File {
+             || ftruncate(fd, data.size())) throw std::runtime_error("response write failed");
+     }
+ };
++struct CommitGroup;
+ struct Stream {
+     std::unique_ptr<viewflow_capture::WindowRenderer> renderer;
+     SP<CEventLoopTimer> timer;
++    std::weak_ptr<CommitGroup> group;
++    CHyprSignalListener commitListener;
+     std::uint64_t address{}, sequence = 0;
++    std::uint64_t commitNotifications = 0, commitAttempts = 0, fallbackAttempts = 0;
+     unsigned fps{};
++    bool commitMode = false;
+     bool retired = false;
+ };
+-std::map<std::string, std::unique_ptr<Stream>> streams;
++std::map<std::string, std::shared_ptr<Stream>> streams;
++std::uint64_t nowNs() {
++    return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
++        std::chrono::steady_clock::now().time_since_epoch()).count());
++}
++struct CommitGroup : std::enable_shared_from_this<CommitGroup> {
++    viewflow_capture::CaptureCommitSchedule schedule;
++    SP<CEventLoopTimer> timer;
++    std::map<std::string, std::weak_ptr<Stream>> members;
++    explicit CommitGroup(unsigned fps) : schedule(fps) {}
++    void arm() {
++        const bool active = std::any_of(members.begin(), members.end(), [](const auto& entry) {
++            const auto stream = entry.second.lock();
++            return stream && !stream->retired;
++        });
++        if (active) timer->updateTimeout(std::chrono::nanoseconds(schedule.delay(nowNs())));
++        else timer->updateTimeout(std::nullopt);
++    }
++    void notified() {
++        schedule.committed(nowNs());
++        arm();
++    }
++    void tick() {
++        const auto now = nowNs();
++        if (!schedule.due(now)) { arm(); return; }
++        const bool fromCommit = schedule.pending();
++        schedule.attempted(now);
++        // Freeze ownership before entering the renderer. Stop/removal cannot
++        // invalidate a current attempt, and all equal-rate windows share a tick.
++        std::vector<std::shared_ptr<Stream>> batch;
++        for (const auto& [id, weak] : members)
++            if (auto stream = weak.lock(); stream && !stream->retired) batch.push_back(std::move(stream));
++        for (const auto& stream : batch) {
++            if (stream->retired) continue;
++            if (fromCommit) ++stream->commitAttempts;
++            else ++stream->fallbackAttempts;
++            if (!stream->renderer->capture(stream->address, ++stream->sequence)) {
++                stream->retired = true;
++                stream->commitListener.reset();
++            }
++        }
++        arm();
++    }
++    void install() {
++        const std::weak_ptr<CommitGroup> weak = shared_from_this();
++        timer = makeShared<CEventLoopTimer>(std::chrono::nanoseconds(1),
++            [weak](SP<CEventLoopTimer>, void*) {
++                if (const auto group = weak.lock()) group->tick();
++            }, nullptr);
++        g_pEventLoopManager->addTimer(timer);
++    }
++};
++std::map<unsigned, std::shared_ptr<CommitGroup>> groups;
++void stopStream(const std::string& id, const std::shared_ptr<Stream>& stream) {
++    stream->retired = true;
++    stream->commitListener.reset();
++    if (stream->timer) {
++        stream->timer->updateTimeout(std::nullopt);
++        g_pEventLoopManager->removeTimer(stream->timer);
++    }
++    if (const auto group = stream->group.lock()) {
++        group->members.erase(id);
++        if (group->members.empty()) {
++            group->timer->updateTimeout(std::nullopt);
++            g_pEventLoopManager->removeTimer(group->timer);
++            groups.erase(stream->fps);
++        } else group->arm();
++    }
++    std::fprintf(stderr, "viewflow-capture-cadence stop=1 stream=%s mode=%s fps=%u attempts=%llu notifications=%llu commit_attempts=%llu fallback_attempts=%llu\n",
++        id.c_str(), stream->commitMode ? "commit" : "grid", stream->fps,
++        static_cast<unsigned long long>(stream->sequence), static_cast<unsigned long long>(stream->commitNotifications),
++        static_cast<unsigned long long>(stream->commitAttempts), static_cast<unsigned long long>(stream->fallbackAttempts));
++}
+ std::chrono::nanoseconds captureDelay(unsigned fps) {
+     const auto now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+         std::chrono::steady_clock::now().time_since_epoch()).count();
+@@ -71,7 +155,7 @@ void socket_check(const std::string& path) {
+         || lstat(dir.c_str(), &parent) || !S_ISDIR(parent.st_mode) || parent.st_uid != getuid() || (parent.st_mode & 077))
+         throw std::runtime_error("private socket and directory required");
+ }
+-int request(lua_State* state, bool stop) {
++int request(lua_State* state, bool stop, bool commitMode = false) {
+     try {
+         size_t length = 0;
+         const char* path = lua_tolstring(state, 1, &length);
+@@ -84,8 +168,7 @@ int request(lua_State* state, bool stop) {
+             const auto found = streams.find(id);
+             if (found == streams.end()) throw std::runtime_error("unknown stream");
+             // Auto-retired sessions retain exact identity until explicitly stopped.
+-            found->second->timer->updateTimeout(std::nullopt);
+-            g_pEventLoopManager->removeTimer(found->second->timer);
++            stopStream(id, found->second);
+             streams.erase(found);
+             file.reply({{"ok", true}, {"version", 1}, {"streamId", id}, {"stopped", true}});
+         } else {
+@@ -101,23 +184,65 @@ int request(lua_State* state, bool stop) {
+             if (parsed.ec != std::errc{} || parsed.ptr != address.data() + address.size() || !target)
+                 throw std::runtime_error("invalid window address");
+             socket_check(socket);
+-            auto stream = std::make_unique<Stream>();
++            auto stream = std::make_shared<Stream>();
+             stream->address = target;
+             stream->fps = fps;
++            stream->commitMode = commitMode;
+             stream->renderer = std::make_unique<viewflow_capture::WindowRenderer>(socket);
+-            auto* owned = stream.get();
+-            stream->timer = makeShared<CEventLoopTimer>(captureDelay(fps),
+-                [owned](SP<CEventLoopTimer> timer, void*) {
+-                    if (!owned->renderer->capture(owned->address, ++owned->sequence)) {
+-                        owned->retired = true;
+-                        timer->updateTimeout(std::nullopt);
+-                        return;
++            try {
++            if (commitMode) {
++                auto found = groups.find(fps);
++                auto group = found == groups.end() ? std::make_shared<CommitGroup>(fps) : found->second;
++                if (found == groups.end()) {
++                    group->install();
++                    groups.emplace(fps, group);
++                }
++                stream->group = group;
++                group->members.emplace(id, stream);
++                const std::weak_ptr<Stream> weakStream = stream;
++                const std::weak_ptr<CommitGroup> weakGroup = group;
++                for (const auto& window : Desktop::windowState()->windows()) {
++                    if (reinterpret_cast<std::uintptr_t>(window.get()) != target) continue;
++                    if (window->wlSurface() && window->wlSurface()->resource()) {
++                        stream->commitListener = window->wlSurface()->resource()->m_events.commit.listen(
++                            [weakStream, weakGroup] {
++                                const auto current = weakStream.lock();
++                                const auto cohort = weakGroup.lock();
++                                if (!current || current->retired || !cohort) return;
++                                ++current->commitNotifications;
++                                // Defer rendering to the timer; never re-enter
++                                // the renderer from a wl_surface commit signal.
++                                cohort->notified();
++                            });
+                     }
+-                    timer->updateTimeout(captureDelay(owned->fps));
+-                }, nullptr);
++                    break;
++                }
++                group->arm();
++            } else {
++                const std::weak_ptr<Stream> weak = stream;
++                stream->timer = makeShared<CEventLoopTimer>(captureDelay(fps),
++                    [weak](SP<CEventLoopTimer> timer, void*) {
++                        const auto owned = weak.lock();
++                        if (!owned || owned->retired) { timer->updateTimeout(std::nullopt); return; }
++                        ++owned->fallbackAttempts;
++                        if (!owned->renderer->capture(owned->address, ++owned->sequence)) {
++                            owned->retired = true;
++                            timer->updateTimeout(std::nullopt);
++                            return;
++                        }
++                        timer->updateTimeout(captureDelay(owned->fps));
++                    }, nullptr);
++                g_pEventLoopManager->addTimer(stream->timer);
++            }
+             file.reply({{"ok", true}, {"version", 1}, {"streamId", id}, {"socketPath", socket}, {"mode", "window-gpu"}});
+-            g_pEventLoopManager->addTimer(stream->timer);
+-            streams.emplace(id, std::move(stream));
++            std::fprintf(stderr, "viewflow-capture-cadence start=1 stream=%s mode=%s fps=%u\n", id.c_str(), commitMode ? "commit" : "grid", fps);
++            streams.emplace(id, stream);
++            } catch (...) {
++                // A failed reply/registration must not leave an expired member
++                // blocking a later start with the same stream identity.
++                stopStream(id, stream);
++                throw;
++            }
+         }
+         lua_pushboolean(state, true);
+     } catch (const std::exception& error) {
+@@ -132,15 +257,16 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
+ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+     if (std::string_view(__hyprland_api_get_hash()) != std::string_view(__hyprland_api_get_client_hash()))
+         throw std::runtime_error("Viewflow capture ABI mismatch");
+-    if (!HyprlandAPI::addLuaFunction(handle, "viewflow_capture", "window_stream_start", [](lua_State* s) { return request(s, false); })
+-        || !HyprlandAPI::addLuaFunction(handle, "viewflow_capture", "window_stream_stop", [](lua_State* s) { return request(s, true); }))
++    if (!HyprlandAPI::addLuaFunction(handle, VIEWFLOW_CAPTURE_LUA_NAMESPACE, "window_stream_start", [](lua_State* s) { return request(s, false); })
++        || !HyprlandAPI::addLuaFunction(handle, VIEWFLOW_CAPTURE_LUA_NAMESPACE, "window_stream_start_commit", [](lua_State* s) { return request(s, false, true); })
++        || !HyprlandAPI::addLuaFunction(handle, VIEWFLOW_CAPTURE_LUA_NAMESPACE, "window_stream_stop", [](lua_State* s) { return request(s, true); }))
+         throw std::runtime_error("Viewflow capture Lua registration failed");
+-    return {"viewflow-capture", "Window-only GPU capture for Viewflow", "Viewflow contributors", "0.1.0"};
++    return {VIEWFLOW_CAPTURE_PLUGIN_NAME, "Window-only GPU capture for Viewflow", "Viewflow contributors", "0.1.0"};
+ }
+ APICALL EXPORT void PLUGIN_EXIT() {
+     for (auto& [id, stream] : streams) {
+-        stream->timer->updateTimeout(std::nullopt);
+-        g_pEventLoopManager->removeTimer(stream->timer);
++        stopStream(id, stream);
+     }
+     streams.clear();
++    groups.clear();
+ }
+diff --git a/platform/windows-composition-preview/CMakeLists.txt b/platform/windows-composition-preview/CMakeLists.txt
+index d12819a..33f1dfa 100644
+--- a/platform/windows-composition-preview/CMakeLists.txt
++++ b/platform/windows-composition-preview/CMakeLists.txt
+@@ -232,6 +232,21 @@ add_executable(viewflow_sparse_coalesce_test sparse_coalesce_test.cpp)
+ target_compile_features(viewflow_sparse_coalesce_test PRIVATE cxx_std_20)
+ add_test(NAME sparse_coalesce COMMAND viewflow_sparse_coalesce_test)
+ 
++# Manual oracle: real HostBackdrop with moving/resizing owned windows.
++add_executable(viewflow_native_background_cache_test WIN32 native_background_cache_test.cpp
++  ../windows-video-compositor/video_compositor.cpp)
++target_include_directories(viewflow_native_background_cache_test PRIVATE ../windows-video-compositor)
++target_compile_features(viewflow_native_background_cache_test PRIVATE cxx_std_20)
++target_compile_definitions(viewflow_native_background_cache_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
++if(MSVC)
++  target_compile_options(viewflow_native_background_cache_test PRIVATE /EHsc)
++endif()
++target_link_libraries(viewflow_native_background_cache_test PRIVATE viewflow_vfgp_parser d3d11 d2d1 dxgi dwmapi windowsapp mfplat mfuuid ole32 wmcodecdspuuid d3dcompiler winmm advapi32 imm32 shell32 propsys gdi32)
++
++add_executable(viewflow_background_region_test background_region_test.cpp)
++target_compile_features(viewflow_background_region_test PRIVATE cxx_std_20)
++add_test(NAME background_region COMMAND viewflow_background_region_test)
++
+ # Tests use assert for executable checks (some expressions perform setup).
+ # Release must run those checks rather than compiling their bodies away.
+ get_property(preview_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+diff --git a/platform/windows-composition-preview/README.md b/platform/windows-composition-preview/README.md
+index de970f6..37c6410 100644
+--- a/platform/windows-composition-preview/README.md
++++ b/platform/windows-composition-preview/README.md
+@@ -1,5 +1,20 @@
+ # Windows composition backdrop diagnostic
+ 
++For passive atlas measurements, set
++`VIEWFLOW_ATLAS_DIAGNOSTIC_MOUSE_PASSTHROUGH=1` before launching the process.
++It makes proxy windows layered, transparent to mouse hit testing, and
++non-activating before their first show. Do not combine this diagnostic mode
++with pointer or keyboard forwarding. `WS_EX_NOACTIVATE` alone does not make
++a window pass mouse input through. Normal interactive proxies keep their
++existing input behavior. The startup log records the effective backdrop sigma
++and whether it selects host blur or alpha-only rendering.
++
++The host backdrop oracle always uses passive windows and compares a known
++striped background through a reference blur, the sparse renderer, and an
++alpha-only control. See the [pixel and input-routing evidence](../../docs/evidence/performance-20260908/passive-blur-validation/README.md).
++Layered-window styling may affect DWM composition; measure subsequent performance
++with the same passive settings in every comparison arm.
++
+ Atlas native-input proxies use source-side text composition: the destination
+ forwards physical input, not locally composed text. With atlas pointer events
+ enabled, startup disables IME only on the dedicated proxy UI thread, before
+diff --git a/platform/windows-composition-preview/main.cpp b/platform/windows-composition-preview/main.cpp
+index 5bd7bfb..d7066d9 100644
+--- a/platform/windows-composition-preview/main.cpp
++++ b/platform/windows-composition-preview/main.cpp
+@@ -1,9 +1,17 @@
++#ifndef INITGUID
++#define INITGUID
++#endif
+ #include <windows.h>
++#include <windows.graphics.directx.direct3d11.interop.h>
++#include <winrt/Windows.Graphics.Capture.h>
++#include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
++#include <d3dcompiler.h>
++#include <thread>
++#include <mutex>
+ #include <windowsx.h>
+ #include <wct.h>
+ #include <imm.h>
+ #include <mmsystem.h>
+-#define INITGUID
+ #include <DispatcherQueue.h>
+ #include <algorithm>
+ #include <array>
+@@ -49,6 +57,7 @@
+ #include "atlas_pointer.h"
+ #include "atlas_frame_bindings.h"
+ #include "sparse_coalesce.h"
++#include "diagnostic_window.h"
+ #include "atlas_decode_identities.h"
+ #include "remote_input_ime.h"
+ #include "keyboard_clock_bounds.h"
+@@ -57,6 +66,7 @@
+ #include "desktop_stacking.h"
+ #include "frameless_window.h"
+ #include "application_icon.h"
++#include "background_region.h"
+ #include <functional>
+ #include <exception>
+ 
+@@ -952,6 +962,8 @@ void commit_sparse_visuals(Foreground& foreground,SparseGpuCandidate next,
+   foreground.width=next.width; foreground.height=next.height;
+ }
+ 
++#include "native_background_cache.h"
++
+ void update_gpu(Foreground &result, Compositor const &compositor,
+                 viewflow::windows::CompositedFrame const &frame,
+                 bool bind_visual = true) {
+@@ -1483,6 +1495,7 @@ struct AtlasInputContext {
+   bool chrome_pending{}, wm_drain_left{};
+   POINT chrome_down{};
+   std::function<void(float, float)> resize_preview;
++  std::function<void()> update_background;
+ };
+ 
+ bool update_desktop_clip(HWND hwnd, AtlasInputContext* context) {
+@@ -2011,6 +2024,12 @@ LRESULT CALLBACK atlas_proc(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
+     RECT client{};
+     if (GetClientRect(hwnd, &client)) context->resize_preview(float(client.right), float(client.bottom));
+   }
++  if (context && context->update_background &&
++      (message == WM_WINDOWPOSCHANGED || message == WM_SIZE ||
++       (message == WM_TIMER && w == 0x5646))) {
++    context->update_background();
++    if (message == WM_TIMER) return 0;
++  }
+   if (context && context->wm_moving &&
+       (message == WM_POINTERUPDATE || message == WM_POINTERDOWN || message == WM_POINTERUP))
+     return DefWindowProcW(hwnd, message, w, l);
+@@ -2235,7 +2254,13 @@ class AtlasNativePresenter {
+     SpriteVisual backdrop{nullptr};
+     CompositionMaskBrush backdrop_mask{nullptr};
+     CompositionBrush raw_backdrop{nullptr};
++    std::unique_ptr<NativeBackgroundCache> background_cache;
+     bool layout_absent{};
++    ~Proxy() {
++      input.update_background={};
++      if(window.value)KillTimer(window.value,0x5646);
++      if(background_cache)background_cache->Report(stderr);
++    }
+   };
+  public:
+   ~AtlasNativePresenter() {
+@@ -2275,6 +2300,9 @@ class AtlasNativePresenter {
+         bad("atlas blur sigma must be between 0 and 64 physical pixels");
+       backdrop_sigma_ = float(sigma);
+     }
++    std::cerr << "atlas-backdrop sigma=" << backdrop_sigma_
++              << " mode=" << (backdrop_sigma_ > 0 ? "host-blur" : "alpha-only")
++              << "\n";
+     LARGE_INTEGER frequency{};
+     if (!QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0) bad("atlas QPC frequency");
+     frequency_ = uint64_t(frequency.QuadPart);
+@@ -2508,12 +2536,21 @@ class AtlasNativePresenter {
+   std::unique_ptr<Proxy> CreateProxy(const std::wstring& title, uint32_t width,
+                                     uint32_t height, size_t index) {
+     if (!width || !height || width > INT_MAX || height > INT_MAX) bad("atlas proxy dimensions");
++    const bool mouse_passthrough = viewflow::windows_preview::DiagnosticMousePassthrough();
++    if (mouse_passthrough && (pointer_events_ || keyboard_events_))
++      bad("passive diagnostic window cannot be used for an input-enabled test");
+     auto proxy = std::make_unique<Proxy>();
+     const int initial_offset = int(index % 8) * 32;
+-    proxy->window.value = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | (desktop_display_ ? WS_EX_APPWINDOW : WS_EX_TOOLWINDOW) | (keyboard_events_ ? 0 : WS_EX_NOACTIVATE),
++    proxy->window.value = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP | (desktop_display_ ? WS_EX_APPWINDOW : WS_EX_TOOLWINDOW) | (keyboard_events_ ? 0 : WS_EX_NOACTIVATE) |
++        (mouse_passthrough ? viewflow::windows_preview::kDiagnosticMouseStyles : 0),
+         L"ViewflowAtlasProxy", title.c_str(), desktop_display_ ? WS_OVERLAPPEDWINDOW : WS_POPUP, 80 + initial_offset, 80 + initial_offset, int(width), int(height),
+         nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+     if (!proxy->window.value) throw_last_error();
++    if (mouse_passthrough) {
++      viewflow::windows_preview::ConfigureDiagnosticMousePassthrough(proxy->window.value);
++      std::cerr << "atlas-diagnostic-window mouse_passthrough=1 no_activate=1 hwnd="
++                << proxy->window.value << "\n";
++    }
+     // A proxy reveals an existing remote window; suppress the local DWM
+     // opening/closing transition before its first show, including pooled proxies.
+     const BOOL disable_transitions = TRUE;
+@@ -2566,6 +2603,24 @@ class AtlasNativePresenter {
+     }
+     proxy->root.Children().InsertAtTop(proxy->foreground.visual);
+     proxy->target.Root(proxy->root);
++    if (backdrop_sigma_ > 0 && NativeBackgroundCache::Enabled()) {
++      try {
++        proxy->background_cache=std::make_unique<NativeBackgroundCache>(
++            compositor_,proxy->foreground.d3d.get(),proxy->window.value);
++        proxy->input.update_background=[p=proxy.get()] {
++          p->background_cache->Update(p->window.value,p->foreground);
++        };
++        SetLastError(ERROR_SUCCESS);
++        if (!SetWindowLongPtrW(proxy->window.value,GWLP_USERDATA,
++            reinterpret_cast<LONG_PTR>(&proxy->input)) && GetLastError()!=ERROR_SUCCESS) throw_last_error();
++        // Static foregrounds still observe local-window backdrop changes at 30 Hz.
++        if (!SetTimer(proxy->window.value,0x5646,16,nullptr)) throw_last_error();
++      } catch (...) {
++        proxy->input.update_background={};
++        KillTimer(proxy->window.value,0x5646);
++        proxy->background_cache.reset();
++      }
++    }
+     proxy->input.resize_preview = [state = &proxy->foreground, visual = proxy->foreground.visual, backdrop = proxy->backdrop](float w, float h) {
+       visual.Size({w, h});
+       if(state->sparse_root && state->width && state->height)
+@@ -2756,6 +2811,9 @@ class AtlasNativePresenter {
+         ShowWindow(proxy.window.value, SW_SHOWNOACTIVATE);
+         ++window_shows_;
+       }
++      if (proxy.background_cache) proxy.background_cache->Update(proxy.window.value,proxy.foreground);
++      if (proxy.background_cache && frame.frame_identity % 60 == 0)
++        sampled_timings_ += proxy.background_cache->Snapshot();
+     }
+     if(shared_candidate) {
+       sparse_atlas_->spare_surface=std::move(sparse_atlas_->surface);
+diff --git a/platform/windows-composition-preview/sparse_host_backdrop_test.cpp b/platform/windows-composition-preview/sparse_host_backdrop_test.cpp
+index 4294e7a..dd06311 100644
+--- a/platform/windows-composition-preview/sparse_host_backdrop_test.cpp
++++ b/platform/windows-composition-preview/sparse_host_backdrop_test.cpp
+@@ -8,6 +8,7 @@
+ 
+ static LRESULT CALLBACK host_test_proc(HWND window,UINT message,WPARAM w,LPARAM l) {
+   if(message==WM_MOUSEACTIVATE)return MA_NOACTIVATE;
++  if(message==WM_NCHITTEST)return HTTRANSPARENT;
+   return DefWindowProcW(window,message,w,l);
+ }
+ static void host_require(bool value,const char* message) {if(!value)throw std::runtime_error(message);}
+@@ -38,14 +39,16 @@ int wmain(int argc,wchar_t**) try {
+   init_apartment(apartment_type::single_threaded);
+   const HWND original_foreground=GetForegroundWindow();
+   const auto active_monitor=MonitorFromWindow(original_foreground,MONITOR_DEFAULTTOPRIMARY);
+-  struct Display { HMONITOR monitor;RECT work;bool primary; };
++  struct Display { HMONITOR monitor;RECT work;bool primary;RECT bounds; };
+   std::vector<Display> displays;
+   EnumDisplayMonitors(nullptr,nullptr,[](HMONITOR monitor,HDC,LPRECT,LPARAM context)->BOOL {
+     MONITORINFO info{sizeof(info)};
+-    if(GetMonitorInfoW(monitor,&info))reinterpret_cast<std::vector<Display>*>(context)->push_back({monitor,info.rcWork,bool(info.dwFlags&MONITORINFOF_PRIMARY)});
++    if(GetMonitorInfoW(monitor,&info))reinterpret_cast<std::vector<Display>*>(context)->push_back({monitor,info.rcWork,bool(info.dwFlags&MONITORINFOF_PRIMARY),info.rcMonitor});
+     return TRUE;
+   },reinterpret_cast<LPARAM>(&displays));
+-  auto selected=std::find_if(displays.begin(),displays.end(),[&](auto const& d){return d.monitor!=active_monitor && d.work.right-d.work.left>=1568 && d.work.bottom-d.work.top>=544;});
++  const auto exact4k=[](auto const& d){return d.bounds.right-d.bounds.left==3840 && d.bounds.bottom-d.bounds.top==2400;};
++  auto selected=std::find_if(displays.begin(),displays.end(),exact4k);
++  if(selected==displays.end())selected=std::find_if(displays.begin(),displays.end(),[&](auto const& d){return d.monitor!=active_monitor && d.work.right-d.work.left>=1568 && d.work.bottom-d.work.top>=544;});
+   if(selected==displays.end())selected=std::find_if(displays.begin(),displays.end(),[](auto const& d){return d.work.right-d.work.left>=1568 && d.work.bottom-d.work.top>=544;});
+   host_require(selected!=displays.end(),"no display fits owned test rectangle");
+   const int bx=selected->work.right-1552,by=selected->work.top+16,x=bx+128,y=by+128;
+@@ -59,7 +62,8 @@ int wmain(int argc,wchar_t**) try {
+   auto control=foreground_on_device(owner,compositor,256,256);
+   WNDCLASSW cls{};cls.lpfnWndProc=host_test_proc;cls.hInstance=GetModuleHandleW(nullptr);cls.lpszClassName=L"ViewflowHostBackdropOracle";
+   host_require(RegisterClassW(&cls)!=0,"register owned test class");
+-  constexpr DWORD extended=WS_EX_NOREDIRECTIONBITMAP|WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW;
++  constexpr DWORD extended=WS_EX_NOREDIRECTIONBITMAP|WS_EX_TOOLWINDOW|
++      viewflow::windows_preview::kDiagnosticMouseStyles;
+   WindowOwner background{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned test background",WS_POPUP,bx,by,1536,512,nullptr,nullptr,cls.hInstance,nullptr)};
+   host_require(background.value!=nullptr,"create test background");
+   WindowOwner overlay{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned backdrop comparison",WS_POPUP,x,y,256,256,background.value,nullptr,cls.hInstance,nullptr)};
+@@ -67,6 +71,11 @@ int wmain(int argc,wchar_t**) try {
+   WindowOwner candidate_window{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned candidate",WS_POPUP,x+512,y,256,256,background.value,nullptr,cls.hInstance,nullptr)};
+   WindowOwner control_window{CreateWindowExW(extended,cls.lpszClassName,L"Viewflow owned control",WS_POPUP,x+1024,y,256,256,background.value,nullptr,cls.hInstance,nullptr)};
+   host_require(candidate_window.value && control_window.value,"create comparison hosts");
++  const std::array<HWND,4> owned_windows{background.value,overlay.value,candidate_window.value,control_window.value};
++  for(const auto window:owned_windows)
++    viewflow::windows_preview::ConfigureDiagnosticMousePassthrough(window);
++  std::printf("host-test mouse_passthrough=1 no_activate=1 output=%ld,%ld,%ld,%ld exact4k=%u\n",
++      selected->bounds.left,selected->bounds.top,selected->bounds.right,selected->bounds.bottom,unsigned(exact4k(*selected)));
+   BOOL yes=TRUE;
+   check_hresult(DwmSetWindowAttribute(overlay.value,DWMWA_USE_HOSTBACKDROPBRUSH,&yes,sizeof(yes)));
+   check_hresult(DwmSetWindowAttribute(candidate_window.value,DWMWA_USE_HOSTBACKDROPBRUSH,&yes,sizeof(yes)));
+@@ -123,7 +132,19 @@ int wmain(int argc,wchar_t**) try {
+     if(calibrate)reference_commit_sparse_visuals(candidate,reference_stage_sparse_visuals(candidate,compositor,surface.surface,patches,0,256,256,candidate_blurred),256,256);
+     else commit_sparse_visuals(candidate,stage_sparse_visuals(candidate,compositor,surface.surface,patches,0,256,256,candidate_raw,12),256,256);
+     reference_commit_sparse_visuals(control,reference_stage_sparse_visuals(control,compositor,surface.surface,patches,0,256,256,nullptr),256,256);
+-    if(phase==0){ShowWindow(background.value,SW_SHOWNOACTIVATE);ShowWindow(overlay.value,SW_SHOWNOACTIVATE);ShowWindow(candidate_window.value,SW_SHOWNOACTIVATE);ShowWindow(control_window.value,SW_SHOWNOACTIVATE);}
++    if(phase==0){
++      for(const auto window:owned_windows)ShowWindow(window,SW_SHOWNOACTIVATE);
++      // Query hit testing without moving the pointer or delivering any input.
++      for(const auto window:owned_windows) {
++        RECT r{};host_require(GetWindowRect(window,&r)!=FALSE,"read owned window bounds");
++        const HWND hit=WindowFromPoint({(r.left+r.right)/2,(r.top+r.bottom)/2});
++        if(std::find(owned_windows.begin(),owned_windows.end(),hit)!=owned_windows.end()) {
++          for(const auto owned:owned_windows)ShowWindow(owned,SW_HIDE);
++          throw std::runtime_error("passive test still intercepts hit testing");
++        }
++      }
++      std::puts("host-test hit_queries=4 owned_hits=0 input_injected=0");
++    }
+     bool valid=false;size_t mismatches=0;
+     std::array<int,3> last_reference{},last_candidate{},last_control{};
+     auto until=std::chrono::steady_clock::now()+std::chrono::seconds(3);
+@@ -143,7 +164,14 @@ int wmain(int argc,wchar_t**) try {
+       mismatches=0;for(unsigned py=0;py<256;++py)for(unsigned px=0;px<256;++px)for(unsigned c=0;c<3;++c)if(abs(sample(0,px,py,c)-sample(1,px,py,c))>2)++mismatches;
+       if(mismatches)continue;
+       if(phase<2)for(unsigned c=0;c<3;++c){reference_samples[phase][c]=sample(0,64,64,c);control_samples[phase][c]=sample(2,64,64,c);}
+-      if(phase==2)for(unsigned py=32;py<224;++py)for(unsigned px=32;px<224;++px)for(unsigned c=0;c<3;++c)if(abs(sample(0,px,py,c)-sample(2,px,py,c))>5)++blurred_difference;
++      if(phase==2) {
++        for(unsigned py=32;py<224;++py)for(unsigned px=32;px<224;++px)for(unsigned c=0;c<3;++c)if(abs(sample(0,px,py,c)-sample(2,px,py,c))>5)++blurred_difference;
++        std::ofstream artifact("host-blur-panels.bgra",std::ios::binary);
++        const uint32_t dimensions[2]{768,256};
++        artifact.write(reinterpret_cast<const char*>(dimensions),sizeof(dimensions));
++        artifact.write(reinterpret_cast<const char*>(pixels.data()),std::streamsize(pixels.size()));
++        host_require(bool(artifact),"save actual desktop panel pixels");
++      }
+       valid=true;break;
+     }
+     std::printf("host-test phase=%u verified=%u mismatched_channels=%zu foreground_unchanged=%u\n",phase,unsigned(valid),mismatches,unsigned(GetForegroundWindow()==original_foreground));std::fflush(stdout);
+diff --git a/platform/windows-composition-preview/sparse_shared_visuals.h b/platform/windows-composition-preview/sparse_shared_visuals.h
+index 17986ff..d3a9822 100644
+--- a/platform/windows-composition-preview/sparse_shared_visuals.h
++++ b/platform/windows-composition-preview/sparse_shared_visuals.h
+@@ -151,6 +151,10 @@ struct SharedSparseScene {
+   struct Node {
+     SpriteVisual background{nullptr}; ContainerVisual clip{nullptr};
+     SpriteVisual pixels{nullptr}; CompositionEffectBrush masked{nullptr};
++    CompositionEffectBrush cached_masked{nullptr};
++    CompositionSurfaceBrush cached_backdrop{nullptr};
++    std::vector<SpriteVisual> cached_parts;
++    bool background_cached{};
+     uint32_t atlas_x{},atlas_y{};
+   };
+   ContainerVisual root{nullptr};
+@@ -158,6 +162,7 @@ struct SharedSparseScene {
+   Compositor compositor{nullptr};
+   CompositionBrush backdrop{nullptr};
+   CompositionEffectFactory masked_factory{nullptr};
++  CompositionEffectFactory cached_factory{nullptr};
+   winrt::Windows::Foundation::Size atlas_size{};
+   std::map<Key,Node> nodes;
+   std::vector<Key> order;
+@@ -254,6 +259,8 @@ inline void commit_shared_sparse_visuals(SharedSparseScene& scene,SharedSparsePl
+         node.pixels.Offset({-float(node.atlas_x),-float(node.atlas_y),0});
+         if(node.masked)node.masked.Properties().InsertMatrix3x2(L"SparseMaskTransform.TransformMatrix",
+             {1,0,0,1,-float(node.atlas_x),-float(node.atlas_y)});
++        if(node.cached_masked)node.cached_masked.Properties().InsertMatrix3x2(L"SparseMaskTransform.TransformMatrix",
++            {1,0,0,1,-float(node.atlas_x),-float(node.atlas_y)});
+       }
+     }
+     if(reattach || !scene.nodes.contains(key)) {

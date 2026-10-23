@@ -1,0 +1,269 @@
+diff --git a/Virtual Display Driver (HDR)/MttVDD/Driver.cpp b/Virtual Display Driver (HDR)/MttVDD/Driver.cpp
+index a99dfc2..2f3f572 100644
+--- a/Virtual Display Driver (HDR)/MttVDD/Driver.cpp	
++++ b/Virtual Display Driver (HDR)/MttVDD/Driver.cpp	
+@@ -19,7 +19,7 @@ Environment:
+ #include<string>
+ #include<tuple>
+ #include<vector>
+-#include <AdapterOption.h>
++#include "AdapterOption.h"
+ #include <xmllite.h>
+ #include <shlwapi.h>
+ #include <shlwapi.h>
+@@ -214,12 +214,12 @@ check_xml:
+ 
+ 	while (S_OK == pReader->Read(&nodeType)) {
+ 		if (nodeType == XmlNodeType_Element) {
+-			pReader->GetLocalName(&pwszLocalName, nullptr);
++			if (FAILED(pReader->GetLocalName(&pwszLocalName, nullptr)) || !pwszLocalName) return false;
+ 			if (wcscmp(pwszLocalName, xmlName.c_str()) == 0) {
+ 				pReader->Read(&nodeType);
+ 				if (nodeType == XmlNodeType_Text) {
+ 					const wchar_t* pwszValue;
+-					pReader->GetValue(&pwszValue, nullptr);
++					if (FAILED(pReader->GetValue(&pwszValue, nullptr)) || !pwszValue) return false;
+ 					xmlLoggingValue = (wcscmp(pwszValue, L"true") == 0);
+ 					LogQueries("i", xmlName + (xmlLoggingValue ? L" is enabled." : L" is disabled."));
+ 					break;
+@@ -2239,7 +2239,7 @@ IndirectDeviceContext::~IndirectDeviceContext()
+ 	logStream << "Destroying IndirectDeviceContext. Resetting processing thread.";
+ 	vddlog("d", logStream.str().c_str());
+ 
+-	m_ProcessingThread.reset();
++	m_ProcessingThreads.clear();
+ 
+ 	logStream.str("");
+ 	logStream << "Processing thread has been reset.";
+@@ -2438,83 +2438,58 @@ void IndirectDeviceContext::CreateMonitor(unsigned int index) {
+ 	}
+ }
+ 
+-void IndirectDeviceContext::AssignSwapChain(IDDCX_MONITOR& Monitor, IDDCX_SWAPCHAIN SwapChain, LUID RenderAdapter, HANDLE NewFrameEvent)
++// Backport of upstream fc49947: swapchain ownership is per monitor.
++void IndirectDeviceContext::AssignSwapChain(IDDCX_MONITOR Monitor, IDDCX_SWAPCHAIN SwapChain, LUID RenderAdapter, HANDLE NewFrameEvent)
+ {
+-	m_ProcessingThread.reset();
+-
+-	auto Device = make_shared<Direct3DDevice>(RenderAdapter);
+-	if (FAILED(Device->Init()))
+-	{
+-		vddlog("e", "D3D Initialization failed, deleting existing swap-chain.");
+-		WdfObjectDelete(SwapChain);
+-		return;
+-	}
+-	HRESULT hr = Device->Init(); 
+-	if (FAILED(hr))
+-	{
+-		vddlog("e", "Failed to initialize Direct3DDevice.");
+-	}
+-	else
+-	{
+-		vddlog("d", "Creating a new swap-chain processing thread.");
+-		m_ProcessingThread.reset(new SwapChainProcessor(SwapChain, Device, NewFrameEvent));
+-
+-		if (hardwareCursor){
+-			HANDLE mouseEvent = CreateEventA(
+-				nullptr, 
+-				false,   
+-				false,   
+-				"VirtualDisplayDriverMouse"
+-			);
+-
+-			if (!mouseEvent)
+-			{
+-				vddlog("e", "Failed to create mouse event. No hardware cursor supported!");
+-				return;
+-			}
+-
+-			IDDCX_CURSOR_CAPS cursorInfo = {};
+-			cursorInfo.Size = sizeof(cursorInfo);
+-			cursorInfo.ColorXorCursorSupport = IDDCX_XOR_CURSOR_SUPPORT_FULL; 
+-			cursorInfo.AlphaCursorSupport = true;
+-
+-			cursorInfo.MaxX = 512;       //Apparently in most cases 128 is fine but for safe guarding we will go 512, older intel cpus may be limited to 64x64
+-			cursorInfo.MaxY = 512;  
+-
+-			//DirectXDevice->QueryMaxCursorSize(&cursorInfo.MaxX, &cursorInfo.MaxY);                 Experimental to get max cursor size - THIS IS NTO WORKING CODE
+-
+-
+-			IDARG_IN_SETUP_HWCURSOR hwCursor = {};
+-			hwCursor.CursorInfo = cursorInfo;
+-			hwCursor.hNewCursorDataAvailable = mouseEvent;
+-
+-			NTSTATUS Status = IddCxMonitorSetupHardwareCursor(
+-				Monitor,
+-				&hwCursor
+-			);
+-
+-			if (FAILED(Status))
+-			{
+-				CloseHandle(mouseEvent); 
+-				return;
+-			}
++    auto Device = make_shared<Direct3DDevice>(RenderAdapter);
++    if (FAILED(Device->Init())) {
++        vddlog("e", "D3D initialization failed.");
++        WdfObjectDelete(SwapChain);
++        return;
++    }
+ 
+-			vddlog("d", "Hardware cursor setup completed successfully.");
+-		}
+-		else {
+-			vddlog("d", "Hardware cursor is disabled, Skipped creation.");
+-		}
+-		// At this point, the swap-chain is set up and the hardware cursor is enabled
+-		// Further swap-chain and cursor processing will occur in the new processing thread.
+-	}
++    std::unique_ptr<SwapChainProcessor> previousProcessor;
++    auto newProcessor = std::make_unique<SwapChainProcessor>(SwapChain, Device, NewFrameEvent);
++    {
++        std::lock_guard<std::mutex> lock(m_ProcessingThreadsMutex);
++        auto& slot = m_ProcessingThreads[Monitor];
++        previousProcessor = std::move(slot);
++        slot = std::move(newProcessor);
++
++        if (hardwareCursor) {
++            // Reuse one owned, unnamed event per monitor. Reassignments must
++            // not leak a fresh event or share cursor notifications across screens.
++            auto& event = m_CursorEvents[Monitor];
++            if (!event.Get()) event.Attach(CreateEventW(nullptr, FALSE, FALSE, nullptr));
++            if (event.Get()) {
++                IDARG_IN_SETUP_HWCURSOR cursor = {};
++                cursor.CursorInfo.Size = sizeof(cursor.CursorInfo);
++                cursor.CursorInfo.ColorXorCursorSupport = IDDCX_XOR_CURSOR_SUPPORT_FULL;
++                cursor.CursorInfo.AlphaCursorSupport = true;
++                cursor.CursorInfo.MaxX = 512;
++                cursor.CursorInfo.MaxY = 512;
++                cursor.hNewCursorDataAvailable = event.Get();
++                NTSTATUS status = IddCxMonitorSetupHardwareCursor(Monitor, &cursor);
++                if (!NT_SUCCESS(status)) vddlog("e", "Hardware cursor setup failed.");
++            }
++        }
++    }
++    // Join a replaced worker outside the map lock; other monitors remain alive.
+ }
+ 
+-
+-void IndirectDeviceContext::UnassignSwapChain()
++void IndirectDeviceContext::UnassignSwapChain(IDDCX_MONITOR Monitor)
+ {
+-	// Stop processing the last swap-chain
+-	vddlog("i", "Unasigning Swapchain. Processing will be stopped.");
+-	m_ProcessingThread.reset();
++    std::unique_ptr<SwapChainProcessor> processor;
++    {
++        std::lock_guard<std::mutex> lock(m_ProcessingThreadsMutex);
++        auto it = m_ProcessingThreads.find(Monitor);
++        if (it != m_ProcessingThreads.end()) {
++            processor = std::move(it->second);
++            m_ProcessingThreads.erase(it);
++        }
++    }
++    // Cursor events persist across swapchain reassignment and are released
++    // with the device context, after its processing workers have stopped.
+ }
+ 
+ #pragma endregion
+@@ -2757,7 +2732,7 @@ NTSTATUS VirtualDisplayDriverMonitorUnassignSwapChain(IDDCX_MONITOR MonitorObjec
+ 	logStream << "Unassigning swap chain for monitor object: " << MonitorObject;
+ 	vddlog("d", logStream.str().c_str());
+ 	auto* pContext = WdfObjectGet_IndirectDeviceContextWrapper(MonitorObject);
+-	pContext->pContext->UnassignSwapChain();
++	pContext->pContext->UnassignSwapChain(MonitorObject);
+ 	vddlog("d", "Swap chain unassigned successfully.");
+ 	return STATUS_SUCCESS;
+ }
+diff --git a/Virtual Display Driver (HDR)/MttVDD/Driver.h b/Virtual Display Driver (HDR)/MttVDD/Driver.h
+index 17be5b3..77bac87 100644
+--- a/Virtual Display Driver (HDR)/MttVDD/Driver.h	
++++ b/Virtual Display Driver (HDR)/MttVDD/Driver.h	
+@@ -14,6 +14,8 @@
+ 
+ #include <memory>
+ #include <vector>
++#include <map>
++#include <mutex>
+ 
+ #include "Trace.h"
+ 
+@@ -86,8 +88,8 @@ namespace Microsoft
+ 
+             void CreateMonitor(unsigned int index);
+ 
+-            void AssignSwapChain(IDDCX_MONITOR& Monitor, IDDCX_SWAPCHAIN SwapChain, LUID RenderAdapter, HANDLE NewFrameEvent);
+-            void UnassignSwapChain();
++            void AssignSwapChain(IDDCX_MONITOR Monitor, IDDCX_SWAPCHAIN SwapChain, LUID RenderAdapter, HANDLE NewFrameEvent);
++            void UnassignSwapChain(IDDCX_MONITOR Monitor);
+ 
+         protected:
+ 
+@@ -96,7 +98,9 @@ namespace Microsoft
+             IDDCX_MONITOR m_Monitor;
+             IDDCX_MONITOR m_Monitor2;
+ 
+-            std::unique_ptr<SwapChainProcessor> m_ProcessingThread;
++            std::map<IDDCX_MONITOR, std::unique_ptr<SwapChainProcessor>> m_ProcessingThreads;
++            std::map<IDDCX_MONITOR, Microsoft::WRL::Wrappers::Event> m_CursorEvents;
++            std::mutex m_ProcessingThreadsMutex;
+ 
+         public:
+             static const DISPLAYCONFIG_VIDEO_SIGNAL_INFO s_KnownMonitorModes[];
+diff --git a/Virtual Display Driver (HDR)/MttVDD/MttVDD.inf b/Virtual Display Driver (HDR)/MttVDD/MttVDD.inf
+index e6ba858c27a290845db0c2e9a8e5c3547ff05e64..8af518d606cbc0db1577d670485659201a441e1a 100644
+GIT binary patch
+delta 62
+zcmaE%utj0R9!5h223rON1_K6527LxY1``H-1|tRo1|tSD1|0@N215ot24e;T20aE7
+OFg9i|-K@yu&IbTr6A5Gh
+
+delta 100
+zcmdm@@Iqn39!5sn$q$)?1B)3_8A=!w7+e^N7%~~k7*ZLE7{b7$0z)Q49)kiyF+&MM
+rB10}i0hpi0pukYTP{feWPykj{!cYkoNn}W8NM$Hy;NAR|(VY(f%exl1
+
+diff --git a/Virtual Display Driver (HDR)/MttVDD/MttVDD.vcxproj b/Virtual Display Driver (HDR)/MttVDD/MttVDD.vcxproj
+index ea85878..a3bc824 100644
+--- a/Virtual Display Driver (HDR)/MttVDD/MttVDD.vcxproj	
++++ b/Virtual Display Driver (HDR)/MttVDD/MttVDD.vcxproj	
+@@ -1,4 +1,4 @@
+-﻿<?xml version="1.0" encoding="utf-8"?>
++<?xml version="1.0" encoding="utf-8"?>
+ <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+   <ItemGroup Label="ProjectConfigurations">
+     <ProjectConfiguration Include="Debug|Win32">
+@@ -248,7 +248,7 @@
+       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">trace.h</WppScanConfigurationData>
+       <ExceptionHandling>Async</ExceptionHandling>
+       <EnablePREfast>true</EnablePREfast>
+-      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=4 /DIDDCX_MINIMUM_VERSION_REQUIRED=4 %(AdditionalOptions)</AdditionalOptions>
++      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=4 /DIDDCX_MINIMUM_VERSION_REQUIRED=4 %(AdditionalOptions) /WX-</AdditionalOptions>
+       <AdditionalIncludeDirectories>$(ProjectDir)..\..\Common\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+       <LanguageStandard>stdcpp17</LanguageStandard>
+     </ClCompile>
+@@ -269,7 +269,7 @@
+       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">trace.h</WppScanConfigurationData>
+       <ExceptionHandling>Async</ExceptionHandling>
+       <EnablePREfast>true</EnablePREfast>
+-      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=10 /DIDDCX_MINIMUM_VERSION_REQUIRED=3 %(AdditionalOptions)</AdditionalOptions>
++      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=10 /DIDDCX_MINIMUM_VERSION_REQUIRED=3 %(AdditionalOptions) /WX-</AdditionalOptions>
+       <AdditionalIncludeDirectories>$(ProjectDir)..\..\Common\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+     </ClCompile>
+     <Link>
+@@ -313,7 +313,7 @@
+       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">trace.h</WppScanConfigurationData>
+       <ExceptionHandling>Async</ExceptionHandling>
+       <EnablePREfast>true</EnablePREfast>
+-      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=4 /DIDDCX_MINIMUM_VERSION_REQUIRED=4 %(AdditionalOptions)</AdditionalOptions>
++      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=4 /DIDDCX_MINIMUM_VERSION_REQUIRED=4 %(AdditionalOptions) /WX-</AdditionalOptions>
+       <AdditionalIncludeDirectories>$(ProjectDir)..\..\Common\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+       <LanguageStandard>stdcpp17</LanguageStandard>
+     </ClCompile>
+@@ -337,7 +337,7 @@
+       <WppScanConfigurationData Condition="'%(ClCompile.ScanConfigurationData)' == ''">trace.h</WppScanConfigurationData>
+       <ExceptionHandling>Async</ExceptionHandling>
+       <EnablePREfast>true</EnablePREfast>
+-      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=10 /DIDDCX_MINIMUM_VERSION_REQUIRED=3 %(AdditionalOptions)</AdditionalOptions>
++      <AdditionalOptions>/D_ATL_NO_WIN_SUPPORT /DUMDF_DRIVER /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=10 /DIDDCX_MINIMUM_VERSION_REQUIRED=3 %(AdditionalOptions) /WX-</AdditionalOptions>
+       <AdditionalIncludeDirectories>$(ProjectDir)..\..\Common\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+     </ClCompile>
+     <Link>

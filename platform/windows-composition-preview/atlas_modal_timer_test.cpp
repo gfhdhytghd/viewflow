@@ -53,13 +53,15 @@ int main() {
   dispatch_timers_for(100);
   assert(pumps == old_pumps && backgrounds > old_backgrounds);
   KillTimer(hwnd, atlas_background_timer);
-  // A shell-loop exit (including lease-release return) must not retain the
-  // edge-aligned preview after source geometry has resumed on the other screen.
+  // Shell-loop exit retains the local final placement until a causal source
+  // receipt; merely releasing the physical button cannot admit stale geometry.
   context.desktop.enabled = true;
   context.wm_moving = true;
-  context.wm_pending_until = GetTickCount64() + 2000;
+  context.wm_pending_geometry = true;
+  context.wm_geometry_acknowledged = false;
   atlas_proc(hwnd, WM_EXITSIZEMOVE, 0, 0);
-  assert(!context.wm_moving && context.wm_pending_until == 0);
+  assert(!context.wm_moving && context.wm_pending_geometry);
+  assert(!context.wm_geometry_acknowledged);
   atlas_modal_pump = {};
   DestroyWindow(hwnd);
   UnregisterClassW(type.lpszClassName, type.hInstance);

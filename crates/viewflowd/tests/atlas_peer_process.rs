@@ -54,6 +54,7 @@ async fn receiver_process_accepts_real_native_warmup_and_retires_on_disconnect()
     std::fs::write(root.path().join("peer.key"), key).unwrap();
     std::fs::write(root.path().join("ca.pem"), ca).unwrap();
     let config = AtlasReceiverConfig {
+        activity_priority: Default::default(),
         max_width: None,
         max_height: None,
         reverse: None,

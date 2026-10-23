@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "prepared_only": true,
+  "nodes": {
+    "linux": {
+      "address": "172.16.105.62",
+      "server_name": "viewflow-mesh-linux"
+    },
+    "macos": {
+      "address": "172.16.105.83",
+      "server_name": "viewflow-mesh-macos"
+    },
+    "windows": {
+      "address": "172.16.105.70",
+      "server_name": "viewflow-mesh-windows"
+    }
+  },
+  "new_linux_endpoint": {
+    "port": 44222,
+    "config": "/home/wilf/.local/state/viewflow/window-mesh-20260910/linux-receive.json",
+    "source_pixels_per_point": 2,
+    "running": false
+  },
+  "routes": [
+    {
+      "source": "macos",
+      "presenter": "linux",
+      "source_config": "/Users/linhaikuo/.config/viewflow/window-mesh/linux-source-template.json",
+      "state": "prepared; Screen Recording deferred"
+    },
+    {
+      "source": "windows",
+      "presenter": "linux",
+      "source_config": "C:/Users/wilf/Viewflow/windows-macos-20260910/linux-send-prepared.json",
+      "state": "prepared; not started; Linux scale must match desired placement"
+    }
+  ]
+}

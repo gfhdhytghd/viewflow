@@ -4,7 +4,9 @@
 #include "diagnostic_clock.hpp"
 #include "window_input_lifecycle.hpp"
 #include <hyprland/src/desktop/state/WindowState.hpp>
-#include <hyprland/src/desktop/view/Window.hpp>
+#include <hyprland/src/desktop/view/window/Window.hpp>
+#include <hyprland/src/desktop/view/window/WindowMetadata.hpp>
+#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
 #include <time.h>
 
 namespace viewflow::hyprland {
@@ -262,7 +264,7 @@ bool WindowPointerController::handle(const ReceivedPacket &packet, bool routeAva
         beginStage = 5;
         for (const auto &window : Desktop::windowState()->windows()) {
           if (reinterpret_cast<std::uintptr_t>(window.get()) != c.windowAddress ||
-              window->getPID() != static_cast<pid_t>(c.pid) || !window->wlSurface())
+              window->backend().pid() != static_cast<pid_t>(c.pid) || !window->wlSurface())
             continue;
           beginStage = 6;
           const auto surface = window->wlSurface()->resource();

@@ -104,6 +104,7 @@ pub enum AtlasSubmitOutcome {
 
 /// One persistent GPU encoder for a device-pair atlas, not one encoder per tile.
 pub struct GpuAtlasCompatibleEncoder {
+    pub(crate) stable_sparse_placement: bool,
     occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
     canvas_limit: (u32, u32),
     seam_cache: Option<(
@@ -116,7 +117,42 @@ pub struct GpuAtlasCompatibleEncoder {
     last_sources: BTreeMap<WindowId, AtlasSourceIdentity>,
 }
 
+/// Plain configuration crosses threads; native CUDA/NVENC handles never do.
+#[derive(Clone, Copy)]
+pub(crate) struct AtlasEncoderRecipe {
+    config: Config,
+    codec: VideoCodec,
+    size: (u32, u32),
+    occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
+    canvas_limit: (u32, u32),
+    seam_cache: Option<(viewflow_protocol::DesktopRect, viewflow_protocol::DesktopRect)>,
+}
+impl AtlasEncoderRecipe {
+    pub(crate) fn with_size(mut self, width: u32, height: u32) -> Self {
+        self.size = (width, height);
+        self
+    }
+
+    pub(crate) fn create(self) -> Result<GpuAtlasCompatibleEncoder> {
+        let mut encoder = GpuAtlasCompatibleEncoder::new(self.config)?;
+        encoder.set_color_codec(self.codec)?;
+        encoder.prepare_size(self.size.0, self.size.1)?;
+        encoder.set_occlusion(self.occlusion, self.canvas_limit);
+        encoder.seam_cache = self.seam_cache;
+        encoder.request_keyframe();
+        Ok(encoder)
+    }
+}
+
 impl GpuAtlasCompatibleEncoder {
+    pub(crate) fn worker_recipe(&self) -> Result<AtlasEncoderRecipe> {
+        ensure!(!self.inner.failed, "cannot recreate a retired encoder");
+        Ok(AtlasEncoderRecipe {
+            config: self.inner.config, codec: self.inner.color_codec,
+            size: self.inner.prepared_size.context("atlas encoder not prepared")?,
+            occlusion: self.occlusion, canvas_limit: self.canvas_limit, seam_cache: self.seam_cache,
+        })
+    }
     pub(crate) fn set_seam_cache(
         &mut self,
         visible: viewflow_protocol::DesktopRect,
@@ -155,6 +191,7 @@ impl GpuAtlasCompatibleEncoder {
     pub fn new(config: Config) -> Result<Self> {
         Ok(Self {
             inner: GpuCompatibleEncoder::new(config)?,
+            stable_sparse_placement: false,
             occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Off,
             canvas_limit: (8192, 4096),
             seam_cache: None,
@@ -310,6 +347,7 @@ impl GpuAtlasCompatibleEncoder {
         let sparse_sources = sparse_scene_sources(&sources, request.desktop, self.seam_cache)?;
         let sparse_scene = (self.occlusion != crate::atlas_occlusion::AtlasOcclusionMode::Off)
             .then_some(crate::gpu_nvenc_runtime::GpuSparseScene {
+                stable_placement: self.stable_sparse_placement,
                 prerender: self.occlusion == crate::atlas_occlusion::AtlasOcclusionMode::Prerender,
                 canvas_limit: self.canvas_limit,
                 sources: &sparse_sources,
@@ -527,6 +565,7 @@ fn make_atlas_manifest_unchecked(
         .collect::<Result<Vec<_>>>()?;
     tiles.sort_by_key(|tile| tile.window_id);
     let manifest = viewflow_protocol::AtlasFrame {
+        activity: None,
         patches: None,
         color_keyframe: coded.color_metadata.keyframe,
         alpha_keyframe: coded.alpha_metadata.keyframe,

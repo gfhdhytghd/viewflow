@@ -1,0 +1,993 @@
+header frequency=10000000 clock=1 start=134360077473414512 lost=0
+schema id=473 status=0 properties=4 top=4
+property id=473 index=0 name=DxgProcess flags=0 in=16 out=19 count=1 length=8
+property id=473 index=1 name=ProcessId flags=0 in=16 out=19 count=1 length=8
+property id=473 index=2 name=HostProcessHandle flags=0 in=8 out=8 count=1 length=4
+property id=473 index=3 name=ProcessFlags flags=0 in=8 out=8 count=1 length=4
+schema id=329 status=0 properties=2 top=2
+property id=329 index=0 name=EProcess flags=0 in=16 out=19 count=1 length=8
+property id=329 index=1 name=ProcessStatus flags=0 in=8 out=8 count=1 length=4
+schema id=1067 status=0 properties=8 top=8
+property id=1067 index=0 name=UpdateLocation flags=0 in=8 out=8 count=1 length=4
+property id=1067 index=1 name=CurRefreshCount flags=0 in=9 out=9 count=1 length=8
+property id=1067 index=2 name=LastVSyncTime flags=0 in=9 out=9 count=1 length=8
+property id=1067 index=3 name=LastVSyncTimeSnapped flags=0 in=9 out=9 count=1 length=8
+property id=1067 index=4 name=Delta flags=0 in=9 out=9 count=1 length=8
+property id=1067 index=5 name=FramePeriod_QPC_x100 flags=0 in=9 out=9 count=1 length=8
+property id=1067 index=6 name=Corrections flags=0 in=8 out=8 count=1 length=4
+property id=1067 index=7 name=VsyncWaiters flags=0 in=8 out=8 count=1 length=4
+schema id=1066 status=0 properties=11 top=11
+property id=1066 index=0 name=Function flags=0 in=8 out=8 count=1 length=4
+property id=1066 index=1 name=AdapterLuid flags=0 in=10 out=19 count=1 length=8
+property id=1066 index=2 name=VidPnTargetId flags=0 in=8 out=18 count=1 length=4
+property id=1066 index=3 name=PresentCount flags=0 in=7 out=7 count=1 length=4
+property id=1066 index=4 name=PresentRefreshCount flags=0 in=7 out=7 count=1 length=4
+property id=1066 index=5 name=SyncRefreshCount flags=0 in=7 out=7 count=1 length=4
+property id=1066 index=6 name=SyncQPCTime flags=0 in=9 out=9 count=1 length=8
+property id=1066 index=7 name=NewIndirectFrame flags=0 in=13 out=13 count=1 length=4
+property id=1066 index=8 name=SubmissionTime flags=0 in=9 out=9 count=1 length=8
+property id=1066 index=9 name=DisplayTime flags=0 in=9 out=9 count=1 length=8
+property id=1066 index=10 name=SubmissionToDisplayTimeDelta flags=0 in=9 out=9 count=1 length=8
+schema id=318 status=0 properties=5 top=5
+property id=318 index=0 name=DWMCount flags=0 in=8 out=8 count=1 length=4
+property id=318 index=1 name=VsyncCount flags=0 in=8 out=8 count=1 length=4
+property id=318 index=2 name=VsyncFlag flags=0 in=8 out=8 count=1 length=4
+property id=318 index=3 name=VsyncWaiters flags=0 in=8 out=8 count=1 length=4
+property id=318 index=4 name=VsyncType flags=0 in=8 out=8 count=1 length=4
+schema id=1142 status=0 properties=5 top=5
+property id=1142 index=0 name=AdapterLuid flags=0 in=10 out=19 count=1 length=8
+property id=1142 index=1 name=BltQueueWakeReason flags=0 in=8 out=8 count=1 length=4
+property id=1142 index=2 name=VSyncWork flags=0 in=13 out=13 count=1 length=4
+property id=1142 index=3 name=UpdateModeWork flags=0 in=13 out=13 count=1 length=4
+property id=1142 index=4 name=FlushWork flags=0 in=13 out=13 count=1 length=4
+schema id=1121 status=0 properties=3 top=3
+property id=1121 index=0 name=VsyncType flags=0 in=8 out=8 count=1 length=4
+property id=1121 index=1 name=Status flags=0 in=8 out=31 count=1 length=4
+property id=1121 index=2 name=VsyncEvent flags=0 in=8 out=8 count=1 length=4
+schema id=1141 status=0 properties=6 top=6
+property id=1141 index=0 name=ExpirationTime flags=0 in=9 out=9 count=1 length=8
+property id=1141 index=1 name=NextVsycQpcTime flags=0 in=9 out=9 count=1 length=8
+property id=1141 index=2 name=CurrTime flags=0 in=9 out=9 count=1 length=8
+property id=1141 index=3 name=CurrFreq flags=0 in=9 out=9 count=1 length=8
+property id=1141 index=4 name=LastVSyncTimeSnapped flags=0 in=9 out=9 count=1 length=8
+property id=1141 index=5 name=VSyncPeriod flags=0 in=9 out=9 count=1 length=8
+schema id=502 status=0 properties=7 top=7
+property id=502 index=0 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=502 index=1 name=DpcFrameNumber flags=0 in=10 out=10 count=1 length=8
+property id=502 index=2 name=OriginalDpcFrameTime flags=0 in=10 out=10 count=1 length=8
+property id=502 index=3 name=SmoothenedDpcFrameTime flags=0 in=10 out=10 count=1 length=8
+property id=502 index=4 name=SmoothenedDpcFrameTime100ns flags=0 in=10 out=10 count=1 length=8
+property id=502 index=5 name=FrameTimeDeltaIn100ns flags=0 in=9 out=9 count=1 length=8
+property id=502 index=6 name=SampleCount flags=0 in=8 out=8 count=1 length=4
+schema id=507 status=0 properties=4 top=4
+property id=507 index=0 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=507 index=1 name=SmoothenedPeriodQpc flags=0 in=10 out=10 count=1 length=8
+property id=507 index=2 name=CurrentModeRefreshPeriodQpc flags=0 in=10 out=10 count=1 length=8
+property id=507 index=3 name=HwPresentDurationQpc flags=0 in=10 out=10 count=1 length=8
+schema id=551 status=0 properties=5 top=5
+property id=551 index=0 name=ObjectCount flags=0 in=8 out=8 count=1 length=4
+property id=551 index=1 name=VidSchSyncObjectArray flags=4 in=16 out=19 count=0 length=8
+property id=551 index=2 name=DxgSyncObjectArray flags=4 in=16 out=19 count=0 length=8
+property id=551 index=3 name=FenceValues flags=4 in=10 out=10 count=0 length=8
+property id=551 index=4 name=AlwaysSignaled flags=4 in=13 out=13 count=0 length=4
+schema id=294 status=0 properties=7 top=7
+property id=294 index=0 name=ContextCount flags=0 in=8 out=8 count=1 length=4
+property id=294 index=1 name=hContext flags=4 in=16 out=19 count=0 length=8
+property id=294 index=2 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=294 index=3 name=ObjectCount flags=0 in=8 out=8 count=1 length=4
+property id=294 index=4 name=ObjectArray flags=4 in=16 out=19 count=3 length=8
+property id=294 index=5 name=MonitoredFenceValue flags=4 in=10 out=10 count=3 length=8
+property id=294 index=6 name=InternalFlagsFlags flags=0 in=20 out=18 count=1 length=4
+schema id=182 status=0 properties=2 top=2
+property id=182 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=182 index=1 name=DeviceState flags=0 in=8 out=8 count=1 length=4
+schema id=323 status=0 properties=6 top=6
+property id=323 index=0 name=DxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=323 index=1 name=PagingQueue flags=0 in=16 out=19 count=1 length=8
+property id=323 index=2 name=PagingQueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=323 index=3 name=SequenceId flags=0 in=10 out=10 count=1 length=8
+property id=323 index=4 name=VidMmOpType flags=0 in=8 out=8 count=1 length=4
+property id=323 index=5 name=PagingQueueType flags=0 in=8 out=8 count=1 length=4
+schema id=324 status=0 properties=3 top=3
+property id=324 index=0 name=PagingQueue flags=0 in=16 out=19 count=1 length=8
+property id=324 index=1 name=PagingQueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=324 index=2 name=SequenceId flags=0 in=10 out=10 count=1 length=8
+schema id=281 status=0 properties=1 top=1
+property id=281 index=0 name=pDmaBuffer flags=0 in=16 out=19 count=1 length=8
+schema id=309 status=0 properties=18 top=18
+property id=309 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=309 index=1 name=hDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=309 index=2 name=ContinueNextBuffer flags=0 in=13 out=13 count=1 length=4
+property id=309 index=3 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=309 index=4 name=PageTableLevel flags=0 in=8 out=8 count=1 length=4
+property id=309 index=5 name=PageTableAddress flags=0 in=10 out=19 count=1 length=8
+property id=309 index=6 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+property id=309 index=7 name=NumPageTableUpdateEntries flags=0 in=8 out=8 count=1 length=4
+property id=309 index=8 name=PageTableEntries flags=0 in=16 out=19 count=1 length=8
+property id=309 index=9 name=PageTableEntries64KB flags=0 in=16 out=19 count=1 length=8
+property id=309 index=10 name=StartIndex flags=0 in=8 out=8 count=1 length=4
+property id=309 index=11 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=309 index=12 name=DriverProtection flags=0 in=10 out=10 count=1 length=8
+property id=309 index=13 name=AllocationOffsetInBytes flags=0 in=10 out=10 count=1 length=8
+property id=309 index=14 name=hProcess flags=0 in=16 out=19 count=1 length=8
+property id=309 index=15 name=UpdateMode flags=0 in=8 out=8 count=1 length=4
+property id=309 index=16 name=FirstPteVirtualAddress flags=0 in=10 out=19 count=1 length=8
+property id=309 index=17 name=PageTableObject flags=0 in=16 out=19 count=1 length=8
+schema id=310 status=0 properties=9 top=9
+property id=310 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=310 index=1 name=hDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=310 index=2 name=ContinueNextBuffer flags=0 in=13 out=13 count=1 length=4
+property id=310 index=3 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=310 index=4 name=RootPageTableSegmentId flags=0 in=8 out=8 count=1 length=4
+property id=310 index=5 name=RootPageTableSegmentOffset flags=0 in=10 out=10 count=1 length=8
+property id=310 index=6 name=hProcess flags=0 in=16 out=19 count=1 length=8
+property id=310 index=7 name=StartVirtualAddress flags=0 in=10 out=19 count=1 length=8
+property id=310 index=8 name=EndVirtualAddress flags=0 in=10 out=19 count=1 length=8
+schema id=282 status=0 properties=1 top=1
+property id=282 index=0 name=pDmaBuffer flags=0 in=16 out=19 count=1 length=8
+schema id=300 status=0 properties=6 top=6
+property id=300 index=0 name=Event flags=0 in=16 out=19 count=1 length=8
+property id=300 index=1 name=WaitConditionCount flags=0 in=8 out=8 count=1 length=4
+property id=300 index=2 name=FenceValues flags=4 in=10 out=10 count=1 length=8
+property id=300 index=3 name=SyncObjects flags=4 in=16 out=19 count=1 length=8
+property id=300 index=4 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=300 index=5 name=DxgSyncObjects flags=4 in=16 out=19 count=1 length=8
+schema id=325 status=0 properties=4 top=4
+property id=325 index=0 name=PagingQueue flags=0 in=16 out=19 count=1 length=8
+property id=325 index=1 name=PagingQueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=325 index=2 name=SequenceId flags=0 in=10 out=10 count=1 length=8
+property id=325 index=3 name=ExecutionTime100ns flags=0 in=10 out=10 count=1 length=8
+schema id=39 status=0 properties=1 top=1
+property id=39 index=0 name=hVidMmAlloc flags=0 in=16 out=19 count=1 length=8
+schema id=37 status=0 properties=13 top=13
+property id=37 index=0 name=hProcessId flags=0 in=16 out=19 count=1 length=8
+property id=37 index=1 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=37 index=2 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=37 index=3 name=hVidMmAlloc flags=0 in=16 out=19 count=1 length=8
+property id=37 index=4 name=hVidMmGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=37 index=5 name=hDxgResource flags=0 in=16 out=19 count=1 length=8
+property id=37 index=6 name=hDxgSharedResource flags=0 in=16 out=19 count=1 length=8
+property id=37 index=7 name=hThunkAllocation flags=0 in=16 out=19 count=1 length=8
+property id=37 index=8 name=hThunkResource flags=0 in=16 out=19 count=1 length=8
+property id=37 index=9 name=PrivateRuntimeResourceHandle flags=0 in=16 out=19 count=1 length=8
+property id=37 index=10 name=pVirtualAddress flags=0 in=16 out=19 count=1 length=8
+property id=37 index=11 name=hProcessAllocDetails flags=0 in=16 out=19 count=1 length=8
+property id=37 index=12 name=hOtherPartitionHandle flags=0 in=8 out=18 count=1 length=4
+schema id=292 status=0 properties=6 top=6
+property id=292 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+property id=292 index=1 name=hSyncObject flags=0 in=16 out=19 count=1 length=8
+property id=292 index=2 name=Reason flags=0 in=8 out=8 count=1 length=4
+property id=292 index=3 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=292 index=4 name=SharedHandle flags=0 in=16 out=19 count=1 length=8
+property id=292 index=5 name=InitialValue flags=0 in=10 out=10 count=1 length=8
+schema id=109 status=0 properties=5 top=5
+property id=109 index=0 name=DxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=109 index=1 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=109 index=2 name=X flags=0 in=8 out=8 count=1 length=4
+property id=109 index=3 name=Y flags=0 in=8 out=8 count=1 length=4
+property id=109 index=4 name=Flags flags=0 in=8 out=8 count=1 length=4
+schema id=72 status=0 properties=1 top=1
+property id=72 index=0 name=hAllocationHandle flags=0 in=16 out=19 count=1 length=8
+schema id=314 status=0 properties=3 top=3
+property id=314 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=314 index=1 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=314 index=2 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+schema id=274 status=0 properties=3 top=3
+property id=274 index=0 name=DxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=274 index=1 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+property id=274 index=2 name=TotalBytesResident flags=0 in=10 out=10 count=1 length=8
+schema id=74 status=0 properties=1 top=1
+property id=74 index=0 name=hGlobalAllocationHandle flags=0 in=16 out=19 count=1 length=8
+schema id=34 status=0 properties=29 top=29
+property id=34 index=0 name=hProcessId flags=0 in=16 out=19 count=1 length=8
+property id=34 index=1 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=34 index=2 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=34 index=3 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=34 index=4 name=allocSize flags=0 in=10 out=10 count=1 length=8
+property id=34 index=5 name=ulAlignment flags=0 in=8 out=8 count=1 length=4
+property id=34 index=6 name=dwReadSegment flags=0 in=8 out=8 count=1 length=4
+property id=34 index=7 name=dwWriteSegment flags=0 in=8 out=8 count=1 length=4
+property id=34 index=8 name=PreferredSegment flags=0 in=8 out=8 count=1 length=4
+property id=34 index=9 name=HintedBank flags=0 in=8 out=8 count=1 length=4
+property id=34 index=10 name=dwEvictionSegment flags=0 in=8 out=8 count=1 length=4
+property id=34 index=11 name=Priority flags=0 in=8 out=18 count=1 length=4
+property id=34 index=12 name=hVidMmGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=34 index=13 name=hDxgGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=34 index=14 name=hDxgSharedResource flags=0 in=16 out=19 count=1 length=8
+property id=34 index=15 name=UsageVersion flags=0 in=8 out=8 count=1 length=4
+property id=34 index=16 name=UsageFlags flags=0 in=8 out=8 count=1 length=4
+property id=34 index=17 name=Format flags=0 in=8 out=8 count=1 length=4
+property id=34 index=18 name=SwizzledFormat flags=0 in=8 out=8 count=1 length=4
+property id=34 index=19 name=ByteOffset flags=0 in=8 out=8 count=1 length=4
+property id=34 index=20 name=Width flags=0 in=8 out=8 count=1 length=4
+property id=34 index=21 name=Height flags=0 in=8 out=8 count=1 length=4
+property id=34 index=22 name=Pitch flags=0 in=8 out=8 count=1 length=4
+property id=34 index=23 name=Depth flags=0 in=8 out=8 count=1 length=4
+property id=34 index=24 name=SlicePitch flags=0 in=8 out=8 count=1 length=4
+property id=34 index=25 name=BackingStoreWasPinned flags=0 in=13 out=13 count=1 length=4
+property id=34 index=26 name=pSectionObject flags=0 in=16 out=19 count=1 length=8
+property id=34 index=27 name=PhysicalAdapterIndex flags=0 in=6 out=6 count=1 length=2
+property id=34 index=28 name=PageTableOrDirectory flags=0 in=13 out=13 count=1 length=4
+schema id=279 status=0 properties=3 top=3
+property id=279 index=0 name=EProcess flags=0 in=16 out=19 count=1 length=8
+property id=279 index=1 name=Section flags=0 in=16 out=19 count=1 length=8
+property id=279 index=2 name=VirtualAddress flags=0 in=16 out=19 count=1 length=8
+schema id=373 status=0 properties=3 top=3
+property id=373 index=0 name=hVidmmGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=373 index=1 name=OldOwnerPid flags=0 in=8 out=8 count=1 length=4
+property id=373 index=2 name=NewOwnerPid flags=0 in=8 out=8 count=1 length=4
+schema id=280 status=0 properties=3 top=3
+property id=280 index=0 name=EProcess flags=0 in=16 out=19 count=1 length=8
+property id=280 index=1 name=Section flags=0 in=16 out=19 count=1 length=8
+property id=280 index=2 name=VirtualAddress flags=0 in=16 out=19 count=1 length=8
+schema id=319 status=0 properties=5 top=5
+property id=319 index=0 name=DWMCount flags=0 in=8 out=8 count=1 length=4
+property id=319 index=1 name=VsyncCount flags=0 in=8 out=8 count=1 length=4
+property id=319 index=2 name=VsyncFlag flags=0 in=8 out=8 count=1 length=4
+property id=319 index=3 name=VsyncWaiters flags=0 in=8 out=8 count=1 length=4
+property id=319 index=4 name=VsyncType flags=0 in=8 out=8 count=1 length=4
+schema id=1143 status=0 properties=1 top=1
+property id=1143 index=0 name=TargetDWMVSync flags=0 in=8 out=8 count=1 length=4
+schema id=1146 status=0 properties=7 top=7
+property id=1146 index=0 name=AdapterLuid flags=0 in=10 out=19 count=1 length=8
+property id=1146 index=1 name=VidPnTargetId flags=0 in=8 out=18 count=1 length=4
+property id=1146 index=2 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=1146 index=3 name=FrameQPCTime flags=0 in=9 out=9 count=1 length=8
+property id=1146 index=4 name=OldVsyncWaiters flags=0 in=8 out=8 count=1 length=4
+property id=1146 index=5 name=NewVsyncWaiters flags=0 in=8 out=8 count=1 length=4
+property id=1146 index=6 name=VSyncIdleCount flags=0 in=8 out=8 count=1 length=4
+schema id=36 status=0 properties=13 top=13
+property id=36 index=0 name=hProcessId flags=0 in=16 out=19 count=1 length=8
+property id=36 index=1 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=36 index=2 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=36 index=3 name=hVidMmAlloc flags=0 in=16 out=19 count=1 length=8
+property id=36 index=4 name=hVidMmGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=36 index=5 name=hDxgResource flags=0 in=16 out=19 count=1 length=8
+property id=36 index=6 name=hDxgSharedResource flags=0 in=16 out=19 count=1 length=8
+property id=36 index=7 name=hThunkAllocation flags=0 in=16 out=19 count=1 length=8
+property id=36 index=8 name=hThunkResource flags=0 in=16 out=19 count=1 length=8
+property id=36 index=9 name=PrivateRuntimeResourceHandle flags=0 in=16 out=19 count=1 length=8
+property id=36 index=10 name=pVirtualAddress flags=0 in=16 out=19 count=1 length=8
+property id=36 index=11 name=hProcessAllocDetails flags=0 in=16 out=19 count=1 length=8
+property id=36 index=12 name=hOtherPartitionHandle flags=0 in=8 out=18 count=1 length=4
+schema id=277 status=0 properties=1 top=1
+property id=277 index=0 name=Object flags=0 in=16 out=19 count=1 length=8
+schema id=278 status=0 properties=1 top=1
+property id=278 index=0 name=Object flags=0 in=16 out=19 count=1 length=8
+schema id=169 status=0 properties=1 top=1
+property id=169 index=0 name=pDmaBuffer flags=0 in=16 out=19 count=1 length=8
+schema id=178 status=0 properties=10 top=10
+property id=178 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=178 index=1 name=PacketType flags=0 in=8 out=8 count=1 length=4
+property id=178 index=2 name=SubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=178 index=3 name=DmaBufferSize flags=0 in=10 out=10 count=1 length=8
+property id=178 index=4 name=AllocationListSize flags=0 in=8 out=8 count=1 length=4
+property id=178 index=5 name=PatchLocationListSize flags=0 in=8 out=8 count=1 length=4
+property id=178 index=6 name=bPresent flags=0 in=13 out=13 count=1 length=4
+property id=178 index=7 name=hDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=178 index=8 name=pQueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=178 index=9 name=ProgressFenceValue flags=0 in=10 out=10 count=1 length=8
+schema id=19 status=0 properties=2 top=2
+property id=19 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=19 index=1 name=EventId flags=0 in=8 out=8 count=1 length=4
+schema id=245 status=0 properties=8 top=8
+property id=245 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=245 index=1 name=SubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=245 index=2 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=245 index=3 name=ObjectCount flags=0 in=8 out=8 count=1 length=4
+property id=245 index=4 name=ObjectArray flags=4 in=16 out=19 count=3 length=8
+property id=245 index=5 name=FenceValue flags=4 in=10 out=10 count=3 length=8
+property id=245 index=6 name=pQueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=245 index=7 name=DxgSyncObjectArray flags=4 in=16 out=19 count=3 length=8
+schema id=22 status=0 properties=2 top=2
+property id=22 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=22 index=1 name=AttemptResult flags=0 in=8 out=8 count=1 length=4
+schema id=18 status=0 properties=2 top=2
+property id=18 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=18 index=1 name=EventId flags=0 in=8 out=8 count=1 length=4
+schema id=179 status=0 properties=3 top=3
+property id=179 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=179 index=1 name=PacketType flags=0 in=8 out=8 count=1 length=4
+property id=179 index=2 name=SubmitSequence flags=0 in=8 out=8 count=1 length=4
+schema id=175 status=0 properties=7 top=7
+property id=175 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=175 index=1 name=hQueuePacketContext flags=0 in=16 out=19 count=1 length=8
+property id=175 index=2 name=PacketType flags=0 in=8 out=8 count=1 length=4
+property id=175 index=3 name=uliSubmissionId flags=0 in=10 out=10 count=1 length=8
+property id=175 index=4 name=ulQueueSubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=175 index=5 name=pDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=175 index=6 name=QuantumStatus flags=0 in=8 out=8 count=1 length=4
+schema id=298 status=0 properties=5 top=5
+property id=298 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=298 index=1 name=SyncPointId flags=0 in=10 out=10 count=1 length=8
+property id=298 index=2 name=ContextCount flags=0 in=8 out=8 count=1 length=4
+property id=298 index=3 name=ContextArray flags=4 in=16 out=19 count=2 length=8
+property id=298 index=4 name=SubmissionIdArray flags=4 in=10 out=10 count=2 length=8
+schema id=1068 status=0 properties=9 top=9
+property id=1068 index=0 name=AdapterLuid flags=0 in=10 out=19 count=1 length=8
+property id=1068 index=1 name=VidPnTargetId flags=0 in=8 out=18 count=1 length=4
+property id=1068 index=2 name=FrameNumber flags=0 in=7 out=7 count=1 length=4
+property id=1068 index=3 name=FrameQpcDisplayTime flags=0 in=9 out=9 count=1 length=8
+property id=1068 index=4 name=OriginalFrameQpcDisplayTime flags=0 in=9 out=9 count=1 length=8
+property id=1068 index=5 name=FrameSubmissionTime flags=0 in=9 out=9 count=1 length=8
+property id=1068 index=6 name=OriginalFrameQpcDisplayTimeDelta flags=0 in=9 out=9 count=1 length=8
+property id=1068 index=7 name=CalculationMethod flags=0 in=9 out=9 count=1 length=8
+property id=1068 index=8 name=PresentOnVSyncCount flags=0 in=7 out=7 count=1 length=4
+schema id=1071 status=0 properties=6 top=6
+property id=1071 index=0 name=AdapterLuid flags=0 in=10 out=19 count=1 length=8
+property id=1071 index=1 name=VidPnTargetId flags=0 in=8 out=18 count=1 length=4
+property id=1071 index=2 name=FrameNumber flags=0 in=7 out=7 count=1 length=4
+property id=1071 index=3 name=FrontOfQueue flags=0 in=13 out=13 count=1 length=4
+property id=1071 index=4 name=AddReason flags=0 in=8 out=8 count=1 length=4
+property id=1071 index=5 name=SubmissionTime flags=0 in=9 out=9 count=1 length=8
+schema id=184 status=0 properties=8 top=8
+property id=184 index=0 name=hContext flags=0 in=8 out=8 count=1 length=4
+property id=184 index=1 name=hWindow flags=0 in=16 out=19 count=1 length=8
+property id=184 index=2 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=184 index=3 name=FlipInterval flags=0 in=8 out=8 count=1 length=4
+property id=184 index=4 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=184 index=5 name=ReturnStatus flags=0 in=8 out=8 count=1 length=4
+property id=184 index=6 name=hSrcAllocHandle flags=0 in=16 out=19 count=1 length=8
+property id=184 index=7 name=hDstAllocHandle flags=0 in=16 out=19 count=1 length=8
+schema id=1072 status=0 properties=3 top=3
+property id=1072 index=0 name=AdapterLuid flags=0 in=10 out=19 count=1 length=8
+property id=1072 index=1 name=VidPnTargetId flags=0 in=8 out=18 count=1 length=4
+property id=1072 index=2 name=FrameNumber flags=0 in=7 out=7 count=1 length=4
+schema id=103 status=0 properties=1 top=1
+property id=103 index=0 name=Reason flags=0 in=8 out=8 count=1 length=4
+schema id=1144 status=0 properties=6 top=6
+property id=1144 index=0 name=TimeoutOccurred flags=0 in=13 out=13 count=1 length=4
+property id=1144 index=1 name=FrameIsDone flags=0 in=13 out=13 count=1 length=4
+property id=1144 index=2 name=LastFrameNumber flags=0 in=7 out=7 count=1 length=4
+property id=1144 index=3 name=NewPresentCount flags=0 in=7 out=7 count=1 length=4
+property id=1144 index=4 name=CurRefreshCount flags=0 in=9 out=9 count=1 length=8
+property id=1144 index=5 name=IndirectPresentTargetVSync flags=0 in=9 out=9 count=1 length=8
+schema id=244 status=0 properties=7 top=7
+property id=244 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=244 index=1 name=SubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=244 index=2 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=244 index=3 name=hSyncObject flags=0 in=16 out=19 count=1 length=8
+property id=244 index=4 name=FenceValue flags=0 in=10 out=10 count=1 length=8
+property id=244 index=5 name=pQueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=244 index=6 name=DxgSyncObject flags=0 in=16 out=19 count=1 length=8
+schema id=295 status=0 properties=4 top=4
+property id=295 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=295 index=1 name=ObjectCount flags=0 in=8 out=8 count=1 length=4
+property id=295 index=2 name=ObjectArray flags=4 in=16 out=19 count=1 length=8
+property id=295 index=3 name=MonitoredFenceValue flags=4 in=10 out=10 count=1 length=8
+schema id=252 status=0 properties=23 top=23
+property id=252 index=0 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=252 index=1 name=LayerIndex flags=0 in=8 out=8 count=1 length=4
+property id=252 index=2 name=Enabled flags=0 in=8 out=8 count=1 length=4
+property id=252 index=3 name=hAllocation flags=0 in=16 out=19 count=1 length=8
+property id=252 index=4 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=252 index=5 name=SrcRect.left flags=0 in=7 out=7 count=1 length=4
+property id=252 index=6 name=SrcRect.right flags=0 in=7 out=7 count=1 length=4
+property id=252 index=7 name=SrcRect.top flags=0 in=7 out=7 count=1 length=4
+property id=252 index=8 name=SrcRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=252 index=9 name=DstRect.left flags=0 in=7 out=7 count=1 length=4
+property id=252 index=10 name=DstRect.right flags=0 in=7 out=7 count=1 length=4
+property id=252 index=11 name=DstRect.top flags=0 in=7 out=7 count=1 length=4
+property id=252 index=12 name=DstRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=252 index=13 name=ClipRect.left flags=0 in=7 out=7 count=1 length=4
+property id=252 index=14 name=ClipRect.right flags=0 in=7 out=7 count=1 length=4
+property id=252 index=15 name=ClipRect.top flags=0 in=7 out=7 count=1 length=4
+property id=252 index=16 name=ClipRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=252 index=17 name=Rotation flags=0 in=8 out=8 count=1 length=4
+property id=252 index=18 name=Blend flags=0 in=8 out=8 count=1 length=4
+property id=252 index=19 name=NumFilters flags=0 in=8 out=8 count=1 length=4
+property id=252 index=20 name=ColorSpace flags=0 in=8 out=8 count=1 length=4
+property id=252 index=21 name=HDRMetaDataType flags=0 in=8 out=8 count=1 length=4
+property id=252 index=22 name=SDRWhiteLevel flags=0 in=8 out=8 count=1 length=4
+schema id=177 status=0 properties=9 top=9
+property id=177 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=177 index=1 name=PacketType flags=0 in=8 out=8 count=1 length=4
+property id=177 index=2 name=uliCompletionId flags=0 in=10 out=10 count=1 length=8
+property id=177 index=3 name=ulQueueSubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=177 index=4 name=InterruptType flags=0 in=8 out=8 count=1 length=4
+property id=177 index=5 name=QuantumStatus flags=0 in=8 out=8 count=1 length=4
+property id=177 index=6 name=FaultedVirtualAddress flags=0 in=10 out=19 count=1 length=8
+property id=177 index=7 name=PageFaultFlags flags=0 in=8 out=8 count=1 length=4
+property id=177 index=8 name=FaultedProcessHandle flags=0 in=16 out=19 count=1 length=8
+schema id=299 status=0 properties=2 top=2
+property id=299 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=299 index=1 name=SyncPointId flags=0 in=10 out=10 count=1 length=8
+schema id=176 status=0 properties=5 top=5
+property id=176 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=176 index=1 name=PacketType flags=0 in=8 out=8 count=1 length=4
+property id=176 index=2 name=uliCompletionId flags=0 in=10 out=10 count=1 length=8
+property id=176 index=3 name=ulQueueSubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=176 index=4 name=bPreempted flags=0 in=13 out=13 count=1 length=4
+schema id=359 status=0 properties=6 top=6
+property id=359 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=359 index=1 name=YieldCondition flags=0 in=8 out=8 count=1 length=4
+property id=359 index=2 name=Parameter0 flags=0 in=10 out=10 count=1 length=8
+property id=359 index=3 name=Parameter1 flags=0 in=10 out=10 count=1 length=8
+property id=359 index=4 name=Parameter2 flags=0 in=10 out=10 count=1 length=8
+property id=359 index=5 name=Parameter3 flags=0 in=10 out=10 count=1 length=8
+schema id=180 status=0 properties=6 top=6
+property id=180 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=180 index=1 name=PacketType flags=0 in=8 out=8 count=1 length=4
+property id=180 index=2 name=SubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=180 index=3 name=bPreempted flags=0 in=13 out=13 count=1 length=4
+property id=180 index=4 name=bTimeouted flags=0 in=13 out=13 count=1 length=4
+property id=180 index=5 name=pQueuePacket flags=0 in=16 out=19 count=1 length=8
+schema id=552 status=0 properties=8 top=8
+property id=552 index=0 name=ObjectCount flags=0 in=8 out=8 count=1 length=4
+property id=552 index=1 name=VidSchSyncObjectArray flags=4 in=16 out=19 count=0 length=8
+property id=552 index=2 name=DxgSyncObjectArray flags=4 in=16 out=19 count=0 length=8
+property id=552 index=3 name=FenceValues flags=4 in=10 out=10 count=0 length=8
+property id=552 index=4 name=AlwaysSignaled flags=4 in=13 out=13 count=0 length=4
+property id=552 index=5 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=552 index=6 name=pCpuEvent flags=0 in=16 out=19 count=1 length=8
+property id=552 index=7 name=pGuestCpuEvent flags=0 in=16 out=19 count=1 length=8
+schema id=238 status=0 properties=2 top=2
+property id=238 index=0 name=QueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=238 index=1 name=hContext flags=0 in=16 out=19 count=1 length=8
+schema id=503 status=0 properties=4 top=4
+property id=503 index=0 name=VsyncState flags=0 in=8 out=8 count=1 length=4
+property id=503 index=1 name=VSyncOnTotalTimeMs flags=0 in=10 out=10 count=1 length=8
+property id=503 index=2 name=VSyncOffKeepPhaseTotalTimeMs flags=0 in=10 out=10 count=1 length=8
+property id=503 index=3 name=VSyncOffNoPhaseTotalTimeMs flags=0 in=10 out=10 count=1 length=8
+schema id=458 status=0 properties=3 top=3
+property id=458 index=0 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=458 index=1 name=VsyncState flags=0 in=8 out=8 count=1 length=4
+property id=458 index=2 name=LastFrameTime flags=0 in=10 out=10 count=1 length=8
+schema id=247 status=0 properties=1 top=1
+property id=247 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+schema id=527 status=0 properties=4 top=4
+property id=527 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=527 index=1 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=527 index=2 name=InputFlags flags=0 in=8 out=8 count=1 length=4
+property id=527 index=3 name=OutputFlags flags=0 in=8 out=8 count=1 length=4
+schema id=528 status=0 properties=4 top=4
+property id=528 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=528 index=1 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=528 index=2 name=InputFlags flags=0 in=8 out=8 count=1 length=4
+property id=528 index=3 name=OutputFlags flags=0 in=8 out=8 count=1 length=4
+schema id=386 status=0 properties=25 top=25
+property id=386 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=386 index=1 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=386 index=2 name=PlaneCount flags=0 in=8 out=8 count=1 length=4
+property id=386 index=3 name=PresentId flags=4 in=10 out=19 count=2 length=8
+property id=386 index=4 name=InputFlags flags=0 in=8 out=8 count=1 length=4
+property id=386 index=5 name=OutputFlags flags=0 in=8 out=8 count=1 length=4
+property id=386 index=6 name=PostCompositionSrcRect.left flags=0 in=7 out=7 count=1 length=4
+property id=386 index=7 name=PostCompositionSrcRect.right flags=0 in=7 out=7 count=1 length=4
+property id=386 index=8 name=PostCompositionSrcRect.top flags=0 in=7 out=7 count=1 length=4
+property id=386 index=9 name=PostCompositionSrcRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=386 index=10 name=PostCompositionDstRect.left flags=0 in=7 out=7 count=1 length=4
+property id=386 index=11 name=PostCompositionDstRect.right flags=0 in=7 out=7 count=1 length=4
+property id=386 index=12 name=PostCompositionDstRect.top flags=0 in=7 out=7 count=1 length=4
+property id=386 index=13 name=PostCompositionDstRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=386 index=14 name=HDRMetaDataSpecified flags=0 in=13 out=13 count=1 length=4
+property id=386 index=15 name=HDRMetaDataType flags=0 in=8 out=8 count=1 length=4
+property id=386 index=16 name=FlipDoNotFlip flags=0 in=13 out=13 count=1 length=4
+property id=386 index=17 name=FlipIntervalTarget flags=0 in=7 out=7 count=1 length=4
+property id=386 index=18 name=Duration flags=0 in=8 out=8 count=1 length=4
+property id=386 index=19 name=ThisFlipEarliestIdealTimeQpc flags=0 in=21 out=19 count=1 length=8
+property id=386 index=20 name=TargetFlipTimeQpc flags=0 in=21 out=19 count=1 length=8
+property id=386 index=21 name=TargetFlipTimeDeltaMs flags=0 in=8 out=8 count=1 length=4
+property id=386 index=22 name=LayerIndex flags=4 in=8 out=8 count=2 length=4
+property id=386 index=23 name=FlipSubmitSequence flags=0 in=8 out=8 count=1 length=4
+property id=386 index=24 name=FlipPresentId flags=0 in=8 out=8 count=1 length=4
+schema id=259 status=0 properties=26 top=26
+property id=259 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=259 index=1 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=259 index=2 name=LayerIndex flags=0 in=8 out=8 count=1 length=4
+property id=259 index=3 name=FlipSubmitSequence flags=0 in=10 out=19 count=1 length=8
+property id=259 index=4 name=FlipToDriverAllocation flags=0 in=16 out=19 count=1 length=8
+property id=259 index=5 name=FlipToPhysicalAddress flags=0 in=10 out=10 count=1 length=8
+property id=259 index=6 name=FlipToSegmentId flags=0 in=8 out=8 count=1 length=4
+property id=259 index=7 name=FlipPresentId flags=0 in=8 out=8 count=1 length=4
+property id=259 index=8 name=FlipPhysicalAdapterMask flags=0 in=8 out=8 count=1 length=4
+property id=259 index=9 name=SrcRect.left flags=0 in=7 out=7 count=1 length=4
+property id=259 index=10 name=SrcRect.right flags=0 in=7 out=7 count=1 length=4
+property id=259 index=11 name=SrcRect.top flags=0 in=7 out=7 count=1 length=4
+property id=259 index=12 name=SrcRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=259 index=13 name=DstRect.left flags=0 in=7 out=7 count=1 length=4
+property id=259 index=14 name=DstRect.right flags=0 in=7 out=7 count=1 length=4
+property id=259 index=15 name=DstRect.top flags=0 in=7 out=7 count=1 length=4
+property id=259 index=16 name=DstRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=259 index=17 name=ClipRect.left flags=0 in=7 out=7 count=1 length=4
+property id=259 index=18 name=ClipRect.right flags=0 in=7 out=7 count=1 length=4
+property id=259 index=19 name=ClipRect.top flags=0 in=7 out=7 count=1 length=4
+property id=259 index=20 name=ClipRect.bottom flags=0 in=7 out=7 count=1 length=4
+property id=259 index=21 name=ColorSpace flags=0 in=8 out=8 count=1 length=4
+property id=259 index=22 name=FlipEntryStatusAfterFlip flags=0 in=8 out=8 count=1 length=4
+property id=259 index=23 name=Enabled flags=0 in=13 out=13 count=1 length=4
+property id=259 index=24 name=SDRWhiteLevel flags=0 in=8 out=8 count=1 length=4
+property id=259 index=25 name=DirtyRectCount flags=0 in=8 out=8 count=1 length=4
+schema id=437 status=0 properties=6 top=6
+property id=437 index=0 name=FinalEvent flags=0 in=13 out=13 count=1 length=4
+property id=437 index=1 name=RectCount flags=0 in=8 out=8 count=1 length=4
+property id=437 index=2 name=Left flags=4 in=7 out=7 count=1 length=4
+property id=437 index=3 name=Right flags=4 in=7 out=7 count=1 length=4
+property id=437 index=4 name=Top flags=4 in=7 out=7 count=1 length=4
+property id=437 index=5 name=Bottom flags=4 in=7 out=7 count=1 length=4
+schema id=312 status=0 properties=7 top=7
+property id=312 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=312 index=1 name=hDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=312 index=2 name=ContinueNextBuffer flags=0 in=13 out=13 count=1 length=4
+property id=312 index=3 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=312 index=4 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+property id=312 index=5 name=SegmentOffset flags=0 in=10 out=19 count=1 length=8
+property id=312 index=6 name=Flags flags=0 in=8 out=8 count=1 length=4
+schema id=59 status=0 properties=8 top=8
+property id=59 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=59 index=1 name=hDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=59 index=2 name=ContinueNextBuffer flags=0 in=13 out=13 count=1 length=4
+property id=59 index=3 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=59 index=4 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+property id=59 index=5 name=OffsetInPages flags=0 in=10 out=10 count=1 length=8
+property id=59 index=6 name=NumberOfPages flags=0 in=10 out=10 count=1 length=8
+property id=59 index=7 name=EvictionResource flags=0 in=13 out=13 count=1 length=4
+schema id=52 status=0 properties=4 top=4
+property id=52 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=52 index=1 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=52 index=2 name=size flags=0 in=10 out=10 count=1 length=8
+property id=52 index=3 name=bTemporary flags=0 in=13 out=13 count=1 length=4
+schema id=31 status=0 properties=12 top=12
+property id=31 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=31 index=1 name=NodeOrdinal flags=0 in=8 out=8 count=1 length=4
+property id=31 index=2 name=EngineAffinity flags=0 in=8 out=8 count=1 length=4
+property id=31 index=3 name=DmaBufferSize flags=0 in=8 out=8 count=1 length=4
+property id=31 index=4 name=DmaBufferSegmentSet flags=0 in=8 out=8 count=1 length=4
+property id=31 index=5 name=DmaBufferPrivateDataSize flags=0 in=8 out=8 count=1 length=4
+property id=31 index=6 name=AllocationListSize flags=0 in=8 out=8 count=1 length=4
+property id=31 index=7 name=PatchLocationListSize flags=0 in=8 out=8 count=1 length=4
+property id=31 index=8 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=31 index=9 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=31 index=10 name=ContextHandle flags=0 in=16 out=19 count=1 length=8
+property id=31 index=11 name=ParentDxgContext flags=0 in=16 out=19 count=1 length=8
+schema id=181 status=0 properties=3 top=3
+property id=181 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=181 index=1 name=VidPnTargetId flags=0 in=8 out=18 count=1 length=4
+property id=181 index=2 name=ScannedPhysicalAddress flags=0 in=10 out=19 count=1 length=8
+schema id=506 status=0 properties=2 top=2
+property id=506 index=0 name=CurrentSmoothenedVSyncPeriodQpc flags=0 in=10 out=10 count=1 length=8
+property id=506 index=1 name=NewDefaultVSyncPeriodQpc flags=0 in=10 out=10 count=1 length=8
+schema id=529 status=0 properties=1 top=1
+property id=529 index=0 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+schema id=17 status=0 properties=9 top=9
+property id=17 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=17 index=1 name=VidPnTargetId flags=0 in=8 out=18 count=1 length=4
+property id=17 index=2 name=ScannedPhysicalAddress flags=0 in=10 out=10 count=1 length=8
+property id=17 index=3 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=17 index=4 name=FrameNumber flags=0 in=8 out=8 count=1 length=4
+property id=17 index=5 name=FrameQPCTime flags=0 in=9 out=9 count=1 length=8
+property id=17 index=6 name=hFlipDevice flags=0 in=16 out=19 count=1 length=8
+property id=17 index=7 name=FlipType flags=0 in=8 out=8 count=1 length=4
+property id=17 index=8 name=FlipFenceId flags=0 in=10 out=10 count=1 length=8
+schema id=273 status=0 properties=11 top=11
+property id=273 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=273 index=1 name=PlaneCount flags=0 in=8 out=8 count=1 length=4
+property id=273 index=2 name=PresentIdOrPhysicalAddress flags=4 in=10 out=19 count=1 length=8
+property id=273 index=3 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=273 index=4 name=FrameNumber flags=0 in=8 out=8 count=1 length=4
+property id=273 index=5 name=FlipEntryCount flags=0 in=8 out=8 count=1 length=4
+property id=273 index=6 name=FlipSubmitSequence flags=4 in=10 out=19 count=5 length=8
+property id=273 index=7 name=FlipQueues flags=0 in=8 out=8 count=1 length=4
+property id=273 index=8 name=FlipQueueIntervalTarget flags=4 in=8 out=18 count=7 length=4
+property id=273 index=9 name=NonBoostedVsyncFrame flags=0 in=13 out=13 count=1 length=4
+property id=273 index=10 name=InterruptTargetPresentId flags=4 in=10 out=19 count=1 length=8
+schema id=341 status=0 properties=1 top=1
+property id=341 index=0 name=pAlloc flags=0 in=16 out=19 count=1 length=8
+schema id=28 status=0 properties=10 top=10
+property id=28 index=0 name=hProcessId flags=0 in=16 out=19 count=1 length=8
+property id=28 index=1 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=28 index=2 name=ClientType flags=0 in=8 out=8 count=1 length=4
+property id=28 index=3 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=28 index=4 name=RequestVSync flags=0 in=13 out=13 count=1 length=4
+property id=28 index=5 name=DisableGpuTimeout flags=0 in=13 out=13 count=1 length=4
+property id=28 index=6 name=hThunkHandle flags=0 in=8 out=18 count=1 length=4
+property id=28 index=7 name=DxgProcess flags=0 in=16 out=19 count=1 length=8
+property id=28 index=8 name=HostDeviceHandle flags=0 in=8 out=8 count=1 length=4
+property id=28 index=9 name=VirtualGpu flags=0 in=16 out=19 count=1 length=8
+schema id=122 status=0 properties=2 top=2
+property id=122 index=0 name=DeviceObject flags=0 in=16 out=19 count=1 length=8
+property id=122 index=1 name=Status flags=0 in=8 out=31 count=1 length=4
+schema id=123 status=0 properties=2 top=2
+property id=123 index=0 name=DeviceObject flags=0 in=16 out=19 count=1 length=8
+property id=123 index=1 name=Status flags=0 in=8 out=31 count=1 length=4
+schema id=124 status=0 properties=2 top=2
+property id=124 index=0 name=DeviceObject flags=0 in=16 out=19 count=1 length=8
+property id=124 index=1 name=Status flags=0 in=8 out=31 count=1 length=4
+schema id=125 status=0 properties=2 top=2
+property id=125 index=0 name=DeviceObject flags=0 in=16 out=19 count=1 length=8
+property id=125 index=1 name=Status flags=0 in=8 out=31 count=1 length=4
+schema id=289 status=0 properties=4 top=4
+property id=289 index=0 name=ProcessId flags=0 in=8 out=8 count=1 length=4
+property id=289 index=1 name=Handle flags=0 in=16 out=19 count=1 length=8
+property id=289 index=2 name=Size flags=0 in=10 out=10 count=1 length=8
+property id=289 index=3 name=hProcessAlloc flags=0 in=16 out=19 count=1 length=8
+schema id=248 status=0 properties=1 top=1
+property id=248 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+schema id=471 status=0 properties=4 top=4
+property id=471 index=0 name=DxgProcess flags=0 in=16 out=19 count=1 length=8
+property id=471 index=1 name=ProcessId flags=0 in=16 out=19 count=1 length=8
+property id=471 index=2 name=HostProcessHandle flags=0 in=8 out=8 count=1 length=4
+property id=471 index=3 name=ProcessFlags flags=0 in=8 out=8 count=1 length=4
+schema id=1122 status=0 properties=2 top=2
+property id=1122 index=0 name=VsyncType flags=0 in=8 out=8 count=1 length=4
+property id=1122 index=1 name=VsyncEvent flags=0 in=8 out=8 count=1 length=4
+schema id=532 status=0 properties=4 top=4
+property id=532 index=0 name=DxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=532 index=1 name=pVidMmDevice flags=0 in=16 out=19 count=1 length=8
+property id=532 index=2 name=pPagingQueue flags=0 in=16 out=19 count=1 length=8
+property id=532 index=3 name=Flags flags=0 in=8 out=8 count=1 length=4
+schema id=290 status=0 properties=6 top=6
+property id=290 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+property id=290 index=1 name=hSyncObject flags=0 in=16 out=19 count=1 length=8
+property id=290 index=2 name=Reason flags=0 in=8 out=8 count=1 length=4
+property id=290 index=3 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=290 index=4 name=SharedHandle flags=0 in=16 out=19 count=1 length=8
+property id=290 index=5 name=InitialValue flags=0 in=10 out=10 count=1 length=8
+schema id=27 status=0 properties=10 top=10
+property id=27 index=0 name=hProcessId flags=0 in=16 out=19 count=1 length=8
+property id=27 index=1 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=27 index=2 name=ClientType flags=0 in=8 out=8 count=1 length=4
+property id=27 index=3 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=27 index=4 name=RequestVSync flags=0 in=13 out=13 count=1 length=4
+property id=27 index=5 name=DisableGpuTimeout flags=0 in=13 out=13 count=1 length=4
+property id=27 index=6 name=hThunkHandle flags=0 in=8 out=18 count=1 length=4
+property id=27 index=7 name=DxgProcess flags=0 in=16 out=19 count=1 length=8
+property id=27 index=8 name=HostDeviceHandle flags=0 in=8 out=8 count=1 length=4
+property id=27 index=9 name=VirtualGpu flags=0 in=16 out=19 count=1 length=8
+schema id=33 status=0 properties=29 top=29
+property id=33 index=0 name=hProcessId flags=0 in=16 out=19 count=1 length=8
+property id=33 index=1 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=33 index=2 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=33 index=3 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=33 index=4 name=allocSize flags=0 in=10 out=10 count=1 length=8
+property id=33 index=5 name=ulAlignment flags=0 in=8 out=8 count=1 length=4
+property id=33 index=6 name=dwReadSegment flags=0 in=8 out=8 count=1 length=4
+property id=33 index=7 name=dwWriteSegment flags=0 in=8 out=8 count=1 length=4
+property id=33 index=8 name=PreferredSegment flags=0 in=8 out=8 count=1 length=4
+property id=33 index=9 name=HintedBank flags=0 in=8 out=8 count=1 length=4
+property id=33 index=10 name=dwEvictionSegment flags=0 in=8 out=8 count=1 length=4
+property id=33 index=11 name=Priority flags=0 in=8 out=18 count=1 length=4
+property id=33 index=12 name=hVidMmGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=33 index=13 name=hDxgGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=33 index=14 name=hDxgSharedResource flags=0 in=16 out=19 count=1 length=8
+property id=33 index=15 name=UsageVersion flags=0 in=8 out=8 count=1 length=4
+property id=33 index=16 name=UsageFlags flags=0 in=8 out=8 count=1 length=4
+property id=33 index=17 name=Format flags=0 in=8 out=8 count=1 length=4
+property id=33 index=18 name=SwizzledFormat flags=0 in=8 out=8 count=1 length=4
+property id=33 index=19 name=ByteOffset flags=0 in=8 out=8 count=1 length=4
+property id=33 index=20 name=Width flags=0 in=8 out=8 count=1 length=4
+property id=33 index=21 name=Height flags=0 in=8 out=8 count=1 length=4
+property id=33 index=22 name=Pitch flags=0 in=8 out=8 count=1 length=4
+property id=33 index=23 name=Depth flags=0 in=8 out=8 count=1 length=4
+property id=33 index=24 name=SlicePitch flags=0 in=8 out=8 count=1 length=4
+property id=33 index=25 name=BackingStoreWasPinned flags=0 in=13 out=13 count=1 length=4
+property id=33 index=26 name=pSectionObject flags=0 in=16 out=19 count=1 length=8
+property id=33 index=27 name=PhysicalAdapterIndex flags=0 in=6 out=6 count=1 length=2
+property id=33 index=28 name=PageTableOrDirectory flags=0 in=13 out=13 count=1 length=4
+schema id=288 status=0 properties=4 top=4
+property id=288 index=0 name=ProcessId flags=0 in=8 out=8 count=1 length=4
+property id=288 index=1 name=Handle flags=0 in=16 out=19 count=1 length=8
+property id=288 index=2 name=Size flags=0 in=10 out=10 count=1 length=8
+property id=288 index=3 name=hProcessAlloc flags=0 in=16 out=19 count=1 length=8
+schema id=322 status=0 properties=7 top=7
+property id=322 index=0 name=DxgDevice flags=0 in=16 out=19 count=1 length=8
+property id=322 index=1 name=PagingQueue flags=0 in=16 out=19 count=1 length=8
+property id=322 index=2 name=PagingQueuePacket flags=0 in=16 out=19 count=1 length=8
+property id=322 index=3 name=SequenceId flags=0 in=10 out=10 count=1 length=8
+property id=322 index=4 name=VidMmOpType flags=0 in=8 out=8 count=1 length=4
+property id=322 index=5 name=Alloc flags=0 in=16 out=19 count=1 length=8
+property id=322 index=6 name=PagingQueueType flags=0 in=8 out=8 count=1 length=4
+schema id=297 status=0 properties=6 top=6
+property id=297 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=297 index=1 name=ObjectCount flags=0 in=8 out=8 count=1 length=4
+property id=297 index=2 name=ObjectArray flags=4 in=16 out=19 count=1 length=8
+property id=297 index=3 name=MonitoredFenceValue flags=4 in=10 out=10 count=1 length=8
+property id=297 index=4 name=hAsyncEvent flags=0 in=16 out=19 count=1 length=8
+property id=297 index=5 name=Flags flags=0 in=8 out=8 count=1 length=4
+schema id=71 status=0 properties=2 top=2
+property id=71 index=0 name=pVidMmGlobalAlloc flags=0 in=16 out=19 count=1 length=8
+property id=71 index=1 name=Reason flags=0 in=8 out=8 count=1 length=4
+schema id=67 status=0 properties=8 top=8
+property id=67 index=0 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+property id=67 index=1 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=67 index=2 name=MinAddress flags=0 in=10 out=10 count=1 length=8
+property id=67 index=3 name=MaxAddress flags=0 in=10 out=10 count=1 length=8
+property id=67 index=4 name=NoEvict flags=0 in=13 out=13 count=1 length=4
+property id=67 index=5 name=TrimmingPriorityLimit flags=0 in=8 out=18 count=1 length=4
+property id=67 index=6 name=Restriction flags=0 in=8 out=8 count=1 length=4
+property id=67 index=7 name=ProcessCommittedState flags=0 in=8 out=8 count=1 length=4
+schema id=68 status=0 properties=1 top=1
+property id=68 index=0 name=Status flags=0 in=8 out=31 count=1 length=4
+schema id=313 status=0 properties=3 top=3
+property id=313 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=313 index=1 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=313 index=2 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+schema id=73 status=0 properties=1 top=1
+property id=73 index=0 name=hAllocationHandle flags=0 in=16 out=19 count=1 length=8
+schema id=46 status=0 properties=2 top=2
+property id=46 index=0 name=hAllocationHandle flags=0 in=16 out=19 count=1 length=8
+property id=46 index=1 name=Priority flags=0 in=8 out=18 count=1 length=4
+schema id=58 status=0 properties=9 top=9
+property id=58 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=58 index=1 name=hDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=58 index=2 name=ContinueNextBuffer flags=0 in=13 out=13 count=1 length=4
+property id=58 index=3 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=58 index=4 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+property id=58 index=5 name=OffsetInPages flags=0 in=10 out=10 count=1 length=8
+property id=58 index=6 name=NumberOfPages flags=0 in=10 out=10 count=1 length=8
+property id=58 index=7 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=58 index=8 name=EvictionResource flags=0 in=13 out=13 count=1 length=4
+schema id=51 status=0 properties=4 top=4
+property id=51 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=51 index=1 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=51 index=2 name=size flags=0 in=10 out=10 count=1 length=8
+property id=51 index=3 name=bTemporary flags=0 in=13 out=13 count=1 length=4
+schema id=50 status=0 properties=6 top=6
+property id=50 index=0 name=hProcessId flags=0 in=16 out=19 count=1 length=8
+property id=50 index=1 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=50 index=2 name=pDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=50 index=3 name=offset flags=0 in=10 out=10 count=1 length=8
+property id=50 index=4 name=size flags=0 in=10 out=10 count=1 length=8
+property id=50 index=5 name=uiType flags=0 in=8 out=8 count=1 length=4
+schema id=308 status=0 properties=8 top=8
+property id=308 index=0 name=pDxgAdapter flags=0 in=16 out=19 count=1 length=8
+property id=308 index=1 name=hDmaBuffer flags=0 in=16 out=19 count=1 length=8
+property id=308 index=2 name=ContinueNextBuffer flags=0 in=13 out=13 count=1 length=4
+property id=308 index=3 name=hAllocationGlobalHandle flags=0 in=16 out=19 count=1 length=8
+property id=308 index=4 name=SegmentId flags=0 in=8 out=8 count=1 length=4
+property id=308 index=5 name=SegmentAddress flags=0 in=10 out=19 count=1 length=8
+property id=308 index=6 name=VirtualAddress flags=0 in=16 out=19 count=1 length=8
+property id=308 index=7 name=GpuVirtualAddress flags=0 in=10 out=19 count=1 length=8
+schema id=30 status=0 properties=12 top=12
+property id=30 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=30 index=1 name=NodeOrdinal flags=0 in=8 out=8 count=1 length=4
+property id=30 index=2 name=EngineAffinity flags=0 in=8 out=8 count=1 length=4
+property id=30 index=3 name=DmaBufferSize flags=0 in=8 out=8 count=1 length=4
+property id=30 index=4 name=DmaBufferSegmentSet flags=0 in=8 out=8 count=1 length=4
+property id=30 index=5 name=DmaBufferPrivateDataSize flags=0 in=8 out=8 count=1 length=4
+property id=30 index=6 name=AllocationListSize flags=0 in=8 out=8 count=1 length=4
+property id=30 index=7 name=PatchLocationListSize flags=0 in=8 out=8 count=1 length=4
+property id=30 index=8 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=30 index=9 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=30 index=10 name=ContextHandle flags=0 in=16 out=19 count=1 length=8
+property id=30 index=11 name=ParentDxgContext flags=0 in=16 out=19 count=1 length=8
+schema id=21 status=0 properties=7 top=7
+property id=21 index=0 name=hContext flags=0 in=16 out=19 count=1 length=8
+property id=21 index=1 name=PublicPriority flags=0 in=8 out=8 count=1 length=4
+property id=21 index=2 name=SchedulingPriority flags=0 in=8 out=8 count=1 length=4
+property id=21 index=3 name=KnownProcessBoostEnabled flags=0 in=13 out=13 count=1 length=4
+property id=21 index=4 name=HighPriorityRunsToCompletion flags=0 in=13 out=13 count=1 length=4
+property id=21 index=5 name=IgnoreGpuPriorityChange flags=0 in=13 out=13 count=1 length=4
+property id=21 index=6 name=SmallQuantumEnabled flags=0 in=13 out=13 count=1 length=4
+schema id=433 status=0 properties=4 top=4
+property id=433 index=0 name=pDxgObject flags=0 in=16 out=19 count=1 length=8
+property id=433 index=1 name=pSchObject flags=0 in=16 out=19 count=1 length=8
+property id=433 index=2 name=hKmdHandle flags=0 in=16 out=19 count=1 length=8
+property id=433 index=3 name=hOsHandle flags=0 in=16 out=19 count=1 length=8
+schema id=1069 status=0 properties=4 top=4
+property id=1069 index=0 name=pSyncObject flags=0 in=16 out=19 count=1 length=8
+property id=1069 index=1 name=KMTHandle flags=0 in=16 out=19 count=1 length=8
+property id=1069 index=2 name=pDxgDevice flags=0 in=16 out=19 count=1 length=8
+property id=1069 index=3 name=pDxgSyncObject flags=0 in=16 out=19 count=1 length=8
+schema id=171 status=0 properties=8 top=8
+property id=171 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+property id=171 index=1 name=Token flags=0 in=16 out=19 count=1 length=8
+property id=171 index=2 name=Model flags=0 in=8 out=8 count=1 length=4
+property id=171 index=3 name=TokenSize flags=0 in=8 out=8 count=1 length=4
+property id=171 index=4 name=TokenData flags=0 in=10 out=10 count=1 length=8
+property id=171 index=5 name=Flags flags=0 in=20 out=18 count=1 length=4
+property id=171 index=6 name=CustomDuration flags=0 in=8 out=8 count=1 length=4
+property id=171 index=7 name=VmBusChannel flags=0 in=16 out=19 count=1 length=8
+schema id=1105 status=0 properties=6 top=6
+property id=1105 index=0 name=hSyncObj flags=0 in=8 out=8 count=1 length=4
+property id=1105 index=1 name=VidPnSourceId flags=0 in=8 out=8 count=1 length=4
+property id=1105 index=2 name=hCompSurface flags=0 in=10 out=10 count=1 length=8
+property id=1105 index=3 name=CompSurfaceLuid flags=0 in=10 out=10 count=1 length=8
+property id=1105 index=4 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=1105 index=5 name=ReturnStatus flags=0 in=8 out=8 count=1 length=4
+schema id=172 status=0 properties=8 top=8
+property id=172 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+property id=172 index=1 name=Token flags=0 in=16 out=19 count=1 length=8
+property id=172 index=2 name=Model flags=0 in=8 out=8 count=1 length=4
+property id=172 index=3 name=TokenSize flags=0 in=8 out=8 count=1 length=4
+property id=172 index=4 name=TokenData flags=0 in=10 out=10 count=1 length=8
+property id=172 index=5 name=Flags flags=0 in=20 out=18 count=1 length=4
+property id=172 index=6 name=CustomDuration flags=0 in=8 out=8 count=1 length=4
+property id=172 index=7 name=VmBusChannel flags=0 in=16 out=19 count=1 length=8
+schema id=173 status=0 properties=8 top=8
+property id=173 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+property id=173 index=1 name=Token flags=0 in=16 out=19 count=1 length=8
+property id=173 index=2 name=Model flags=0 in=8 out=8 count=1 length=4
+property id=173 index=3 name=TokenSize flags=0 in=8 out=8 count=1 length=4
+property id=173 index=4 name=TokenData flags=0 in=10 out=10 count=1 length=8
+property id=173 index=5 name=Flags flags=0 in=20 out=18 count=1 length=4
+property id=173 index=6 name=CustomDuration flags=0 in=8 out=8 count=1 length=4
+property id=173 index=7 name=VmBusChannel flags=0 in=16 out=19 count=1 length=8
+schema id=467 status=0 properties=3 top=3
+property id=467 index=0 name=DxgDevice flags=0 in=16 out=19 count=1 length=8
+property id=467 index=1 name=FromUserMode flags=0 in=13 out=13 count=1 length=4
+property id=467 index=2 name=Reason flags=0 in=8 out=8 count=1 length=4
+schema id=553 status=0 properties=3 top=3
+property id=553 index=0 name=VidSchSyncObject flags=0 in=16 out=19 count=1 length=8
+property id=553 index=1 name=DxgSyncObject flags=0 in=16 out=19 count=1 length=8
+property id=553 index=2 name=AlwaysSignaled flags=0 in=13 out=13 count=1 length=4
+schema id=215 status=0 properties=29 top=29
+property id=215 index=0 name=hAdapter flags=0 in=16 out=19 count=1 length=8
+property id=215 index=1 name=Token flags=0 in=16 out=19 count=1 length=8
+property id=215 index=2 name=Model flags=0 in=8 out=8 count=1 length=4
+property id=215 index=3 name=TokenSize flags=0 in=8 out=8 count=1 length=4
+property id=215 index=4 name=TokenData flags=0 in=10 out=10 count=1 length=8
+property id=215 index=5 name=Flags flags=0 in=20 out=18 count=1 length=4
+property id=215 index=6 name=CustomDuration flags=0 in=8 out=8 count=1 length=4
+property id=215 index=7 name=ScrollRect.left flags=0 in=8 out=8 count=1 length=4
+property id=215 index=8 name=ScrollRect.right flags=0 in=8 out=8 count=1 length=4
+property id=215 index=9 name=ScrollRect.top flags=0 in=8 out=8 count=1 length=4
+property id=215 index=10 name=ScrollRect.bottom flags=0 in=8 out=8 count=1 length=4
+property id=215 index=11 name=ScrollOffset.X flags=0 in=8 out=8 count=1 length=4
+property id=215 index=12 name=ScrollOffset.Y flags=0 in=8 out=8 count=1 length=4
+property id=215 index=13 name=DirtyRectCount flags=0 in=8 out=8 count=1 length=4
+property id=215 index=14 name=Left flags=4 in=7 out=7 count=13 length=4
+property id=215 index=15 name=Right flags=4 in=7 out=7 count=13 length=4
+property id=215 index=16 name=Top flags=4 in=7 out=7 count=13 length=4
+property id=215 index=17 name=Bottom flags=4 in=7 out=7 count=13 length=4
+property id=215 index=18 name=SourceRect.left flags=0 in=8 out=8 count=1 length=4
+property id=215 index=19 name=SourceRect.right flags=0 in=8 out=8 count=1 length=4
+property id=215 index=20 name=SourceRect.top flags=0 in=8 out=8 count=1 length=4
+property id=215 index=21 name=SourceRect.bottom flags=0 in=8 out=8 count=1 length=4
+property id=215 index=22 name=DestWidth flags=0 in=8 out=8 count=1 length=4
+property id=215 index=23 name=DestHeight flags=0 in=8 out=8 count=1 length=4
+property id=215 index=24 name=TargetRect.left flags=0 in=8 out=8 count=1 length=4
+property id=215 index=25 name=TargetRect.right flags=0 in=8 out=8 count=1 length=4
+property id=215 index=26 name=TargetRect.top flags=0 in=8 out=8 count=1 length=4
+property id=215 index=27 name=TargetRect.bottom flags=0 in=8 out=8 count=1 length=4
+property id=215 index=28 name=VmBusChannel flags=0 in=16 out=19 count=1 length=8
+schema id=42 status=0 properties=3 top=3
+property id=42 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=42 index=1 name=hAllocationHandle flags=0 in=16 out=19 count=1 length=8
+property id=42 index=2 name=dwFlags flags=0 in=8 out=8 count=1 length=4
+schema id=462 status=0 properties=3 top=3
+property id=462 index=0 name=Flags flags=0 in=8 out=8 count=1 length=4
+property id=462 index=1 name=Object flags=0 in=16 out=19 count=1 length=8
+property id=462 index=2 name=MonitoredFenceValue flags=0 in=10 out=10 count=1 length=8
+schema id=41 status=0 properties=4 top=4
+property id=41 index=0 name=hDevice flags=0 in=16 out=19 count=1 length=8
+property id=41 index=1 name=hAllocationHandle flags=0 in=16 out=19 count=1 length=8
+property id=41 index=2 name=dwFlags flags=0 in=8 out=8 count=1 length=4
+property id=41 index=3 name=uiLockStatus flags=0 in=8 out=8 count=1 length=4
+schema id=132 status=0 properties=4 top=4
+property id=132 index=0 name=DeviceObject flags=0 in=16 out=19 count=1 length=8
+property id=132 index=1 name=StackLocationSize flags=0 in=6 out=6 count=1 length=2
+property id=132 index=2 name=StackLocation flags=2 in=14 out=15 count=1 length=1
+property id=132 index=3 name=Status flags=0 in=8 out=31 count=1 length=4
+schema id=133 status=0 properties=2 top=2
+property id=133 index=0 name=DeviceObject flags=0 in=16 out=19 count=1 length=8
+property id=133 index=1 name=Status flags=0 in=8 out=31 count=1 length=4
+schema id=496 status=0 properties=2 top=2
+property id=496 index=0 name=BoostedVSyncFreqEligible flags=0 in=13 out=13 count=1 length=4
+property id=496 index=1 name=IsNonBoostedVsyncFrame flags=0 in=13 out=13 count=1 length=4
+count id=17 events=12
+count id=18 events=26923
+count id=19 events=26923
+count id=21 events=21
+count id=22 events=12866
+count id=27 events=3
+count id=28 events=4
+count id=30 events=21
+count id=31 events=28
+count id=33 events=1296
+count id=34 events=1529
+count id=36 events=1321
+count id=37 events=1564
+count id=39 events=424
+count id=41 events=20
+count id=42 events=22
+count id=46 events=236
+count id=50 events=63
+count id=51 events=36
+count id=52 events=48
+count id=58 events=36
+count id=59 events=48
+count id=67 events=1284
+count id=68 events=1284
+count id=71 events=1285
+count id=72 events=1518
+count id=73 events=1296
+count id=74 events=1139
+count id=103 events=5131
+count id=109 events=15
+count id=122 events=272
+count id=123 events=272
+count id=124 events=544
+count id=125 events=544
+count id=132 events=3
+count id=133 events=3
+count id=169 events=10075
+count id=171 events=2943
+count id=172 events=4903
+count id=173 events=4903
+count id=175 events=10220
+count id=176 events=10220
+count id=177 events=10220
+count id=178 events=12047
+count id=179 events=92339
+count id=180 events=79477
+count id=181 events=12
+count id=182 events=5053
+count id=184 events=3765
+count id=215 events=1960
+count id=238 events=12768
+count id=244 events=12768
+count id=245 events=54662
+count id=247 events=3
+count id=248 events=3
+count id=252 events=3
+count id=259 events=3
+count id=273 events=12
+count id=274 events=2801
+count id=277 events=109
+count id=278 events=109
+count id=279 events=19
+count id=280 events=19
+count id=281 events=1809
+count id=282 events=1809
+count id=288 events=142
+count id=289 events=36
+count id=290 events=203
+count id=292 events=260
+count id=294 events=65659
+count id=295 events=27371
+count id=297 events=5663
+count id=298 events=6
+count id=299 events=6
+count id=300 events=6145
+count id=308 events=63
+count id=309 events=2686
+count id=310 events=853
+count id=312 events=84
+count id=313 events=1248
+count id=314 events=1469
+count id=318 events=1919
+count id=319 events=1682
+count id=322 events=1002
+count id=323 events=382
+count id=324 events=1384
+count id=325 events=1384
+count id=329 events=60
+count id=341 events=13
+count id=359 events=21
+count id=373 events=11
+count id=386 events=3
+count id=433 events=21
+count id=437 events=3
+count id=458 events=9
+count id=462 events=6
+count id=467 events=2
+count id=471 events=134
+count id=473 events=137
+count id=496 events=2
+count id=502 events=11466
+count id=503 events=9
+count id=506 events=3
+count id=507 events=5733
+count id=527 events=3
+count id=528 events=3
+count id=529 events=6
+count id=532 events=9
+count id=551 events=14342
+count id=552 events=54662
+count id=553 events=107
+count id=1066 events=9967
+count id=1067 events=11907
+count id=1068 events=1804
+count id=1069 events=194
+count id=1071 events=4455
+count id=1072 events=4455
+count id=1105 events=2942
+count id=1121 events=12
+count id=1122 events=12
+count id=1141 events=5653
+count id=1142 events=5665
+count id=1143 events=1940
+count id=1144 events=4455
+count id=1146 events=1940
+summary status=0 total=684883 selected=684881

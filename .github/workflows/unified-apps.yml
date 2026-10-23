@@ -1,9 +1,9 @@
 name: Unified Viewflow applications
 on:
   push:
-    paths: ['platform/desktop-app/**', 'platform/macos-app/**', 'tools/build-*-app.py', 'tools/package-windows-msi.py', 'crates/**', 'platform/windows-*/**', 'Cargo.*', 'tools/export-app-connection.py', 'tools/tests/unified-apps-test.py', '.github/workflows/unified-apps.yml']
+    paths: ['platform/branding/**', 'tools/generate-brand-assets.py', 'platform/desktop-app/**', 'platform/macos-app/**', 'tools/build-*-app.py', 'tools/package-windows-msi.py', 'crates/**', 'platform/windows-*/**', 'Cargo.*', 'tools/export-app-connection.py', 'tools/tests/unified-apps-test.py', '.github/workflows/unified-apps.yml']
   pull_request:
-    paths: ['platform/desktop-app/**', 'platform/macos-app/**', 'tools/build-*-app.py', 'tools/package-windows-msi.py', 'crates/**', 'platform/windows-*/**', 'Cargo.*', 'tools/export-app-connection.py', 'tools/tests/unified-apps-test.py', '.github/workflows/unified-apps.yml']
+    paths: ['platform/branding/**', 'tools/generate-brand-assets.py', 'platform/desktop-app/**', 'platform/macos-app/**', 'tools/build-*-app.py', 'tools/package-windows-msi.py', 'crates/**', 'platform/windows-*/**', 'Cargo.*', 'tools/export-app-connection.py', 'tools/tests/unified-apps-test.py', '.github/workflows/unified-apps.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,8 +23,13 @@ jobs:
       - name: Install build tooling
         run: |
           rustup toolchain install stable --profile minimal
-          python -m pip install pyinstaller==6.22.0
+          python -m pip install -r platform/desktop-app/requirements.txt
           dotnet tool install --global wix --version 4.0.6
+      - name: Verify Qt Quick pages and controller without desktop input
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QT_QUICK_BACKEND: software
+        run: python -m unittest discover -s platform/desktop-app -p test_qt_app.py
       - name: Build complete Windows application and installer
         shell: pwsh
         run: |
@@ -48,6 +53,13 @@ jobs:
           }
           $check = Start-Process (Join-Path $manifest.DirectoryName 'Viewflow.exe') -ArgumentList '--check-bundle' -Wait -PassThru
           if ($check.ExitCode -ne 0) { throw "Extracted bundle validation failed: $($check.ExitCode)" }
+      - name: Smoke test packaged Qt Quick UI without desktop input
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:QT_QUICK_BACKEND = 'software'
+          $check = Start-Process (Resolve-Path dist/Viewflow/Viewflow.exe) -ArgumentList '--smoke-ui' -Wait -PassThru
+          if ($check.ExitCode -ne 0) { throw "Packaged QML smoke test failed: $($check.ExitCode)" }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

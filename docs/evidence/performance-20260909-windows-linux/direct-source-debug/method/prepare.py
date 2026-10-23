@@ -1,0 +1,17 @@
+from pathlib import Path
+import shutil,subprocess,base64,hashlib,json
+base=Path('/home/wilf/data/viewflow/docs/evidence/performance-20260909-windows-linux');a=base/'direct-source-rt';b=base/'direct-source-debug';assert not b.exists();shutil.copytree(a/'source',b/'source');(b/'method').mkdir();(b/'runs').mkdir();remote=r'C:\Users\wilf\Viewflow\perf-isolated-8e97c1b751fc\reverse-direct-source-debug-20260909';origin=remote.replace('source-debug','source-rt')
+p=b/'source/platform/windows-reverse/perf_runner.cpp';s=p.read_text();needle='auto exe=root+L"\\\\build\\\\Release\\\\"+name;';assert needle in s;s=s.replace(needle,'auto exe=std::wstring(name).find(L\':\')!=std::wstring::npos?std::wstring(name):root+L"\\\\build\\\\Release\\\\"+name;')
+needle='if(!launch(L"viewflow_windows_reverse.exe",L"-6144 -780 0 2676",input_read,stream,source_log,source))';assert needle in s
+replacement='if(!launch(L"C:\\\\Program Files (x86)\\\\Windows Kits\\\\10\\\\Debuggers\\\\x64\\\\cdb.exe",L"-G -logo \\\""+root+L"\\\\debug.log\\\" -cf \\\""+root+L"\\\\commands.txt\\\" \\\""+root+L"\\\\build\\\\Release\\\\viewflow_windows_reverse.exe\\\" -6144 -780 0 2676",input_read,stream,source_log,source))'
+s=s.replace(needle,replacement);p.write_text(s)
+(b/'method/commands.txt').write_text('sxe -c ".exr -1;.ecxr;~*kb;q" 0xc0000409\ng\n')
+c=b/'method/build.cmd';c.write_text('@echo off\ncall "C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Auxiliary\\Build\\vcvars64.bat"\nif errorlevel 1 exit /b %errorlevel%\ncl /nologo /O2 /std:c++20 /EHsc /DUNICODE /D_UNICODE source\\platform\\windows-reverse\\perf_runner.cpp /Fe:build\\Release\\viewflow_reverse_perf_runner.exe /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib\nexit /b %errorlevel%\n')
+s=(a/'method/run-source.py').read_text().replace('reverse-direct-source-rt-20260909','reverse-direct-source-debug-20260909').replace('Reverse6KDirectSourceRT-20260909','Reverse6KDirectSourceDebug-20260909').replace("['status.log','source.log','fixture.log','stream.vfrv']","['status.log','source.log','fixture.log','stream.vfrv','debug.log']");(b/'method/run-source.py').write_text(s)
+def ps(s):
+ r=subprocess.run(['ssh','-o','BatchMode=yes','wilf@172.16.105.70','powershell','-NoProfile','-EncodedCommand',base64.b64encode(("$ErrorActionPreference='Stop';"+s).encode('utf-16le')).decode()],capture_output=True,timeout=120);assert r.returncode==0,(r.stdout+r.stderr).decode(errors='replace');return r.stdout.decode(errors='replace')
+ps("if(Test-Path '"+remote+"'){throw 'exists'};New-Item -ItemType Directory '"+remote+"'|Out-Null;Copy-Item '"+origin+"\\source' '"+remote+"\\source' -Recurse;New-Item -ItemType Directory '"+remote+"\\build'|Out-Null;Copy-Item '"+origin+"\\build\\Release' '"+remote+"\\build\\Release' -Recurse")
+for f,d in [(p,'source/platform/windows-reverse/perf_runner.cpp'),(c,'build.cmd'),(b/'method/commands.txt','commands.txt')]:
+ subprocess.run(['scp','-q',str(f),'wilf@172.16.105.70:'+remote.replace('\\','/')+'/'+d],check=True,timeout=30)
+m={str(f.relative_to(b/'source')):hashlib.sha256(f.read_bytes()).hexdigest() for f in sorted((b/'source').rglob('*')) if f.is_file()};(b/'method/source-sha256.json').write_text(json.dumps(m,indent=2)+'\n')
+log=ps("Set-Location '"+remote+"';cmd.exe /d /c 'build.cmd > build.log 2>&1';$code=$LASTEXITCODE;Get-Content build.log;exit $code");(b/'method/build.log').write_text(log);print(log[-1000:]);(b/'method/prepare.py').write_text(Path(__file__).read_text())

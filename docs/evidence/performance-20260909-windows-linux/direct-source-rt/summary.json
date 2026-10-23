@@ -1,0 +1,115 @@
+{
+  "scope": "6K opaque fixture, Windows WGC->HEVC+alpha->local file only; excludes QUIC and Linux presentation",
+  "source_frames": 1031,
+  "captures": 1458,
+  "warmup_seconds": 5,
+  "steady_frames": 861,
+  "steady_output_hz": 35.06407415242763,
+  "stages_ms": {
+    "encoder_submit": {
+      "n": 861,
+      "median": 2.8407,
+      "p95": 3.7815,
+      "p99": 4.1768,
+      "max": 7.1287,
+      "min": 2.0741
+    },
+    "alpha_enqueue": {
+      "n": 861,
+      "median": 0.1084,
+      "p95": 0.1769,
+      "p99": 0.2524,
+      "max": 0.5884,
+      "min": 0.0668
+    },
+    "frame_work": {
+      "n": 861,
+      "median": 2.9811,
+      "p95": 3.9621,
+      "p99": 4.3744,
+      "max": 7.3358,
+      "min": 2.1838
+    },
+    "alpha_cpu_copy": {
+      "n": 861,
+      "median": 2.3762,
+      "p95": 3.4052,
+      "p99": 3.9378,
+      "max": 4.9713,
+      "min": 1.4136
+    },
+    "alpha_compare_pack": {
+      "n": 861,
+      "median": 2.5502,
+      "p95": 3.9767,
+      "p99": 4.6307,
+      "max": 6.8428,
+      "min": 1.4491
+    },
+    "alpha_enqueue_to_collect": {
+      "n": 861,
+      "median": 11.2499,
+      "p95": 15.2097,
+      "p99": 17.2477,
+      "max": 22.3593,
+      "min": 3.5804
+    },
+    "submit_to_color_poll": {
+      "n": 861,
+      "median": 27.6764,
+      "p95": 34.0778,
+      "p99": 35.7167,
+      "max": 111.1408,
+      "min": 21.6527
+    },
+    "submit_to_output": {
+      "n": 861,
+      "median": 27.6808,
+      "p95": 34.0801,
+      "p99": 35.7197,
+      "max": 111.1544,
+      "min": 21.6549
+    },
+    "pack_write": {
+      "n": 861,
+      "median": 0.0525,
+      "p95": 0.1275,
+      "p99": 0.1652,
+      "max": 0.294,
+      "min": 0.0269
+    },
+    "fixture_pre_draw_to_output": {
+      "n": 861,
+      "median": 115.9672,
+      "p95": 131.6495,
+      "p99": 136.0321,
+      "max": 194.7177,
+      "min": 66.2287
+    }
+  },
+  "wgc_future_timestamp_count": 1455,
+  "marker_validation": {
+    "decoded": 1031,
+    "steady_distinct": 735,
+    "steady_unique_hz": 29.926779567304514,
+    "regressions": 0
+  },
+  "offline_gpu_decode_ms": {
+    "n": 1031,
+    "median": 3.806143,
+    "p95": 4.102369,
+    "p99": 4.264307,
+    "max": 55.879282,
+    "min": 3.605339
+  },
+  "offline_gpu_upload_ms": {
+    "n": 1031,
+    "median": 0.033192,
+    "p95": 0.053868,
+    "p99": 0.081939,
+    "max": 1.905456,
+    "min": 0.016967
+  },
+  "run_qualified": false,
+  "qualification_note": "diagnostic only: failed run or decode validation incomplete"
+}

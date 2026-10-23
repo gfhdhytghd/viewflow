@@ -1,0 +1,91 @@
+{
+  "scope": "6K opaque fixture, Windows WGC->HEVC+alpha->local file only; excludes QUIC and Linux presentation",
+  "source_frames": 343,
+  "captures": 724,
+  "warmup_seconds": 5,
+  "steady_frames": 293,
+  "steady_output_hz": 11.997050960530737,
+  "stages_ms": {
+    "encoder_submit": {
+      "n": 293,
+      "median": 2.9978,
+      "p95": 3.5392,
+      "p99": 3.9828,
+      "max": 4.1618,
+      "min": 2.3469
+    },
+    "alpha_read": {
+      "n": 293,
+      "median": 51.8274,
+      "p95": 68.5266,
+      "p99": 75.5256,
+      "max": 99.0585,
+      "min": 32.4192
+    },
+    "alpha_compare_pack": {
+      "n": 293,
+      "median": 2.9545,
+      "p95": 5.263,
+      "p99": 5.9758,
+      "max": 6.2108,
+      "min": 1.2903
+    },
+    "frame_work": {
+      "n": 293,
+      "median": 58.1209,
+      "p95": 75.4375,
+      "p99": 84.4719,
+      "max": 106.1841,
+      "min": 36.964
+    },
+    "submit_to_output": {
+      "n": 293,
+      "median": 82.5326,
+      "p95": 100.7231,
+      "p99": 113.1882,
+      "max": 135.7234,
+      "min": 65.8257
+    },
+    "pack_write": {
+      "n": 293,
+      "median": 0.0689,
+      "p95": 0.1795,
+      "p99": 0.232,
+      "max": 0.2932,
+      "min": 0.0359
+    },
+    "fixture_pre_draw_to_output": {
+      "n": 293,
+      "median": 193.8447,
+      "p95": 243.3577,
+      "p99": 275.5169,
+      "max": 301.1167,
+      "min": 164.3534
+    }
+  },
+  "wgc_future_timestamp_count": 261,
+  "marker_validation": {
+    "decoded": 343,
+    "steady_distinct": 293,
+    "steady_unique_hz": 11.997050960530737,
+    "regressions": 0
+  },
+  "offline_gpu_decode_ms": {
+    "n": 343,
+    "median": 3.741041,
+    "p95": 4.019599,
+    "p99": 6.832134,
+    "max": 52.488262,
+    "min": 3.607856
+  },
+  "offline_gpu_upload_ms": {
+    "n": 343,
+    "median": 0.03255,
+    "p95": 0.050467,
+    "p99": 0.548804,
+    "max": 1.831806,
+    "min": 0.017682
+  },
+  "run_qualified": true,
+  "qualification_note": "normal bounded exit and all emitted frames decoded"
+}

@@ -11,3 +11,15 @@ __pycache__/
 *.pyc
 .idea/
 .vscode/
+
+# Packaged builds and the separately versioned landing site
+dist/
+landing/
+
+# Raw media captures in evidence are too large for git; summaries stay tracked
+docs/evidence/**/*.vfrv
+docs/evidence/**/*.bgra
+docs/evidence/**/*.hevc
+docs/evidence/**/*.es
+docs/evidence/**/*.ppm
+docs/evidence/6k60-20261008/progressive2[89]-dxg-raw.txt

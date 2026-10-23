@@ -72,19 +72,21 @@ safe_name() {
 
 activate_special_workspace() {
     local output=$1 workspace=$2 underlay=$3 expression ready=0
-    expression="local monitor = hl.get_monitor($(lua_string "$output")); if not monitor then error($(lua_string "Viewflow output is unavailable: $output")) end; hl.workspace_rule({ workspace = $(lua_string "name:$underlay"), monitor = $(lua_string "$output"), persistent = true }); monitor:set_workspace({ workspace = $(lua_string "$underlay") }); if hl.get_workspace($(lua_string "special:$workspace")) then monitor:set_special_workspace({ workspace = $(lua_string "special:$workspace") }) end"
+    expression="local monitor = hl.get_monitor($(lua_string "$output")); if not monitor then error($(lua_string "Viewflow output is unavailable: $output")) end; local previous = monitor.active_workspace; hl.workspace_rule({ workspace = $(lua_string "special:$workspace"), monitor = $(lua_string "$output") }); monitor:set_special_workspace($(lua_string "$workspace")); if previous and previous.name == $(lua_string "$underlay") and not previous.special then hl.workspace_rule({ workspace = $(lua_string "name:$underlay"), persistent = false }); for _, window in ipairs(hl.get_workspace_windows(previous)) do hl.dsp.window.move({ window = window, workspace = $(lua_string "special:$workspace"), follow = false })() end; local used = {}; for _, ws in ipairs(hl.get_workspaces()) do if ws.id then used[ws.id] = true end end; local number = 1; while used[number] do number = number + 1 end; monitor:set_workspace(number) end"
     "$HYPRCTL" eval "$expression"
     for _ in {1..20}; do
-        "$HYPRCTL" eval "hl.get_monitor($(lua_string "$output")):set_workspace({workspace=$(lua_string "$underlay")})" >/dev/null
+        "$HYPRCTL" eval "$expression" >/dev/null
         if "$HYPRCTL" -j monitors | "$JQ" -e --arg output "$output" \
-            --arg underlay "$underlay" '
-            any(.[]; .name == $output and .activeWorkspace.name == $underlay)' >/dev/null; then
+            --arg workspace "$workspace" '
+            any(.[]; .name == $output and
+                (.specialWorkspace as $ws | ($ws.type == "special" or (($ws.name // "") | startswith("special:"))) and
+                (($ws.address // $ws.name) == ("special:" + $workspace) or $ws.name == $workspace)))' >/dev/null; then
             ready=1
             break
         fi
         sleep 0.1
     done
-    [[ $ready == 1 ]] || die "owned output did not activate Viewflow underlay workspace $underlay"
+    [[ $ready == 1 ]] || die "owned output did not activate Viewflow special workspace $workspace"
 }
 
 lua_string() {
@@ -215,11 +217,18 @@ wait_for_crossing() {
     local x=$1 y=$2 width=$3 height=$4 timeout_seconds=$5 started=$SECONDS clients found workspaces
     note "waiting for exactly one mapped window to cross into the owned Viewflow output"
     while :; do
-        workspaces=$("$HYPRCTL" -j monitors | "$JQ" -c '[.[] | .activeWorkspace.id, .specialWorkspace.id | select(. != null and . != 0)]')
+        workspaces=$("$HYPRCTL" -j monitors | "$JQ" -c 'def wskey: (.address // .name // "") as $name |
+            if $name != "" then [(.type // (if ($name | startswith("special:")) then "special" else "normal" end)),
+                (if .type == "special" or ($name | startswith("special:")) then ($name | sub("^special:"; "")) else $name end)]
+            elif .id != null and .id != 0 then ["id", .id] else null end; [.[] | .activeWorkspace, .specialWorkspace | wskey | select(. != null)]')
         clients=$("$HYPRCTL" -j clients)
         found=$(printf '%s' "$clients" | "$JQ" -cer --argjson x "$x" --argjson y "$y" --argjson w "$width" --argjson h "$height" --argjson workspaces "$workspaces" '
+            def wskey: (.address // .name // "") as $name |
+            if $name != "" then [(.type // (if ($name | startswith("special:")) then "special" else "normal" end)),
+                (if .type == "special" or ($name | startswith("special:")) then ($name | sub("^special:"; "")) else $name end)]
+            elif .id != null and .id != 0 then ["id", .id] else null end;
             [ .[] | select((.mapped // false) and (.floating // false) and ((.hidden // false) | not))
-              | select(.workspace.id as $id | $workspaces | index($id))
+              | select((.workspace | wskey) as $key | $key != null and ($workspaces | any(. == $key)))
               | select((.at|type) == "array" and (.size|type) == "array")
               | select(.at[0] < ($x + $w) and $x < (.at[0] + .size[0]) and .at[1] < ($y + $h) and $y < (.at[1] + .size[1]))
               | .address ] | if length == 1 then .[0] else empty end') || true
@@ -431,13 +440,15 @@ start() {
     # output. Never persist/reuse an ID from the user's paired configuration.
     local owned_monitor_id
     owned_monitor_id=$("$HYPRCTL" -j monitors all | "$JQ" -er --arg name "$output" \
-        --arg underlay "$underlay_workspace" \
+        --arg workspace "$special_workspace" \
         --argjson reused "$reused_output" \
         --argjson x "$remote_x" --argjson y "$remote_y" \
         --argjson w "$remote_w" --argjson h "$remote_h" --argjson scale "$remote_scale" '
         [.[] | select(.name == $name and .x == $x and .y == $y and
             .width == $w and .height == $h and .scale == $scale and
-            ($reused == 1 or .activeWorkspace.name == $underlay) and
+            ($reused == 1 or (.specialWorkspace as $ws |
+                ($ws.type == "special" or (($ws.name // "") | startswith("special:"))) and
+                (($ws.address // $ws.name) == ("special:" + $workspace) or $ws.name == $workspace))) and
             (.disabled // false | not))] |
         select(length == 1) | .[0].id | select(type == "number" and . >= 0 and . == floor)') \
         || die "owned output changed before capture authority could be bound"

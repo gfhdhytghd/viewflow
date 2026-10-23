@@ -1,0 +1,6484 @@
+{
+  "receiver_termination": "receiver exited after planned source timeout; runner watchdog unused",
+  "output_pool_mode": 1,
+  "pool_last_snapshot": {
+    "frame": 3151,
+    "status": 0,
+    "completed": 1,
+    "alpha": 4,
+    "alpha_reused": 1,
+    "sample": 7,
+    "input": 13,
+    "output": 576,
+    "resources": 173,
+    "video_processor": 0,
+    "shader": 28,
+    "total": 888,
+    "output_pool": 1,
+    "target_reused": 1,
+    "pool_acquires": 3151,
+    "pool_created": 1,
+    "pool_reused": 3150,
+    "pool_fallback": 0,
+    "pool_slots": 1
+  },
+  "host_ms": {
+    "resources": {
+      "n": 3122,
+      "min": 0.095,
+      "median": 0.174,
+      "p95": 0.34,
+      "max": 2.18
+    },
+    "alpha": {
+      "n": 3122,
+      "min": 0.003,
+      "median": 0.007,
+      "p95": 0.008,
+      "max": 0.253
+    },
+    "sample": {
+      "n": 3122,
+      "min": 0.003,
+      "median": 0.008,
+      "p95": 0.015,
+      "max": 0.313
+    },
+    "input": {
+      "n": 3122,
+      "min": 0.008,
+      "median": 0.017,
+      "p95": 0.022,
+      "max": 0.885
+    },
+    "output": {
+      "n": 3122,
+      "min": 0.09,
+      "median": 0.448,
+      "p95": 0.648,
+      "max": 6.155
+    },
+    "shader": {
+      "n": 3122,
+      "min": 0.012,
+      "median": 0.025,
+      "p95": 0.034,
+      "max": 0.643
+    },
+    "total": {
+      "n": 3122,
+      "min": 0.499,
+      "median": 0.771,
+      "p95": 1.079,
+      "max": 6.411
+    }
+  },
+  "label": "pool-on-b2",
+  "native_commit_hz": 57.95715518918235,
+  "desktop": {
+    "desktop_present_not_photon": true,
+    "end_to_end_latency_verified": false,
+    "observed_changes": 1057,
+    "positive_present_timestamps": 1057,
+    "elapsed_seconds": 29.82425725,
+    "observed_changes_per_second": 35.407419911521856,
+    "nonincreasing_present_timestamps": 0,
+    "nonincreasing_frame_ids": 0,
+    "desktop_change_gap_ms": {
+      "n": 1056,
+      "min": 4.10762,
+      "median": 30.85085,
+      "p95": 42.28333,
+      "max": 275.488
+    },
+    "producer_frame_step": {
+      "n": 1056,
+      "min": 1,
+      "median": 2.0,
+      "p95": 3,
+      "max": 17
+    },
+    "present_to_observation_ms": {
+      "n": 1057,
+      "min": 5.18186,
+      "median": 13.1028,
+      "p95": 18.84555,
+      "max": 35.10475
+    },
+    "accumulated_desktop_frames": {
+      "n": 1057,
+      "min": 1,
+      "median": 1,
+      "p95": 1,
+      "max": 2
+    },
+    "acquire_us": {
+      "n": 1057,
+      "min": 106,
+      "median": 10418,
+      "p95": 20790,
+      "max": 23445
+    },
+    "copy_map_us": {
+      "n": 1057,
+      "min": 3082,
+      "median": 12533,
+      "p95": 18133,
+      "max": 30764
+    }
+  },
+  "bounds": {
+    "start": "fixture pre-draw CLOCK_MONOTONIC timestamp",
+    "end": "DXGI desktop LastPresentTime QPC timestamp",
+    "clock_model": "existing paired QUIC minimum-RTT four-timestamp estimate and uncertainty",
+    "input_to_photon_measured": false,
+    "receiver_anchor_interval_ns": 15960,
+    "missing_fixture_frame": 0,
+    "missing_preceding_clock": 0,
+    "expired_clock_mapping": 0,
+    "latency_lower_ms": {
+      "n": 1057,
+      "min": 33.824242,
+      "median": 54.23623,
+      "p95": 60.197402,
+      "max": 138.111421
+    },
+    "latency_upper_ms": {
+      "n": 1057,
+      "min": 34.04276,
+      "median": 54.501744,
+      "p95": 60.410716,
+      "max": 138.317897
+    },
+    "clock_uncertainty_ms": {
+      "n": 1057,
+      "min": 0.070016,
+      "median": 0.107298,
+      "p95": 0.189947,
+      "max": 0.214956
+    },
+    "definitely_over_two_60hz_frames": 1057,
+    "definitely_within_two_60hz_frames": 0,
+    "negative_upper_bound": 0,
+    "unique_capture_stage_samples": {
+      "missing_capture_marker": 0,
+      "ambiguous_repeated_marker": 180,
+      "missing_native_mutation": 0,
+      "render_to_capture_ms": {
+        "n": 877,
+        "min": 0.280757,
+        "median": 16.602224,
+        "p95": 17.058335,
+        "max": 17.726711
+      },
+      "capture_to_desktop_lower_ms": {
+        "n": 877,
+        "min": 32.178833,
+        "median": 38.330289,
+        "p95": 43.681956,
+        "max": 121.303923
+      },
+      "capture_to_desktop_upper_ms": {
+        "n": 877,
+        "min": 32.378177,
+        "median": 38.582927,
+        "p95": 43.95024,
+        "max": 121.510399
+      },
+      "capture_to_mutation_lower_ms": {
+        "n": 877,
+        "min": 9.563503,
+        "median": 11.153327,
+        "p95": 12.733192,
+        "max": 100.042503
+      },
+      "capture_to_mutation_upper_ms": {
+        "n": 877,
+        "min": 9.774741,
+        "median": 11.402738,
+        "p95": 12.993475,
+        "max": 100.248979
+      },
+      "mutation_to_desktop_ms": {
+        "n": 877,
+        "min": 19.19878,
+        "median": 27.28565,
+        "p95": 32.56081,
+        "max": 49.36697
+      },
+      "negative_mutation_to_desktop": 0,
+      "gpu_copy_completion_bounds": {
+        "scope": "event after composition surface copy on application's D3D queue; polling bounds, not DWM completion",
+        "missing": 877,
+        "invalid_or_multiple": 0,
+        "submitted_to_complete_lower_ms": {
+          "n": 0
+        },
+        "submitted_to_complete_upper_ms": {
+          "n": 0
+        },
+        "complete_to_desktop_lower_ms": {
+          "n": 0
+        },
+        "complete_to_desktop_upper_ms": {
+          "n": 0
+        },
+        "ready_observed_before_desktop": 0
+      }
+    }
+  },
+  "stages": {
+    "raw_exchange_count": 1720,
+    "invalid_exchanges": [],
+    "mapping_count": 215,
+    "uncertainty_ms": {
+      "n": 215,
+      "min": 0.070016,
+      "median": 0.107346,
+      "p95": 0.187726,
+      "max": 0.214956
+    },
+    "network_rtt_ms": {
+      "n": 1720,
+      "min": 0.140031,
+      "median": 0.350686,
+      "p95": 0.693339,
+      "max": 56.727685
+    },
+    "offset_span_ms": 0.148901,
+    "apparent_offset_slope_ppm": -0.10351307242645783,
+    "slope_is_not_independent_oscillator_drift": true,
+    "anchor_width_ns": 15960,
+    "skipped": {
+      "nonunique_marker": 180
+    },
+    "wall_stage_ms": {
+      "capture to encode": {
+        "n": 3163,
+        "min": 0.111068,
+        "median": 0.305167,
+        "p95": 0.482006,
+        "max": 32.541
+      },
+      "encode (host incl waits)": {
+        "n": 3163,
+        "min": 2.050545,
+        "median": 6.865235,
+        "p95": 7.754111,
+        "max": 246.851323
+      },
+      "release": {
+        "n": 3163,
+        "min": 0.002593,
+        "median": 0.005377,
+        "p95": 0.00811,
+        "max": 0.041982
+      },
+      "batch return / previous feedback": {
+        "n": 3163,
+        "min": 0.000325,
+        "median": 0.009402,
+        "p95": 0.013889,
+        "max": 77.225245
+      },
+      "encoded to pipe admission (transport + receiver + pipe parse)": {
+        "n": 3148,
+        "min": 1.592503,
+        "median": 2.6490575,
+        "p95": 3.933001,
+        "max": 90.661337
+      },
+      "pipe admission to decoded": {
+        "n": 3148,
+        "min": 0.62551,
+        "median": 0.9240249999923706,
+        "p95": 1.2789,
+        "max": 12.32225
+      },
+      "decoded to proxy ready": {
+        "n": 3148,
+        "min": 0.21289,
+        "median": 0.34521999999999997,
+        "p95": 0.57032,
+        "max": 7.1318
+      },
+      "surface copy host": {
+        "n": 3148,
+        "min": 0.00863,
+        "median": 0.01455,
+        "p95": 0.01983,
+        "max": 0.6287
+      },
+      "visual bind / commit host": {
+        "n": 3148,
+        "min": 0.02832,
+        "median": 0.05575,
+        "p95": 0.06612,
+        "max": 2.69085
+      },
+      "commit to desktop (queue + GPU + DWM; NOT DWM CPU)": {
+        "n": 877,
+        "min": 19.19584,
+        "median": 27.28272,
+        "p95": 32.55788,
+        "max": 49.36383
+      }
+    },
+    "caveat": "Overlapping pipelines; do not sum independent medians. CPU flame graph and wall spans are distinct. Desktop timestamp is not photon time."
+  },
+  "readback": {
+    "pending_peak": 2,
+    "map_busy": 3369,
+    "abandoned": 0
+  },
+  "identity_pairs": [
+    {
+      "marker_frame": 1050,
+      "atlas_frame": 452,
+      "commit_qpc": 1469093201685,
+      "present_qpc": 1469096990116,
+      "commit_to_seen_ms": 37.88431
+    },
+    {
+      "marker_frame": 1052,
+      "atlas_frame": 454,
+      "commit_qpc": 1469096650478,
+      "present_qpc": 1469099484887,
+      "commit_to_seen_ms": 28.34409
+    },
+    {
+      "marker_frame": 1053,
+      "atlas_frame": 455,
+      "commit_qpc": 1469098302781,
+      "present_qpc": 1469100950658,
+      "commit_to_seen_ms": 26.47877
+    },
+    {
+      "marker_frame": 1055,
+      "atlas_frame": 457,
+      "commit_qpc": 1469101664492,
+      "present_qpc": 1469104807886,
+      "commit_to_seen_ms": 31.43394
+    },
+    {
+      "marker_frame": 1056,
+      "atlas_frame": 458,
+      "commit_qpc": 1469103268023,
+      "present_qpc": 1469106245909,
+      "commit_to_seen_ms": 29.77886
+    },
+    {
+      "marker_frame": 1057,
+      "atlas_frame": 459,
+      "commit_qpc": 1469104932478,
+      "present_qpc": 1469107396860,
+      "commit_to_seen_ms": 24.64382
+    },
+    {
+      "marker_frame": 1058,
+      "atlas_frame": 460,
+      "commit_qpc": 1469106615513,
+      "present_qpc": 1469109902439,
+      "commit_to_seen_ms": 32.86926
+    },
+    {
+      "marker_frame": 1059,
+      "atlas_frame": 461,
+      "commit_qpc": 1469108222198,
+      "present_qpc": 1469110710663,
+      "commit_to_seen_ms": 24.88465
+    },
+    {
+      "marker_frame": 1060,
+      "atlas_frame": 462,
+      "commit_qpc": 1469109999773,
+      "present_qpc": 1469112591649,
+      "commit_to_seen_ms": 25.91876
+    },
+    {
+      "marker_frame": 1061,
+      "atlas_frame": 463,
+      "commit_qpc": 1469111620288,
+      "present_qpc": 1469114540011,
+      "commit_to_seen_ms": 29.19723
+    },
+    {
+      "marker_frame": 1063,
+      "atlas_frame": 465,
+      "commit_qpc": 1469114956042,
+      "present_qpc": 1469117577770,
+      "commit_to_seen_ms": 26.21728
+    },
+    {
+      "marker_frame": 1064,
+      "atlas_frame": 466,
+      "commit_qpc": 1469116514163,
+      "present_qpc": 1469119584644,
+      "commit_to_seen_ms": 30.70481
+    },
+    {
+      "marker_frame": 1065,
+      "atlas_frame": 467,
+      "commit_qpc": 1469118222340,
+      "present_qpc": 1469120793599,
+      "commit_to_seen_ms": 25.71259
+    },
+    {
+      "marker_frame": 1066,
+      "atlas_frame": 468,
+      "commit_qpc": 1469119896384,
+      "present_qpc": 1469123166678,
+      "commit_to_seen_ms": 32.70294
+    },
+    {
+      "marker_frame": 1067,
+      "atlas_frame": 469,
+      "commit_qpc": 1469121587632,
+      "present_qpc": 1469123964986,
+      "commit_to_seen_ms": 23.77354
+    },
+    {
+      "marker_frame": 1068,
+      "atlas_frame": 470,
+      "commit_qpc": 1469123258122,
+      "present_qpc": 1469126461044,
+      "commit_to_seen_ms": 32.02922
+    },
+    {
+      "marker_frame": 1069,
+      "atlas_frame": 471,
+      "commit_qpc": 1469124941853,
+      "present_qpc": 1469127280529,
+      "commit_to_seen_ms": 23.38676
+    },
+    {
+      "marker_frame": 1071,
+      "atlas_frame": 472,
+      "commit_qpc": 1469126478210,
+      "present_qpc": 1469129739365,
+      "commit_to_seen_ms": 32.61155
+    },
+    {
+      "marker_frame": 1073,
+      "atlas_frame": 475,
+      "commit_qpc": 1469131525730,
+      "present_qpc": 1469134138001,
+      "commit_to_seen_ms": 26.12271
+    },
+    {
+      "marker_frame": 1074,
+      "atlas_frame": 476,
+      "commit_qpc": 1469133279241,
+      "present_qpc": 1469136470619,
+      "commit_to_seen_ms": 31.91378
+    },
+    {
+      "marker_frame": 1075,
+      "atlas_frame": 477,
+      "commit_qpc": 1469134985977,
+      "present_qpc": 1469137365167,
+      "commit_to_seen_ms": 23.7919
+    },
+    {
+      "marker_frame": 1076,
+      "atlas_frame": 478,
+      "commit_qpc": 1469136540266,
+      "present_qpc": 1469139189690,
+      "commit_to_seen_ms": 26.49424
+    },
+    {
+      "marker_frame": 1078,
+      "atlas_frame": 480,
+      "commit_qpc": 1469140104348,
+      "present_qpc": 1469142422333,
+      "commit_to_seen_ms": 23.17985
+    },
+    {
+      "marker_frame": 1079,
+      "atlas_frame": 481,
+      "commit_qpc": 1469141519304,
+      "present_qpc": 1469144891809,
+      "commit_to_seen_ms": 33.72505
+    },
+    {
+      "marker_frame": 1080,
+      "atlas_frame": 482,
+      "commit_qpc": 1469143237083,
+      "present_qpc": 1469146179070,
+      "commit_to_seen_ms": 29.41987
+    },
+    {
+      "marker_frame": 1081,
+      "atlas_frame": 483,
+      "commit_qpc": 1469144876593,
+      "present_qpc": 1469147487526,
+      "commit_to_seen_ms": 26.10933
+    },
+    {
+      "marker_frame": 1083,
+      "atlas_frame": 485,
+      "commit_qpc": 1469148359085,
+      "present_qpc": 1469150864023,
+      "commit_to_seen_ms": 25.04938
+    },
+    {
+      "marker_frame": 1086,
+      "atlas_frame": 488,
+      "commit_qpc": 1469153306875,
+      "present_qpc": 1469156374777,
+      "commit_to_seen_ms": 30.67902
+    },
+    {
+      "marker_frame": 1087,
+      "atlas_frame": 489,
+      "commit_qpc": 1469154901777,
+      "present_qpc": 1469157848344,
+      "commit_to_seen_ms": 29.46567
+    },
+    {
+      "marker_frame": 1089,
+      "atlas_frame": 491,
+      "commit_qpc": 1469158232980,
+      "present_qpc": 1469160539559,
+      "commit_to_seen_ms": 23.06579
+    },
+    {
+      "marker_frame": 1090,
+      "atlas_frame": 492,
+      "commit_qpc": 1469160024301,
+      "present_qpc": 1469162375932,
+      "commit_to_seen_ms": 23.51631
+    },
+    {
+      "marker_frame": 1091,
+      "atlas_frame": 493,
+      "commit_qpc": 1469161629320,
+      "present_qpc": 1469164252291,
+      "commit_to_seen_ms": 26.22971
+    },
+    {
+      "marker_frame": 1093,
+      "atlas_frame": 495,
+      "commit_qpc": 1469164939653,
+      "present_qpc": 1469168056408,
+      "commit_to_seen_ms": 31.16755
+    },
+    {
+      "marker_frame": 1094,
+      "atlas_frame": 496,
+      "commit_qpc": 1469166674769,
+      "present_qpc": 1469168845841,
+      "commit_to_seen_ms": 21.71072
+    },
+    {
+      "marker_frame": 1095,
+      "atlas_frame": 497,
+      "commit_qpc": 1469168368855,
+      "present_qpc": 1469170677214,
+      "commit_to_seen_ms": 23.08359
+    },
+    {
+      "marker_frame": 1096,
+      "atlas_frame": 498,
+      "commit_qpc": 1469170075733,
+      "present_qpc": 1469173197967,
+      "commit_to_seen_ms": 31.22234
+    },
+    {
+      "marker_frame": 1097,
+      "atlas_frame": 499,
+      "commit_qpc": 1469171746936,
+      "present_qpc": 1469174481312,
+      "commit_to_seen_ms": 27.34376
+    },
+    {
+      "marker_frame": 1099,
+      "atlas_frame": 501,
+      "commit_qpc": 1469174964606,
+      "present_qpc": 1469178229799,
+      "commit_to_seen_ms": 32.65193
+    },
+    {
+      "marker_frame": 1100,
+      "atlas_frame": 502,
+      "commit_qpc": 1469176528231,
+      "present_qpc": 1469179550122,
+      "commit_to_seen_ms": 30.21891
+    },
+    {
+      "marker_frame": 1102,
+      "atlas_frame": 504,
+      "commit_qpc": 1469180141344,
+      "present_qpc": 1469182507089,
+      "commit_to_seen_ms": 23.65745
+    },
+    {
+      "marker_frame": 1103,
+      "atlas_frame": 505,
+      "commit_qpc": 1469181568263,
+      "present_qpc": 1469184685990,
+      "commit_to_seen_ms": 31.17727
+    },
+    {
+      "marker_frame": 1104,
+      "atlas_frame": 506,
+      "commit_qpc": 1469183336568,
+      "present_qpc": 1469186487346,
+      "commit_to_seen_ms": 31.50778
+    },
+    {
+      "marker_frame": 1105,
+      "atlas_frame": 507,
+      "commit_qpc": 1469184865172,
+      "present_qpc": 1469187320867,
+      "commit_to_seen_ms": 24.55695
+    },
+    {
+      "marker_frame": 1106,
+      "atlas_frame": 508,
+      "commit_qpc": 1469186638047,
+      "present_qpc": 1469189170969,
+      "commit_to_seen_ms": 25.32922
+    },
+    {
+      "marker_frame": 1107,
+      "atlas_frame": 509,
+      "commit_qpc": 1469188409924,
+      "present_qpc": 1469191479982,
+      "commit_to_seen_ms": 30.70058
+    },
+    {
+      "marker_frame": 1108,
+      "atlas_frame": 510,
+      "commit_qpc": 1469190016459,
+      "present_qpc": 1469192319519,
+      "commit_to_seen_ms": 23.0306
+    },
+    {
+      "marker_frame": 1109,
+      "atlas_frame": 511,
+      "commit_qpc": 1469191560442,
+      "present_qpc": 1469194162917,
+      "commit_to_seen_ms": 26.02475
+    },
+    {
+      "marker_frame": 1110,
+      "atlas_frame": 512,
+      "commit_qpc": 1469193238364,
+      "present_qpc": 1469196154408,
+      "commit_to_seen_ms": 29.16044
+    },
+    {
+      "marker_frame": 1111,
+      "atlas_frame": 513,
+      "commit_qpc": 1469194862550,
+      "present_qpc": 1469197673232,
+      "commit_to_seen_ms": 28.10682
+    },
+    {
+      "marker_frame": 1112,
+      "atlas_frame": 514,
+      "commit_qpc": 1469197169315,
+      "present_qpc": 1469199849578,
+      "commit_to_seen_ms": 26.80263
+    },
+    {
+      "marker_frame": 1113,
+      "atlas_frame": 515,
+      "commit_qpc": 1469198299299,
+      "present_qpc": 1469200651709,
+      "commit_to_seen_ms": 23.5241
+    },
+    {
+      "marker_frame": 1114,
+      "atlas_frame": 516,
+      "commit_qpc": 1469200047629,
+      "present_qpc": 1469202941529,
+      "commit_to_seen_ms": 28.939
+    },
+    {
+      "marker_frame": 1115,
+      "atlas_frame": 517,
+      "commit_qpc": 1469207645097,
+      "present_qpc": 1469210796427,
+      "commit_to_seen_ms": 31.5133
+    },
+    {
+      "marker_frame": 1121,
+      "atlas_frame": 519,
+      "commit_qpc": 1469217187360,
+      "present_qpc": 1469219474853,
+      "commit_to_seen_ms": 22.87493
+    },
+    {
+      "marker_frame": 1126,
+      "atlas_frame": 521,
+      "commit_qpc": 1469220704423,
+      "present_qpc": 1469222915680,
+      "commit_to_seen_ms": 22.11257
+    },
+    {
+      "marker_frame": 1128,
+      "atlas_frame": 523,
+      "commit_qpc": 1469223337641,
+      "present_qpc": 1469226528454,
+      "commit_to_seen_ms": 31.90813
+    },
+    {
+      "marker_frame": 1129,
+      "atlas_frame": 524,
+      "commit_qpc": 1469224863459,
+      "present_qpc": 1469227299761,
+      "commit_to_seen_ms": 24.36302
+    },
+    {
+      "marker_frame": 1130,
+      "atlas_frame": 525,
+      "commit_qpc": 1469226692005,
+      "present_qpc": 1469229078324,
+      "commit_to_seen_ms": 23.86319
+    },
+    {
+      "marker_frame": 1131,
+      "atlas_frame": 526,
+      "commit_qpc": 1469228422765,
+      "present_qpc": 1469230930313,
+      "commit_to_seen_ms": 25.07548
+    },
+    {
+      "marker_frame": 1132,
+      "atlas_frame": 527,
+      "commit_qpc": 1469229975703,
+      "present_qpc": 1469232310603,
+      "commit_to_seen_ms": 23.349
+    },
+    {
+      "marker_frame": 1133,
+      "atlas_frame": 528,
+      "commit_qpc": 1469231606036,
+      "present_qpc": 1469234156586,
+      "commit_to_seen_ms": 25.5055
+    },
+    {
+      "marker_frame": 1135,
+      "atlas_frame": 530,
+      "commit_qpc": 1469234878198,
+      "present_qpc": 1469237381861,
+      "commit_to_seen_ms": 25.03663
+    },
+    {
+      "marker_frame": 1136,
+      "atlas_frame": 531,
+      "commit_qpc": 1469236658400,
+      "present_qpc": 1469239548502,
+      "commit_to_seen_ms": 28.90102
+    },
+    {
+      "marker_frame": 1137,
+      "atlas_frame": 532,
+      "commit_qpc": 1469238375886,
+      "present_qpc": 1469241260148,
+      "commit_to_seen_ms": 28.84262
+    },
+    {
+      "marker_frame": 1138,
+      "atlas_frame": 533,
+      "commit_qpc": 1469240027606,
+      "present_qpc": 1469242615957,
+      "commit_to_seen_ms": 25.88351
+    },
+    {
+      "marker_frame": 1140,
+      "atlas_frame": 535,
+      "commit_qpc": 1469243336265,
+      "present_qpc": 1469245991237,
+      "commit_to_seen_ms": 26.54972
+    },
+    {
+      "marker_frame": 1142,
+      "atlas_frame": 537,
+      "commit_qpc": 1469246830928,
+      "present_qpc": 1469249674924,
+      "commit_to_seen_ms": 28.43996
+    },
+    {
+      "marker_frame": 1143,
+      "atlas_frame": 538,
+      "commit_qpc": 1469248309120,
+      "present_qpc": 1469251520814,
+      "commit_to_seen_ms": 32.11694
+    },
+    {
+      "marker_frame": 1144,
+      "atlas_frame": 539,
+      "commit_qpc": 1469249958320,
+      "present_qpc": 1469252956511,
+      "commit_to_seen_ms": 29.98191
+    },
+    {
+      "marker_frame": 1145,
+      "atlas_frame": 540,
+      "commit_qpc": 1469251693472,
+      "present_qpc": 1469254733862,
+      "commit_to_seen_ms": 30.4039
+    },
+    {
+      "marker_frame": 1146,
+      "atlas_frame": 541,
+      "commit_qpc": 1469253344623,
+      "present_qpc": 1469255725502,
+      "commit_to_seen_ms": 23.80879
+    },
+    {
+      "marker_frame": 1147,
+      "atlas_frame": 542,
+      "commit_qpc": 1469254873334,
+      "present_qpc": 1469257606024,
+      "commit_to_seen_ms": 27.3269
+    },
+    {
+      "marker_frame": 1148,
+      "atlas_frame": 543,
+      "commit_qpc": 1469256665625,
+      "present_qpc": 1469259773179,
+      "commit_to_seen_ms": 31.07554
+    },
+    {
+      "marker_frame": 1149,
+      "atlas_frame": 544,
+      "commit_qpc": 1469258325974,
+      "present_qpc": 1469260785549,
+      "commit_to_seen_ms": 24.59575
+    },
+    {
+      "marker_frame": 1151,
+      "atlas_frame": 546,
+      "commit_qpc": 1469261711557,
+      "present_qpc": 1469264095874,
+      "commit_to_seen_ms": 23.84317
+    },
+    {
+      "marker_frame": 1152,
+      "atlas_frame": 547,
+      "commit_qpc": 1469263241241,
+      "present_qpc": 1469266425727,
+      "commit_to_seen_ms": 31.84486
+    },
+    {
+      "marker_frame": 1153,
+      "atlas_frame": 548,
+      "commit_qpc": 1469264975037,
+      "present_qpc": 1469267228112,
+      "commit_to_seen_ms": 22.53075
+    },
+    {
+      "marker_frame": 1154,
+      "atlas_frame": 549,
+      "commit_qpc": 1469266704258,
+      "present_qpc": 1469269298247,
+      "commit_to_seen_ms": 25.93989
+    },
+    {
+      "marker_frame": 1155,
+      "atlas_frame": 550,
+      "commit_qpc": 1469268370341,
+      "present_qpc": 1469270914757,
+      "commit_to_seen_ms": 25.44416
+    },
+    {
+      "marker_frame": 1157,
+      "atlas_frame": 552,
+      "commit_qpc": 1469271605723,
+      "present_qpc": 1469274687242,
+      "commit_to_seen_ms": 30.81519
+    },
+    {
+      "marker_frame": 1158,
+      "atlas_frame": 553,
+      "commit_qpc": 1469273324286,
+      "present_qpc": 1469276145824,
+      "commit_to_seen_ms": 28.21538
+    },
+    {
+      "marker_frame": 1162,
+      "atlas_frame": 557,
+      "commit_qpc": 1469279952854,
+      "present_qpc": 1469282567522,
+      "commit_to_seen_ms": 26.14668
+    },
+    {
+      "marker_frame": 1163,
+      "atlas_frame": 558,
+      "commit_qpc": 1469281671444,
+      "present_qpc": 1469284290913,
+      "commit_to_seen_ms": 26.19469
+    },
+    {
+      "marker_frame": 1165,
+      "atlas_frame": 560,
+      "commit_qpc": 1469284988159,
+      "present_qpc": 1469287543294,
+      "commit_to_seen_ms": 25.55135
+    },
+    {
+      "marker_frame": 1166,
+      "atlas_frame": 561,
+      "commit_qpc": 1469286557970,
+      "present_qpc": 1469289387488,
+      "commit_to_seen_ms": 28.29518
+    },
+    {
+      "marker_frame": 1167,
+      "atlas_frame": 562,
+      "commit_qpc": 1469288353052,
+      "present_qpc": 1469290828413,
+      "commit_to_seen_ms": 24.75361
+    },
+    {
+      "marker_frame": 1171,
+      "atlas_frame": 566,
+      "commit_qpc": 1469294918743,
+      "present_qpc": 1469297313196,
+      "commit_to_seen_ms": 23.94453
+    },
+    {
+      "marker_frame": 1172,
+      "atlas_frame": 567,
+      "commit_qpc": 1469296621886,
+      "present_qpc": 1469299116455,
+      "commit_to_seen_ms": 24.94569
+    },
+    {
+      "marker_frame": 1174,
+      "atlas_frame": 569,
+      "commit_qpc": 1469300034413,
+      "present_qpc": 1469303091702,
+      "commit_to_seen_ms": 30.57289
+    },
+    {
+      "marker_frame": 1177,
+      "atlas_frame": 572,
+      "commit_qpc": 1469305036121,
+      "present_qpc": 1469307610506,
+      "commit_to_seen_ms": 25.74385
+    },
+    {
+      "marker_frame": 1181,
+      "atlas_frame": 576,
+      "commit_qpc": 1469311554565,
+      "present_qpc": 1469314023798,
+      "commit_to_seen_ms": 24.69233
+    },
+    {
+      "marker_frame": 1184,
+      "atlas_frame": 579,
+      "commit_qpc": 1469316712722,
+      "present_qpc": 1469319738265,
+      "commit_to_seen_ms": 30.25543
+    },
+    {
+      "marker_frame": 1185,
+      "atlas_frame": 580,
+      "commit_qpc": 1469318344998,
+      "present_qpc": 1469321593854,
+      "commit_to_seen_ms": 32.48856
+    },
+    {
+      "marker_frame": 1186,
+      "atlas_frame": 581,
+      "commit_qpc": 1469319980329,
+      "present_qpc": 1469322358600,
+      "commit_to_seen_ms": 23.78271
+    },
+    {
+      "marker_frame": 1187,
+      "atlas_frame": 582,
+      "commit_qpc": 1469321479320,
+      "present_qpc": 1469324853326,
+      "commit_to_seen_ms": 33.74006
+    },
+    {
+      "marker_frame": 1188,
+      "atlas_frame": 583,
+      "commit_qpc": 1469323276388,
+      "present_qpc": 1469325579763,
+      "commit_to_seen_ms": 23.03375
+    },
+    {
+      "marker_frame": 1189,
+      "atlas_frame": 584,
+      "commit_qpc": 1469324854175,
+      "present_qpc": 1469327408711,
+      "commit_to_seen_ms": 25.54536
+    },
+    {
+      "marker_frame": 1190,
+      "atlas_frame": 585,
+      "commit_qpc": 1469326650257,
+      "present_qpc": 1469329495399,
+      "commit_to_seen_ms": 28.45142
+    },
+    {
+      "marker_frame": 1191,
+      "atlas_frame": 586,
+      "commit_qpc": 1469328167658,
+      "present_qpc": 1469330562252,
+      "commit_to_seen_ms": 23.94594
+    },
+    {
+      "marker_frame": 1192,
+      "atlas_frame": 587,
+      "commit_qpc": 1469329911542,
+      "present_qpc": 1469333125027,
+      "commit_to_seen_ms": 32.13485
+    },
+    {
+      "marker_frame": 1193,
+      "atlas_frame": 588,
+      "commit_qpc": 1469331569074,
+      "present_qpc": 1469334600561,
+      "commit_to_seen_ms": 30.31487
+    },
+    {
+      "marker_frame": 1194,
+      "atlas_frame": 589,
+      "commit_qpc": 1469333299626,
+      "present_qpc": 1469335767770,
+      "commit_to_seen_ms": 24.68144
+    },
+    {
+      "marker_frame": 1196,
+      "atlas_frame": 591,
+      "commit_qpc": 1469336599619,
+      "present_qpc": 1469339019370,
+      "commit_to_seen_ms": 24.19751
+    },
+    {
+      "marker_frame": 1197,
+      "atlas_frame": 592,
+      "commit_qpc": 1469338253749,
+      "present_qpc": 1469341329316,
+      "commit_to_seen_ms": 30.75567
+    },
+    {
+      "marker_frame": 1200,
+      "atlas_frame": 595,
+      "commit_qpc": 1469343211972,
+      "present_qpc": 1469345914723,
+      "commit_to_seen_ms": 27.02751
+    },
+    {
+      "marker_frame": 1202,
+      "atlas_frame": 597,
+      "commit_qpc": 1469346670324,
+      "present_qpc": 1469349122921,
+      "commit_to_seen_ms": 24.52597
+    },
+    {
+      "marker_frame": 1203,
+      "atlas_frame": 598,
+      "commit_qpc": 1469348325518,
+      "present_qpc": 1469350935306,
+      "commit_to_seen_ms": 26.09788
+    },
+    {
+      "marker_frame": 1204,
+      "atlas_frame": 599,
+      "commit_qpc": 1469349863795,
+      "present_qpc": 1469352988643,
+      "commit_to_seen_ms": 31.24848
+    },
+    {
+      "marker_frame": 1205,
+      "atlas_frame": 600,
+      "commit_qpc": 1469351635874,
+      "present_qpc": 1469354169494,
+      "commit_to_seen_ms": 25.3362
+    },
+    {
+      "marker_frame": 1207,
+      "atlas_frame": 602,
+      "commit_qpc": 1469354904280,
+      "present_qpc": 1469357933073,
+      "commit_to_seen_ms": 30.28793
+    },
+    {
+      "marker_frame": 1208,
+      "atlas_frame": 603,
+      "commit_qpc": 1469356660281,
+      "present_qpc": 1469359818413,
+      "commit_to_seen_ms": 31.58132
+    },
+    {
+      "marker_frame": 1209,
+      "atlas_frame": 604,
+      "commit_qpc": 1469358326528,
+      "present_qpc": 1469361285334,
+      "commit_to_seen_ms": 29.58806
+    },
+    {
+      "marker_frame": 1210,
+      "atlas_frame": 605,
+      "commit_qpc": 1469359978266,
+      "present_qpc": 1469362901583,
+      "commit_to_seen_ms": 29.23317
+    },
+    {
+      "marker_frame": 1211,
+      "atlas_frame": 606,
+      "commit_qpc": 1469361555550,
+      "present_qpc": 1469364866562,
+      "commit_to_seen_ms": 33.11012
+    },
+    {
+      "marker_frame": 1212,
+      "atlas_frame": 607,
+      "commit_qpc": 1469363245451,
+      "present_qpc": 1469366372800,
+      "commit_to_seen_ms": 31.27349
+    },
+    {
+      "marker_frame": 1213,
+      "atlas_frame": 608,
+      "commit_qpc": 1469364871293,
+      "present_qpc": 1469368116020,
+      "commit_to_seen_ms": 32.44727
+    },
+    {
+      "marker_frame": 1214,
+      "atlas_frame": 609,
+      "commit_qpc": 1469366526260,
+      "present_qpc": 1469369237245,
+      "commit_to_seen_ms": 27.10985
+    },
+    {
+      "marker_frame": 1216,
+      "atlas_frame": 611,
+      "commit_qpc": 1469370033630,
+      "present_qpc": 1469373074817,
+      "commit_to_seen_ms": 30.41187
+    },
+    {
+      "marker_frame": 1217,
+      "atlas_frame": 612,
+      "commit_qpc": 1469371645626,
+      "present_qpc": 1469373983690,
+      "commit_to_seen_ms": 23.38064
+    },
+    {
+      "marker_frame": 1218,
+      "atlas_frame": 613,
+      "commit_qpc": 1469373232026,
+      "present_qpc": 1469375803532,
+      "commit_to_seen_ms": 25.71506
+    },
+    {
+      "marker_frame": 1219,
+      "atlas_frame": 614,
+      "commit_qpc": 1469375107538,
+      "present_qpc": 1469377571627,
+      "commit_to_seen_ms": 24.64089
+    },
+    {
+      "marker_frame": 1221,
+      "atlas_frame": 616,
+      "commit_qpc": 1469378298722,
+      "present_qpc": 1469381414861,
+      "commit_to_seen_ms": 31.16139
+    },
+    {
+      "marker_frame": 1222,
+      "atlas_frame": 617,
+      "commit_qpc": 1469379988222,
+      "present_qpc": 1469382613362,
+      "commit_to_seen_ms": 26.2514
+    },
+    {
+      "marker_frame": 1224,
+      "atlas_frame": 619,
+      "commit_qpc": 1469383324377,
+      "present_qpc": 1469386485918,
+      "commit_to_seen_ms": 31.61541
+    },
+    {
+      "marker_frame": 1225,
+      "atlas_frame": 620,
+      "commit_qpc": 1469384889382,
+      "present_qpc": 1469387283701,
+      "commit_to_seen_ms": 23.94319
+    },
+    {
+      "marker_frame": 1226,
+      "atlas_frame": 621,
+      "commit_qpc": 1469386555814,
+      "present_qpc": 1469389400766,
+      "commit_to_seen_ms": 28.44952
+    },
+    {
+      "marker_frame": 1228,
+      "atlas_frame": 623,
+      "commit_qpc": 1469390105539,
+      "present_qpc": 1469392895067,
+      "commit_to_seen_ms": 27.89528
+    },
+    {
+      "marker_frame": 1229,
+      "atlas_frame": 624,
+      "commit_qpc": 1469391586318,
+      "present_qpc": 1469394804744,
+      "commit_to_seen_ms": 32.18426
+    },
+    {
+      "marker_frame": 1230,
+      "atlas_frame": 625,
+      "commit_qpc": 1469393330176,
+      "present_qpc": 1469395586984,
+      "commit_to_seen_ms": 22.56808
+    },
+    {
+      "marker_frame": 1231,
+      "atlas_frame": 626,
+      "commit_qpc": 1469394980119,
+      "present_qpc": 1469397812140,
+      "commit_to_seen_ms": 28.32021
+    },
+    {
+      "marker_frame": 1232,
+      "atlas_frame": 627,
+      "commit_qpc": 1469396671826,
+      "present_qpc": 1469399811237,
+      "commit_to_seen_ms": 31.39411
+    },
+    {
+      "marker_frame": 1233,
+      "atlas_frame": 628,
+      "commit_qpc": 1469398370168,
+      "present_qpc": 1469401397552,
+      "commit_to_seen_ms": 30.27384
+    },
+    {
+      "marker_frame": 1234,
+      "atlas_frame": 629,
+      "commit_qpc": 1469400031675,
+      "present_qpc": 1469402663643,
+      "commit_to_seen_ms": 26.31968
+    },
+    {
+      "marker_frame": 1236,
+      "atlas_frame": 631,
+      "commit_qpc": 1469403272955,
+      "present_qpc": 1469406297584,
+      "commit_to_seen_ms": 30.24629
+    },
+    {
+      "marker_frame": 1237,
+      "atlas_frame": 632,
+      "commit_qpc": 1469404927671,
+      "present_qpc": 1469407625166,
+      "commit_to_seen_ms": 26.97495
+    },
+    {
+      "marker_frame": 1241,
+      "atlas_frame": 636,
+      "commit_qpc": 1469411696250,
+      "present_qpc": 1469414855407,
+      "commit_to_seen_ms": 31.59157
+    },
+    {
+      "marker_frame": 1242,
+      "atlas_frame": 637,
+      "commit_qpc": 1469413317239,
+      "present_qpc": 1469416298077,
+      "commit_to_seen_ms": 29.80838
+    },
+    {
+      "marker_frame": 1243,
+      "atlas_frame": 638,
+      "commit_qpc": 1469414997331,
+      "present_qpc": 1469418141951,
+      "commit_to_seen_ms": 31.4462
+    },
+    {
+      "marker_frame": 1244,
+      "atlas_frame": 639,
+      "commit_qpc": 1469416621022,
+      "present_qpc": 1469419408578,
+      "commit_to_seen_ms": 27.87556
+    },
+    {
+      "marker_frame": 1245,
+      "atlas_frame": 640,
+      "commit_qpc": 1469418222705,
+      "present_qpc": 1469420720109,
+      "commit_to_seen_ms": 24.97404
+    },
+    {
+      "marker_frame": 1246,
+      "atlas_frame": 641,
+      "commit_qpc": 1469420419559,
+      "present_qpc": 1469423145132,
+      "commit_to_seen_ms": 27.25573
+    },
+    {
+      "marker_frame": 1247,
+      "atlas_frame": 642,
+      "commit_qpc": 1469421654720,
+      "present_qpc": 1469424515120,
+      "commit_to_seen_ms": 28.604
+    },
+    {
+      "marker_frame": 1248,
+      "atlas_frame": 643,
+      "commit_qpc": 1469423299613,
+      "present_qpc": 1469426329698,
+      "commit_to_seen_ms": 30.30085
+    },
+    {
+      "marker_frame": 1249,
+      "atlas_frame": 644,
+      "commit_qpc": 1469424894984,
+      "present_qpc": 1469427573918,
+      "commit_to_seen_ms": 26.78934
+    },
+    {
+      "marker_frame": 1251,
+      "atlas_frame": 646,
+      "commit_qpc": 1469428297674,
+      "present_qpc": 1469431198340,
+      "commit_to_seen_ms": 29.00666
+    },
+    {
+      "marker_frame": 1254,
+      "atlas_frame": 649,
+      "commit_qpc": 1469433236799,
+      "present_qpc": 1469435803386,
+      "commit_to_seen_ms": 25.66587
+    },
+    {
+      "marker_frame": 1256,
+      "atlas_frame": 651,
+      "commit_qpc": 1469436611062,
+      "present_qpc": 1469439259124,
+      "commit_to_seen_ms": 26.48062
+    },
+    {
+      "marker_frame": 1258,
+      "atlas_frame": 652,
+      "commit_qpc": 1469438341902,
+      "present_qpc": 1469441029380,
+      "commit_to_seen_ms": 26.87478
+    },
+    {
+      "marker_frame": 1261,
+      "atlas_frame": 656,
+      "commit_qpc": 1469444984344,
+      "present_qpc": 1469448024702,
+      "commit_to_seen_ms": 30.40358
+    },
+    {
+      "marker_frame": 1262,
+      "atlas_frame": 657,
+      "commit_qpc": 1469446714930,
+      "present_qpc": 1469449358253,
+      "commit_to_seen_ms": 26.43323
+    },
+    {
+      "marker_frame": 1264,
+      "atlas_frame": 659,
+      "commit_qpc": 1469450038760,
+      "present_qpc": 1469452630661,
+      "commit_to_seen_ms": 25.91901
+    },
+    {
+      "marker_frame": 1268,
+      "atlas_frame": 663,
+      "commit_qpc": 1469456565943,
+      "present_qpc": 1469459495536,
+      "commit_to_seen_ms": 29.29593
+    },
+    {
+      "marker_frame": 1269,
+      "atlas_frame": 664,
+      "commit_qpc": 1469458203487,
+      "present_qpc": 1469461464820,
+      "commit_to_seen_ms": 32.61333
+    },
+    {
+      "marker_frame": 1270,
+      "atlas_frame": 665,
+      "commit_qpc": 1469459954812,
+      "present_qpc": 1469462271311,
+      "commit_to_seen_ms": 23.16499
+    },
+    {
+      "marker_frame": 1271,
+      "atlas_frame": 666,
+      "commit_qpc": 1469461611854,
+      "present_qpc": 1469464093540,
+      "commit_to_seen_ms": 24.81686
+    },
+    {
+      "marker_frame": 1272,
+      "atlas_frame": 667,
+      "commit_qpc": 1469463348004,
+      "present_qpc": 1469466509965,
+      "commit_to_seen_ms": 31.61961
+    },
+    {
+      "marker_frame": 1273,
+      "atlas_frame": 668,
+      "commit_qpc": 1469465094715,
+      "present_qpc": 1469467831037,
+      "commit_to_seen_ms": 27.36322
+    },
+    {
+      "marker_frame": 1275,
+      "atlas_frame": 670,
+      "commit_qpc": 1469468279218,
+      "present_qpc": 1469470916156,
+      "commit_to_seen_ms": 26.36938
+    },
+    {
+      "marker_frame": 1277,
+      "atlas_frame": 672,
+      "commit_qpc": 1469471645004,
+      "present_qpc": 1469474700439,
+      "commit_to_seen_ms": 30.55435
+    },
+    {
+      "marker_frame": 1278,
+      "atlas_frame": 673,
+      "commit_qpc": 1469473377762,
+      "present_qpc": 1469476506795,
+      "commit_to_seen_ms": 31.29033
+    },
+    {
+      "marker_frame": 1279,
+      "atlas_frame": 674,
+      "commit_qpc": 1469475004451,
+      "present_qpc": 1469477928870,
+      "commit_to_seen_ms": 29.24419
+    },
+    {
+      "marker_frame": 1280,
+      "atlas_frame": 675,
+      "commit_qpc": 1469476626334,
+      "present_qpc": 1469479708936,
+      "commit_to_seen_ms": 30.82602
+    },
+    {
+      "marker_frame": 1281,
+      "atlas_frame": 676,
+      "commit_qpc": 1469478265378,
+      "present_qpc": 1469480807570,
+      "commit_to_seen_ms": 25.42192
+    },
+    {
+      "marker_frame": 1283,
+      "atlas_frame": 678,
+      "commit_qpc": 1469481616929,
+      "present_qpc": 1469484189044,
+      "commit_to_seen_ms": 25.72115
+    },
+    {
+      "marker_frame": 1285,
+      "atlas_frame": 680,
+      "commit_qpc": 1469484888843,
+      "present_qpc": 1469487584327,
+      "commit_to_seen_ms": 26.95484
+    },
+    {
+      "marker_frame": 1286,
+      "atlas_frame": 681,
+      "commit_qpc": 1469486599397,
+      "present_qpc": 1469489883279,
+      "commit_to_seen_ms": 32.83882
+    },
+    {
+      "marker_frame": 1287,
+      "atlas_frame": 682,
+      "commit_qpc": 1469488286658,
+      "present_qpc": 1469491181869,
+      "commit_to_seen_ms": 28.95211
+    },
+    {
+      "marker_frame": 1289,
+      "atlas_frame": 684,
+      "commit_qpc": 1469491582339,
+      "present_qpc": 1469493862171,
+      "commit_to_seen_ms": 22.79832
+    },
+    {
+      "marker_frame": 1290,
+      "atlas_frame": 685,
+      "commit_qpc": 1469493206814,
+      "present_qpc": 1469495690623,
+      "commit_to_seen_ms": 24.83809
+    },
+    {
+      "marker_frame": 1291,
+      "atlas_frame": 686,
+      "commit_qpc": 1469494989399,
+      "present_qpc": 1469498040402,
+      "commit_to_seen_ms": 30.51003
+    },
+    {
+      "marker_frame": 1292,
+      "atlas_frame": 687,
+      "commit_qpc": 1469496648550,
+      "present_qpc": 1469499567117,
+      "commit_to_seen_ms": 29.18567
+    },
+    {
+      "marker_frame": 1293,
+      "atlas_frame": 688,
+      "commit_qpc": 1469498318845,
+      "present_qpc": 1469500817934,
+      "commit_to_seen_ms": 24.99089
+    },
+    {
+      "marker_frame": 1295,
+      "atlas_frame": 690,
+      "commit_qpc": 1469501671794,
+      "present_qpc": 1469504664946,
+      "commit_to_seen_ms": 29.93152
+    },
+    {
+      "marker_frame": 1297,
+      "atlas_frame": 692,
+      "commit_qpc": 1469504885956,
+      "present_qpc": 1469507950206,
+      "commit_to_seen_ms": 30.6425
+    },
+    {
+      "marker_frame": 1299,
+      "atlas_frame": 694,
+      "commit_qpc": 1469508333345,
+      "present_qpc": 1469511353775,
+      "commit_to_seen_ms": 30.2043
+    },
+    {
+      "marker_frame": 1300,
+      "atlas_frame": 695,
+      "commit_qpc": 1469509870828,
+      "present_qpc": 1469512944538,
+      "commit_to_seen_ms": 30.7371
+    },
+    {
+      "marker_frame": 1302,
+      "atlas_frame": 697,
+      "commit_qpc": 1469513380100,
+      "present_qpc": 1469516569882,
+      "commit_to_seen_ms": 31.89782
+    },
+    {
+      "marker_frame": 1305,
+      "atlas_frame": 700,
+      "commit_qpc": 1469518286137,
+      "present_qpc": 1469520621978,
+      "commit_to_seen_ms": 23.35841
+    },
+    {
+      "marker_frame": 1306,
+      "atlas_frame": 701,
+      "commit_qpc": 1469520025000,
+      "present_qpc": 1469522437497,
+      "commit_to_seen_ms": 24.12497
+    },
+    {
+      "marker_frame": 1308,
+      "atlas_frame": 703,
+      "commit_qpc": 1469523215965,
+      "present_qpc": 1469525662344,
+      "commit_to_seen_ms": 24.46379
+    },
+    {
+      "marker_frame": 1309,
+      "atlas_frame": 704,
+      "commit_qpc": 1469524863946,
+      "present_qpc": 1469527479966,
+      "commit_to_seen_ms": 26.1602
+    },
+    {
+      "marker_frame": 1310,
+      "atlas_frame": 705,
+      "commit_qpc": 1469526620385,
+      "present_qpc": 1469529244415,
+      "commit_to_seen_ms": 26.2403
+    },
+    {
+      "marker_frame": 1312,
+      "atlas_frame": 707,
+      "commit_qpc": 1469529944985,
+      "present_qpc": 1469532908096,
+      "commit_to_seen_ms": 29.63111
+    },
+    {
+      "marker_frame": 1313,
+      "atlas_frame": 708,
+      "commit_qpc": 1469531555710,
+      "present_qpc": 1469534811498,
+      "commit_to_seen_ms": 32.55788
+    },
+    {
+      "marker_frame": 1314,
+      "atlas_frame": 709,
+      "commit_qpc": 1469533301287,
+      "present_qpc": 1469536205147,
+      "commit_to_seen_ms": 29.0386
+    },
+    {
+      "marker_frame": 1315,
+      "atlas_frame": 710,
+      "commit_qpc": 1469534912998,
+      "present_qpc": 1469537933098,
+      "commit_to_seen_ms": 30.201
+    },
+    {
+      "marker_frame": 1316,
+      "atlas_frame": 711,
+      "commit_qpc": 1469536671235,
+      "present_qpc": 1469539261146,
+      "commit_to_seen_ms": 25.89911
+    },
+    {
+      "marker_frame": 1318,
+      "atlas_frame": 713,
+      "commit_qpc": 1469539939289,
+      "present_qpc": 1469542516112,
+      "commit_to_seen_ms": 25.76823
+    },
+    {
+      "marker_frame": 1319,
+      "atlas_frame": 714,
+      "commit_qpc": 1469541536126,
+      "present_qpc": 1469544281617,
+      "commit_to_seen_ms": 27.45491
+    },
+    {
+      "marker_frame": 1321,
+      "atlas_frame": 716,
+      "commit_qpc": 1469544960277,
+      "present_qpc": 1469547790798,
+      "commit_to_seen_ms": 28.30521
+    },
+    {
+      "marker_frame": 1323,
+      "atlas_frame": 718,
+      "commit_qpc": 1469548287499,
+      "present_qpc": 1469551155547,
+      "commit_to_seen_ms": 28.68048
+    },
+    {
+      "marker_frame": 1327,
+      "atlas_frame": 722,
+      "commit_qpc": 1469554934150,
+      "present_qpc": 1469557474234,
+      "commit_to_seen_ms": 25.40084
+    },
+    {
+      "marker_frame": 1328,
+      "atlas_frame": 723,
+      "commit_qpc": 1469556527885,
+      "present_qpc": 1469559851604,
+      "commit_to_seen_ms": 33.23719
+    },
+    {
+      "marker_frame": 1329,
+      "atlas_frame": 724,
+      "commit_qpc": 1469558189417,
+      "present_qpc": 1469561253890,
+      "commit_to_seen_ms": 30.64473
+    },
+    {
+      "marker_frame": 1331,
+      "atlas_frame": 726,
+      "commit_qpc": 1469561515583,
+      "present_qpc": 1469564314316,
+      "commit_to_seen_ms": 27.98733
+    },
+    {
+      "marker_frame": 1333,
+      "atlas_frame": 728,
+      "commit_qpc": 1469564950775,
+      "present_qpc": 1469568066515,
+      "commit_to_seen_ms": 31.1574
+    },
+    {
+      "marker_frame": 1334,
+      "atlas_frame": 729,
+      "commit_qpc": 1469566693038,
+      "present_qpc": 1469569036913,
+      "commit_to_seen_ms": 23.43875
+    },
+    {
+      "marker_frame": 1335,
+      "atlas_frame": 730,
+      "commit_qpc": 1469568256527,
+      "present_qpc": 1469570919914,
+      "commit_to_seen_ms": 26.63387
+    },
+    {
+      "marker_frame": 1337,
+      "atlas_frame": 732,
+      "commit_qpc": 1469571637104,
+      "present_qpc": 1469574205284,
+      "commit_to_seen_ms": 25.6818
+    },
+    {
+      "marker_frame": 1341,
+      "atlas_frame": 736,
+      "commit_qpc": 1469578368556,
+      "present_qpc": 1469581174680,
+      "commit_to_seen_ms": 28.06124
+    },
+    {
+      "marker_frame": 1343,
+      "atlas_frame": 738,
+      "commit_qpc": 1469581657338,
+      "present_qpc": 1469584875877,
+      "commit_to_seen_ms": 32.18539
+    },
+    {
+      "marker_frame": 1344,
+      "atlas_frame": 739,
+      "commit_qpc": 1469583242230,
+      "present_qpc": 1469586282881,
+      "commit_to_seen_ms": 30.40651
+    },
+    {
+      "marker_frame": 1345,
+      "atlas_frame": 740,
+      "commit_qpc": 1469584960530,
+      "present_qpc": 1469588167770,
+      "commit_to_seen_ms": 32.0724
+    },
+    {
+      "marker_frame": 1346,
+      "atlas_frame": 741,
+      "commit_qpc": 1469586675150,
+      "present_qpc": 1469589480166,
+      "commit_to_seen_ms": 28.05016
+    },
+    {
+      "marker_frame": 1348,
+      "atlas_frame": 743,
+      "commit_qpc": 1469589965367,
+      "present_qpc": 1469592592988,
+      "commit_to_seen_ms": 26.27621
+    },
+    {
+      "marker_frame": 1350,
+      "atlas_frame": 745,
+      "commit_qpc": 1469593257909,
+      "present_qpc": 1469595834186,
+      "commit_to_seen_ms": 25.76277
+    },
+    {
+      "marker_frame": 1352,
+      "atlas_frame": 747,
+      "commit_qpc": 1469596680915,
+      "present_qpc": 1469599291984,
+      "commit_to_seen_ms": 26.11069
+    },
+    {
+      "marker_frame": 1354,
+      "atlas_frame": 749,
+      "commit_qpc": 1469600059316,
+      "present_qpc": 1469602842607,
+      "commit_to_seen_ms": 27.83291
+    },
+    {
+      "marker_frame": 1358,
+      "atlas_frame": 753,
+      "commit_qpc": 1469606676679,
+      "present_qpc": 1469609250443,
+      "commit_to_seen_ms": 25.73764
+    },
+    {
+      "marker_frame": 1360,
+      "atlas_frame": 755,
+      "commit_qpc": 1469609936178,
+      "present_qpc": 1469613100842,
+      "commit_to_seen_ms": 31.64664
+    },
+    {
+      "marker_frame": 1361,
+      "atlas_frame": 756,
+      "commit_qpc": 1469611697360,
+      "present_qpc": 1469614310202,
+      "commit_to_seen_ms": 26.12842
+    },
+    {
+      "marker_frame": 1363,
+      "atlas_frame": 758,
+      "commit_qpc": 1469614910996,
+      "present_qpc": 1469617615175,
+      "commit_to_seen_ms": 27.04179
+    },
+    {
+      "marker_frame": 1367,
+      "atlas_frame": 762,
+      "commit_qpc": 1469621660336,
+      "present_qpc": 1469624144548,
+      "commit_to_seen_ms": 24.84212
+    },
+    {
+      "marker_frame": 1371,
+      "atlas_frame": 766,
+      "commit_qpc": 1469628217424,
+      "present_qpc": 1469630923927,
+      "commit_to_seen_ms": 27.06503
+    },
+    {
+      "marker_frame": 1373,
+      "atlas_frame": 768,
+      "commit_qpc": 1469631550455,
+      "present_qpc": 1469634826006,
+      "commit_to_seen_ms": 32.75551
+    },
+    {
+      "marker_frame": 1377,
+      "atlas_frame": 772,
+      "commit_qpc": 1469638206772,
+      "present_qpc": 1469641048026,
+      "commit_to_seen_ms": 28.41254
+    },
+    {
+      "marker_frame": 1379,
+      "atlas_frame": 774,
+      "commit_qpc": 1469641549982,
+      "present_qpc": 1469644273380,
+      "commit_to_seen_ms": 27.23398
+    },
+    {
+      "marker_frame": 1381,
+      "atlas_frame": 776,
+      "commit_qpc": 1469644893216,
+      "present_qpc": 1469647537435,
+      "commit_to_seen_ms": 26.44219
+    },
+    {
+      "marker_frame": 1383,
+      "atlas_frame": 778,
+      "commit_qpc": 1469648288709,
+      "present_qpc": 1469651123841,
+      "commit_to_seen_ms": 28.35132
+    },
+    {
+      "marker_frame": 1384,
+      "atlas_frame": 779,
+      "commit_qpc": 1469649888124,
+      "present_qpc": 1469653154239,
+      "commit_to_seen_ms": 32.66115
+    },
+    {
+      "marker_frame": 1385,
+      "atlas_frame": 780,
+      "commit_qpc": 1469651619964,
+      "present_qpc": 1469654528087,
+      "commit_to_seen_ms": 29.08123
+    },
+    {
+      "marker_frame": 1387,
+      "atlas_frame": 782,
+      "commit_qpc": 1469654894182,
+      "present_qpc": 1469657364479,
+      "commit_to_seen_ms": 24.70297
+    },
+    {
+      "marker_frame": 1392,
+      "atlas_frame": 787,
+      "commit_qpc": 1469663233550,
+      "present_qpc": 1469666387783,
+      "commit_to_seen_ms": 31.54233
+    },
+    {
+      "marker_frame": 1397,
+      "atlas_frame": 792,
+      "commit_qpc": 1469671618723,
+      "present_qpc": 1469673858782,
+      "commit_to_seen_ms": 22.40059
+    },
+    {
+      "marker_frame": 1401,
+      "atlas_frame": 796,
+      "commit_qpc": 1469678199590,
+      "present_qpc": 1469680870510,
+      "commit_to_seen_ms": 26.7092
+    },
+    {
+      "marker_frame": 1403,
+      "atlas_frame": 798,
+      "commit_qpc": 1469681727540,
+      "present_qpc": 1469684631998,
+      "commit_to_seen_ms": 29.04458
+    },
+    {
+      "marker_frame": 1404,
+      "atlas_frame": 799,
+      "commit_qpc": 1469683215987,
+      "present_qpc": 1469686430667,
+      "commit_to_seen_ms": 32.1468
+    },
+    {
+      "marker_frame": 1405,
+      "atlas_frame": 800,
+      "commit_qpc": 1469684865928,
+      "present_qpc": 1469687328502,
+      "commit_to_seen_ms": 24.62574
+    },
+    {
+      "marker_frame": 1409,
+      "atlas_frame": 804,
+      "commit_qpc": 1469691599268,
+      "present_qpc": 1469694188486,
+      "commit_to_seen_ms": 25.89218
+    },
+    {
+      "marker_frame": 1411,
+      "atlas_frame": 806,
+      "commit_qpc": 1469694907623,
+      "present_qpc": 1469697486833,
+      "commit_to_seen_ms": 25.7921
+    },
+    {
+      "marker_frame": 1413,
+      "atlas_frame": 808,
+      "commit_qpc": 1469698236528,
+      "present_qpc": 1469700641299,
+      "commit_to_seen_ms": 24.04771
+    },
+    {
+      "marker_frame": 1414,
+      "atlas_frame": 809,
+      "commit_qpc": 1469699992443,
+      "present_qpc": 1469703052779,
+      "commit_to_seen_ms": 30.60336
+    },
+    {
+      "marker_frame": 1415,
+      "atlas_frame": 810,
+      "commit_qpc": 1469701666748,
+      "present_qpc": 1469704229939,
+      "commit_to_seen_ms": 25.63191
+    },
+    {
+      "marker_frame": 1417,
+      "atlas_frame": 812,
+      "commit_qpc": 1469705006772,
+      "present_qpc": 1469708073077,
+      "commit_to_seen_ms": 30.66305
+    },
+    {
+      "marker_frame": 1418,
+      "atlas_frame": 813,
+      "commit_qpc": 1469706600834,
+      "present_qpc": 1469709499610,
+      "commit_to_seen_ms": 28.98776
+    },
+    {
+      "marker_frame": 1419,
+      "atlas_frame": 814,
+      "commit_qpc": 1469708194163,
+      "present_qpc": 1469711044217,
+      "commit_to_seen_ms": 28.50054
+    },
+    {
+      "marker_frame": 1421,
+      "atlas_frame": 816,
+      "commit_qpc": 1469711544210,
+      "present_qpc": 1469714608596,
+      "commit_to_seen_ms": 30.64386
+    },
+    {
+      "marker_frame": 1424,
+      "atlas_frame": 818,
+      "commit_qpc": 1469714895434,
+      "present_qpc": 1469717615405,
+      "commit_to_seen_ms": 27.19971
+    },
+    {
+      "marker_frame": 1431,
+      "atlas_frame": 826,
+      "commit_qpc": 1469728321640,
+      "present_qpc": 1469730863570,
+      "commit_to_seen_ms": 25.4193
+    },
+    {
+      "marker_frame": 1433,
+      "atlas_frame": 828,
+      "commit_qpc": 1469731517395,
+      "present_qpc": 1469734022784,
+      "commit_to_seen_ms": 25.05389
+    },
+    {
+      "marker_frame": 1437,
+      "atlas_frame": 832,
+      "commit_qpc": 1469738146754,
+      "present_qpc": 1469740921604,
+      "commit_to_seen_ms": 27.7485
+    },
+    {
+      "marker_frame": 1439,
+      "atlas_frame": 834,
+      "commit_qpc": 1469741617640,
+      "present_qpc": 1469744180604,
+      "commit_to_seen_ms": 25.62964
+    },
+    {
+      "marker_frame": 1441,
+      "atlas_frame": 836,
+      "commit_qpc": 1469744871566,
+      "present_qpc": 1469747990522,
+      "commit_to_seen_ms": 31.18956
+    },
+    {
+      "marker_frame": 1444,
+      "atlas_frame": 839,
+      "commit_qpc": 1469749933421,
+      "present_qpc": 1469752509476,
+      "commit_to_seen_ms": 25.76055
+    },
+    {
+      "marker_frame": 1446,
+      "atlas_frame": 841,
+      "commit_qpc": 1469753340343,
+      "present_qpc": 1469756226318,
+      "commit_to_seen_ms": 28.85975
+    },
+    {
+      "marker_frame": 1447,
+      "atlas_frame": 842,
+      "commit_qpc": 1469754941490,
+      "present_qpc": 1469757649226,
+      "commit_to_seen_ms": 27.07736
+    },
+    {
+      "marker_frame": 1453,
+      "atlas_frame": 848,
+      "commit_qpc": 1469764914442,
+      "present_qpc": 1469767743219,
+      "commit_to_seen_ms": 28.28777
+    },
+    {
+      "marker_frame": 1455,
+      "atlas_frame": 850,
+      "commit_qpc": 1469768188467,
+      "present_qpc": 1469770847886,
+      "commit_to_seen_ms": 26.59419
+    },
+    {
+      "marker_frame": 1457,
+      "atlas_frame": 852,
+      "commit_qpc": 1469771551139,
+      "present_qpc": 1469774546085,
+      "commit_to_seen_ms": 29.94946
+    },
+    {
+      "marker_frame": 1458,
+      "atlas_frame": 853,
+      "commit_qpc": 1469773319959,
+      "present_qpc": 1469775918982,
+      "commit_to_seen_ms": 25.99023
+    },
+    {
+      "marker_frame": 1460,
+      "atlas_frame": 855,
+      "commit_qpc": 1469776625250,
+      "present_qpc": 1469779671181,
+      "commit_to_seen_ms": 30.45931
+    },
+    {
+      "marker_frame": 1462,
+      "atlas_frame": 857,
+      "commit_qpc": 1469779966285,
+      "present_qpc": 1469782672834,
+      "commit_to_seen_ms": 27.06549
+    },
+    {
+      "marker_frame": 1464,
+      "atlas_frame": 859,
+      "commit_qpc": 1469783261391,
+      "present_qpc": 1469785604301,
+      "commit_to_seen_ms": 23.4291
+    },
+    {
+      "marker_frame": 1465,
+      "atlas_frame": 860,
+      "commit_qpc": 1469784863182,
+      "present_qpc": 1469787484146,
+      "commit_to_seen_ms": 26.20964
+    },
+    {
+      "marker_frame": 1466,
+      "atlas_frame": 861,
+      "commit_qpc": 1469786592434,
+      "present_qpc": 1469789264986,
+      "commit_to_seen_ms": 26.72552
+    },
+    {
+      "marker_frame": 1468,
+      "atlas_frame": 863,
+      "commit_qpc": 1469789934511,
+      "present_qpc": 1469793119266,
+      "commit_to_seen_ms": 31.84755
+    },
+    {
+      "marker_frame": 1469,
+      "atlas_frame": 864,
+      "commit_qpc": 1469791528402,
+      "present_qpc": 1469794478193,
+      "commit_to_seen_ms": 29.49791
+    },
+    {
+      "marker_frame": 1471,
+      "atlas_frame": 866,
+      "commit_qpc": 1469794900230,
+      "present_qpc": 1469797652327,
+      "commit_to_seen_ms": 27.52097
+    },
+    {
+      "marker_frame": 1473,
+      "atlas_frame": 868,
+      "commit_qpc": 1469798248762,
+      "present_qpc": 1469800840271,
+      "commit_to_seen_ms": 25.91509
+    },
+    {
+      "marker_frame": 1474,
+      "atlas_frame": 869,
+      "commit_qpc": 1469800255072,
+      "present_qpc": 1469802565654,
+      "commit_to_seen_ms": 23.10582
+    },
+    {
+      "marker_frame": 1476,
+      "atlas_frame": 871,
+      "commit_qpc": 1469803272785,
+      "present_qpc": 1469805822841,
+      "commit_to_seen_ms": 25.50056
+    },
+    {
+      "marker_frame": 1478,
+      "atlas_frame": 873,
+      "commit_qpc": 1469806736368,
+      "present_qpc": 1469809021595,
+      "commit_to_seen_ms": 22.85227
+    },
+    {
+      "marker_frame": 1479,
+      "atlas_frame": 874,
+      "commit_qpc": 1469808366471,
+      "present_qpc": 1469810974066,
+      "commit_to_seen_ms": 26.07595
+    },
+    {
+      "marker_frame": 1481,
+      "atlas_frame": 876,
+      "commit_qpc": 1469811650632,
+      "present_qpc": 1469814769215,
+      "commit_to_seen_ms": 31.18583
+    },
+    {
+      "marker_frame": 1482,
+      "atlas_frame": 877,
+      "commit_qpc": 1469813260718,
+      "present_qpc": 1469815714535,
+      "commit_to_seen_ms": 24.53817
+    },
+    {
+      "marker_frame": 1484,
+      "atlas_frame": 879,
+      "commit_qpc": 1469816646075,
+      "present_qpc": 1469819111008,
+      "commit_to_seen_ms": 24.64933
+    },
+    {
+      "marker_frame": 1486,
+      "atlas_frame": 881,
+      "commit_qpc": 1469820389754,
+      "present_qpc": 1469822309338,
+      "commit_to_seen_ms": 19.19584
+    },
+    {
+      "marker_frame": 1488,
+      "atlas_frame": 882,
+      "commit_qpc": 1469821605409,
+      "present_qpc": 1469824810035,
+      "commit_to_seen_ms": 32.04626
+    },
+    {
+      "marker_frame": 1491,
+      "atlas_frame": 886,
+      "commit_qpc": 1469828208904,
+      "present_qpc": 1469831022938,
+      "commit_to_seen_ms": 28.14034
+    },
+    {
+      "marker_frame": 1493,
+      "atlas_frame": 888,
+      "commit_qpc": 1469831571863,
+      "present_qpc": 1469834871842,
+      "commit_to_seen_ms": 32.99979
+    },
+    {
+      "marker_frame": 1494,
+      "atlas_frame": 889,
+      "commit_qpc": 1469833265061,
+      "present_qpc": 1469836333856,
+      "commit_to_seen_ms": 30.68795
+    },
+    {
+      "marker_frame": 1496,
+      "atlas_frame": 890,
+      "commit_qpc": 1469834915946,
+      "present_qpc": 1469837557350,
+      "commit_to_seen_ms": 26.41404
+    },
+    {
+      "marker_frame": 1498,
+      "atlas_frame": 892,
+      "commit_qpc": 1469838223082,
+      "present_qpc": 1469840818911,
+      "commit_to_seen_ms": 25.95829
+    },
+    {
+      "marker_frame": 1499,
+      "atlas_frame": 893,
+      "commit_qpc": 1469839848942,
+      "present_qpc": 1469843247281,
+      "commit_to_seen_ms": 33.98339
+    },
+    {
+      "marker_frame": 1502,
+      "atlas_frame": 897,
+      "commit_qpc": 1469846621775,
+      "present_qpc": 1469849053678,
+      "commit_to_seen_ms": 24.31903
+    },
+    {
+      "marker_frame": 1503,
+      "atlas_frame": 898,
+      "commit_qpc": 1469848214495,
+      "present_qpc": 1469850887134,
+      "commit_to_seen_ms": 26.72639
+    },
+    {
+      "marker_frame": 1508,
+      "atlas_frame": 903,
+      "commit_qpc": 1469856588223,
+      "present_qpc": 1469859724891,
+      "commit_to_seen_ms": 31.36668
+    },
+    {
+      "marker_frame": 1509,
+      "atlas_frame": 904,
+      "commit_qpc": 1469858238374,
+      "present_qpc": 1469861257754,
+      "commit_to_seen_ms": 30.1938
+    },
+    {
+      "marker_frame": 1511,
+      "atlas_frame": 906,
+      "commit_qpc": 1469861577336,
+      "present_qpc": 1469864903215,
+      "commit_to_seen_ms": 33.25879
+    },
+    {
+      "marker_frame": 1512,
+      "atlas_frame": 907,
+      "commit_qpc": 1469863305612,
+      "present_qpc": 1469865681645,
+      "commit_to_seen_ms": 23.76033
+    },
+    {
+      "marker_frame": 1517,
+      "atlas_frame": 912,
+      "commit_qpc": 1469871613441,
+      "present_qpc": 1469873988570,
+      "commit_to_seen_ms": 23.75129
+    },
+    {
+      "marker_frame": 1518,
+      "atlas_frame": 913,
+      "commit_qpc": 1469873309602,
+      "present_qpc": 1469875810401,
+      "commit_to_seen_ms": 25.00799
+    },
+    {
+      "marker_frame": 1519,
+      "atlas_frame": 914,
+      "commit_qpc": 1469874868355,
+      "present_qpc": 1469877624234,
+      "commit_to_seen_ms": 27.55879
+    },
+    {
+      "marker_frame": 1521,
+      "atlas_frame": 916,
+      "commit_qpc": 1469878376866,
+      "present_qpc": 1469880849861,
+      "commit_to_seen_ms": 24.72995
+    },
+    {
+      "marker_frame": 1525,
+      "atlas_frame": 920,
+      "commit_qpc": 1469884932273,
+      "present_qpc": 1469887221670,
+      "commit_to_seen_ms": 22.89397
+    },
+    {
+      "marker_frame": 1527,
+      "atlas_frame": 921,
+      "commit_qpc": 1469886634572,
+      "present_qpc": 1469889075322,
+      "commit_to_seen_ms": 24.4075
+    },
+    {
+      "marker_frame": 1529,
+      "atlas_frame": 924,
+      "commit_qpc": 1469891627973,
+      "present_qpc": 1469894559636,
+      "commit_to_seen_ms": 29.31663
+    },
+    {
+      "marker_frame": 1532,
+      "atlas_frame": 927,
+      "commit_qpc": 1469896609266,
+      "present_qpc": 1469899192637,
+      "commit_to_seen_ms": 25.83371
+    },
+    {
+      "marker_frame": 1536,
+      "atlas_frame": 931,
+      "commit_qpc": 1469903396673,
+      "present_qpc": 1469905636030,
+      "commit_to_seen_ms": 22.39357
+    },
+    {
+      "marker_frame": 1537,
+      "atlas_frame": 932,
+      "commit_qpc": 1469905020641,
+      "present_qpc": 1469908121542,
+      "commit_to_seen_ms": 31.00901
+    },
+    {
+      "marker_frame": 1538,
+      "atlas_frame": 933,
+      "commit_qpc": 1469906635440,
+      "present_qpc": 1469909334691,
+      "commit_to_seen_ms": 26.99251
+    },
+    {
+      "marker_frame": 1543,
+      "atlas_frame": 937,
+      "commit_qpc": 1469913401305,
+      "present_qpc": 1469915860931,
+      "commit_to_seen_ms": 24.59626
+    },
+    {
+      "marker_frame": 1546,
+      "atlas_frame": 941,
+      "commit_qpc": 1469919974716,
+      "present_qpc": 1469922264879,
+      "commit_to_seen_ms": 22.90163
+    },
+    {
+      "marker_frame": 1549,
+      "atlas_frame": 944,
+      "commit_qpc": 1469924918520,
+      "present_qpc": 1469927351620,
+      "commit_to_seen_ms": 24.331
+    },
+    {
+      "marker_frame": 1551,
+      "atlas_frame": 946,
+      "commit_qpc": 1469928205696,
+      "present_qpc": 1469930813810,
+      "commit_to_seen_ms": 26.08114
+    },
+    {
+      "marker_frame": 1553,
+      "atlas_frame": 948,
+      "commit_qpc": 1469931542036,
+      "present_qpc": 1469934376851,
+      "commit_to_seen_ms": 28.34815
+    },
+    {
+      "marker_frame": 1555,
+      "atlas_frame": 950,
+      "commit_qpc": 1469934858442,
+      "present_qpc": 1469937925150,
+      "commit_to_seen_ms": 30.66708
+    },
+    {
+      "marker_frame": 1556,
+      "atlas_frame": 951,
+      "commit_qpc": 1469936509155,
+      "present_qpc": 1469939289008,
+      "commit_to_seen_ms": 27.79853
+    },
+    {
+      "marker_frame": 1558,
+      "atlas_frame": 953,
+      "commit_qpc": 1469939923113,
+      "present_qpc": 1469943225239,
+      "commit_to_seen_ms": 33.02126
+    },
+    {
+      "marker_frame": 1560,
+      "atlas_frame": 955,
+      "commit_qpc": 1469943177148,
+      "present_qpc": 1469945843197,
+      "commit_to_seen_ms": 26.66049
+    },
+    {
+      "marker_frame": 1562,
+      "atlas_frame": 957,
+      "commit_qpc": 1469946698018,
+      "present_qpc": 1469949022402,
+      "commit_to_seen_ms": 23.24384
+    },
+    {
+      "marker_frame": 1563,
+      "atlas_frame": 958,
+      "commit_qpc": 1469948285980,
+      "present_qpc": 1469951325105,
+      "commit_to_seen_ms": 30.39125
+    },
+    {
+      "marker_frame": 1564,
+      "atlas_frame": 959,
+      "commit_qpc": 1469949914352,
+      "present_qpc": 1469952939728,
+      "commit_to_seen_ms": 30.25376
+    },
+    {
+      "marker_frame": 1568,
+      "atlas_frame": 963,
+      "commit_qpc": 1469956583404,
+      "present_qpc": 1469959373798,
+      "commit_to_seen_ms": 27.90394
+    },
+    {
+      "marker_frame": 1569,
+      "atlas_frame": 964,
+      "commit_qpc": 1469958147398,
+      "present_qpc": 1469961118526,
+      "commit_to_seen_ms": 29.71128
+    },
+    {
+      "marker_frame": 1571,
+      "atlas_frame": 966,
+      "commit_qpc": 1469961549492,
+      "present_qpc": 1469963915932,
+      "commit_to_seen_ms": 23.6644
+    },
+    {
+      "marker_frame": 1572,
+      "atlas_frame": 967,
+      "commit_qpc": 1469963207425,
+      "present_qpc": 1469966363280,
+      "commit_to_seen_ms": 31.55855
+    },
+    {
+      "marker_frame": 1574,
+      "atlas_frame": 968,
+      "commit_qpc": 1469964883190,
+      "present_qpc": 1469968295510,
+      "commit_to_seen_ms": 34.1232
+    },
+    {
+      "marker_frame": 1576,
+      "atlas_frame": 971,
+      "commit_qpc": 1469969911069,
+      "present_qpc": 1469972763684,
+      "commit_to_seen_ms": 28.52615
+    },
+    {
+      "marker_frame": 1577,
+      "atlas_frame": 972,
+      "commit_qpc": 1469971537290,
+      "present_qpc": 1469974760606,
+      "commit_to_seen_ms": 32.23316
+    },
+    {
+      "marker_frame": 1579,
+      "atlas_frame": 974,
+      "commit_qpc": 1469974895556,
+      "present_qpc": 1469977352143,
+      "commit_to_seen_ms": 24.56587
+    },
+    {
+      "marker_frame": 1580,
+      "atlas_frame": 975,
+      "commit_qpc": 1469976529283,
+      "present_qpc": 1469979201877,
+      "commit_to_seen_ms": 26.72594
+    },
+    {
+      "marker_frame": 1582,
+      "atlas_frame": 977,
+      "commit_qpc": 1469980019075,
+      "present_qpc": 1469983070361,
+      "commit_to_seen_ms": 30.51286
+    },
+    {
+      "marker_frame": 1583,
+      "atlas_frame": 978,
+      "commit_qpc": 1469981611035,
+      "present_qpc": 1469984925713,
+      "commit_to_seen_ms": 33.14678
+    },
+    {
+      "marker_frame": 1584,
+      "atlas_frame": 979,
+      "commit_qpc": 1469983164666,
+      "present_qpc": 1469986170086,
+      "commit_to_seen_ms": 30.0542
+    },
+    {
+      "marker_frame": 1586,
+      "atlas_frame": 981,
+      "commit_qpc": 1469986579069,
+      "present_qpc": 1469989542288,
+      "commit_to_seen_ms": 29.63219
+    },
+    {
+      "marker_frame": 1588,
+      "atlas_frame": 983,
+      "commit_qpc": 1469989914859,
+      "present_qpc": 1469993258385,
+      "commit_to_seen_ms": 33.43526
+    },
+    {
+      "marker_frame": 1589,
+      "atlas_frame": 984,
+      "commit_qpc": 1469991556884,
+      "present_qpc": 1469994261247,
+      "commit_to_seen_ms": 27.04363
+    },
+    {
+      "marker_frame": 1590,
+      "atlas_frame": 985,
+      "commit_qpc": 1469993267469,
+      "present_qpc": 1469996387661,
+      "commit_to_seen_ms": 31.20192
+    },
+    {
+      "marker_frame": 1591,
+      "atlas_frame": 986,
+      "commit_qpc": 1469994845252,
+      "present_qpc": 1469998131405,
+      "commit_to_seen_ms": 32.86153
+    },
+    {
+      "marker_frame": 1592,
+      "atlas_frame": 987,
+      "commit_qpc": 1469996529085,
+      "present_qpc": 1469999656298,
+      "commit_to_seen_ms": 31.27213
+    },
+    {
+      "marker_frame": 1593,
+      "atlas_frame": 988,
+      "commit_qpc": 1469998264356,
+      "present_qpc": 1470001630861,
+      "commit_to_seen_ms": 33.66505
+    },
+    {
+      "marker_frame": 1594,
+      "atlas_frame": 989,
+      "commit_qpc": 1470000017783,
+      "present_qpc": 1470002041623,
+      "commit_to_seen_ms": 20.2384
+    },
+    {
+      "marker_frame": 1610,
+      "atlas_frame": 991,
+      "commit_qpc": 1470027024609,
+      "present_qpc": 1470029590423,
+      "commit_to_seen_ms": 25.65814
+    },
+    {
+      "marker_frame": 1611,
+      "atlas_frame": 992,
+      "commit_qpc": 1470028159463,
+      "present_qpc": 1470030825322,
+      "commit_to_seen_ms": 26.65859
+    },
+    {
+      "marker_frame": 1613,
+      "atlas_frame": 994,
+      "commit_qpc": 1470031617174,
+      "present_qpc": 1470034662673,
+      "commit_to_seen_ms": 30.45499
+    },
+    {
+      "marker_frame": 1614,
+      "atlas_frame": 995,
+      "commit_qpc": 1470033298732,
+      "present_qpc": 1470036429696,
+      "commit_to_seen_ms": 31.30964
+    },
+    {
+      "marker_frame": 1615,
+      "atlas_frame": 996,
+      "commit_qpc": 1470034782925,
+      "present_qpc": 1470037721455,
+      "commit_to_seen_ms": 29.3853
+    },
+    {
+      "marker_frame": 1617,
+      "atlas_frame": 998,
+      "commit_qpc": 1470038159114,
+      "present_qpc": 1470040550241,
+      "commit_to_seen_ms": 23.91127
+    },
+    {
+      "marker_frame": 1618,
+      "atlas_frame": 999,
+      "commit_qpc": 1470039901817,
+      "present_qpc": 1470042514425,
+      "commit_to_seen_ms": 26.12608
+    },
+    {
+      "marker_frame": 1623,
+      "atlas_frame": 1004,
+      "commit_qpc": 1470048306698,
+      "present_qpc": 1470050731110,
+      "commit_to_seen_ms": 24.24412
+    },
+    {
+      "marker_frame": 1624,
+      "atlas_frame": 1005,
+      "commit_qpc": 1470049960152,
+      "present_qpc": 1470052605626,
+      "commit_to_seen_ms": 26.45474
+    },
+    {
+      "marker_frame": 1626,
+      "atlas_frame": 1007,
+      "commit_qpc": 1470053298128,
+      "present_qpc": 1470055950717,
+      "commit_to_seen_ms": 26.52589
+    },
+    {
+      "marker_frame": 1629,
+      "atlas_frame": 1009,
+      "commit_qpc": 1470056616971,
+      "present_qpc": 1470059358924,
+      "commit_to_seen_ms": 27.41953
+    },
+    {
+      "marker_frame": 1632,
+      "atlas_frame": 1013,
+      "commit_qpc": 1470063328130,
+      "present_qpc": 1470066044107,
+      "commit_to_seen_ms": 27.15977
+    },
+    {
+      "marker_frame": 1636,
+      "atlas_frame": 1017,
+      "commit_qpc": 1470069827989,
+      "present_qpc": 1470072924104,
+      "commit_to_seen_ms": 30.96115
+    },
+    {
+      "marker_frame": 1637,
+      "atlas_frame": 1018,
+      "commit_qpc": 1470071483459,
+      "present_qpc": 1470074690172,
+      "commit_to_seen_ms": 32.06713
+    },
+    {
+      "marker_frame": 1639,
+      "atlas_frame": 1019,
+      "commit_qpc": 1470073277587,
+      "present_qpc": 1470075948107,
+      "commit_to_seen_ms": 26.7052
+    },
+    {
+      "marker_frame": 1642,
+      "atlas_frame": 1023,
+      "commit_qpc": 1470079887368,
+      "present_qpc": 1470082449567,
+      "commit_to_seen_ms": 25.62199
+    },
+    {
+      "marker_frame": 1646,
+      "atlas_frame": 1027,
+      "commit_qpc": 1470086578734,
+      "present_qpc": 1470088959173,
+      "commit_to_seen_ms": 23.80439
+    },
+    {
+      "marker_frame": 1647,
+      "atlas_frame": 1028,
+      "commit_qpc": 1470088234179,
+      "present_qpc": 1470091303122,
+      "commit_to_seen_ms": 30.68943
+    },
+    {
+      "marker_frame": 1649,
+      "atlas_frame": 1030,
+      "commit_qpc": 1470091563386,
+      "present_qpc": 1470094166569,
+      "commit_to_seen_ms": 26.03183
+    },
+    {
+      "marker_frame": 1651,
+      "atlas_frame": 1032,
+      "commit_qpc": 1470094919998,
+      "present_qpc": 1470097196576,
+      "commit_to_seen_ms": 22.76578
+    },
+    {
+      "marker_frame": 1652,
+      "atlas_frame": 1033,
+      "commit_qpc": 1470096523996,
+      "present_qpc": 1470099724345,
+      "commit_to_seen_ms": 32.00349
+    },
+    {
+      "marker_frame": 1653,
+      "atlas_frame": 1034,
+      "commit_qpc": 1470098230304,
+      "present_qpc": 1470101006173,
+      "commit_to_seen_ms": 27.75869
+    },
+    {
+      "marker_frame": 1655,
+      "atlas_frame": 1036,
+      "commit_qpc": 1470101567907,
+      "present_qpc": 1470104162319,
+      "commit_to_seen_ms": 25.94412
+    },
+    {
+      "marker_frame": 1656,
+      "atlas_frame": 1037,
+      "commit_qpc": 1470103196138,
+      "present_qpc": 1470105919600,
+      "commit_to_seen_ms": 27.23462
+    },
+    {
+      "marker_frame": 1659,
+      "atlas_frame": 1040,
+      "commit_qpc": 1470108248745,
+      "present_qpc": 1470110924066,
+      "commit_to_seen_ms": 26.75321
+    },
+    {
+      "marker_frame": 1667,
+      "atlas_frame": 1048,
+      "commit_qpc": 1470121558517,
+      "present_qpc": 1470124262431,
+      "commit_to_seen_ms": 27.03914
+    },
+    {
+      "marker_frame": 1671,
+      "atlas_frame": 1052,
+      "commit_qpc": 1470128188696,
+      "present_qpc": 1470130684307,
+      "commit_to_seen_ms": 24.95611
+    },
+    {
+      "marker_frame": 1672,
+      "atlas_frame": 1053,
+      "commit_qpc": 1470129965937,
+      "present_qpc": 1470132567051,
+      "commit_to_seen_ms": 26.01114
+    },
+    {
+      "marker_frame": 1674,
+      "atlas_frame": 1055,
+      "commit_qpc": 1470133127953,
+      "present_qpc": 1470135786006,
+      "commit_to_seen_ms": 26.58053
+    },
+    {
+      "marker_frame": 1675,
+      "atlas_frame": 1056,
+      "commit_qpc": 1470134864177,
+      "present_qpc": 1470138180256,
+      "commit_to_seen_ms": 33.16079
+    },
+    {
+      "marker_frame": 1676,
+      "atlas_frame": 1057,
+      "commit_qpc": 1470136506553,
+      "present_qpc": 1470139079148,
+      "commit_to_seen_ms": 25.72595
+    },
+    {
+      "marker_frame": 1678,
+      "atlas_frame": 1059,
+      "commit_qpc": 1470139980865,
+      "present_qpc": 1470142797636,
+      "commit_to_seen_ms": 28.16771
+    },
+    {
+      "marker_frame": 1680,
+      "atlas_frame": 1061,
+      "commit_qpc": 1470143195466,
+      "present_qpc": 1470145808496,
+      "commit_to_seen_ms": 26.1303
+    },
+    {
+      "marker_frame": 1681,
+      "atlas_frame": 1062,
+      "commit_qpc": 1470144799108,
+      "present_qpc": 1470147586109,
+      "commit_to_seen_ms": 27.87001
+    },
+    {
+      "marker_frame": 1685,
+      "atlas_frame": 1066,
+      "commit_qpc": 1470151520038,
+      "present_qpc": 1470154251216,
+      "commit_to_seen_ms": 27.31178
+    },
+    {
+      "marker_frame": 1688,
+      "atlas_frame": 1068,
+      "commit_qpc": 1470154979338,
+      "present_qpc": 1470157531670,
+      "commit_to_seen_ms": 25.52332
+    },
+    {
+      "marker_frame": 1691,
+      "atlas_frame": 1072,
+      "commit_qpc": 1470161574872,
+      "present_qpc": 1470164893977,
+      "commit_to_seen_ms": 33.19105
+    },
+    {
+      "marker_frame": 1693,
+      "atlas_frame": 1074,
+      "commit_qpc": 1470164869965,
+      "present_qpc": 1470167492806,
+      "commit_to_seen_ms": 26.22841
+    },
+    {
+      "marker_frame": 1694,
+      "atlas_frame": 1075,
+      "commit_qpc": 1470166588340,
+      "present_qpc": 1470169814291,
+      "commit_to_seen_ms": 32.25951
+    },
+    {
+      "marker_frame": 1695,
+      "atlas_frame": 1076,
+      "commit_qpc": 1470168149017,
+      "present_qpc": 1470171218250,
+      "commit_to_seen_ms": 30.69233
+    },
+    {
+      "marker_frame": 1697,
+      "atlas_frame": 1078,
+      "commit_qpc": 1470171556486,
+      "present_qpc": 1470174288803,
+      "commit_to_seen_ms": 27.32317
+    },
+    {
+      "marker_frame": 1699,
+      "atlas_frame": 1080,
+      "commit_qpc": 1470174785569,
+      "present_qpc": 1470178040539,
+      "commit_to_seen_ms": 32.5497
+    },
+    {
+      "marker_frame": 1700,
+      "atlas_frame": 1081,
+      "commit_qpc": 1470176536380,
+      "present_qpc": 1470178871172,
+      "commit_to_seen_ms": 23.34792
+    },
+    {
+      "marker_frame": 1701,
+      "atlas_frame": 1082,
+      "commit_qpc": 1470178197450,
+      "present_qpc": 1470180980161,
+      "commit_to_seen_ms": 27.82711
+    },
+    {
+      "marker_frame": 1702,
+      "atlas_frame": 1083,
+      "commit_qpc": 1470179873052,
+      "present_qpc": 1470182577675,
+      "commit_to_seen_ms": 27.04623
+    },
+    {
+      "marker_frame": 1704,
+      "atlas_frame": 1085,
+      "commit_qpc": 1470183178115,
+      "present_qpc": 1470186444740,
+      "commit_to_seen_ms": 32.66625
+    },
+    {
+      "marker_frame": 1708,
+      "atlas_frame": 1089,
+      "commit_qpc": 1470189943531,
+      "present_qpc": 1470192583199,
+      "commit_to_seen_ms": 26.39668
+    },
+    {
+      "marker_frame": 1710,
+      "atlas_frame": 1091,
+      "commit_qpc": 1470193285524,
+      "present_qpc": 1470195952520,
+      "commit_to_seen_ms": 26.66996
+    },
+    {
+      "marker_frame": 1716,
+      "atlas_frame": 1097,
+      "commit_qpc": 1470203636479,
+      "present_qpc": 1470206094882,
+      "commit_to_seen_ms": 24.58403
+    },
+    {
+      "marker_frame": 1718,
+      "atlas_frame": 1099,
+      "commit_qpc": 1470206646001,
+      "present_qpc": 1470209473512,
+      "commit_to_seen_ms": 28.27511
+    },
+    {
+      "marker_frame": 1720,
+      "atlas_frame": 1101,
+      "commit_qpc": 1470209880420,
+      "present_qpc": 1470212618262,
+      "commit_to_seen_ms": 27.37842
+    },
+    {
+      "marker_frame": 1722,
+      "atlas_frame": 1103,
+      "commit_qpc": 1470213252562,
+      "present_qpc": 1470215778951,
+      "commit_to_seen_ms": 25.26389
+    },
+    {
+      "marker_frame": 1723,
+      "atlas_frame": 1104,
+      "commit_qpc": 1470214886720,
+      "present_qpc": 1470217580700,
+      "commit_to_seen_ms": 26.9398
+    },
+    {
+      "marker_frame": 1725,
+      "atlas_frame": 1106,
+      "commit_qpc": 1470218205268,
+      "present_qpc": 1470221450834,
+      "commit_to_seen_ms": 32.45566
+    },
+    {
+      "marker_frame": 1728,
+      "atlas_frame": 1109,
+      "commit_qpc": 1470223392903,
+      "present_qpc": 1470225857909,
+      "commit_to_seen_ms": 24.65006
+    },
+    {
+      "marker_frame": 1730,
+      "atlas_frame": 1111,
+      "commit_qpc": 1470227077449,
+      "present_qpc": 1470229646910,
+      "commit_to_seen_ms": 25.69461
+    },
+    {
+      "marker_frame": 1731,
+      "atlas_frame": 1112,
+      "commit_qpc": 1470228215284,
+      "present_qpc": 1470230907070,
+      "commit_to_seen_ms": 26.91786
+    },
+    {
+      "marker_frame": 1735,
+      "atlas_frame": 1116,
+      "commit_qpc": 1470234894115,
+      "present_qpc": 1470237322660,
+      "commit_to_seen_ms": 24.28545
+    },
+    {
+      "marker_frame": 1737,
+      "atlas_frame": 1118,
+      "commit_qpc": 1470238230059,
+      "present_qpc": 1470240932476,
+      "commit_to_seen_ms": 27.02417
+    },
+    {
+      "marker_frame": 1739,
+      "atlas_frame": 1120,
+      "commit_qpc": 1470241540853,
+      "present_qpc": 1470244881647,
+      "commit_to_seen_ms": 33.40794
+    },
+    {
+      "marker_frame": 1742,
+      "atlas_frame": 1122,
+      "commit_qpc": 1470244864384,
+      "present_qpc": 1470247494520,
+      "commit_to_seen_ms": 26.30136
+    },
+    {
+      "marker_frame": 1745,
+      "atlas_frame": 1126,
+      "commit_qpc": 1470251505900,
+      "present_qpc": 1470254641156,
+      "commit_to_seen_ms": 31.35256
+    },
+    {
+      "marker_frame": 1747,
+      "atlas_frame": 1128,
+      "commit_qpc": 1470254851107,
+      "present_qpc": 1470257725313,
+      "commit_to_seen_ms": 28.74206
+    },
+    {
+      "marker_frame": 1750,
+      "atlas_frame": 1131,
+      "commit_qpc": 1470259887331,
+      "present_qpc": 1470263123554,
+      "commit_to_seen_ms": 32.36223
+    },
+    {
+      "marker_frame": 1753,
+      "atlas_frame": 1133,
+      "commit_qpc": 1470263298442,
+      "present_qpc": 1470266222533,
+      "commit_to_seen_ms": 29.24091
+    },
+    {
+      "marker_frame": 1756,
+      "atlas_frame": 1137,
+      "commit_qpc": 1470269840930,
+      "present_qpc": 1470272580017,
+      "commit_to_seen_ms": 27.39087
+    },
+    {
+      "marker_frame": 1758,
+      "atlas_frame": 1139,
+      "commit_qpc": 1470273252089,
+      "present_qpc": 1470275794626,
+      "commit_to_seen_ms": 25.42537
+    },
+    {
+      "marker_frame": 1760,
+      "atlas_frame": 1141,
+      "commit_qpc": 1470276672195,
+      "present_qpc": 1470279450525,
+      "commit_to_seen_ms": 27.7833
+    },
+    {
+      "marker_frame": 1761,
+      "atlas_frame": 1142,
+      "commit_qpc": 1470278166951,
+      "present_qpc": 1470281411437,
+      "commit_to_seen_ms": 32.44486
+    },
+    {
+      "marker_frame": 1762,
+      "atlas_frame": 1143,
+      "commit_qpc": 1470279922866,
+      "present_qpc": 1470282655385,
+      "commit_to_seen_ms": 27.32519
+    },
+    {
+      "marker_frame": 1764,
+      "atlas_frame": 1145,
+      "commit_qpc": 1470283182535,
+      "present_qpc": 1470286390225,
+      "commit_to_seen_ms": 32.0769
+    },
+    {
+      "marker_frame": 1765,
+      "atlas_frame": 1146,
+      "commit_qpc": 1470284855680,
+      "present_qpc": 1470288332973,
+      "commit_to_seen_ms": 34.77293
+    },
+    {
+      "marker_frame": 1767,
+      "atlas_frame": 1148,
+      "commit_qpc": 1470288235954,
+      "present_qpc": 1470291423180,
+      "commit_to_seen_ms": 31.87226
+    },
+    {
+      "marker_frame": 1770,
+      "atlas_frame": 1151,
+      "commit_qpc": 1470293451958,
+      "present_qpc": 1470296206997,
+      "commit_to_seen_ms": 27.55039
+    },
+    {
+      "marker_frame": 1771,
+      "atlas_frame": 1152,
+      "commit_qpc": 1470294893237,
+      "present_qpc": 1470297574276,
+      "commit_to_seen_ms": 26.81039
+    },
+    {
+      "marker_frame": 1773,
+      "atlas_frame": 1154,
+      "commit_qpc": 1470298244994,
+      "present_qpc": 1470300773430,
+      "commit_to_seen_ms": 25.28436
+    },
+    {
+      "marker_frame": 1775,
+      "atlas_frame": 1156,
+      "commit_qpc": 1470301574562,
+      "present_qpc": 1470304002170,
+      "commit_to_seen_ms": 24.27608
+    },
+    {
+      "marker_frame": 1776,
+      "atlas_frame": 1157,
+      "commit_qpc": 1470303245203,
+      "present_qpc": 1470306430560,
+      "commit_to_seen_ms": 31.85357
+    },
+    {
+      "marker_frame": 1777,
+      "atlas_frame": 1158,
+      "commit_qpc": 1470304851570,
+      "present_qpc": 1470307762724,
+      "commit_to_seen_ms": 29.11154
+    },
+    {
+      "marker_frame": 1779,
+      "atlas_frame": 1160,
+      "commit_qpc": 1470308220661,
+      "present_qpc": 1470311384195,
+      "commit_to_seen_ms": 31.63534
+    },
+    {
+      "marker_frame": 1781,
+      "atlas_frame": 1162,
+      "commit_qpc": 1470311545823,
+      "present_qpc": 1470314724700,
+      "commit_to_seen_ms": 31.78877
+    },
+    {
+      "marker_frame": 1782,
+      "atlas_frame": 1163,
+      "commit_qpc": 1470319889616,
+      "present_qpc": 1470322319023,
+      "commit_to_seen_ms": 24.29407
+    },
+    {
+      "marker_frame": 1787,
+      "atlas_frame": 1165,
+      "commit_qpc": 1470330496613,
+      "present_qpc": 1470332622439,
+      "commit_to_seen_ms": 21.25826
+    },
+    {
+      "marker_frame": 1794,
+      "atlas_frame": 1167,
+      "commit_qpc": 1470333572198,
+      "present_qpc": 1470335909944,
+      "commit_to_seen_ms": 23.37746
+    },
+    {
+      "marker_frame": 1797,
+      "atlas_frame": 1170,
+      "commit_qpc": 1470338199811,
+      "present_qpc": 1470341123105,
+      "commit_to_seen_ms": 29.23294
+    },
+    {
+      "marker_frame": 1803,
+      "atlas_frame": 1176,
+      "commit_qpc": 1470348337831,
+      "present_qpc": 1470351135403,
+      "commit_to_seen_ms": 27.97572
+    },
+    {
+      "marker_frame": 1805,
+      "atlas_frame": 1178,
+      "commit_qpc": 1470351577106,
+      "present_qpc": 1470353968573,
+      "commit_to_seen_ms": 23.91467
+    },
+    {
+      "marker_frame": 1806,
+      "atlas_frame": 1179,
+      "commit_qpc": 1470353281825,
+      "present_qpc": 1470355785392,
+      "commit_to_seen_ms": 25.03567
+    },
+    {
+      "marker_frame": 1808,
+      "atlas_frame": 1181,
+      "commit_qpc": 1470356669522,
+      "present_qpc": 1470359056241,
+      "commit_to_seen_ms": 23.86719
+    },
+    {
+      "marker_frame": 1810,
+      "atlas_frame": 1183,
+      "commit_qpc": 1470360039710,
+      "present_qpc": 1470362460060,
+      "commit_to_seen_ms": 24.2035
+    },
+    {
+      "marker_frame": 1813,
+      "atlas_frame": 1186,
+      "commit_qpc": 1470364926561,
+      "present_qpc": 1470367971482,
+      "commit_to_seen_ms": 30.44921
+    },
+    {
+      "marker_frame": 1815,
+      "atlas_frame": 1188,
+      "commit_qpc": 1470368386460,
+      "present_qpc": 1470371245530,
+      "commit_to_seen_ms": 28.5907
+    },
+    {
+      "marker_frame": 1821,
+      "atlas_frame": 1194,
+      "commit_qpc": 1470378461991,
+      "present_qpc": 1470380557697,
+      "commit_to_seen_ms": 20.95706
+    },
+    {
+      "marker_frame": 1822,
+      "atlas_frame": 1195,
+      "commit_qpc": 1470380114214,
+      "present_qpc": 1470382850425,
+      "commit_to_seen_ms": 27.36211
+    },
+    {
+      "marker_frame": 1827,
+      "atlas_frame": 1200,
+      "commit_qpc": 1470388294387,
+      "present_qpc": 1470390942351,
+      "commit_to_seen_ms": 26.47964
+    },
+    {
+      "marker_frame": 1829,
+      "atlas_frame": 1202,
+      "commit_qpc": 1470391521787,
+      "present_qpc": 1470394016374,
+      "commit_to_seen_ms": 24.94587
+    },
+    {
+      "marker_frame": 1831,
+      "atlas_frame": 1204,
+      "commit_qpc": 1470394916064,
+      "present_qpc": 1470397988901,
+      "commit_to_seen_ms": 30.72837
+    },
+    {
+      "marker_frame": 1837,
+      "atlas_frame": 1210,
+      "commit_qpc": 1470404902999,
+      "present_qpc": 1470407333888,
+      "commit_to_seen_ms": 24.30889
+    },
+    {
+      "marker_frame": 1839,
+      "atlas_frame": 1212,
+      "commit_qpc": 1470408179029,
+      "present_qpc": 1470411244887,
+      "commit_to_seen_ms": 30.65858
+    },
+    {
+      "marker_frame": 1843,
+      "atlas_frame": 1215,
+      "commit_qpc": 1470413259442,
+      "present_qpc": 1470415683499,
+      "commit_to_seen_ms": 24.24057
+    },
+    {
+      "marker_frame": 1846,
+      "atlas_frame": 1219,
+      "commit_qpc": 1470420050642,
+      "present_qpc": 1470422816046,
+      "commit_to_seen_ms": 27.65404
+    },
+    {
+      "marker_frame": 1848,
+      "atlas_frame": 1221,
+      "commit_qpc": 1470423253063,
+      "present_qpc": 1470425912737,
+      "commit_to_seen_ms": 26.59674
+    },
+    {
+      "marker_frame": 1850,
+      "atlas_frame": 1223,
+      "commit_qpc": 1470426528395,
+      "present_qpc": 1470429109100,
+      "commit_to_seen_ms": 25.80705
+    },
+    {
+      "marker_frame": 1854,
+      "atlas_frame": 1227,
+      "commit_qpc": 1470433216977,
+      "present_qpc": 1470436202631,
+      "commit_to_seen_ms": 29.85654
+    },
+    {
+      "marker_frame": 1858,
+      "atlas_frame": 1231,
+      "commit_qpc": 1470439925162,
+      "present_qpc": 1470443105756,
+      "commit_to_seen_ms": 31.80594
+    },
+    {
+      "marker_frame": 1859,
+      "atlas_frame": 1232,
+      "commit_qpc": 1470441615684,
+      "present_qpc": 1470444626001,
+      "commit_to_seen_ms": 30.10317
+    },
+    {
+      "marker_frame": 1861,
+      "atlas_frame": 1234,
+      "commit_qpc": 1470444798544,
+      "present_qpc": 1470447617152,
+      "commit_to_seen_ms": 28.18608
+    },
+    {
+      "marker_frame": 1863,
+      "atlas_frame": 1236,
+      "commit_qpc": 1470448369992,
+      "present_qpc": 1470450878229,
+      "commit_to_seen_ms": 25.08237
+    },
+    {
+      "marker_frame": 1865,
+      "atlas_frame": 1238,
+      "commit_qpc": 1470451545013,
+      "present_qpc": 1470454280001,
+      "commit_to_seen_ms": 27.34988
+    },
+    {
+      "marker_frame": 1867,
+      "atlas_frame": 1240,
+      "commit_qpc": 1470454918663,
+      "present_qpc": 1470458015073,
+      "commit_to_seen_ms": 30.9641
+    },
+    {
+      "marker_frame": 1869,
+      "atlas_frame": 1242,
+      "commit_qpc": 1470458444511,
+      "present_qpc": 1470461266264,
+      "commit_to_seen_ms": 28.21753
+    },
+    {
+      "marker_frame": 1870,
+      "atlas_frame": 1243,
+      "commit_qpc": 1470459937472,
+      "present_qpc": 1470463021892,
+      "commit_to_seen_ms": 30.8442
+    },
+    {
+      "marker_frame": 1871,
+      "atlas_frame": 1244,
+      "commit_qpc": 1470461599627,
+      "present_qpc": 1470464190466,
+      "commit_to_seen_ms": 25.90839
+    },
+    {
+      "marker_frame": 1873,
+      "atlas_frame": 1246,
+      "commit_qpc": 1470464862233,
+      "present_qpc": 1470467584299,
+      "commit_to_seen_ms": 27.22066
+    },
+    {
+      "marker_frame": 1875,
+      "atlas_frame": 1248,
+      "commit_qpc": 1470468197303,
+      "present_qpc": 1470471202144,
+      "commit_to_seen_ms": 30.04841
+    },
+    {
+      "marker_frame": 1876,
+      "atlas_frame": 1249,
+      "commit_qpc": 1470469958305,
+      "present_qpc": 1470472603546,
+      "commit_to_seen_ms": 26.45241
+    },
+    {
+      "marker_frame": 1878,
+      "atlas_frame": 1251,
+      "commit_qpc": 1470473259122,
+      "present_qpc": 1470475842049,
+      "commit_to_seen_ms": 25.82927
+    },
+    {
+      "marker_frame": 1880,
+      "atlas_frame": 1253,
+      "commit_qpc": 1470476597778,
+      "present_qpc": 1470479568287,
+      "commit_to_seen_ms": 29.70509
+    },
+    {
+      "marker_frame": 1882,
+      "atlas_frame": 1255,
+      "commit_qpc": 1470480017697,
+      "present_qpc": 1470482217903,
+      "commit_to_seen_ms": 22.00206
+    },
+    {
+      "marker_frame": 1883,
+      "atlas_frame": 1256,
+      "commit_qpc": 1470481653564,
+      "present_qpc": 1470484718467,
+      "commit_to_seen_ms": 30.64903
+    },
+    {
+      "marker_frame": 1884,
+      "atlas_frame": 1257,
+      "commit_qpc": 1470483400351,
+      "present_qpc": 1470485937947,
+      "commit_to_seen_ms": 25.37596
+    },
+    {
+      "marker_frame": 1886,
+      "atlas_frame": 1259,
+      "commit_qpc": 1470486579389,
+      "present_qpc": 1470489769177,
+      "commit_to_seen_ms": 31.89788
+    },
+    {
+      "marker_frame": 1888,
+      "atlas_frame": 1261,
+      "commit_qpc": 1470489935429,
+      "present_qpc": 1470492982059,
+      "commit_to_seen_ms": 30.4663
+    },
+    {
+      "marker_frame": 1889,
+      "atlas_frame": 1262,
+      "commit_qpc": 1470491632294,
+      "present_qpc": 1470494767103,
+      "commit_to_seen_ms": 31.34809
+    },
+    {
+      "marker_frame": 1890,
+      "atlas_frame": 1263,
+      "commit_qpc": 1470493313612,
+      "present_qpc": 1470496072509,
+      "commit_to_seen_ms": 27.58897
+    },
+    {
+      "marker_frame": 1892,
+      "atlas_frame": 1265,
+      "commit_qpc": 1470496578166,
+      "present_qpc": 1470499251253,
+      "commit_to_seen_ms": 26.73087
+    },
+    {
+      "marker_frame": 1894,
+      "atlas_frame": 1267,
+      "commit_qpc": 1470499896711,
+      "present_qpc": 1470502536792,
+      "commit_to_seen_ms": 26.40081
+    },
+    {
+      "marker_frame": 1897,
+      "atlas_frame": 1270,
+      "commit_qpc": 1470504893384,
+      "present_qpc": 1470507512527,
+      "commit_to_seen_ms": 26.19143
+    },
+    {
+      "marker_frame": 1901,
+      "atlas_frame": 1274,
+      "commit_qpc": 1470511686562,
+      "present_qpc": 1470514514750,
+      "commit_to_seen_ms": 28.28188
+    },
+    {
+      "marker_frame": 1903,
+      "atlas_frame": 1276,
+      "commit_qpc": 1470514922055,
+      "present_qpc": 1470517836736,
+      "commit_to_seen_ms": 29.14681
+    },
+    {
+      "marker_frame": 1905,
+      "atlas_frame": 1278,
+      "commit_qpc": 1470518250938,
+      "present_qpc": 1470520902506,
+      "commit_to_seen_ms": 26.51568
+    },
+    {
+      "marker_frame": 1909,
+      "atlas_frame": 1282,
+      "commit_qpc": 1470525170536,
+      "present_qpc": 1470527314075,
+      "commit_to_seen_ms": 21.43539
+    },
+    {
+      "marker_frame": 1910,
+      "atlas_frame": 1283,
+      "commit_qpc": 1470526671967,
+      "present_qpc": 1470529751798,
+      "commit_to_seen_ms": 30.79831
+    },
+    {
+      "marker_frame": 1913,
+      "atlas_frame": 1286,
+      "commit_qpc": 1470531883957,
+      "present_qpc": 1470534138045,
+      "commit_to_seen_ms": 22.54088
+    },
+    {
+      "marker_frame": 1914,
+      "atlas_frame": 1287,
+      "commit_qpc": 1470533715874,
+      "present_qpc": 1470536531771,
+      "commit_to_seen_ms": 28.15897
+    },
+    {
+      "marker_frame": 1915,
+      "atlas_frame": 1288,
+      "commit_qpc": 1470535046798,
+      "present_qpc": 1470537305442,
+      "commit_to_seen_ms": 22.58644
+    },
+    {
+      "marker_frame": 1916,
+      "atlas_frame": 1289,
+      "commit_qpc": 1470536648968,
+      "present_qpc": 1470539154968,
+      "commit_to_seen_ms": 25.06
+    },
+    {
+      "marker_frame": 1918,
+      "atlas_frame": 1291,
+      "commit_qpc": 1470540031376,
+      "present_qpc": 1470543052295,
+      "commit_to_seen_ms": 30.20919
+    },
+    {
+      "marker_frame": 1919,
+      "atlas_frame": 1292,
+      "commit_qpc": 1470541631987,
+      "present_qpc": 1470544600813,
+      "commit_to_seen_ms": 29.68826
+    },
+    {
+      "marker_frame": 1920,
+      "atlas_frame": 1293,
+      "commit_qpc": 1470543219327,
+      "present_qpc": 1470546228035,
+      "commit_to_seen_ms": 30.08708
+    },
+    {
+      "marker_frame": 1921,
+      "atlas_frame": 1294,
+      "commit_qpc": 1470544860266,
+      "present_qpc": 1470548124483,
+      "commit_to_seen_ms": 32.64217
+    },
+    {
+      "marker_frame": 1922,
+      "atlas_frame": 1295,
+      "commit_qpc": 1470546653116,
+      "present_qpc": 1470549386078,
+      "commit_to_seen_ms": 27.32962
+    },
+    {
+      "marker_frame": 1927,
+      "atlas_frame": 1300,
+      "commit_qpc": 1470554932695,
+      "present_qpc": 1470557610669,
+      "commit_to_seen_ms": 26.77974
+    },
+    {
+      "marker_frame": 1929,
+      "atlas_frame": 1302,
+      "commit_qpc": 1470558274554,
+      "present_qpc": 1470560885709,
+      "commit_to_seen_ms": 26.11155
+    },
+    {
+      "marker_frame": 1931,
+      "atlas_frame": 1304,
+      "commit_qpc": 1470561540502,
+      "present_qpc": 1470564065253,
+      "commit_to_seen_ms": 25.24751
+    },
+    {
+      "marker_frame": 1936,
+      "atlas_frame": 1309,
+      "commit_qpc": 1470569904554,
+      "present_qpc": 1470572446795,
+      "commit_to_seen_ms": 25.42241
+    },
+    {
+      "marker_frame": 1937,
+      "atlas_frame": 1310,
+      "commit_qpc": 1470571717945,
+      "present_qpc": 1470574224839,
+      "commit_to_seen_ms": 25.06894
+    },
+    {
+      "marker_frame": 1939,
+      "atlas_frame": 1312,
+      "commit_qpc": 1470574951430,
+      "present_qpc": 1470577571858,
+      "commit_to_seen_ms": 26.20428
+    },
+    {
+      "marker_frame": 1941,
+      "atlas_frame": 1314,
+      "commit_qpc": 1470578207593,
+      "present_qpc": 1470580803517,
+      "commit_to_seen_ms": 25.95924
+    },
+    {
+      "marker_frame": 1942,
+      "atlas_frame": 1315,
+      "commit_qpc": 1470579863870,
+      "present_qpc": 1470582560939,
+      "commit_to_seen_ms": 26.97069
+    },
+    {
+      "marker_frame": 1944,
+      "atlas_frame": 1317,
+      "commit_qpc": 1470583338584,
+      "present_qpc": 1470586092988,
+      "commit_to_seen_ms": 27.54404
+    },
+    {
+      "marker_frame": 1946,
+      "atlas_frame": 1319,
+      "commit_qpc": 1470586799426,
+      "present_qpc": 1470589001746,
+      "commit_to_seen_ms": 22.0232
+    },
+    {
+      "marker_frame": 1947,
+      "atlas_frame": 1320,
+      "commit_qpc": 1470588251111,
+      "present_qpc": 1470591522236,
+      "commit_to_seen_ms": 32.71125
+    },
+    {
+      "marker_frame": 1948,
+      "atlas_frame": 1321,
+      "commit_qpc": 1470589943943,
+      "present_qpc": 1470592916301,
+      "commit_to_seen_ms": 29.72358
+    },
+    {
+      "marker_frame": 1949,
+      "atlas_frame": 1322,
+      "commit_qpc": 1470591586017,
+      "present_qpc": 1470594165866,
+      "commit_to_seen_ms": 25.79849
+    },
+    {
+      "marker_frame": 1950,
+      "atlas_frame": 1323,
+      "commit_qpc": 1470593362791,
+      "present_qpc": 1470596171465,
+      "commit_to_seen_ms": 28.08674
+    },
+    {
+      "marker_frame": 1951,
+      "atlas_frame": 1324,
+      "commit_qpc": 1470594932638,
+      "present_qpc": 1470598142686,
+      "commit_to_seen_ms": 32.10048
+    },
+    {
+      "marker_frame": 1952,
+      "atlas_frame": 1325,
+      "commit_qpc": 1470596730916,
+      "present_qpc": 1470599244340,
+      "commit_to_seen_ms": 25.13424
+    },
+    {
+      "marker_frame": 1954,
+      "atlas_frame": 1327,
+      "commit_qpc": 1470599858948,
+      "present_qpc": 1470603097670,
+      "commit_to_seen_ms": 32.38722
+    },
+    {
+      "marker_frame": 1955,
+      "atlas_frame": 1328,
+      "commit_qpc": 1470601611700,
+      "present_qpc": 1470605055498,
+      "commit_to_seen_ms": 34.43798
+    },
+    {
+      "marker_frame": 1956,
+      "atlas_frame": 1329,
+      "commit_qpc": 1470603283243,
+      "present_qpc": 1470605743106,
+      "commit_to_seen_ms": 24.59863
+    },
+    {
+      "marker_frame": 1957,
+      "atlas_frame": 1330,
+      "commit_qpc": 1470604971275,
+      "present_qpc": 1470607448375,
+      "commit_to_seen_ms": 24.771
+    },
+    {
+      "marker_frame": 1959,
+      "atlas_frame": 1332,
+      "commit_qpc": 1470608470942,
+      "present_qpc": 1470611159120,
+      "commit_to_seen_ms": 26.88178
+    },
+    {
+      "marker_frame": 1960,
+      "atlas_frame": 1333,
+      "commit_qpc": 1470610019275,
+      "present_qpc": 1470613212844,
+      "commit_to_seen_ms": 31.93569
+    },
+    {
+      "marker_frame": 1961,
+      "atlas_frame": 1334,
+      "commit_qpc": 1470611668547,
+      "present_qpc": 1470613966760,
+      "commit_to_seen_ms": 22.98213
+    },
+    {
+      "marker_frame": 1962,
+      "atlas_frame": 1335,
+      "commit_qpc": 1470613495030,
+      "present_qpc": 1470616443420,
+      "commit_to_seen_ms": 29.4839
+    },
+    {
+      "marker_frame": 1963,
+      "atlas_frame": 1336,
+      "commit_qpc": 1470615047223,
+      "present_qpc": 1470617568877,
+      "commit_to_seen_ms": 25.21654
+    },
+    {
+      "marker_frame": 1965,
+      "atlas_frame": 1338,
+      "commit_qpc": 1470618317857,
+      "present_qpc": 1470621411769,
+      "commit_to_seen_ms": 30.93912
+    },
+    {
+      "marker_frame": 1966,
+      "atlas_frame": 1339,
+      "commit_qpc": 1470620099084,
+      "present_qpc": 1470623182388,
+      "commit_to_seen_ms": 30.83304
+    },
+    {
+      "marker_frame": 1967,
+      "atlas_frame": 1340,
+      "commit_qpc": 1470621702363,
+      "present_qpc": 1470624609450,
+      "commit_to_seen_ms": 29.07087
+    },
+    {
+      "marker_frame": 1969,
+      "atlas_frame": 1342,
+      "commit_qpc": 1470625054116,
+      "present_qpc": 1470628240964,
+      "commit_to_seen_ms": 31.86848
+    },
+    {
+      "marker_frame": 1970,
+      "atlas_frame": 1343,
+      "commit_qpc": 1470626712825,
+      "present_qpc": 1470629584945,
+      "commit_to_seen_ms": 28.7212
+    },
+    {
+      "marker_frame": 1971,
+      "atlas_frame": 1344,
+      "commit_qpc": 1470628195777,
+      "present_qpc": 1470631394817,
+      "commit_to_seen_ms": 31.9904
+    },
+    {
+      "marker_frame": 1972,
+      "atlas_frame": 1345,
+      "commit_qpc": 1470630088619,
+      "present_qpc": 1470632605366,
+      "commit_to_seen_ms": 25.16747
+    },
+    {
+      "marker_frame": 1974,
+      "atlas_frame": 1347,
+      "commit_qpc": 1470633327396,
+      "present_qpc": 1470635827923,
+      "commit_to_seen_ms": 25.00527
+    },
+    {
+      "marker_frame": 1977,
+      "atlas_frame": 1349,
+      "commit_qpc": 1470636672602,
+      "present_qpc": 1470639038959,
+      "commit_to_seen_ms": 23.66357
+    },
+    {
+      "marker_frame": 1979,
+      "atlas_frame": 1352,
+      "commit_qpc": 1470641684846,
+      "present_qpc": 1470644798501,
+      "commit_to_seen_ms": 31.13655
+    },
+    {
+      "marker_frame": 1981,
+      "atlas_frame": 1354,
+      "commit_qpc": 1470644955547,
+      "present_qpc": 1470647994078,
+      "commit_to_seen_ms": 30.38531
+    },
+    {
+      "marker_frame": 1982,
+      "atlas_frame": 1355,
+      "commit_qpc": 1470646672241,
+      "present_qpc": 1470649309381,
+      "commit_to_seen_ms": 26.3714
+    },
+    {
+      "marker_frame": 1983,
+      "atlas_frame": 1356,
+      "commit_qpc": 1470648230437,
+      "present_qpc": 1470651162429,
+      "commit_to_seen_ms": 29.31992
+    },
+    {
+      "marker_frame": 1984,
+      "atlas_frame": 1357,
+      "commit_qpc": 1470650053777,
+      "present_qpc": 1470652604371,
+      "commit_to_seen_ms": 25.50594
+    },
+    {
+      "marker_frame": 1986,
+      "atlas_frame": 1359,
+      "commit_qpc": 1470653303511,
+      "present_qpc": 1470656391610,
+      "commit_to_seen_ms": 30.88099
+    },
+    {
+      "marker_frame": 1991,
+      "atlas_frame": 1364,
+      "commit_qpc": 1470661808907,
+      "present_qpc": 1470664653050,
+      "commit_to_seen_ms": 28.44143
+    },
+    {
+      "marker_frame": 1992,
+      "atlas_frame": 1365,
+      "commit_qpc": 1470663361021,
+      "present_qpc": 1470665826289,
+      "commit_to_seen_ms": 24.65268
+    },
+    {
+      "marker_frame": 1994,
+      "atlas_frame": 1367,
+      "commit_qpc": 1470666729357,
+      "present_qpc": 1470669457629,
+      "commit_to_seen_ms": 27.28272
+    },
+    {
+      "marker_frame": 1997,
+      "atlas_frame": 1370,
+      "commit_qpc": 1470671694450,
+      "present_qpc": 1470674174251,
+      "commit_to_seen_ms": 24.79801
+    },
+    {
+      "marker_frame": 2000,
+      "atlas_frame": 1373,
+      "commit_qpc": 1470676652890,
+      "present_qpc": 1470679286640,
+      "commit_to_seen_ms": 26.3375
+    },
+    {
+      "marker_frame": 2002,
+      "atlas_frame": 1375,
+      "commit_qpc": 1470679994798,
+      "present_qpc": 1470682629780,
+      "commit_to_seen_ms": 26.34982
+    },
+    {
+      "marker_frame": 2006,
+      "atlas_frame": 1379,
+      "commit_qpc": 1470686745601,
+      "present_qpc": 1470689602081,
+      "commit_to_seen_ms": 28.5648
+    },
+    {
+      "marker_frame": 2007,
+      "atlas_frame": 1380,
+      "commit_qpc": 1470688312051,
+      "present_qpc": 1470691433012,
+      "commit_to_seen_ms": 31.20961
+    },
+    {
+      "marker_frame": 2008,
+      "atlas_frame": 1381,
+      "commit_qpc": 1470689981661,
+      "present_qpc": 1470692315904,
+      "commit_to_seen_ms": 23.34243
+    },
+    {
+      "marker_frame": 2009,
+      "atlas_frame": 1382,
+      "commit_qpc": 1470691697430,
+      "present_qpc": 1470694096070,
+      "commit_to_seen_ms": 23.9864
+    },
+    {
+      "marker_frame": 2010,
+      "atlas_frame": 1383,
+      "commit_qpc": 1470693449087,
+      "present_qpc": 1470696536491,
+      "commit_to_seen_ms": 30.87404
+    },
+    {
+      "marker_frame": 2011,
+      "atlas_frame": 1384,
+      "commit_qpc": 1470695113500,
+      "present_qpc": 1470697838802,
+      "commit_to_seen_ms": 27.25302
+    },
+    {
+      "marker_frame": 2014,
+      "atlas_frame": 1387,
+      "commit_qpc": 1470700130899,
+      "present_qpc": 1470702611112,
+      "commit_to_seen_ms": 24.80213
+    },
+    {
+      "marker_frame": 2017,
+      "atlas_frame": 1389,
+      "commit_qpc": 1470703443412,
+      "present_qpc": 1470706263774,
+      "commit_to_seen_ms": 28.20362
+    },
+    {
+      "marker_frame": 2019,
+      "atlas_frame": 1392,
+      "commit_qpc": 1470708285777,
+      "present_qpc": 1470711360995,
+      "commit_to_seen_ms": 30.75218
+    },
+    {
+      "marker_frame": 2022,
+      "atlas_frame": 1395,
+      "commit_qpc": 1470713310213,
+      "present_qpc": 1470716517421,
+      "commit_to_seen_ms": 32.07208
+    },
+    {
+      "marker_frame": 2023,
+      "atlas_frame": 1396,
+      "commit_qpc": 1470715044163,
+      "present_qpc": 1470717431045,
+      "commit_to_seen_ms": 23.86882
+    },
+    {
+      "marker_frame": 2024,
+      "atlas_frame": 1397,
+      "commit_qpc": 1470716715604,
+      "present_qpc": 1470719189861,
+      "commit_to_seen_ms": 24.74257
+    },
+    {
+      "marker_frame": 2026,
+      "atlas_frame": 1399,
+      "commit_qpc": 1470720030103,
+      "present_qpc": 1470722383600,
+      "commit_to_seen_ms": 23.53497
+    },
+    {
+      "marker_frame": 2027,
+      "atlas_frame": 1400,
+      "commit_qpc": 1470721700445,
+      "present_qpc": 1470724306233,
+      "commit_to_seen_ms": 26.05788
+    },
+    {
+      "marker_frame": 2029,
+      "atlas_frame": 1402,
+      "commit_qpc": 1470725148873,
+      "present_qpc": 1470727511624,
+      "commit_to_seen_ms": 23.62751
+    },
+    {
+      "marker_frame": 2031,
+      "atlas_frame": 1404,
+      "commit_qpc": 1470728323273,
+      "present_qpc": 1470730749697,
+      "commit_to_seen_ms": 24.26424
+    },
+    {
+      "marker_frame": 2032,
+      "atlas_frame": 1405,
+      "commit_qpc": 1470730037680,
+      "present_qpc": 1470732606079,
+      "commit_to_seen_ms": 25.68399
+    },
+    {
+      "marker_frame": 2038,
+      "atlas_frame": 1411,
+      "commit_qpc": 1470740212880,
+      "present_qpc": 1470742581177,
+      "commit_to_seen_ms": 23.68297
+    },
+    {
+      "marker_frame": 2041,
+      "atlas_frame": 1413,
+      "commit_qpc": 1470743339651,
+      "present_qpc": 1470745890236,
+      "commit_to_seen_ms": 25.50585
+    },
+    {
+      "marker_frame": 2043,
+      "atlas_frame": 1416,
+      "commit_qpc": 1470748294181,
+      "present_qpc": 1470751307510,
+      "commit_to_seen_ms": 30.13329
+    },
+    {
+      "marker_frame": 2044,
+      "atlas_frame": 1417,
+      "commit_qpc": 1470749992522,
+      "present_qpc": 1470752765397,
+      "commit_to_seen_ms": 27.72875
+    },
+    {
+      "marker_frame": 2046,
+      "atlas_frame": 1419,
+      "commit_qpc": 1470753394124,
+      "present_qpc": 1470755944806,
+      "commit_to_seen_ms": 25.50682
+    },
+    {
+      "marker_frame": 2048,
+      "atlas_frame": 1421,
+      "commit_qpc": 1470756593022,
+      "present_qpc": 1470759264554,
+      "commit_to_seen_ms": 26.71532
+    },
+    {
+      "marker_frame": 2051,
+      "atlas_frame": 1423,
+      "commit_qpc": 1470760032351,
+      "present_qpc": 1470763134999,
+      "commit_to_seen_ms": 31.02648
+    },
+    {
+      "marker_frame": 2053,
+      "atlas_frame": 1426,
+      "commit_qpc": 1470764972341,
+      "present_qpc": 1470767799660,
+      "commit_to_seen_ms": 28.27319
+    },
+    {
+      "marker_frame": 2055,
+      "atlas_frame": 1427,
+      "commit_qpc": 1470766705631,
+      "present_qpc": 1470769784246,
+      "commit_to_seen_ms": 30.78615
+    },
+    {
+      "marker_frame": 2056,
+      "atlas_frame": 1428,
+      "commit_qpc": 1470768256804,
+      "present_qpc": 1470770648589,
+      "commit_to_seen_ms": 23.91785
+    },
+    {
+      "marker_frame": 2057,
+      "atlas_frame": 1429,
+      "commit_qpc": 1470769939137,
+      "present_qpc": 1470773005044,
+      "commit_to_seen_ms": 30.65907
+    },
+    {
+      "marker_frame": 2061,
+      "atlas_frame": 1434,
+      "commit_qpc": 1470778301089,
+      "present_qpc": 1470781310118,
+      "commit_to_seen_ms": 30.09029
+    },
+    {
+      "marker_frame": 2063,
+      "atlas_frame": 1435,
+      "commit_qpc": 1470779925208,
+      "present_qpc": 1470783131710,
+      "commit_to_seen_ms": 32.06502
+    },
+    {
+      "marker_frame": 2065,
+      "atlas_frame": 1438,
+      "commit_qpc": 1470785032478,
+      "present_qpc": 1470787585616,
+      "commit_to_seen_ms": 25.53138
+    },
+    {
+      "marker_frame": 2068,
+      "atlas_frame": 1440,
+      "commit_qpc": 1470788383840,
+      "present_qpc": 1470790847645,
+      "commit_to_seen_ms": 24.63805
+    },
+    {
+      "marker_frame": 2070,
+      "atlas_frame": 1443,
+      "commit_qpc": 1470793299678,
+      "present_qpc": 1470795944092,
+      "commit_to_seen_ms": 26.44414
+    },
+    {
+      "marker_frame": 2072,
+      "atlas_frame": 1445,
+      "commit_qpc": 1470796697242,
+      "present_qpc": 1470799196047,
+      "commit_to_seen_ms": 24.98805
+    },
+    {
+      "marker_frame": 2076,
+      "atlas_frame": 1449,
+      "commit_qpc": 1470803244171,
+      "present_qpc": 1470806689695,
+      "commit_to_seen_ms": 34.45524
+    },
+    {
+      "marker_frame": 2077,
+      "atlas_frame": 1450,
+      "commit_qpc": 1470805216038,
+      "present_qpc": 1470807561623,
+      "commit_to_seen_ms": 23.45585
+    },
+    {
+      "marker_frame": 2081,
+      "atlas_frame": 1454,
+      "commit_qpc": 1470811682151,
+      "present_qpc": 1470814081040,
+      "commit_to_seen_ms": 23.98889
+    },
+    {
+      "marker_frame": 2082,
+      "atlas_frame": 1455,
+      "commit_qpc": 1470813419105,
+      "present_qpc": 1470815927847,
+      "commit_to_seen_ms": 25.08742
+    },
+    {
+      "marker_frame": 2088,
+      "atlas_frame": 1461,
+      "commit_qpc": 1470823461383,
+      "present_qpc": 1470825574393,
+      "commit_to_seen_ms": 21.1301
+    },
+    {
+      "marker_frame": 2092,
+      "atlas_frame": 1465,
+      "commit_qpc": 1470830040408,
+      "present_qpc": 1470833122680,
+      "commit_to_seen_ms": 30.82272
+    },
+    {
+      "marker_frame": 2107,
+      "atlas_frame": 1480,
+      "commit_qpc": 1470855594054,
+      "present_qpc": 1470857613690,
+      "commit_to_seen_ms": 20.19636
+    },
+    {
+      "marker_frame": 2109,
+      "atlas_frame": 1482,
+      "commit_qpc": 1470858235136,
+      "present_qpc": 1470861310696,
+      "commit_to_seen_ms": 30.7556
+    },
+    {
+      "marker_frame": 2111,
+      "atlas_frame": 1483,
+      "commit_qpc": 1470859976931,
+      "present_qpc": 1470863248569,
+      "commit_to_seen_ms": 32.71638
+    },
+    {
+      "marker_frame": 2114,
+      "atlas_frame": 1487,
+      "commit_qpc": 1470866628465,
+      "present_qpc": 1470869462014,
+      "commit_to_seen_ms": 28.33549
+    },
+    {
+      "marker_frame": 2115,
+      "atlas_frame": 1488,
+      "commit_qpc": 1470868193862,
+      "present_qpc": 1470871377951,
+      "commit_to_seen_ms": 31.84089
+    },
+    {
+      "marker_frame": 2116,
+      "atlas_frame": 1489,
+      "commit_qpc": 1470869939741,
+      "present_qpc": 1470872538764,
+      "commit_to_seen_ms": 25.99023
+    },
+    {
+      "marker_frame": 2121,
+      "atlas_frame": 1493,
+      "commit_qpc": 1470876688518,
+      "present_qpc": 1470879198144,
+      "commit_to_seen_ms": 25.09626
+    },
+    {
+      "marker_frame": 2123,
+      "atlas_frame": 1496,
+      "commit_qpc": 1470881686982,
+      "present_qpc": 1470884694592,
+      "commit_to_seen_ms": 30.0761
+    },
+    {
+      "marker_frame": 2126,
+      "atlas_frame": 1499,
+      "commit_qpc": 1470886760669,
+      "present_qpc": 1470889887491,
+      "commit_to_seen_ms": 31.26822
+    },
+    {
+      "marker_frame": 2132,
+      "atlas_frame": 1504,
+      "commit_qpc": 1470895031193,
+      "present_qpc": 1470897539252,
+      "commit_to_seen_ms": 25.08059
+    },
+    {
+      "marker_frame": 2134,
+      "atlas_frame": 1507,
+      "commit_qpc": 1470899954666,
+      "present_qpc": 1470902933946,
+      "commit_to_seen_ms": 29.7928
+    },
+    {
+      "marker_frame": 2137,
+      "atlas_frame": 1510,
+      "commit_qpc": 1470905009951,
+      "present_qpc": 1470908046869,
+      "commit_to_seen_ms": 30.36918
+    },
+    {
+      "marker_frame": 2138,
+      "atlas_frame": 1511,
+      "commit_qpc": 1470906689490,
+      "present_qpc": 1470909107839,
+      "commit_to_seen_ms": 24.18349
+    },
+    {
+      "marker_frame": 2142,
+      "atlas_frame": 1515,
+      "commit_qpc": 1470913333773,
+      "present_qpc": 1470916558212,
+      "commit_to_seen_ms": 32.24439
+    },
+    {
+      "marker_frame": 2145,
+      "atlas_frame": 1518,
+      "commit_qpc": 1470918371411,
+      "present_qpc": 1470920733499,
+      "commit_to_seen_ms": 23.62088
+    },
+    {
+      "marker_frame": 2146,
+      "atlas_frame": 1519,
+      "commit_qpc": 1470920023485,
+      "present_qpc": 1470922663685,
+      "commit_to_seen_ms": 26.402
+    },
+    {
+      "marker_frame": 2149,
+      "atlas_frame": 1521,
+      "commit_qpc": 1470923335707,
+      "present_qpc": 1470925922193,
+      "commit_to_seen_ms": 25.86486
+    },
+    {
+      "marker_frame": 2152,
+      "atlas_frame": 1525,
+      "commit_qpc": 1470930138044,
+      "present_qpc": 1470932402866,
+      "commit_to_seen_ms": 22.64822
+    },
+    {
+      "marker_frame": 2154,
+      "atlas_frame": 1526,
+      "commit_qpc": 1470931742391,
+      "present_qpc": 1470934851483,
+      "commit_to_seen_ms": 31.09092
+    },
+    {
+      "marker_frame": 2156,
+      "atlas_frame": 1529,
+      "commit_qpc": 1470936711775,
+      "present_qpc": 1470938915908,
+      "commit_to_seen_ms": 22.04133
+    },
+    {
+      "marker_frame": 2157,
+      "atlas_frame": 1530,
+      "commit_qpc": 1470938279579,
+      "present_qpc": 1470941304241,
+      "commit_to_seen_ms": 30.24662
+    },
+    {
+      "marker_frame": 2158,
+      "atlas_frame": 1531,
+      "commit_qpc": 1470940047422,
+      "present_qpc": 1470943224880,
+      "commit_to_seen_ms": 31.77458
+    },
+    {
+      "marker_frame": 2160,
+      "atlas_frame": 1532,
+      "commit_qpc": 1470941571834,
+      "present_qpc": 1470944526279,
+      "commit_to_seen_ms": 29.54445
+    },
+    {
+      "marker_frame": 2163,
+      "atlas_frame": 1536,
+      "commit_qpc": 1470948338302,
+      "present_qpc": 1470950932235,
+      "commit_to_seen_ms": 25.93933
+    },
+    {
+      "marker_frame": 2168,
+      "atlas_frame": 1541,
+      "commit_qpc": 1470956675486,
+      "present_qpc": 1470959180290,
+      "commit_to_seen_ms": 25.04804
+    },
+    {
+      "marker_frame": 2173,
+      "atlas_frame": 1546,
+      "commit_qpc": 1470964990535,
+      "present_qpc": 1470967488298,
+      "commit_to_seen_ms": 24.97763
+    },
+    {
+      "marker_frame": 2176,
+      "atlas_frame": 1549,
+      "commit_qpc": 1470970083902,
+      "present_qpc": 1470972591729,
+      "commit_to_seen_ms": 25.07827
+    },
+    {
+      "marker_frame": 2178,
+      "atlas_frame": 1551,
+      "commit_qpc": 1470973298508,
+      "present_qpc": 1470976237478,
+      "commit_to_seen_ms": 29.3897
+    },
+    {
+      "marker_frame": 2179,
+      "atlas_frame": 1552,
+      "commit_qpc": 1470974915970,
+      "present_qpc": 1470977254424,
+      "commit_to_seen_ms": 23.38454
+    },
+    {
+      "marker_frame": 2181,
+      "atlas_frame": 1553,
+      "commit_qpc": 1470976637070,
+      "present_qpc": 1470979773604,
+      "commit_to_seen_ms": 31.36534
+    },
+    {
+      "marker_frame": 2184,
+      "atlas_frame": 1556,
+      "commit_qpc": 1470981777541,
+      "present_qpc": 1470984766453,
+      "commit_to_seen_ms": 29.88912
+    },
+    {
+      "marker_frame": 2186,
+      "atlas_frame": 1559,
+      "commit_qpc": 1470986618097,
+      "present_qpc": 1470989779430,
+      "commit_to_seen_ms": 31.61333
+    },
+    {
+      "marker_frame": 2187,
+      "atlas_frame": 1560,
+      "commit_qpc": 1470988350854,
+      "present_qpc": 1470990773162,
+      "commit_to_seen_ms": 24.22308
+    },
+    {
+      "marker_frame": 2188,
+      "atlas_frame": 1561,
+      "commit_qpc": 1470990042111,
+      "present_qpc": 1470993053605,
+      "commit_to_seen_ms": 30.11494
+    },
+    {
+      "marker_frame": 2193,
+      "atlas_frame": 1566,
+      "commit_qpc": 1470998264715,
+      "present_qpc": 1471001336055,
+      "commit_to_seen_ms": 30.7134
+    },
+    {
+      "marker_frame": 2194,
+      "atlas_frame": 1567,
+      "commit_qpc": 1471000000468,
+      "present_qpc": 1471002631745,
+      "commit_to_seen_ms": 26.31277
+    },
+    {
+      "marker_frame": 2212,
+      "atlas_frame": 1571,
+      "commit_qpc": 1471030046658,
+      "present_qpc": 1471033121242,
+      "commit_to_seen_ms": 30.74584
+    },
+    {
+      "marker_frame": 2213,
+      "atlas_frame": 1572,
+      "commit_qpc": 1471031687753,
+      "present_qpc": 1471034852861,
+      "commit_to_seen_ms": 31.65108
+    },
+    {
+      "marker_frame": 2214,
+      "atlas_frame": 1573,
+      "commit_qpc": 1471033400783,
+      "present_qpc": 1471036206276,
+      "commit_to_seen_ms": 28.05493
+    },
+    {
+      "marker_frame": 2217,
+      "atlas_frame": 1575,
+      "commit_qpc": 1471036762236,
+      "present_qpc": 1471039486986,
+      "commit_to_seen_ms": 27.2475
+    },
+    {
+      "marker_frame": 2219,
+      "atlas_frame": 1578,
+      "commit_qpc": 1471041680279,
+      "present_qpc": 1471044656903,
+      "commit_to_seen_ms": 29.76624
+    },
+    {
+      "marker_frame": 2221,
+      "atlas_frame": 1580,
+      "commit_qpc": 1471045041372,
+      "present_qpc": 1471047400734,
+      "commit_to_seen_ms": 23.59362
+    },
+    {
+      "marker_frame": 2224,
+      "atlas_frame": 1583,
+      "commit_qpc": 1471049957014,
+      "present_qpc": 1471052379713,
+      "commit_to_seen_ms": 24.22699
+    },
+    {
+      "marker_frame": 2225,
+      "atlas_frame": 1584,
+      "commit_qpc": 1471051652994,
+      "present_qpc": 1471054297595,
+      "commit_to_seen_ms": 26.44601
+    },
+    {
+      "marker_frame": 2228,
+      "atlas_frame": 1586,
+      "commit_qpc": 1471055004232,
+      "present_qpc": 1471058224365,
+      "commit_to_seen_ms": 32.20133
+    },
+    {
+      "marker_frame": 2229,
+      "atlas_frame": 1587,
+      "commit_qpc": 1471056782907,
+      "present_qpc": 1471059601057,
+      "commit_to_seen_ms": 28.1815
+    },
+    {
+      "marker_frame": 2231,
+      "atlas_frame": 1590,
+      "commit_qpc": 1471061680289,
+      "present_qpc": 1471064726896,
+      "commit_to_seen_ms": 30.46607
+    },
+    {
+      "marker_frame": 2232,
+      "atlas_frame": 1591,
+      "commit_qpc": 1471063406352,
+      "present_qpc": 1471065543582,
+      "commit_to_seen_ms": 21.3723
+    },
+    {
+      "marker_frame": 2233,
+      "atlas_frame": 1592,
+      "commit_qpc": 1471065031911,
+      "present_qpc": 1471067824149,
+      "commit_to_seen_ms": 27.92238
+    },
+    {
+      "marker_frame": 2234,
+      "atlas_frame": 1593,
+      "commit_qpc": 1471066719732,
+      "present_qpc": 1471069307051,
+      "commit_to_seen_ms": 25.87319
+    },
+    {
+      "marker_frame": 2239,
+      "atlas_frame": 1598,
+      "commit_qpc": 1471074972266,
+      "present_qpc": 1471077760705,
+      "commit_to_seen_ms": 27.88439
+    },
+    {
+      "marker_frame": 2244,
+      "atlas_frame": 1603,
+      "commit_qpc": 1471083254683,
+      "present_qpc": 1471085767024,
+      "commit_to_seen_ms": 25.12341
+    },
+    {
+      "marker_frame": 2245,
+      "atlas_frame": 1604,
+      "commit_qpc": 1471085005740,
+      "present_qpc": 1471088077060,
+      "commit_to_seen_ms": 30.7132
+    },
+    {
+      "marker_frame": 2246,
+      "atlas_frame": 1605,
+      "commit_qpc": 1471086614897,
+      "present_qpc": 1471089668174,
+      "commit_to_seen_ms": 30.53277
+    },
+    {
+      "marker_frame": 2249,
+      "atlas_frame": 1607,
+      "commit_qpc": 1471090003731,
+      "present_qpc": 1471092825976,
+      "commit_to_seen_ms": 28.22245
+    },
+    {
+      "marker_frame": 2254,
+      "atlas_frame": 1613,
+      "commit_qpc": 1471100044550,
+      "present_qpc": 1471102801672,
+      "commit_to_seen_ms": 27.57122
+    },
+    {
+      "marker_frame": 2259,
+      "atlas_frame": 1617,
+      "commit_qpc": 1471106626921,
+      "present_qpc": 1471109090390,
+      "commit_to_seen_ms": 24.63469
+    },
+    {
+      "marker_frame": 2261,
+      "atlas_frame": 1620,
+      "commit_qpc": 1471111661095,
+      "present_qpc": 1471114547229,
+      "commit_to_seen_ms": 28.86134
+    },
+    {
+      "marker_frame": 2262,
+      "atlas_frame": 1621,
+      "commit_qpc": 1471113301243,
+      "present_qpc": 1471115943954,
+      "commit_to_seen_ms": 26.42711
+    },
+    {
+      "marker_frame": 2268,
+      "atlas_frame": 1627,
+      "commit_qpc": 1471123383050,
+      "present_qpc": 1471126402603,
+      "commit_to_seen_ms": 30.19553
+    },
+    {
+      "marker_frame": 2269,
+      "atlas_frame": 1628,
+      "commit_qpc": 1471124933857,
+      "present_qpc": 1471128252583,
+      "commit_to_seen_ms": 33.18726
+    },
+    {
+      "marker_frame": 2270,
+      "atlas_frame": 1629,
+      "commit_qpc": 1471126668192,
+      "present_qpc": 1471129495037,
+      "commit_to_seen_ms": 28.26845
+    },
+    {
+      "marker_frame": 2271,
+      "atlas_frame": 1630,
+      "commit_qpc": 1471128258128,
+      "present_qpc": 1471131148672,
+      "commit_to_seen_ms": 28.90544
+    },
+    {
+      "marker_frame": 2272,
+      "atlas_frame": 1631,
+      "commit_qpc": 1471129872222,
+      "present_qpc": 1471133145018,
+      "commit_to_seen_ms": 32.72796
+    },
+    {
+      "marker_frame": 2273,
+      "atlas_frame": 1632,
+      "commit_qpc": 1471131709839,
+      "present_qpc": 1471134427502,
+      "commit_to_seen_ms": 27.17663
+    },
+    {
+      "marker_frame": 2279,
+      "atlas_frame": 1637,
+      "commit_qpc": 1471139996540,
+      "present_qpc": 1471142672598,
+      "commit_to_seen_ms": 26.76058
+    },
+    {
+      "marker_frame": 2281,
+      "atlas_frame": 1639,
+      "commit_qpc": 1471143263973,
+      "present_qpc": 1471145828780,
+      "commit_to_seen_ms": 25.64807
+    },
+    {
+      "marker_frame": 2284,
+      "atlas_frame": 1643,
+      "commit_qpc": 1471150024919,
+      "present_qpc": 1471152330620,
+      "commit_to_seen_ms": 23.05701
+    },
+    {
+      "marker_frame": 2285,
+      "atlas_frame": 1644,
+      "commit_qpc": 1471151599717,
+      "present_qpc": 1471154192071,
+      "commit_to_seen_ms": 25.92354
+    },
+    {
+      "marker_frame": 2289,
+      "atlas_frame": 1648,
+      "commit_qpc": 1471158314595,
+      "present_qpc": 1471160614506,
+      "commit_to_seen_ms": 22.99911
+    },
+    {
+      "marker_frame": 2290,
+      "atlas_frame": 1649,
+      "commit_qpc": 1471159935188,
+      "present_qpc": 1471162908467,
+      "commit_to_seen_ms": 29.73279
+    },
+    {
+      "marker_frame": 2291,
+      "atlas_frame": 1650,
+      "commit_qpc": 1471161691810,
+      "present_qpc": 1471164310112,
+      "commit_to_seen_ms": 26.18302
+    },
+    {
+      "marker_frame": 2294,
+      "atlas_frame": 1652,
+      "commit_qpc": 1471165000212,
+      "present_qpc": 1471167561156,
+      "commit_to_seen_ms": 25.60944
+    },
+    {
+      "marker_frame": 2298,
+      "atlas_frame": 1657,
+      "commit_qpc": 1471173312823,
+      "present_qpc": 1471176279564,
+      "commit_to_seen_ms": 29.66741
+    },
+    {
+      "marker_frame": 2299,
+      "atlas_frame": 1658,
+      "commit_qpc": 1471174854739,
+      "present_qpc": 1471177658674,
+      "commit_to_seen_ms": 28.03935
+    },
+    {
+      "marker_frame": 2301,
+      "atlas_frame": 1660,
+      "commit_qpc": 1471178275391,
+      "present_qpc": 1471181369376,
+      "commit_to_seen_ms": 30.93985
+    },
+    {
+      "marker_frame": 2303,
+      "atlas_frame": 1661,
+      "commit_qpc": 1471179962183,
+      "present_qpc": 1471183223546,
+      "commit_to_seen_ms": 32.61363
+    },
+    {
+      "marker_frame": 2304,
+      "atlas_frame": 1662,
+      "commit_qpc": 1471181595121,
+      "present_qpc": 1471183994027,
+      "commit_to_seen_ms": 23.98906
+    },
+    {
+      "marker_frame": 2308,
+      "atlas_frame": 1666,
+      "commit_qpc": 1471188384988,
+      "present_qpc": 1471190846216,
+      "commit_to_seen_ms": 24.61228
+    },
+    {
+      "marker_frame": 2309,
+      "atlas_frame": 1667,
+      "commit_qpc": 1471189932819,
+      "present_qpc": 1471192606058,
+      "commit_to_seen_ms": 26.73239
+    },
+    {
+      "marker_frame": 2315,
+      "atlas_frame": 1674,
+      "commit_qpc": 1471201565560,
+      "present_qpc": 1471204464960,
+      "commit_to_seen_ms": 28.994
+    },
+    {
+      "marker_frame": 2324,
+      "atlas_frame": 1683,
+      "commit_qpc": 1471216579853,
+      "present_qpc": 1471219532930,
+      "commit_to_seen_ms": 29.53077
+    },
+    {
+      "marker_frame": 2325,
+      "atlas_frame": 1684,
+      "commit_qpc": 1471218256952,
+      "present_qpc": 1471221458644,
+      "commit_to_seen_ms": 32.01692
+    },
+    {
+      "marker_frame": 2326,
+      "atlas_frame": 1685,
+      "commit_qpc": 1471219918229,
+      "present_qpc": 1471222793397,
+      "commit_to_seen_ms": 28.75168
+    },
+    {
+      "marker_frame": 2328,
+      "atlas_frame": 1687,
+      "commit_qpc": 1471223267191,
+      "present_qpc": 1471225997292,
+      "commit_to_seen_ms": 27.30101
+    },
+    {
+      "marker_frame": 2330,
+      "atlas_frame": 1689,
+      "commit_qpc": 1471227229934,
+      "present_qpc": 1471229631802,
+      "commit_to_seen_ms": 24.01868
+    },
+    {
+      "marker_frame": 2331,
+      "atlas_frame": 1690,
+      "commit_qpc": 1471228291101,
+      "present_qpc": 1471230956462,
+      "commit_to_seen_ms": 26.65361
+    },
+    {
+      "marker_frame": 2333,
+      "atlas_frame": 1692,
+      "commit_qpc": 1471231656972,
+      "present_qpc": 1471234309604,
+      "commit_to_seen_ms": 26.52632
+    },
+    {
+      "marker_frame": 2335,
+      "atlas_frame": 1694,
+      "commit_qpc": 1471234860695,
+      "present_qpc": 1471237723170,
+      "commit_to_seen_ms": 28.62475
+    },
+    {
+      "marker_frame": 2338,
+      "atlas_frame": 1696,
+      "commit_qpc": 1471238364174,
+      "present_qpc": 1471241299042,
+      "commit_to_seen_ms": 29.34868
+    },
+    {
+      "marker_frame": 2339,
+      "atlas_frame": 1697,
+      "commit_qpc": 1471239848400,
+      "present_qpc": 1471243203311,
+      "commit_to_seen_ms": 33.54911
+    },
+    {
+      "marker_frame": 2340,
+      "atlas_frame": 1698,
+      "commit_qpc": 1471241763135,
+      "present_qpc": 1471243886488,
+      "commit_to_seen_ms": 21.23353
+    },
+    {
+      "marker_frame": 2341,
+      "atlas_frame": 1699,
+      "commit_qpc": 1471243264484,
+      "present_qpc": 1471246406519,
+      "commit_to_seen_ms": 31.42035
+    },
+    {
+      "marker_frame": 2343,
+      "atlas_frame": 1702,
+      "commit_qpc": 1471248352749,
+      "present_qpc": 1471250926237,
+      "commit_to_seen_ms": 25.73488
+    },
+    {
+      "marker_frame": 2345,
+      "atlas_frame": 1704,
+      "commit_qpc": 1471251616830,
+      "present_qpc": 1471254288073,
+      "commit_to_seen_ms": 26.71243
+    },
+    {
+      "marker_frame": 2348,
+      "atlas_frame": 1707,
+      "commit_qpc": 1471256648840,
+      "present_qpc": 1471259502522,
+      "commit_to_seen_ms": 28.53682
+    },
+    {
+      "marker_frame": 2352,
+      "atlas_frame": 1711,
+      "commit_qpc": 1471263394781,
+      "present_qpc": 1471266544207,
+      "commit_to_seen_ms": 31.49426
+    },
+    {
+      "marker_frame": 2354,
+      "atlas_frame": 1712,
+      "commit_qpc": 1471264915896,
+      "present_qpc": 1471267933628,
+      "commit_to_seen_ms": 30.17732
+    },
+    {
+      "marker_frame": 2358,
+      "atlas_frame": 1717,
+      "commit_qpc": 1471273336254,
+      "present_qpc": 1471276213330,
+      "commit_to_seen_ms": 28.77076
+    },
+    {
+      "marker_frame": 2359,
+      "atlas_frame": 1718,
+      "commit_qpc": 1471274837556,
+      "present_qpc": 1471277473094,
+      "commit_to_seen_ms": 26.35538
+    },
+    {
+      "marker_frame": 2360,
+      "atlas_frame": 1719,
+      "commit_qpc": 1471276591378,
+      "present_qpc": 1471279261847,
+      "commit_to_seen_ms": 26.70469
+    },
+    {
+      "marker_frame": 2364,
+      "atlas_frame": 1723,
+      "commit_qpc": 1471283289523,
+      "present_qpc": 1471285808116,
+      "commit_to_seen_ms": 25.18593
+    },
+    {
+      "marker_frame": 2365,
+      "atlas_frame": 1724,
+      "commit_qpc": 1471285010977,
+      "present_qpc": 1471287659360,
+      "commit_to_seen_ms": 26.48383
+    },
+    {
+      "marker_frame": 2372,
+      "atlas_frame": 1730,
+      "commit_qpc": 1471294892556,
+      "present_qpc": 1471297319982,
+      "commit_to_seen_ms": 24.27426
+    },
+    {
+      "marker_frame": 2375,
+      "atlas_frame": 1734,
+      "commit_qpc": 1471301634429,
+      "present_qpc": 1471304888427,
+      "commit_to_seen_ms": 32.53998
+    },
+    {
+      "marker_frame": 2379,
+      "atlas_frame": 1737,
+      "commit_qpc": 1471306617995,
+      "present_qpc": 1471309092922,
+      "commit_to_seen_ms": 24.74927
+    },
+    {
+      "marker_frame": 2380,
+      "atlas_frame": 1738,
+      "commit_qpc": 1471308196183,
+      "present_qpc": 1471311034866,
+      "commit_to_seen_ms": 28.38683
+    },
+    {
+      "marker_frame": 2383,
+      "atlas_frame": 1742,
+      "commit_qpc": 1471314856788,
+      "present_qpc": 1471317318126,
+      "commit_to_seen_ms": 24.61338
+    },
+    {
+      "marker_frame": 2386,
+      "atlas_frame": 1745,
+      "commit_qpc": 1471320060905,
+      "present_qpc": 1471322780641,
+      "commit_to_seen_ms": 27.19736
+    },
+    {
+      "marker_frame": 2389,
+      "atlas_frame": 1747,
+      "commit_qpc": 1471323345401,
+      "present_qpc": 1471325514892,
+      "commit_to_seen_ms": 21.69491
+    },
+    {
+      "marker_frame": 2391,
+      "atlas_frame": 1750,
+      "commit_qpc": 1471328190185,
+      "present_qpc": 1471331237732,
+      "commit_to_seen_ms": 30.47547
+    },
+    {
+      "marker_frame": 2395,
+      "atlas_frame": 1754,
+      "commit_qpc": 1471335002024,
+      "present_qpc": 1471337602347,
+      "commit_to_seen_ms": 26.00323
+    },
+    {
+      "marker_frame": 2397,
+      "atlas_frame": 1756,
+      "commit_qpc": 1471338284132,
+      "present_qpc": 1471341381613,
+      "commit_to_seen_ms": 30.97481
+    },
+    {
+      "marker_frame": 2400,
+      "atlas_frame": 1758,
+      "commit_qpc": 1471341793467,
+      "present_qpc": 1471344697598,
+      "commit_to_seen_ms": 29.04131
+    },
+    {
+      "marker_frame": 2402,
+      "atlas_frame": 1761,
+      "commit_qpc": 1471346837599,
+      "present_qpc": 1471349196790,
+      "commit_to_seen_ms": 23.59191
+    },
+    {
+      "marker_frame": 2404,
+      "atlas_frame": 1763,
+      "commit_qpc": 1471350019963,
+      "present_qpc": 1471352454738,
+      "commit_to_seen_ms": 24.34775
+    },
+    {
+      "marker_frame": 2408,
+      "atlas_frame": 1766,
+      "commit_qpc": 1471355025862,
+      "present_qpc": 1471357691399,
+      "commit_to_seen_ms": 26.65537
+    },
+    {
+      "marker_frame": 2412,
+      "atlas_frame": 1770,
+      "commit_qpc": 1471361763924,
+      "present_qpc": 1471364260442,
+      "commit_to_seen_ms": 24.96518
+    },
+    {
+      "marker_frame": 2417,
+      "atlas_frame": 1775,
+      "commit_qpc": 1471369997911,
+      "present_qpc": 1471372339180,
+      "commit_to_seen_ms": 23.41269
+    },
+    {
+      "marker_frame": 2418,
+      "atlas_frame": 1776,
+      "commit_qpc": 1471371705260,
+      "present_qpc": 1471374733079,
+      "commit_to_seen_ms": 30.27819
+    },
+    {
+      "marker_frame": 2422,
+      "atlas_frame": 1780,
+      "commit_qpc": 1471378309201,
+      "present_qpc": 1471381307250,
+      "commit_to_seen_ms": 29.98049
+    },
+    {
+      "marker_frame": 2427,
+      "atlas_frame": 1785,
+      "commit_qpc": 1471386600767,
+      "present_qpc": 1471388845176,
+      "commit_to_seen_ms": 22.44409
+    },
+    {
+      "marker_frame": 2428,
+      "atlas_frame": 1786,
+      "commit_qpc": 1471388340964,
+      "present_qpc": 1471391249848,
+      "commit_to_seen_ms": 29.08884
+    },
+    {
+      "marker_frame": 2430,
+      "atlas_frame": 1788,
+      "commit_qpc": 1471391767604,
+      "present_qpc": 1471393973016,
+      "commit_to_seen_ms": 22.05412
+    },
+    {
+      "marker_frame": 2431,
+      "atlas_frame": 1789,
+      "commit_qpc": 1471393282978,
+      "present_qpc": 1471396378394,
+      "commit_to_seen_ms": 30.95416
+    },
+    {
+      "marker_frame": 2432,
+      "atlas_frame": 1790,
+      "commit_qpc": 1471395034354,
+      "present_qpc": 1471397673924,
+      "commit_to_seen_ms": 26.3957
+    },
+    {
+      "marker_frame": 2434,
+      "atlas_frame": 1792,
+      "commit_qpc": 1471398420912,
+      "present_qpc": 1471400928289,
+      "commit_to_seen_ms": 25.07377
+    },
+    {
+      "marker_frame": 2442,
+      "atlas_frame": 1801,
+      "commit_qpc": 1471413268270,
+      "present_qpc": 1471416521619,
+      "commit_to_seen_ms": 32.53349
+    },
+    {
+      "marker_frame": 2443,
+      "atlas_frame": 1802,
+      "commit_qpc": 1471415009962,
+      "present_qpc": 1471417902705,
+      "commit_to_seen_ms": 28.92743
+    },
+    {
+      "marker_frame": 2444,
+      "atlas_frame": 1803,
+      "commit_qpc": 1471416549297,
+      "present_qpc": 1471419738146,
+      "commit_to_seen_ms": 31.88849
+    },
+    {
+      "marker_frame": 2445,
+      "atlas_frame": 1804,
+      "commit_qpc": 1471418193975,
+      "present_qpc": 1471420775503,
+      "commit_to_seen_ms": 25.81528
+    },
+    {
+      "marker_frame": 2447,
+      "atlas_frame": 1806,
+      "commit_qpc": 1471421696060,
+      "present_qpc": 1471424755041,
+      "commit_to_seen_ms": 30.58981
+    },
+    {
+      "marker_frame": 2449,
+      "atlas_frame": 1808,
+      "commit_qpc": 1471424893025,
+      "present_qpc": 1471428036068,
+      "commit_to_seen_ms": 31.43043
+    },
+    {
+      "marker_frame": 2451,
+      "atlas_frame": 1810,
+      "commit_qpc": 1471428291765,
+      "present_qpc": 1471430845063,
+      "commit_to_seen_ms": 25.53298
+    },
+    {
+      "marker_frame": 2453,
+      "atlas_frame": 1812,
+      "commit_qpc": 1471431613484,
+      "present_qpc": 1471434682684,
+      "commit_to_seen_ms": 30.692
+    },
+    {
+      "marker_frame": 2455,
+      "atlas_frame": 1814,
+      "commit_qpc": 1471435086208,
+      "present_qpc": 1471437626024,
+      "commit_to_seen_ms": 25.39816
+    },
+    {
+      "marker_frame": 2457,
+      "atlas_frame": 1816,
+      "commit_qpc": 1471438351568,
+      "present_qpc": 1471441559587,
+      "commit_to_seen_ms": 32.08019
+    },
+    {
+      "marker_frame": 2458,
+      "atlas_frame": 1817,
+      "commit_qpc": 1471440008088,
+      "present_qpc": 1471442272244,
+      "commit_to_seen_ms": 22.64156
+    },
+    {
+      "marker_frame": 2460,
+      "atlas_frame": 1819,
+      "commit_qpc": 1471443462311,
+      "present_qpc": 1471445945972,
+      "commit_to_seen_ms": 24.83661
+    },
+    {
+      "marker_frame": 2462,
+      "atlas_frame": 1821,
+      "commit_qpc": 1471446774729,
+      "present_qpc": 1471449849784,
+      "commit_to_seen_ms": 30.75055
+    },
+    {
+      "marker_frame": 2464,
+      "atlas_frame": 1823,
+      "commit_qpc": 1471450101446,
+      "present_qpc": 1471452723513,
+      "commit_to_seen_ms": 26.22067
+    },
+    {
+      "marker_frame": 2466,
+      "atlas_frame": 1825,
+      "commit_qpc": 1471453454553,
+      "present_qpc": 1471456309431,
+      "commit_to_seen_ms": 28.54878
+    },
+    {
+      "marker_frame": 2468,
+      "atlas_frame": 1827,
+      "commit_qpc": 1471456701394,
+      "present_qpc": 1471459055717,
+      "commit_to_seen_ms": 23.54323
+    },
+    {
+      "marker_frame": 2469,
+      "atlas_frame": 1828,
+      "commit_qpc": 1471458326273,
+      "present_qpc": 1471461580074,
+      "commit_to_seen_ms": 32.53801
+    },
+    {
+      "marker_frame": 2471,
+      "atlas_frame": 1830,
+      "commit_qpc": 1471461681091,
+      "present_qpc": 1471464233861,
+      "commit_to_seen_ms": 25.5277
+    },
+    {
+      "marker_frame": 2473,
+      "atlas_frame": 1832,
+      "commit_qpc": 1471465105933,
+      "present_qpc": 1471468023424,
+      "commit_to_seen_ms": 29.17491
+    },
+    {
+      "marker_frame": 2475,
+      "atlas_frame": 1834,
+      "commit_qpc": 1471468442960,
+      "present_qpc": 1471470759861,
+      "commit_to_seen_ms": 23.16901
+    },
+    {
+      "marker_frame": 2477,
+      "atlas_frame": 1836,
+      "commit_qpc": 1471471797515,
+      "present_qpc": 1471474183475,
+      "commit_to_seen_ms": 23.8596
+    },
+    {
+      "marker_frame": 2479,
+      "atlas_frame": 1838,
+      "commit_qpc": 1471474992515,
+      "present_qpc": 1471478175555,
+      "commit_to_seen_ms": 31.8304
+    },
+    {
+      "marker_frame": 2480,
+      "atlas_frame": 1839,
+      "commit_qpc": 1471476558345,
+      "present_qpc": 1471479408495,
+      "commit_to_seen_ms": 28.5015
+    },
+    {
+      "marker_frame": 2482,
+      "atlas_frame": 1841,
+      "commit_qpc": 1471479924723,
+      "present_qpc": 1471482608974,
+      "commit_to_seen_ms": 26.84251
+    },
+    {
+      "marker_frame": 2484,
+      "atlas_frame": 1843,
+      "commit_qpc": 1471483367017,
+      "present_qpc": 1471486291924,
+      "commit_to_seen_ms": 29.24907
+    },
+    {
+      "marker_frame": 2486,
+      "atlas_frame": 1845,
+      "commit_qpc": 1471486574782,
+      "present_qpc": 1471489250161,
+      "commit_to_seen_ms": 26.75379
+    },
+    {
+      "marker_frame": 2488,
+      "atlas_frame": 1847,
+      "commit_qpc": 1471489912888,
+      "present_qpc": 1471492296920,
+      "commit_to_seen_ms": 23.84032
+    },
+    {
+      "marker_frame": 2490,
+      "atlas_frame": 1849,
+      "commit_qpc": 1471493269676,
+      "present_qpc": 1471495941091,
+      "commit_to_seen_ms": 26.71415
+    },
+    {
+      "marker_frame": 2492,
+      "atlas_frame": 1851,
+      "commit_qpc": 1471496585543,
+      "present_qpc": 1471499261891,
+      "commit_to_seen_ms": 26.76348
+    },
+    {
+      "marker_frame": 2494,
+      "atlas_frame": 1853,
+      "commit_qpc": 1471499981934,
+      "present_qpc": 1471503082694,
+      "commit_to_seen_ms": 31.0076
+    },
+    {
+      "marker_frame": 2496,
+      "atlas_frame": 1855,
+      "commit_qpc": 1471503376647,
+      "present_qpc": 1471506520042,
+      "commit_to_seen_ms": 31.43395
+    },
+    {
+      "marker_frame": 2497,
+      "atlas_frame": 1856,
+      "commit_qpc": 1471505044853,
+      "present_qpc": 1471507892442,
+      "commit_to_seen_ms": 28.47589
+    },
+    {
+      "marker_frame": 2499,
+      "atlas_frame": 1858,
+      "commit_qpc": 1471508250896,
+      "present_qpc": 1471510914234,
+      "commit_to_seen_ms": 26.63338
+    },
+    {
+      "marker_frame": 2501,
+      "atlas_frame": 1860,
+      "commit_qpc": 1471511655847,
+      "present_qpc": 1471514448465,
+      "commit_to_seen_ms": 27.92618
+    },
+    {
+      "marker_frame": 2503,
+      "atlas_frame": 1862,
+      "commit_qpc": 1471514899905,
+      "present_qpc": 1471517290250,
+      "commit_to_seen_ms": 23.90345
+    },
+    {
+      "marker_frame": 2507,
+      "atlas_frame": 1866,
+      "commit_qpc": 1471521534857,
+      "present_qpc": 1471524647048,
+      "commit_to_seen_ms": 31.12191
+    },
+    {
+      "marker_frame": 2509,
+      "atlas_frame": 1868,
+      "commit_qpc": 1471524933916,
+      "present_qpc": 1471527908399,
+      "commit_to_seen_ms": 29.74483
+    },
+    {
+      "marker_frame": 2511,
+      "atlas_frame": 1870,
+      "commit_qpc": 1471528316042,
+      "present_qpc": 1471531207076,
+      "commit_to_seen_ms": 28.91034
+    },
+    {
+      "marker_frame": 2513,
+      "atlas_frame": 1872,
+      "commit_qpc": 1471531629632,
+      "present_qpc": 1471534643313,
+      "commit_to_seen_ms": 30.13681
+    },
+    {
+      "marker_frame": 2514,
+      "atlas_frame": 1873,
+      "commit_qpc": 1471533247524,
+      "present_qpc": 1471536496354,
+      "commit_to_seen_ms": 32.4883
+    },
+    {
+      "marker_frame": 2517,
+      "atlas_frame": 1876,
+      "commit_qpc": 1471538473390,
+      "present_qpc": 1471541095828,
+      "commit_to_seen_ms": 26.22438
+    },
+    {
+      "marker_frame": 2519,
+      "atlas_frame": 1878,
+      "commit_qpc": 1471541658952,
+      "present_qpc": 1471544235481,
+      "commit_to_seen_ms": 25.76529
+    },
+    {
+      "marker_frame": 2521,
+      "atlas_frame": 1880,
+      "commit_qpc": 1471544999170,
+      "present_qpc": 1471548095821,
+      "commit_to_seen_ms": 30.96651
+    },
+    {
+      "marker_frame": 2523,
+      "atlas_frame": 1882,
+      "commit_qpc": 1471548304837,
+      "present_qpc": 1471551083629,
+      "commit_to_seen_ms": 27.78792
+    },
+    {
+      "marker_frame": 2525,
+      "atlas_frame": 1884,
+      "commit_qpc": 1471551709548,
+      "present_qpc": 1471553999175,
+      "commit_to_seen_ms": 22.89627
+    },
+    {
+      "marker_frame": 2527,
+      "atlas_frame": 1886,
+      "commit_qpc": 1471555152057,
+      "present_qpc": 1471557200864,
+      "commit_to_seen_ms": 20.48807
+    },
+    {
+      "marker_frame": 2529,
+      "atlas_frame": 1888,
+      "commit_qpc": 1471558223328,
+      "present_qpc": 1471561453428,
+      "commit_to_seen_ms": 32.301
+    },
+    {
+      "marker_frame": 2531,
+      "atlas_frame": 1890,
+      "commit_qpc": 1471561999324,
+      "present_qpc": 1471564757708,
+      "commit_to_seen_ms": 27.58384
+    },
+    {
+      "marker_frame": 2534,
+      "atlas_frame": 1893,
+      "commit_qpc": 1471566620949,
+      "present_qpc": 1471569642212,
+      "commit_to_seen_ms": 30.21263
+    },
+    {
+      "marker_frame": 2536,
+      "atlas_frame": 1895,
+      "commit_qpc": 1471569908498,
+      "present_qpc": 1471573014694,
+      "commit_to_seen_ms": 31.06196
+    },
+    {
+      "marker_frame": 2538,
+      "atlas_frame": 1897,
+      "commit_qpc": 1471573217413,
+      "present_qpc": 1471575664817,
+      "commit_to_seen_ms": 24.47404
+    },
+    {
+      "marker_frame": 2540,
+      "atlas_frame": 1899,
+      "commit_qpc": 1471576584529,
+      "present_qpc": 1471579286065,
+      "commit_to_seen_ms": 27.01536
+    },
+    {
+      "marker_frame": 2542,
+      "atlas_frame": 1901,
+      "commit_qpc": 1471579902691,
+      "present_qpc": 1471582520540,
+      "commit_to_seen_ms": 26.17849
+    },
+    {
+      "marker_frame": 2544,
+      "atlas_frame": 1903,
+      "commit_qpc": 1471583238616,
+      "present_qpc": 1471586276967,
+      "commit_to_seen_ms": 30.38351
+    },
+    {
+      "marker_frame": 2546,
+      "atlas_frame": 1905,
+      "commit_qpc": 1471586565078,
+      "present_qpc": 1471589000697,
+      "commit_to_seen_ms": 24.35619
+    },
+    {
+      "marker_frame": 2548,
+      "atlas_frame": 1907,
+      "commit_qpc": 1471589922013,
+      "present_qpc": 1471592191659,
+      "commit_to_seen_ms": 22.69646
+    },
+    {
+      "marker_frame": 2550,
+      "atlas_frame": 1909,
+      "commit_qpc": 1471593257573,
+      "present_qpc": 1471595855765,
+      "commit_to_seen_ms": 25.98192
+    },
+    {
+      "marker_frame": 2552,
+      "atlas_frame": 1911,
+      "commit_qpc": 1471596536698,
+      "present_qpc": 1471599149564,
+      "commit_to_seen_ms": 26.12866
+    },
+    {
+      "marker_frame": 2554,
+      "atlas_frame": 1913,
+      "commit_qpc": 1471599942107,
+      "present_qpc": 1471602375653,
+      "commit_to_seen_ms": 24.33546
+    },
+    {
+      "marker_frame": 2556,
+      "atlas_frame": 1915,
+      "commit_qpc": 1471603248766,
+      "present_qpc": 1471605526254,
+      "commit_to_seen_ms": 22.77488
+    },
+    {
+      "marker_frame": 2558,
+      "atlas_frame": 1917,
+      "commit_qpc": 1471606667783,
+      "present_qpc": 1471609963840,
+      "commit_to_seen_ms": 32.96057
+    },
+    {
+      "marker_frame": 2559,
+      "atlas_frame": 1918,
+      "commit_qpc": 1471608298247,
+      "present_qpc": 1471610751770,
+      "commit_to_seen_ms": 24.53523
+    },
+    {
+      "marker_frame": 2561,
+      "atlas_frame": 1920,
+      "commit_qpc": 1471611733973,
+      "present_qpc": 1471614303752,
+      "commit_to_seen_ms": 25.69779
+    },
+    {
+      "marker_frame": 2563,
+      "atlas_frame": 1922,
+      "commit_qpc": 1471614963505,
+      "present_qpc": 1471617531246,
+      "commit_to_seen_ms": 25.67741
+    },
+    {
+      "marker_frame": 2565,
+      "atlas_frame": 1924,
+      "commit_qpc": 1471618221277,
+      "present_qpc": 1471621292903,
+      "commit_to_seen_ms": 30.71626
+    },
+    {
+      "marker_frame": 2567,
+      "atlas_frame": 1926,
+      "commit_qpc": 1471621477055,
+      "present_qpc": 1471624206323,
+      "commit_to_seen_ms": 27.29268
+    },
+    {
+      "marker_frame": 2569,
+      "atlas_frame": 1928,
+      "commit_qpc": 1471624859974,
+      "present_qpc": 1471627617102,
+      "commit_to_seen_ms": 27.57128
+    },
+    {
+      "marker_frame": 2571,
+      "atlas_frame": 1930,
+      "commit_qpc": 1471628270720,
+      "present_qpc": 1471630825143,
+      "commit_to_seen_ms": 25.54423
+    },
+    {
+      "marker_frame": 2573,
+      "atlas_frame": 1932,
+      "commit_qpc": 1471631590645,
+      "present_qpc": 1471634161869,
+      "commit_to_seen_ms": 25.71224
+    },
+    {
+      "marker_frame": 2575,
+      "atlas_frame": 1934,
+      "commit_qpc": 1471634854765,
+      "present_qpc": 1471637349325,
+      "commit_to_seen_ms": 24.9456
+    },
+    {
+      "marker_frame": 2577,
+      "atlas_frame": 1936,
+      "commit_qpc": 1471638249098,
+      "present_qpc": 1471640566720,
+      "commit_to_seen_ms": 23.17622
+    },
+    {
+      "marker_frame": 2579,
+      "atlas_frame": 1938,
+      "commit_qpc": 1471641676597,
+      "present_qpc": 1471644320135,
+      "commit_to_seen_ms": 26.43538
+    },
+    {
+      "marker_frame": 2581,
+      "atlas_frame": 1940,
+      "commit_qpc": 1471644985821,
+      "present_qpc": 1471647722681,
+      "commit_to_seen_ms": 27.3686
+    },
+    {
+      "marker_frame": 2583,
+      "atlas_frame": 1942,
+      "commit_qpc": 1471648275416,
+      "present_qpc": 1471650910861,
+      "commit_to_seen_ms": 26.35445
+    },
+    {
+      "marker_frame": 2585,
+      "atlas_frame": 1944,
+      "commit_qpc": 1471651545570,
+      "present_qpc": 1471654178400,
+      "commit_to_seen_ms": 26.3283
+    },
+    {
+      "marker_frame": 2587,
+      "atlas_frame": 1946,
+      "commit_qpc": 1471654953795,
+      "present_qpc": 1471657889010,
+      "commit_to_seen_ms": 29.35215
+    },
+    {
+      "marker_frame": 2589,
+      "atlas_frame": 1948,
+      "commit_qpc": 1471658164878,
+      "present_qpc": 1471660582899,
+      "commit_to_seen_ms": 24.18021
+    },
+    {
+      "marker_frame": 2591,
+      "atlas_frame": 1950,
+      "commit_qpc": 1471661615831,
+      "present_qpc": 1471664366425,
+      "commit_to_seen_ms": 27.50594
+    },
+    {
+      "marker_frame": 2593,
+      "atlas_frame": 1952,
+      "commit_qpc": 1471664928724,
+      "present_qpc": 1471668117069,
+      "commit_to_seen_ms": 31.88345
+    },
+    {
+      "marker_frame": 2595,
+      "atlas_frame": 1954,
+      "commit_qpc": 1471668197911,
+      "present_qpc": 1471670786698,
+      "commit_to_seen_ms": 25.88787
+    },
+    {
+      "marker_frame": 2597,
+      "atlas_frame": 1956,
+      "commit_qpc": 1471671496018,
+      "present_qpc": 1471673978040,
+      "commit_to_seen_ms": 24.82022
+    },
+    {
+      "marker_frame": 2599,
+      "atlas_frame": 1958,
+      "commit_qpc": 1471674860196,
+      "present_qpc": 1471677907523,
+      "commit_to_seen_ms": 30.47327
+    },
+    {
+      "marker_frame": 2601,
+      "atlas_frame": 1960,
+      "commit_qpc": 1471678237708,
+      "present_qpc": 1471681398903,
+      "commit_to_seen_ms": 31.61195
+    },
+    {
+      "marker_frame": 2604,
+      "atlas_frame": 1963,
+      "commit_qpc": 1471683184746,
+      "present_qpc": 1471685820865,
+      "commit_to_seen_ms": 26.36119
+    },
+    {
+      "marker_frame": 2606,
+      "atlas_frame": 1965,
+      "commit_qpc": 1471686670406,
+      "present_qpc": 1471688988402,
+      "commit_to_seen_ms": 23.17996
+    },
+    {
+      "marker_frame": 2608,
+      "atlas_frame": 1967,
+      "commit_qpc": 1471689897011,
+      "present_qpc": 1471692642787,
+      "commit_to_seen_ms": 27.45776
+    },
+    {
+      "marker_frame": 2610,
+      "atlas_frame": 1969,
+      "commit_qpc": 1471693202415,
+      "present_qpc": 1471695911384,
+      "commit_to_seen_ms": 27.08969
+    },
+    {
+      "marker_frame": 2612,
+      "atlas_frame": 1971,
+      "commit_qpc": 1471696528579,
+      "present_qpc": 1471699189942,
+      "commit_to_seen_ms": 26.61363
+    },
+    {
+      "marker_frame": 2614,
+      "atlas_frame": 1973,
+      "commit_qpc": 1471699968979,
+      "present_qpc": 1471703031499,
+      "commit_to_seen_ms": 30.6252
+    },
+    {
+      "marker_frame": 2617,
+      "atlas_frame": 1976,
+      "commit_qpc": 1471704919393,
+      "present_qpc": 1471707594290,
+      "commit_to_seen_ms": 26.74897
+    },
+    {
+      "marker_frame": 2619,
+      "atlas_frame": 1978,
+      "commit_qpc": 1471708306789,
+      "present_qpc": 1471710991591,
+      "commit_to_seen_ms": 26.84802
+    },
+    {
+      "marker_frame": 2621,
+      "atlas_frame": 1980,
+      "commit_qpc": 1471711682727,
+      "present_qpc": 1471714274391,
+      "commit_to_seen_ms": 25.91664
+    },
+    {
+      "marker_frame": 2623,
+      "atlas_frame": 1982,
+      "commit_qpc": 1471715097284,
+      "present_qpc": 1471718089389,
+      "commit_to_seen_ms": 29.92105
+    },
+    {
+      "marker_frame": 2626,
+      "atlas_frame": 1985,
+      "commit_qpc": 1471719838767,
+      "present_qpc": 1471722323695,
+      "commit_to_seen_ms": 24.84928
+    },
+    {
+      "marker_frame": 2628,
+      "atlas_frame": 1987,
+      "commit_qpc": 1471723131988,
+      "present_qpc": 1471726208634,
+      "commit_to_seen_ms": 30.76646
+    },
+    {
+      "marker_frame": 2630,
+      "atlas_frame": 1989,
+      "commit_qpc": 1471726586554,
+      "present_qpc": 1471729209280,
+      "commit_to_seen_ms": 26.22726
+    },
+    {
+      "marker_frame": 2632,
+      "atlas_frame": 1991,
+      "commit_qpc": 1471729983313,
+      "present_qpc": 1471732756616,
+      "commit_to_seen_ms": 27.73303
+    },
+    {
+      "marker_frame": 2634,
+      "atlas_frame": 1993,
+      "commit_qpc": 1471733291670,
+      "present_qpc": 1471735800915,
+      "commit_to_seen_ms": 25.09245
+    },
+    {
+      "marker_frame": 2636,
+      "atlas_frame": 1995,
+      "commit_qpc": 1471736619198,
+      "present_qpc": 1471739191333,
+      "commit_to_seen_ms": 25.72135
+    },
+    {
+      "marker_frame": 2638,
+      "atlas_frame": 1997,
+      "commit_qpc": 1471739956339,
+      "present_qpc": 1471742252433,
+      "commit_to_seen_ms": 22.96094
+    },
+    {
+      "marker_frame": 2640,
+      "atlas_frame": 1999,
+      "commit_qpc": 1471743249722,
+      "present_qpc": 1471745933735,
+      "commit_to_seen_ms": 26.84013
+    },
+    {
+      "marker_frame": 2642,
+      "atlas_frame": 2001,
+      "commit_qpc": 1471746633403,
+      "present_qpc": 1471749801160,
+      "commit_to_seen_ms": 31.67757
+    },
+    {
+      "marker_frame": 2647,
+      "atlas_frame": 2006,
+      "commit_qpc": 1471754933203,
+      "present_qpc": 1471757598647,
+      "commit_to_seen_ms": 26.65444
+    },
+    {
+      "marker_frame": 2649,
+      "atlas_frame": 2008,
+      "commit_qpc": 1471758163870,
+      "present_qpc": 1471761375040,
+      "commit_to_seen_ms": 32.1117
+    },
+    {
+      "marker_frame": 2651,
+      "atlas_frame": 2010,
+      "commit_qpc": 1471761495446,
+      "present_qpc": 1471764777419,
+      "commit_to_seen_ms": 32.81973
+    },
+    {
+      "marker_frame": 2654,
+      "atlas_frame": 2013,
+      "commit_qpc": 1471766550648,
+      "present_qpc": 1471769277171,
+      "commit_to_seen_ms": 27.26523
+    },
+    {
+      "marker_frame": 2656,
+      "atlas_frame": 2015,
+      "commit_qpc": 1471769870790,
+      "present_qpc": 1471773132325,
+      "commit_to_seen_ms": 32.61535
+    },
+    {
+      "marker_frame": 2659,
+      "atlas_frame": 2018,
+      "commit_qpc": 1471774854948,
+      "present_qpc": 1471777982113,
+      "commit_to_seen_ms": 31.27165
+    },
+    {
+      "marker_frame": 2662,
+      "atlas_frame": 2021,
+      "commit_qpc": 1471779952909,
+      "present_qpc": 1471783008171,
+      "commit_to_seen_ms": 30.55262
+    },
+    {
+      "marker_frame": 2663,
+      "atlas_frame": 2022,
+      "commit_qpc": 1471781534609,
+      "present_qpc": 1471783937915,
+      "commit_to_seen_ms": 24.03306
+    },
+    {
+      "marker_frame": 2665,
+      "atlas_frame": 2024,
+      "commit_qpc": 1471784878760,
+      "present_qpc": 1471787394994,
+      "commit_to_seen_ms": 25.16234
+    },
+    {
+      "marker_frame": 2667,
+      "atlas_frame": 2026,
+      "commit_qpc": 1471788190175,
+      "present_qpc": 1471791307201,
+      "commit_to_seen_ms": 31.17026
+    },
+    {
+      "marker_frame": 2669,
+      "atlas_frame": 2028,
+      "commit_qpc": 1471791583530,
+      "present_qpc": 1471793852278,
+      "commit_to_seen_ms": 22.68748
+    },
+    {
+      "marker_frame": 2671,
+      "atlas_frame": 2030,
+      "commit_qpc": 1471794977241,
+      "present_qpc": 1471798082457,
+      "commit_to_seen_ms": 31.05216
+    },
+    {
+      "marker_frame": 2673,
+      "atlas_frame": 2032,
+      "commit_qpc": 1471798264448,
+      "present_qpc": 1471800817318,
+      "commit_to_seen_ms": 25.5287
+    },
+    {
+      "marker_frame": 2675,
+      "atlas_frame": 2034,
+      "commit_qpc": 1471801616466,
+      "present_qpc": 1471804055293,
+      "commit_to_seen_ms": 24.38827
+    },
+    {
+      "marker_frame": 2677,
+      "atlas_frame": 2036,
+      "commit_qpc": 1471804885907,
+      "present_qpc": 1471807290323,
+      "commit_to_seen_ms": 24.04416
+    },
+    {
+      "marker_frame": 2679,
+      "atlas_frame": 2038,
+      "commit_qpc": 1471808286714,
+      "present_qpc": 1471810975712,
+      "commit_to_seen_ms": 26.88998
+    },
+    {
+      "marker_frame": 2681,
+      "atlas_frame": 2040,
+      "commit_qpc": 1471811724210,
+      "present_qpc": 1471814660195,
+      "commit_to_seen_ms": 29.35985
+    },
+    {
+      "marker_frame": 2683,
+      "atlas_frame": 2042,
+      "commit_qpc": 1471814843898,
+      "present_qpc": 1471817488290,
+      "commit_to_seen_ms": 26.44392
+    },
+    {
+      "marker_frame": 2685,
+      "atlas_frame": 2044,
+      "commit_qpc": 1471818235010,
+      "present_qpc": 1471820698706,
+      "commit_to_seen_ms": 24.63696
+    },
+    {
+      "marker_frame": 2687,
+      "atlas_frame": 2046,
+      "commit_qpc": 1471821568885,
+      "present_qpc": 1471823972221,
+      "commit_to_seen_ms": 24.03336
+    },
+    {
+      "marker_frame": 2689,
+      "atlas_frame": 2048,
+      "commit_qpc": 1471824917767,
+      "present_qpc": 1471827585360,
+      "commit_to_seen_ms": 26.67593
+    },
+    {
+      "marker_frame": 2691,
+      "atlas_frame": 2050,
+      "commit_qpc": 1471828420676,
+      "present_qpc": 1471830858499,
+      "commit_to_seen_ms": 24.37823
+    },
+    {
+      "marker_frame": 2693,
+      "atlas_frame": 2052,
+      "commit_qpc": 1471831583332,
+      "present_qpc": 1471834640133,
+      "commit_to_seen_ms": 30.56801
+    },
+    {
+      "marker_frame": 2695,
+      "atlas_frame": 2054,
+      "commit_qpc": 1471834908997,
+      "present_qpc": 1471837389313,
+      "commit_to_seen_ms": 24.80316
+    },
+    {
+      "marker_frame": 2697,
+      "atlas_frame": 2056,
+      "commit_qpc": 1471838165473,
+      "present_qpc": 1471841073243,
+      "commit_to_seen_ms": 29.0777
+    },
+    {
+      "marker_frame": 2699,
+      "atlas_frame": 2058,
+      "commit_qpc": 1471841617153,
+      "present_qpc": 1471844831711,
+      "commit_to_seen_ms": 32.14558
+    },
+    {
+      "marker_frame": 2700,
+      "atlas_frame": 2059,
+      "commit_qpc": 1471843273191,
+      "present_qpc": 1471845991337,
+      "commit_to_seen_ms": 27.18146
+    },
+    {
+      "marker_frame": 2702,
+      "atlas_frame": 2061,
+      "commit_qpc": 1471846731582,
+      "present_qpc": 1471849844120,
+      "commit_to_seen_ms": 31.12538
+    },
+    {
+      "marker_frame": 2703,
+      "atlas_frame": 2062,
+      "commit_qpc": 1471848188201,
+      "present_qpc": 1471850649672,
+      "commit_to_seen_ms": 24.61471
+    },
+    {
+      "marker_frame": 2705,
+      "atlas_frame": 2064,
+      "commit_qpc": 1471851503995,
+      "present_qpc": 1471853940286,
+      "commit_to_seen_ms": 24.36291
+    },
+    {
+      "marker_frame": 2707,
+      "atlas_frame": 2066,
+      "commit_qpc": 1471854909029,
+      "present_qpc": 1471857218286,
+      "commit_to_seen_ms": 23.09257
+    },
+    {
+      "marker_frame": 2709,
+      "atlas_frame": 2068,
+      "commit_qpc": 1471858218613,
+      "present_qpc": 1471860855772,
+      "commit_to_seen_ms": 26.37159
+    },
+    {
+      "marker_frame": 2711,
+      "atlas_frame": 2070,
+      "commit_qpc": 1471861536383,
+      "present_qpc": 1471864051560,
+      "commit_to_seen_ms": 25.15177
+    },
+    {
+      "marker_frame": 2713,
+      "atlas_frame": 2072,
+      "commit_qpc": 1471864830699,
+      "present_qpc": 1471867831802,
+      "commit_to_seen_ms": 30.01103
+    },
+    {
+      "marker_frame": 2715,
+      "atlas_frame": 2074,
+      "commit_qpc": 1471868149927,
+      "present_qpc": 1471870911800,
+      "commit_to_seen_ms": 27.61873
+    },
+    {
+      "marker_frame": 2717,
+      "atlas_frame": 2076,
+      "commit_qpc": 1471871556204,
+      "present_qpc": 1471874903770,
+      "commit_to_seen_ms": 33.47566
+    },
+    {
+      "marker_frame": 2720,
+      "atlas_frame": 2079,
+      "commit_qpc": 1471876554929,
+      "present_qpc": 1471879268311,
+      "commit_to_seen_ms": 27.13382
+    },
+    {
+      "marker_frame": 2722,
+      "atlas_frame": 2081,
+      "commit_qpc": 1471879911574,
+      "present_qpc": 1471883097897,
+      "commit_to_seen_ms": 31.86323
+    },
+    {
+      "marker_frame": 2723,
+      "atlas_frame": 2082,
+      "commit_qpc": 1471881514497,
+      "present_qpc": 1471884842716,
+      "commit_to_seen_ms": 33.28219
+    },
+    {
+      "marker_frame": 2726,
+      "atlas_frame": 2085,
+      "commit_qpc": 1471886557000,
+      "present_qpc": 1471889264757,
+      "commit_to_seen_ms": 27.07757
+    },
+    {
+      "marker_frame": 2728,
+      "atlas_frame": 2087,
+      "commit_qpc": 1471889829205,
+      "present_qpc": 1471892902445,
+      "commit_to_seen_ms": 30.7324
+    },
+    {
+      "marker_frame": 2729,
+      "atlas_frame": 2088,
+      "commit_qpc": 1471891559285,
+      "present_qpc": 1471894544324,
+      "commit_to_seen_ms": 29.85039
+    },
+    {
+      "marker_frame": 2731,
+      "atlas_frame": 2090,
+      "commit_qpc": 1471894827004,
+      "present_qpc": 1471897679145,
+      "commit_to_seen_ms": 28.52141
+    },
+    {
+      "marker_frame": 2733,
+      "atlas_frame": 2092,
+      "commit_qpc": 1471898186932,
+      "present_qpc": 1471900745934,
+      "commit_to_seen_ms": 25.59002
+    },
+    {
+      "marker_frame": 2735,
+      "atlas_frame": 2094,
+      "commit_qpc": 1471901512516,
+      "present_qpc": 1471904550620,
+      "commit_to_seen_ms": 30.38104
+    },
+    {
+      "marker_frame": 2736,
+      "atlas_frame": 2095,
+      "commit_qpc": 1471903194575,
+      "present_qpc": 1471905825336,
+      "commit_to_seen_ms": 26.30761
+    },
+    {
+      "marker_frame": 2738,
+      "atlas_frame": 2097,
+      "commit_qpc": 1471906505633,
+      "present_qpc": 1471909017654,
+      "commit_to_seen_ms": 25.12021
+    },
+    {
+      "marker_frame": 2740,
+      "atlas_frame": 2099,
+      "commit_qpc": 1471909887009,
+      "present_qpc": 1471913182838,
+      "commit_to_seen_ms": 32.95829
+    },
+    {
+      "marker_frame": 2741,
+      "atlas_frame": 2100,
+      "commit_qpc": 1471911573652,
+      "present_qpc": 1471914568451,
+      "commit_to_seen_ms": 29.94799
+    },
+    {
+      "marker_frame": 2743,
+      "atlas_frame": 2102,
+      "commit_qpc": 1471914809415,
+      "present_qpc": 1471917597961,
+      "commit_to_seen_ms": 27.88546
+    },
+    {
+      "marker_frame": 2745,
+      "atlas_frame": 2104,
+      "commit_qpc": 1471918259305,
+      "present_qpc": 1471921397100,
+      "commit_to_seen_ms": 31.37795
+    },
+    {
+      "marker_frame": 2746,
+      "atlas_frame": 2105,
+      "commit_qpc": 1471919943367,
+      "present_qpc": 1471923150704,
+      "commit_to_seen_ms": 32.07337
+    },
+    {
+      "marker_frame": 2747,
+      "atlas_frame": 2106,
+      "commit_qpc": 1471921538707,
+      "present_qpc": 1471924573297,
+      "commit_to_seen_ms": 30.3459
+    },
+    {
+      "marker_frame": 2749,
+      "atlas_frame": 2108,
+      "commit_qpc": 1471924943029,
+      "present_qpc": 1471928165904,
+      "commit_to_seen_ms": 32.22875
+    },
+    {
+      "marker_frame": 2750,
+      "atlas_frame": 2109,
+      "commit_qpc": 1471926557939,
+      "present_qpc": 1471929272368,
+      "commit_to_seen_ms": 27.14429
+    },
+    {
+      "marker_frame": 2752,
+      "atlas_frame": 2111,
+      "commit_qpc": 1471929945645,
+      "present_qpc": 1471933036635,
+      "commit_to_seen_ms": 30.9099
+    },
+    {
+      "marker_frame": 2753,
+      "atlas_frame": 2112,
+      "commit_qpc": 1471931589564,
+      "present_qpc": 1471934591339,
+      "commit_to_seen_ms": 30.01775
+    },
+    {
+      "marker_frame": 2755,
+      "atlas_frame": 2114,
+      "commit_qpc": 1471934841647,
+      "present_qpc": 1471937918609,
+      "commit_to_seen_ms": 30.76962
+    },
+    {
+      "marker_frame": 2756,
+      "atlas_frame": 2115,
+      "commit_qpc": 1471936626977,
+      "present_qpc": 1471939593377,
+      "commit_to_seen_ms": 29.664
+    },
+    {
+      "marker_frame": 2758,
+      "atlas_frame": 2117,
+      "commit_qpc": 1471939986363,
+      "present_qpc": 1471942804950,
+      "commit_to_seen_ms": 28.18587
+    },
+    {
+      "marker_frame": 2760,
+      "atlas_frame": 2119,
+      "commit_qpc": 1471943299139,
+      "present_qpc": 1471946424648,
+      "commit_to_seen_ms": 31.25509
+    },
+    {
+      "marker_frame": 2761,
+      "atlas_frame": 2120,
+      "commit_qpc": 1471944849813,
+      "present_qpc": 1471947776176,
+      "commit_to_seen_ms": 29.26363
+    },
+    {
+      "marker_frame": 2763,
+      "atlas_frame": 2122,
+      "commit_qpc": 1471948279237,
+      "present_qpc": 1471950589661,
+      "commit_to_seen_ms": 23.10424
+    },
+    {
+      "marker_frame": 2765,
+      "atlas_frame": 2124,
+      "commit_qpc": 1471951616123,
+      "present_qpc": 1471954255915,
+      "commit_to_seen_ms": 26.39792
+    },
+    {
+      "marker_frame": 2767,
+      "atlas_frame": 2126,
+      "commit_qpc": 1471954886424,
+      "present_qpc": 1471957491959,
+      "commit_to_seen_ms": 26.05535
+    },
+    {
+      "marker_frame": 2769,
+      "atlas_frame": 2128,
+      "commit_qpc": 1471958234919,
+      "present_qpc": 1471961287308,
+      "commit_to_seen_ms": 30.52389
+    },
+    {
+      "marker_frame": 2770,
+      "atlas_frame": 2129,
+      "commit_qpc": 1471959888135,
+      "present_qpc": 1471962666451,
+      "commit_to_seen_ms": 27.78316
+    },
+    {
+      "marker_frame": 2772,
+      "atlas_frame": 2131,
+      "commit_qpc": 1471963341170,
+      "present_qpc": 1471966096571,
+      "commit_to_seen_ms": 27.55401
+    },
+    {
+      "marker_frame": 2774,
+      "atlas_frame": 2133,
+      "commit_qpc": 1471966616205,
+      "present_qpc": 1471969784563,
+      "commit_to_seen_ms": 31.68358
+    },
+    {
+      "marker_frame": 2775,
+      "atlas_frame": 2134,
+      "commit_qpc": 1471968189666,
+      "present_qpc": 1471970584921,
+      "commit_to_seen_ms": 23.95255
+    },
+    {
+      "marker_frame": 2777,
+      "atlas_frame": 2136,
+      "commit_qpc": 1471971641241,
+      "present_qpc": 1471974813254,
+      "commit_to_seen_ms": 31.72013
+    },
+    {
+      "marker_frame": 2779,
+      "atlas_frame": 2138,
+      "commit_qpc": 1471974914846,
+      "present_qpc": 1471978092836,
+      "commit_to_seen_ms": 31.7799
+    },
+    {
+      "marker_frame": 2780,
+      "atlas_frame": 2139,
+      "commit_qpc": 1471976695727,
+      "present_qpc": 1471979707154,
+      "commit_to_seen_ms": 30.11427
+    },
+    {
+      "marker_frame": 2781,
+      "atlas_frame": 2140,
+      "commit_qpc": 1471978227460,
+      "present_qpc": 1471981104170,
+      "commit_to_seen_ms": 28.7671
+    },
+    {
+      "marker_frame": 2783,
+      "atlas_frame": 2142,
+      "commit_qpc": 1471981640165,
+      "present_qpc": 1471984478294,
+      "commit_to_seen_ms": 28.38129
+    },
+    {
+      "marker_frame": 2785,
+      "atlas_frame": 2144,
+      "commit_qpc": 1471984891454,
+      "present_qpc": 1471987552371,
+      "commit_to_seen_ms": 26.60917
+    },
+    {
+      "marker_frame": 2787,
+      "atlas_frame": 2146,
+      "commit_qpc": 1471988191658,
+      "present_qpc": 1471990802640,
+      "commit_to_seen_ms": 26.10982
+    },
+    {
+      "marker_frame": 2789,
+      "atlas_frame": 2148,
+      "commit_qpc": 1471991544301,
+      "present_qpc": 1471994277093,
+      "commit_to_seen_ms": 27.32792
+    },
+    {
+      "marker_frame": 2791,
+      "atlas_frame": 2150,
+      "commit_qpc": 1471994821214,
+      "present_qpc": 1471997913079,
+      "commit_to_seen_ms": 30.91865
+    },
+    {
+      "marker_frame": 2793,
+      "atlas_frame": 2152,
+      "commit_qpc": 1471998198461,
+      "present_qpc": 1472000974608,
+      "commit_to_seen_ms": 27.76147
+    },
+    {
+      "marker_frame": 2794,
+      "atlas_frame": 2153,
+      "commit_qpc": 1471999921862,
+      "present_qpc": 1472004858245,
+      "commit_to_seen_ms": 49.36383
+    },
+    {
+      "marker_frame": 2810,
+      "atlas_frame": 2155,
+      "commit_qpc": 1472027025383,
+      "present_qpc": 1472029668584,
+      "commit_to_seen_ms": 26.43201
+    },
+    {
+      "marker_frame": 2811,
+      "atlas_frame": 2156,
+      "commit_qpc": 1472028189191,
+      "present_qpc": 1472031212781,
+      "commit_to_seen_ms": 30.2359
+    },
+    {
+      "marker_frame": 2813,
+      "atlas_frame": 2158,
+      "commit_qpc": 1472031592991,
+      "present_qpc": 1472034110137,
+      "commit_to_seen_ms": 25.17146
+    },
+    {
+      "marker_frame": 2815,
+      "atlas_frame": 2160,
+      "commit_qpc": 1472034908639,
+      "present_qpc": 1472037441934,
+      "commit_to_seen_ms": 25.33295
+    },
+    {
+      "marker_frame": 2817,
+      "atlas_frame": 2162,
+      "commit_qpc": 1472038318736,
+      "present_qpc": 1472041261043,
+      "commit_to_seen_ms": 29.42307
+    },
+    {
+      "marker_frame": 2819,
+      "atlas_frame": 2164,
+      "commit_qpc": 1472041661626,
+      "present_qpc": 1472044031256,
+      "commit_to_seen_ms": 23.6963
+    },
+    {
+      "marker_frame": 2821,
+      "atlas_frame": 2166,
+      "commit_qpc": 1472044877696,
+      "present_qpc": 1472047639545,
+      "commit_to_seen_ms": 27.61849
+    },
+    {
+      "marker_frame": 2823,
+      "atlas_frame": 2168,
+      "commit_qpc": 1472048305694,
+      "present_qpc": 1472051386692,
+      "commit_to_seen_ms": 30.80998
+    },
+    {
+      "marker_frame": 2824,
+      "atlas_frame": 2169,
+      "commit_qpc": 1472049905280,
+      "present_qpc": 1472052727969,
+      "commit_to_seen_ms": 28.22689
+    },
+    {
+      "marker_frame": 2826,
+      "atlas_frame": 2171,
+      "commit_qpc": 1472053214462,
+      "present_qpc": 1472056147708,
+      "commit_to_seen_ms": 29.33246
+    },
+    {
+      "marker_frame": 2828,
+      "atlas_frame": 2173,
+      "commit_qpc": 1472056567384,
+      "present_qpc": 1472059274469,
+      "commit_to_seen_ms": 27.07085
+    },
+    {
+      "marker_frame": 2830,
+      "atlas_frame": 2175,
+      "commit_qpc": 1472059868797,
+      "present_qpc": 1472062587999,
+      "commit_to_seen_ms": 27.19202
+    },
+    {
+      "marker_frame": 2834,
+      "atlas_frame": 2179,
+      "commit_qpc": 1472066536347,
+      "present_qpc": 1472069256342,
+      "commit_to_seen_ms": 27.19995
+    },
+    {
+      "marker_frame": 2836,
+      "atlas_frame": 2181,
+      "commit_qpc": 1472069878586,
+      "present_qpc": 1472072468320,
+      "commit_to_seen_ms": 25.89734
+    },
+    {
+      "marker_frame": 2838,
+      "atlas_frame": 2183,
+      "commit_qpc": 1472073219895,
+      "present_qpc": 1472075779048,
+      "commit_to_seen_ms": 25.59153
+    },
+    {
+      "marker_frame": 2840,
+      "atlas_frame": 2185,
+      "commit_qpc": 1472076538409,
+      "present_qpc": 1472079415841,
+      "commit_to_seen_ms": 28.77432
+    }
+  ],
+  "monitor_lines": [
+    "monitor rect=0,0,6144,3456 mode_known=1 mode=6144x3456 refresh=60",
+    "owned_proxy_moved=-4,-4 no_activate=true",
+    "desktop_image_in_system_memory=0",
+    "adapter vendor=32902 device=32103 software=0",
+    "output rect=0,0,6144,3456 client=-4,-4,3848,2408"
+  ],
+  "source_exit": 124,
+  "runner": "runner_pid=14124 receiver_pid=11724\nreceiver_exit=1 watchdog=0\n"
+}

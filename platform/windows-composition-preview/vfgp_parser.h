@@ -1,6 +1,7 @@
 #pragma once
 #include "atlas_record.h"
 #include "input_recovery_record.h"
+#include "desktop_geometry_ack.h"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -21,6 +22,7 @@ struct Frame {
   std::optional<DeadlineQpc> deadline_qpc{};
   std::optional<AtlasLayout> atlas{};
   std::optional<InputRecoveryConfirmation> input_recovery{};
+  std::optional<DesktopGeometryAck> desktop_geometry_ack{};
   // Shared only after exact encoded bytes and geometry match. Each frame keeps
   // its own metadata while delayed consumers retain immutable pixel storage.
   std::shared_ptr<const std::vector<uint8_t>> shared_alpha{};
@@ -46,11 +48,11 @@ public:
   explicit Parser(size_t max_frame_bytes = 16u * 1024u * 1024u,
                   bool allow_deadline_v4 = false, bool allow_atlas_v5 = false,
                   bool allow_input_recovery_v6 = false,
-                  bool allow_desktop_v7 = false, bool reuse_alpha = false)
+                  bool allow_desktop_v7 = false, bool reuse_alpha = false, bool allow_activity_v11 = false)
       : max_(max_frame_bytes), allow_deadline_v4_(allow_deadline_v4),
         allow_atlas_v5_(allow_atlas_v5),
         allow_input_recovery_v6_(allow_input_recovery_v6),
-        allow_desktop_v7_(allow_desktop_v7), reuse_alpha_(reuse_alpha) {}
+        allow_desktop_v7_(allow_desktop_v7), reuse_alpha_(reuse_alpha), allow_activity_v11_(allow_activity_v11) {}
   bool Push(std::span<const uint8_t> input, std::vector<Frame> *output);
   bool Finish() const { return !error_ && bytes_.empty() && wanted_ == 40; }
   const char *error() const { return error_; }
@@ -72,6 +74,8 @@ private:
   bool allow_input_recovery_v6_{};
   bool allow_desktop_v7_{};
   bool reuse_alpha_{};
+  bool allow_activity_v11_{},activity_v11_{};uint8_t activity_lane_{};
+  uint64_t previous_activity_[2]{};
   uint32_t alpha_width_{}, alpha_height_{};
   uint8_t alpha_version_{};
   std::vector<uint8_t> encoded_alpha_;
