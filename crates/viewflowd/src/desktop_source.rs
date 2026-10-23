@@ -358,6 +358,18 @@ impl DesktopEnrollmentSupervisor {
                 eprintln!("desktop closed source withdrawn: window={window:?}");
             }
         }
+        // A producer that failed while its window stays open is withdrawn like
+        // a closed one but not marked retired, so a later discovery pass can
+        // enroll the window again with a fresh producer.
+        for window in session.lost_windows() {
+            if self.retiring.insert(window) {
+                if let Some(input) = input.as_deref_mut() {
+                    input.retire_local_window(window)?;
+                }
+                session.remove_at_frame_boundary(window)?;
+                eprintln!("desktop lost source withdrawn for re-enrollment: window={window:?}");
+            }
+        }
         if let Some(input) = input.as_deref_mut() {
             let icons: Vec<_> = {
                 let lane = self

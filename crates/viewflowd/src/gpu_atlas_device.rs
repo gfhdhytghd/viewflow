@@ -199,6 +199,15 @@ impl GpuAtlasDevice {
         pool.add_at_frame_boundary(window, receiver)
     }
 
+    /// Sources whose capture producer failed on its own; see
+    /// `GpuAtlasCapturePool::lost_windows`.
+    pub(crate) fn lost_windows(&self) -> Vec<viewflow_protocol::WindowId> {
+        self.active
+            .as_ref()
+            .map(|(pool, _)| pool.lost_windows().iter().copied().collect())
+            .unwrap_or_default()
+    }
+
     pub(crate) fn remove_at_frame_boundary(
         &mut self,
         window: viewflow_protocol::WindowId,

@@ -75,7 +75,6 @@ impl AtlasCapturePool {
 
     /// Sources dropped from collection after a per-window failure, awaiting
     /// `remove_at_frame_boundary`/`withdraw_activity` to stop their producer.
-    #[allow(dead_code, reason = "device/session passthrough not wired yet")]
     pub(crate) fn lost_windows(&self) -> &BTreeSet<WindowId> {
         &self.lost
     }

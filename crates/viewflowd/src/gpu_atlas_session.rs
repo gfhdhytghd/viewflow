@@ -202,6 +202,10 @@ impl GpuAtlasSession {
             .can_enroll_capture(window, frame)
     }
 
+    pub(crate) fn lost_windows(&self) -> Vec<WindowId> {
+        self.device.as_ref().map(super::gpu_atlas_device::GpuAtlasDevice::lost_windows).unwrap_or_default()
+    }
+
     /// Withdraw at an idle GPU boundary, then supervise the exact producer's
     /// stop asynchronously while unrelated sources continue to publish.
     pub(crate) fn remove_at_frame_boundary(&mut self, window: WindowId) -> Result<()> {
