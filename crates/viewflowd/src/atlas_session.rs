@@ -4043,7 +4043,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn early_buffer_is_bounded_and_late_layout_cannot_revive_frame() {
+    async fn early_buffer_is_bounded_and_late_layout_still_pairs() {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (_client, _server, outbound, inbound) = pair().await;
             let deadline = Instant::now() + Duration::from_secs(2);
@@ -4071,20 +4071,11 @@ pub(crate) mod tests {
                 alpha_keyframe: true,
                 desktop: None,
             };
-            assert!(receiver.stage_manifest(manifest, 1000).is_err());
+            // A late layout is a performance miss: it pairs with its buffered
+            // media (alpha is still missing, so nothing is decoded yet).
+            assert!(receiver.stage_manifest(manifest, 1000).unwrap().is_none());
             assert_eq!(receiver.last_coded_frame, None);
-            assert_eq!(
-                receiver
-                    .early
-                    .as_ref()
-                    .unwrap()
-                    .packets
-                    .values()
-                    .next()
-                    .unwrap()
-                    .received_ns,
-                110
-            );
+            assert!(receiver.early.is_none());
             // Only the newest frame is retained, and payload bounds are enforced.
             let mut newer = early_packet(3, viewflow_transport::MediaPlane::Color);
             newer.source_submitted_ns = 1000;
@@ -4156,7 +4147,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn postprocessing_expiry_discards_pair_and_retires_codec_chain() {
+    async fn postprocessing_lateness_hands_off_pair_without_retiring_codec_chain() {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (_client, _server, outbound, inbound) = pair().await;
             let deadline = Instant::now() + Duration::from_secs(2);
@@ -4195,9 +4186,11 @@ pub(crate) mod tests {
                 receiver.receive_manifest(&mut sequence, || samples.next().unwrap(), deadline)
             );
             sent.unwrap();
-            assert!(received.is_err());
-            assert!(receiver.retired);
-            assert_eq!(receiver.last_coded_frame, Some(1)); // processed, but not handed off
+            // Missing the latency target after decode is a performance miss;
+            // the consumed codec frame is handed off and media stays up.
+            assert!(received.unwrap().is_some());
+            assert!(!receiver.retired);
+            assert_eq!(receiver.last_coded_frame, Some(1));
         })
         .await
         .unwrap();

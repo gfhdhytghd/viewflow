@@ -852,8 +852,9 @@ impl AtlasPresenterChild {
 
     /// Forward a recovery transaction to the exact owned native process.
     /// # Errors
-    /// Failure/cancellation retires the child; successful completion is only a
-    /// native acknowledgement, never source authorization or physical scanout.
+    /// A request rejected before it reached the pipe keeps the child (and
+    /// every proxy window it presents); a broken pipe retires it. Success is
+    /// only a native acknowledgement, never source authorization or scanout.
     pub async fn recover_input(
         &mut self,
         confirmation: crate::atlas_input_recovery::InputRecoveryConfirmation,
@@ -871,17 +872,26 @@ impl AtlasPresenterChild {
         if let Err(error) = ensure_stdout_worker_alive(&mut active).await {
             return Err(retire_after_error(active, error).await);
         }
-        match active
-            .pipe.as_mut().context("legacy native pipe unavailable")?
-            .recover_input(confirmation, deadline, clock)
-            .await
-        {
+        let Some(pipe) = active.pipe.as_mut() else {
+            return Err(retire_after_error(active, anyhow::anyhow!("legacy native pipe unavailable")).await);
+        };
+        match pipe.recover_input(confirmation, deadline, clock).await {
             Ok(ticks) => {
                 self.active = Some(active);
                 Ok(ticks)
             }
+            Err(error) if pipe.is_usable() => {
+                self.active = Some(active);
+                Err(error)
+            }
             Err(error) => Err(retire_after_error(active, error).await),
         }
+    }
+
+    /// Whether the native process is still owned (not retired after a fault).
+    #[must_use]
+    pub fn is_active(&self) -> bool {
+        self.active.is_some()
     }
 
     /// Close the pipe and explicitly terminate/reap this exact owned process.
@@ -1333,8 +1343,9 @@ mod tests {
                 deadline_qpc: 120,
                 frequency: 1000,
             };
-            // Readiness alone supplies no committed frame. A failed recovery
-            // must reap the child and close input, not leave it reusable.
+            // Readiness alone supplies no committed frame. The request fails
+            // before any byte is written, so the child and its proxy windows
+            // stay alive for a retry instead of being reaped.
             assert!(
                 child
                     .recover_input(
@@ -1345,10 +1356,10 @@ mod tests {
                     .await
                     .is_err()
             );
-            assert!(child.active.is_none());
-        } else {
-            child.shutdown().await.unwrap();
+            assert!(child.is_active());
+            assert!(Path::new(&format!("/proc/{pid}")).exists());
         }
+        child.shutdown().await.unwrap();
         assert!(
             tokio::time::timeout(Duration::from_secs(1), events.recv())
                 .await
