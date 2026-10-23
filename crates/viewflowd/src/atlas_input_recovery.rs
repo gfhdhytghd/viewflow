@@ -153,6 +153,26 @@ pub struct InputRecoveryConfirmation {
     pub frequency: u64,
 }
 
+/// Native refusal of one recovery attempt: the target closed, focus moved
+/// elsewhere, or a key is still physically held. The pipe framing is intact;
+/// only this attempt failed. Returns the sequence and the reason token.
+#[must_use]
+pub fn parse_recovery_rejection(line: &str) -> Option<(u64, &str)> {
+    let mut fields = line.split(' ');
+    if fields.next()? != "atlas-input-recovery-rejected-v1" {
+        return None;
+    }
+    let raw = fields.next()?.strip_prefix("sequence=")?;
+    let sequence: u64 = raw.parse().ok()?;
+    let reason = fields.next()?.strip_prefix("reason=")?;
+    (sequence > 0
+        && raw == sequence.to_string()
+        && !reason.is_empty()
+        && reason.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+        && fields.next().is_none())
+    .then_some((sequence, reason))
+}
+
 impl InputRecoveryConfirmation {
     /// Validate the native receipt against this exact pending control. QPC
     /// bounds must be sampled on the native child's host, before writing and
@@ -657,4 +677,24 @@ mod tests {
             assert!(NativeRecoveryNotice::parse(&invalid).is_err(), "{invalid}");
         }
     }
+
+    #[test]
+    fn recovery_rejection_line_is_exact() {
+        use super::parse_recovery_rejection as parse;
+        assert_eq!(
+            parse("atlas-input-recovery-rejected-v1 sequence=7 reason=keys-held"),
+            Some((7, "keys-held"))
+        );
+        for line in [
+            "atlas-input-recovery-rejected-v1 sequence=0 reason=keys-held",
+            "atlas-input-recovery-rejected-v1 sequence=07 reason=keys-held",
+            "atlas-input-recovery-rejected-v1 sequence=7 reason=",
+            "atlas-input-recovery-rejected-v1 sequence=7 reason=Keys",
+            "atlas-input-recovery-rejected-v1 sequence=7 reason=keys-held extra=1",
+            "atlas-input-recovered-v1 sequence=7 reason=keys-held",
+        ] {
+            assert_eq!(parse(line), None, "{line}");
+        }
+    }
+
 }

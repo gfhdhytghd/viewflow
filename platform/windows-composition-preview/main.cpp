@@ -2510,27 +2510,34 @@ class AtlasNativePresenter {
  private:
   void RecoverInput(const viewflow::vfgp::InputRecoveryConfirmation& c) {
     if (!input_recovery_ || !live_started_) bad("atlas input recovery not negotiated or not live");
+    // Focus moving elsewhere, a closed target or a key still held are normal
+    // during remote use. Decline this one attempt and keep every other proxy;
+    // the parent retries or abandons recovery for this window only.
+    const auto decline = [&](const char* reason) {
+      std::cout << "atlas-input-recovery-rejected-v1 sequence=" << c.sequence
+                << " reason=" << reason << std::endl;
+    };
     const auto found = proxies_.find(c.window);
-    if (found == proxies_.end()) bad("atlas recovery target unavailable");
+    if (found == proxies_.end()) return decline("target-unavailable");
     auto& proxy = *found->second;
     const HWND hwnd = proxy.window.value;
     const bool cancel = c.rejection_kind == 1;
     const bool superseded = proxy.input.input.recovery_superseded_by_focus(c);
     if (!superseded && !cancel && !proxy.input.input.recovery_recipient_allowed(c.rejection_kind,
           IsWindowVisible(hwnd) != FALSE, GetFocus() == hwnd && GetForegroundWindow() == hwnd))
-      bad("atlas recovery target lacks foreground focus");
+      return decline("focus-elsewhere");
     // Observe the physical high bit only, not toggle states. This includes
     // mouse buttons and prevents a queued new key-down from evading the drain.
     if (!superseded && !cancel) for (int key = 1; key < 256; ++key)
-      if (GetAsyncKeyState(key) & 0x8000) bad("atlas recovery requires physical release");
+      if (GetAsyncKeyState(key) & 0x8000) return decline("keys-held");
     const uint64_t now = Clock({c.deadline_qpc, c.frequency});
     if (!superseded && cancel) {
       if (proxy.input.desktop_move.active() || !proxy.input.input.cancel_rejected_input(c, now, frequency_))
-        bad("atlas rejected-input cancellation rejected");
+        return decline("cancel-rejected");
       emit_atlas_recovery_notices(proxy.input.input);
     }
     if (!superseded && !cancel && !proxy.input.input.confirm_geometry_recovery(c, now, frequency_, GetTickCount()))
-      bad("atlas recovery confirmation rejected");
+      return decline("confirmation-rejected");
     std::cout << (cancel ? "atlas-input-cancelled-v2 sequence=" : c.rejection_kind == 2 ?
         "atlas-input-recovered-v2 sequence=" : "atlas-input-recovered-v1 sequence=") << c.sequence
               << " stream_hi=" << c.stream.first << " stream_lo=" << c.stream.second

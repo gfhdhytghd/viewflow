@@ -238,7 +238,8 @@ fn receipt_key(line: &str) -> Result<Key> {
     ensure!(id > 0 && id.to_string() == frame, "noncanonical native receipt identity");
     match (prefix, name) {
         ("atlas-disposition-v1", "frame_identity") => Ok(Key::Frame(id)),
-        ("atlas-input-recovered-v1" | "atlas-input-recovered-v2" | "atlas-input-cancelled-v2", "sequence") => Ok(Key::Recovery(id)),
+        ("atlas-input-recovered-v1" | "atlas-input-recovered-v2" | "atlas-input-cancelled-v2"
+            | "atlas-input-recovery-rejected-v1", "sequence") => Ok(Key::Recovery(id)),
         _ => anyhow::bail!("unrecognized native activity receipt"),
     }
 }
@@ -269,6 +270,13 @@ async fn read_receipts<R: AsyncRead + Unpin>(mut reader: R, state: Arc<Mutex<Sta
             let (observed, frequency) = clock()?;
             let mut state = state.lock_or_recover();
             let pending = state.pending.remove(&key).context("native receipt has no pending operation")?;
+            if let (Expect::Recovery { .. }, Some((_, reason))) =
+                (&pending.expect, crate::atlas_input_recovery::parse_recovery_rejection(&line))
+            {
+                // Only this recovery attempt failed; frame receipts continue.
+                let _ = pending.completion.send(Err(anyhow::anyhow!("native presenter declined input recovery: {reason}")));
+                continue;
+            }
             let result = (|| -> Result<Receipt> {
                 ensure!(Instant::now() < pending.deadline, "native activity receipt watchdog expired");
                 match pending.expect {

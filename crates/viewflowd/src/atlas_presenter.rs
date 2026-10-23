@@ -455,6 +455,17 @@ impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
         })
         .await
         .context("atlas recovery transaction watchdog expired")??;
+        if let Some((sequence, reason)) =
+            crate::atlas_input_recovery::parse_recovery_rejection(&line)
+        {
+            if sequence == confirmation.sequence {
+                // A declined attempt is fully answered, so the pipe stays usable.
+                self.last_recovery = confirmation.sequence;
+                self.io = Some(io);
+                self.poisoned = false;
+                anyhow::bail!("native presenter declined input recovery: {reason}");
+            }
+        }
         let (observed, frequency) = clock()?;
         ensure!(
             frequency == confirmation.frequency,
@@ -979,6 +990,34 @@ pub(crate) mod tests {
         );
         assert!(pipe.is_usable());
     }
+    #[tokio::test]
+    async fn native_declined_recovery_keeps_pipe_and_a_mismatched_decline_retires_it() {
+        for (line, usable) in [
+            (b"atlas-input-recovery-rejected-v1 sequence=1 reason=focus-elsewhere\n".as_slice(), true),
+            (b"atlas-input-recovery-rejected-v1 sequence=2 reason=keys-held\n".as_slice(), false),
+        ] {
+            let (client, mut native) = tokio::io::duplex(2048);
+            let (reader, writer) = tokio::io::split(client);
+            let mut pipe = AtlasPresenterPipe::with_input_recovery(writer, reader);
+            native.write_all(RECOVERY_READY).await.unwrap();
+            let deadline = Instant::now() + std::time::Duration::from_secs(1);
+            pipe.wait_ready(deadline).await.unwrap();
+            pipe.last_frame = 9;
+            native.write_all(line).await.unwrap();
+            let mut samples = [(100, 1000), (115, 1000)].into_iter();
+            let error = pipe
+                .recover_input(recovery_control(), deadline, || Ok(samples.next().unwrap()))
+                .await
+                .unwrap_err();
+            assert_eq!(pipe.is_usable(), usable, "{error:#}");
+            if usable {
+                assert!(format!("{error:#}").contains("focus-elsewhere"));
+                // The declined sequence is consumed; a fresh attempt may follow.
+                assert_eq!(pipe.last_recovery, 1);
+            }
+        }
+    }
+
     #[tokio::test]
     async fn recovery_rejected_before_write_keeps_pipe_and_written_faults_retire_it() {
         for case in 0..8 {
