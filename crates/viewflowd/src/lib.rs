@@ -1162,6 +1162,9 @@ struct InputSendCancellation {
 struct InputSendGate {
     deadline: tokio::time::Instant,
     cancellation: Arc<InputSendCancellation>,
+    // Releases, ReleaseAll and lease revokes are cleanup: the deadline bounds
+    // only the waiter, never whether the message is sent.
+    cleanup: bool,
 }
 
 impl InputSendGate {
@@ -1172,6 +1175,14 @@ impl InputSendGate {
                 cancelled: AtomicBool::new(false),
                 notify: Notify::new(),
             }),
+            cleanup: false,
+        }
+    }
+
+    fn cleanup(deadline: tokio::time::Instant) -> Self {
+        Self {
+            cleanup: true,
+            ..Self::new(deadline)
         }
     }
 
@@ -2247,18 +2258,54 @@ async fn receive_peer_payload(
     connection: &Connection,
     sequencer: &mut ControlSequencer,
 ) -> Result<PeerPayload> {
-    match receive_reliable(connection).await? {
-        ReliablePayload::BlobChunk(chunk) => Ok(PeerPayload::Blob(chunk)),
-        ReliablePayload::Control(bytes) => {
-            let envelope =
-                wire::ControlEnvelope::decode(bytes).context("decode control envelope")?;
-            sequencer
-                .accept(envelope.sequence)
-                .map_err(|error| anyhow!("control sequence: {error}"))?;
-            Ok(PeerPayload::Control(
-                DomainControl::try_from(envelope)
-                    .map_err(|error| anyhow!("invalid control: {error:?}"))?,
-            ))
+    loop {
+        // Every reliable message has its own QUIC stream, so one truncated,
+        // undecodable or invalid message leaves the framing of all later
+        // messages intact. Skip it; only connection loss or a sequence
+        // regression (replay/reordering) ends the connection.
+        let payload = match receive_reliable(connection).await {
+            Ok(payload) => payload,
+            Err(error) => {
+                if connection.close_reason().is_some()
+                    || matches!(error, viewflow_transport::TransportError::Connection(_))
+                {
+                    return Err(error.into());
+                }
+                eprintln!(
+                    "viewflowd peer {} skipped unreadable reliable message: {error}",
+                    connection.remote_address()
+                );
+                continue;
+            }
+        };
+        let bytes = match payload {
+            ReliablePayload::BlobChunk(chunk) => return Ok(PeerPayload::Blob(chunk)),
+            ReliablePayload::Control(bytes) => bytes,
+        };
+        let envelope = match wire::ControlEnvelope::decode(bytes) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                eprintln!(
+                    "viewflowd peer {} skipped undecodable control: {error}",
+                    connection.remote_address()
+                );
+                continue;
+            }
+        };
+        let sequence = envelope.sequence;
+        sequencer
+            .accept(sequence)
+            .map_err(|error| anyhow!("control sequence: {error}"))?;
+        match DomainControl::try_from(envelope) {
+            Ok(control) => return Ok(PeerPayload::Control(control)),
+            // A peer speaking another protocol cannot be served message by message.
+            Err(error @ viewflow_protocol::WireError::IncompatibleVersion) => {
+                bail!("invalid control: {error:?}")
+            }
+            Err(error) => eprintln!(
+                "viewflowd peer {} skipped invalid control sequence={sequence}: {error:?}",
+                connection.remote_address()
+            ),
         }
     }
 }
@@ -2758,7 +2805,16 @@ async fn control_writer(
             let confirmation = send_result.clone();
             let _ = sent.send(confirmation);
         }
-        send_result.map_err(|error| anyhow!(error))?;
+        // Each control travels on its own stream. A missed input deadline, a
+        // cancelled waiter or one failed stream settles only that message (its
+        // waiter already has the outcome); later controls keep their order.
+        // The sequence still advances: the message may have been delivered.
+        if let Err(error) = send_result {
+            if let Some(reason) = connection.close_reason() {
+                return Err(anyhow!(error)).context(reason);
+            }
+            eprintln!("viewflowd control {sequence} not delivered: {error}");
+        }
         sequence = sequence
             .checked_add(1)
             .ok_or_else(|| anyhow!("outgoing control sequence exhausted"))?;
@@ -2789,6 +2845,23 @@ async fn send_outbound_control(
     }
 }
 
+fn cleanup_queue_deadline() -> tokio::time::Instant {
+    tokio::time::Instant::now() + Duration::from_nanos(input_runtime::INPUT_OPERATION_TIMEOUT_NS)
+}
+
+fn releases_held_input(event: &viewflow_protocol::InputEventKind) -> bool {
+    use viewflow_protocol::{InputEventKind, InputSwitchState};
+    match event {
+        InputEventKind::ReleaseAll => true,
+        InputEventKind::PointerButton(button) => button.state == InputSwitchState::Released,
+        InputEventKind::KeyboardHidUsage(key) => key.state == InputSwitchState::Released,
+        InputEventKind::Touchpad(frame) => frame.count == 0,
+        InputEventKind::DesktopPointerPosition(_)
+        | InputEventKind::PointerMotion(_)
+        | InputEventKind::PointerWheel(_) => false,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum InputSendOutcome<T> {
     Completed(T),
@@ -2800,6 +2873,9 @@ async fn run_input_send_until<F, T>(gate: &InputSendGate, send: F) -> InputSendO
 where
     F: Future<Output = T>,
 {
+    if gate.cleanup {
+        return InputSendOutcome::Completed(send.await);
+    }
     if gate.is_cancelled() {
         return InputSendOutcome::Cancelled;
     }
@@ -2949,21 +3025,31 @@ pub(crate) async fn send_input_confirmed_until(
     event: InputEvent,
     deadline: tokio::time::Instant,
 ) -> std::result::Result<(), InputDeliveryError> {
-    let send_gate = InputSendGate::new(deadline);
+    let cleanup = releases_held_input(&event.event);
+    let send_gate = if cleanup {
+        InputSendGate::cleanup(deadline)
+    } else {
+        InputSendGate::new(deadline)
+    };
     let mut cancel_guard = InputSendCancelGuard::new(send_gate.clone());
     let mut pending = outbound
         .input_acks
         .register(InputAckKey::from(&event), deadline)?;
     let (sent, confirmation) = oneshot::channel();
-    let queue_result = run_until_deadline(
-        deadline,
-        outbound.controls.send(OutboundControl {
-            payload: input_event_payload(event),
-            sent: Some(sent),
-            input_gate: Some(send_gate.clone()),
-        }),
-    )
-    .await;
+    let control = OutboundControl {
+        payload: input_event_payload(event),
+        sent: Some(sent),
+        input_gate: Some(send_gate.clone()),
+    };
+    // A release must enter the ordered writer queue even behind congestion;
+    // dropping it would leave the remote key or button held. Its delivery
+    // target is not a cutoff; only the operation watchdog bounds the wait.
+    let queue_deadline = if cleanup {
+        deadline.max(cleanup_queue_deadline())
+    } else {
+        deadline
+    };
+    let queue_result = run_until_deadline(queue_deadline, outbound.controls.send(control)).await;
     match queue_result {
         Some(Ok(())) => pending.may_have_been_sent = true,
         Some(Err(_)) => {
@@ -3066,13 +3152,14 @@ pub(crate) async fn send_lease_revoke_confirmed_until(
     revoke: InputLeaseRevoke,
     deadline: tokio::time::Instant,
 ) -> std::result::Result<InputLeaseRevokedAck, LeaseRevokeDeliveryError> {
-    let send_gate = InputSendGate::new(deadline);
+    let send_gate = InputSendGate::cleanup(deadline);
     let mut cancel_guard = InputSendCancelGuard::new(send_gate.clone());
     let key = LeaseRevokeAckKey::from(&revoke);
     let mut pending = outbound.lease_revoke_acks.register(key, deadline)?;
     let (sent, confirmation) = oneshot::channel();
+    // A revoke releases held input on the peer; it is queued even when late.
     let queue_result = run_until_deadline(
-        deadline,
+        deadline.max(cleanup_queue_deadline()),
         outbound.controls.send(OutboundControl {
             payload: input_lease_revoke_payload(revoke),
             sent: Some(sent),
@@ -4802,6 +4889,19 @@ mod tests {
         assert!(outbound.input_acks.lock().pending.is_empty());
     }
 
+    fn motion_event() -> InputEvent {
+        InputEvent {
+            sender_not_after_ns: 1,
+            event: viewflow_protocol::InputEventKind::PointerMotion(
+                viewflow_protocol::RelativePointerMotion {
+                    delta_x_dip: 1.0,
+                    delta_y_dip: 0.0,
+                },
+            ),
+            ..acknowledged_event()
+        }
+    }
+
     #[tokio::test]
     async fn writer_queue_congestion_spends_the_total_budget_without_sending() {
         let (controls, _received) = mpsc::channel(1);
@@ -4814,13 +4914,10 @@ mod tests {
             .unwrap();
         let outbound = OutboundSender::new(controls);
         let started = tokio::time::Instant::now();
-        let error = send_input_confirmed_with_timeout(
-            &outbound,
-            acknowledged_event(),
-            Duration::from_millis(10),
-        )
-        .await
-        .unwrap_err();
+        let error =
+            send_input_confirmed_with_timeout(&outbound, motion_event(), Duration::from_millis(10))
+                .await
+                .unwrap_err();
         assert!(error.is_safe_to_retry());
         assert!(matches!(error, InputDeliveryError::DefinitelyNotSent(_)));
         assert!(started.elapsed() >= Duration::from_millis(8));
@@ -4840,7 +4937,7 @@ mod tests {
             })
             .unwrap();
         let outbound = OutboundSender::new(controls);
-        let event = acknowledged_event();
+        let event = motion_event();
         let deadline = tokio::time::Instant::now() + Duration::from_millis(5);
         let sender = {
             let outbound = outbound.clone();
@@ -4857,6 +4954,165 @@ mod tests {
         ));
         let stale = received.try_recv().unwrap();
         assert!(stale.input_gate.unwrap().is_cancelled());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn late_release_is_still_queued_and_sent_past_its_target() {
+        let (controls, mut received) = mpsc::channel(1);
+        controls
+            .try_send(OutboundControl {
+                payload: input_event_payload(motion_event()),
+                sent: None,
+                input_gate: None,
+            })
+            .unwrap();
+        let outbound = OutboundSender::new(controls);
+        let release = acknowledged_event();
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(5);
+        let sender = {
+            let outbound = outbound.clone();
+            tokio::spawn(
+                async move { send_input_confirmed_until(&outbound, release, deadline).await },
+            )
+        };
+        tokio::task::yield_now().await;
+        std::thread::sleep(Duration::from_millis(10));
+        let _occupied = received.recv().await.unwrap();
+        let queued = received.recv().await.unwrap();
+        assert_eq!(queued.payload, input_event_payload(release));
+        let gate = queued.input_gate.unwrap();
+        assert!(gate.cleanup);
+        assert_eq!(
+            run_input_send_until(&gate, async { "sent" }).await,
+            InputSendOutcome::Completed("sent")
+        );
+        drop(queued.sent);
+        assert!(sender.await.unwrap().is_err());
+    }
+
+    async fn quic_pair() -> (quinn::Endpoint, quinn::Endpoint, Connection, Connection) {
+        use viewflow_transport::{PeerIdentity, build_client_config, build_server_config};
+        let identity = PeerIdentity::from_pem(
+            include_bytes!("../../viewflow-transport/tests/fixtures/peer.pem"),
+            include_bytes!("../../viewflow-transport/tests/fixtures/peer.key"),
+            include_bytes!("../../viewflow-transport/tests/fixtures/ca.pem"),
+        )
+        .unwrap();
+        let server = quinn::Endpoint::server(
+            build_server_config(&identity).unwrap(),
+            "127.0.0.1:0".parse().unwrap(),
+        )
+        .unwrap();
+        let mut client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();
+        client.set_default_client_config(build_client_config(&identity).unwrap());
+        let connecting = client
+            .connect(server.local_addr().unwrap(), "localhost")
+            .unwrap();
+        let (remote, source) =
+            tokio::join!(connecting, async { server.accept().await.unwrap().await });
+        (server, client, remote.unwrap(), source.unwrap())
+    }
+
+    fn clock_probe(probe_id: u64) -> wire::control_envelope::Payload {
+        wire::control_envelope::Payload::ClockSyncProbe(wire::ClockSyncProbe {
+            probe_id,
+            t0_send_ns: 1,
+        })
+    }
+
+    #[tokio::test]
+    async fn control_writer_survives_a_missed_input_deadline() {
+        let (_server, _client, remote, source) = quic_pair().await;
+        let (controls, receive) = mpsc::channel(4);
+        let writer = spawn_control_writer(source.clone(), receive);
+        let (sent, confirmation) = oneshot::channel();
+        controls
+            .send(OutboundControl {
+                payload: input_event_payload(motion_event()),
+                sent: Some(sent),
+                input_gate: Some(InputSendGate::new(
+                    tokio::time::Instant::now() - Duration::from_millis(1),
+                )),
+            })
+            .await
+            .unwrap();
+        assert!(confirmation.await.unwrap().is_err());
+        controls
+            .send(OutboundControl {
+                payload: clock_probe(7),
+                sent: None,
+                input_gate: None,
+            })
+            .await
+            .unwrap();
+        let next = tokio::time::timeout(
+            Duration::from_secs(1),
+            viewflow_transport::receive_control(&remote),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        // The expired input consumed sequence 1 without ending the writer.
+        assert_eq!(next.sequence, 2);
+        assert_eq!(next.payload, Some(clock_probe(7)));
+        assert!(!writer.is_finished());
+        writer.abort();
+    }
+
+    #[tokio::test]
+    async fn reader_skips_one_undecodable_control_and_keeps_the_connection() {
+        let (_server, _client, remote, source) = quic_pair().await;
+        let mut garbage = remote.open_uni().await.unwrap();
+        garbage
+            .write_all(b"VFRS\x01\x01\x00\x00\xff\xff\xff")
+            .await
+            .unwrap();
+        garbage.finish().unwrap();
+        viewflow_transport::send_control(&remote, &envelope(1, clock_probe(9)))
+            .await
+            .unwrap();
+        let mut sequencer = ControlSequencer::default();
+        let payload = tokio::time::timeout(
+            Duration::from_secs(1),
+            receive_peer_payload(&source, &mut sequencer),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(matches!(
+            payload,
+            PeerPayload::Control(DomainControl::ClockSyncProbe(probe)) if probe.probe_id == 9
+        ));
+        // A replayed sequence is still a protocol failure.
+        viewflow_transport::send_control(&remote, &envelope(1, clock_probe(10)))
+            .await
+            .unwrap();
+        assert!(
+            tokio::time::timeout(
+                Duration::from_secs(1),
+                receive_peer_payload(&source, &mut sequencer)
+            )
+            .await
+            .unwrap()
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn only_releases_bypass_the_input_delivery_target() {
+        use viewflow_protocol::{
+            InputEventKind, InputSwitchState, PointerButton, PointerButtonEvent,
+        };
+        assert!(releases_held_input(&InputEventKind::ReleaseAll));
+        let button = |state| {
+            InputEventKind::PointerButton(PointerButtonEvent {
+                button: PointerButton::Left,
+                state,
+            })
+        };
+        assert!(releases_held_input(&button(InputSwitchState::Released)));
+        assert!(!releases_held_input(&button(InputSwitchState::Pressed)));
+        assert!(!releases_held_input(&motion_event().event));
     }
 
     #[tokio::test(flavor = "current_thread")]

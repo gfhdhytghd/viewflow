@@ -396,8 +396,14 @@ pub struct WindowInputSession {
     allow_wheel: bool,
     // Diagnostic only: [sequence, send-start monotonic ns, send-end ns, deadline].
     last_native_send: Option<[u64; 4]>,
-    last_motion_rejected: bool,
+    last_command_rejected: bool,
     motion_takeover_pending: bool,
+    // A native revocation raced an outstanding command. Its completion is the
+    // route's last; an exact END follows before any newer decision is used.
+    revoked_in_flight: bool,
+    // Set only when a source authorization watch can install a newer decision.
+    // Such routes suspend on revocation; others retire and are recreated.
+    can_reauthorize: bool,
     // Diagnostic only: network sequence, native-clock receive and completion.
     last_delivery: Option<[u64; 3]>,
     state: State,
@@ -705,9 +711,7 @@ impl WindowInputSession {
             let result = if sent.is_ok() {
                 self.wait_native(network, presentations, metadata).await?;
                 match action {
-                    PointerAction::Motion if self.last_motion_rejected => {
-                        WindowPointerResult::Rejected
-                    }
+                    _ if self.last_command_rejected => WindowPointerResult::Rejected,
                     PointerAction::Motion => WindowPointerResult::MotionSent,
                     PointerAction::Button(_) => WindowPointerResult::ButtonSent,
                     PointerAction::Wheel(_) => WindowPointerResult::WheelSent,
@@ -738,7 +742,13 @@ impl WindowInputSession {
         presentations: &mut tokio::sync::watch::Receiver<PresentedInputGeometry>,
     ) -> Result<()> {
         changed?;
-        if !self.advance_presented(*presentations.borrow_and_update()) {
+        let geometry = *presentations.borrow_and_update();
+        // A suspended route holds no grant to advance; its resume carries
+        // fresh geometry from the newer source decision.
+        if matches!(self.state, State::DesktopPaused | State::DesktopEnding) {
+            return Ok(());
+        }
+        if !self.advance_presented(geometry) {
             bail!("source presentation invalidated window grant");
         }
         Ok(())
@@ -1080,8 +1090,10 @@ impl WindowInputSession {
             allow_wheel,
             cursor: None,
             last_native_send: None,
-            last_motion_rejected: false,
+            last_command_rejected: false,
             motion_takeover_pending: false,
+            revoked_in_flight: false,
+            can_reauthorize: false,
             last_delivery: None,
         })
     }
@@ -1368,10 +1380,20 @@ impl WindowInputSession {
         if !matches!(
             self.state,
             State::DesktopPaused | State::SwitchingEnd | State::DesktopEnding
-        ) && elapsed_ns(self.origin)? >= self.expires
+        ) && !self.revoked_in_flight
+            && elapsed_ns(self.origin)? >= self.expires
         {
-            self.revoke();
-            bail!("window grant expired");
+            // A lease that ran out while the source was busy is not a failure
+            // of the stream; the next source decision resumes this route.
+            if !self.can_reauthorize {
+                self.revoke();
+                bail!("window grant expired");
+            }
+            eprintln!(
+                "window input lease expired; route suspended generation={}",
+                self.generation
+            );
+            self.suspend_after_revocation()?;
         }
         for _ in 0..32 {
             return match self.connection.receive() {
@@ -1398,6 +1420,18 @@ impl WindowInputSession {
                         // Retirement can emit expiry/focus notifications before
                         // replying to the already-issued END. Await that exact
                         // cleanup result; no input is eligible in these states.
+                        return Ok(None);
+                    }
+                    if self.revoked_in_flight && generation == self.generation {
+                        // Already suspended; its outstanding command completes first.
+                        return Ok(None);
+                    }
+                    if self.can_reauthorize && generation < self.generation {
+                        // A retired generation cannot affect the current route.
+                        eprintln!(
+                            "window input ignored stale revocation generation={generation} current={} reason={reason:?}",
+                            self.generation
+                        );
                         return Ok(None);
                     }
                     if self.atlas_membership.is_some()
@@ -1505,24 +1539,58 @@ impl WindowInputSession {
                             return Ok(None);
                         }
                     }
+                    if self.can_reauthorize && generation == self.generation {
+                        // Focus moves, lock screens, lease expiry and transient
+                        // seat/route loss are ordinary use. Release this route
+                        // and keep the connection and every other window.
+                        eprintln!(
+                            "window input route suspended generation={generation} reason={reason:?}"
+                        );
+                        self.suspend_after_revocation()?;
+                        return Ok(None);
+                    }
                     self.revoke();
                     bail!(
                         "native window authorization revoked: generation={generation} reason={reason:?}"
                     );
                 }
                 Ok(Event::Completed(outcome)) => {
+                    if self.revoked_in_flight {
+                        let sent = match self.state {
+                            State::Beginning => Outcome::Begun,
+                            State::Moving => Outcome::MotionSent,
+                            State::Pressing => Outcome::ButtonSent,
+                            State::Scrolling => Outcome::WheelSent,
+                            State::Keying => Outcome::KeySent,
+                            _ => {
+                                self.revoke();
+                                bail!(
+                                    "native acknowledgement after revocation in {:?}",
+                                    self.state
+                                );
+                            }
+                        };
+                        if outcome == Outcome::Begun {
+                            self.native_grant_ever_active = true;
+                        }
+                        self.revoked_in_flight = false;
+                        self.last_command_rejected = outcome != sent;
+                        self.pending_key = None;
+                        self.end_revoked_route()?;
+                        return Ok(Some(Event::Completed(outcome)));
+                    }
                     if self.state == State::Moving && self.motion_takeover_pending {
                         anyhow::ensure!(
                             matches!(outcome, Outcome::Rejected | Outcome::MotionSent),
                             "unexpected motion completion during local takeover"
                         );
-                        self.last_motion_rejected = outcome == Outcome::Rejected;
+                        self.last_command_rejected = outcome == Outcome::Rejected;
                         self.motion_takeover_pending = false;
                         self.state = State::DesktopPaused;
                         return Ok(Some(Event::Completed(outcome)));
                     }
                     if self.state == State::Moving && outcome == Outcome::Rejected {
-                        self.last_motion_rejected = true;
+                        self.last_command_rejected = true;
                         self.state = State::Ready;
                         self.recovery_unconfirmed.store(false, Ordering::Release);
                         return Ok(Some(Event::Completed(outcome)));
@@ -1622,8 +1690,11 @@ impl WindowInputSession {
     }
 
     /// Send a button transition only under an explicit local button grant.
+    /// A late transition is still applied in order.
     /// # Errors
-    /// Any failure retires the native session, including a rejected release.
+    /// A rejected press only fails that event on a re-authorizable route; a
+    /// rejected release suspends the route so native END releases the button.
+    /// Routes without a re-authorization source retire as before.
     pub fn button(
         &mut self,
         event: viewflow_protocol::WindowPointerButton,
@@ -1639,9 +1710,76 @@ impl WindowInputSession {
             Err(anyhow!("window session is motion-only"))
         };
         if result.is_err() {
-            self.revoke();
+            self.after_rejected_ordered(
+                event.transition.state == viewflow_protocol::InputSwitchState::Released,
+            );
         }
         result
+    }
+
+    /// Settle a rejected button/wheel/key without ending the connection.
+    /// A rejected release cannot be dropped while native input may be held,
+    /// so it suspends the route; a native END then releases it in order.
+    fn after_rejected_ordered(&mut self, releases_held_input: bool) {
+        if self.state == State::Ended {
+            return;
+        }
+        if !self.can_reauthorize {
+            self.revoke();
+        } else if releases_held_input {
+            if let Err(error) = self.suspend_after_revocation() {
+                eprintln!("window input release suspension failed: {error:#}");
+            }
+        }
+    }
+
+    /// Native revocation, an expired lease or a rejected release retires only
+    /// this route: grants are dropped, held input is released by an exact END
+    /// that preserves focus, and the route waits in `DesktopPaused` for a newer
+    /// source decision. An outstanding command finishes first.
+    /// # Errors
+    /// Only a native socket failure, which also closes this route.
+    fn suspend_after_revocation(&mut self) -> Result<()> {
+        match self.state {
+            // An END is already outstanding or confirmed for this route.
+            State::SwitchingEnd | State::DesktopEnding | State::DesktopPaused => return Ok(()),
+            State::Ended => bail!("window session ended"),
+            _ => {}
+        }
+        let previous = self
+            .desktop_suspension
+            .or(self.resize_suspension)
+            .or_else(|| self.grant.authorization(0));
+        if let Some(activity) = &self.activity {
+            activity.observe(|state, now| state.release(None, now));
+        }
+        self.grant.revoke();
+        if let Some(keyboard) = &mut self.keyboard_grant {
+            keyboard.revoke();
+        }
+        self.resize_suspension = None;
+        self.desktop_suspension = previous;
+        self.recovery_unconfirmed.store(true, Ordering::Release);
+        if matches!(self.state, State::Ready | State::ResizeSuspended) {
+            self.end_revoked_route()
+        } else {
+            self.revoked_in_flight = true;
+            Ok(())
+        }
+    }
+
+    fn end_revoked_route(&mut self) -> Result<()> {
+        let sequence = self.connection.next_sequence();
+        let end = Request::end_preserving_focus(sequence, self.generation)
+            .map_err(|error| anyhow!("native suspension end: {error:?}"))?;
+        if let Err(error) = self.connection.send(end) {
+            self.revoke();
+            return Err(error.into());
+        }
+        self.sequence = sequence;
+        self.state = State::DesktopEnding;
+        self.last_native_send = None;
+        Ok(())
     }
 
     fn send_pointer(
@@ -1651,19 +1789,33 @@ impl WindowInputSession {
         action: PointerAction,
     ) -> Result<()> {
         let now = elapsed_ns(self.origin)?;
-        let deadline = conservative_input_deadline(
-            event.sender_not_after_ns,
-            estimate.map(|(estimate, measured_at_local_ns)| ClockSnapshot {
-                estimate,
-                measured_at_local_ns,
-            }),
-            now,
-        )
-        .ok();
-        let point = self
-            .grant
-            .admit_motion(self.owner, event, deadline, now)
-            .ok_or_else(|| anyhow!("window motion not admitted"))?;
+        let (point, deadline) = if matches!(action, PointerAction::Motion) {
+            let deadline = conservative_input_deadline(
+                event.sender_not_after_ns,
+                estimate.map(|(estimate, measured_at_local_ns)| ClockSnapshot {
+                    estimate,
+                    measured_at_local_ns,
+                }),
+                now,
+            )
+            .ok();
+            let point = self
+                .grant
+                .admit_motion(self.owner, event, deadline, now)
+                .ok_or_else(|| anyhow!("window motion not admitted"))?;
+            (point, deadline.ok_or_else(|| anyhow!("missing deadline"))?)
+        } else {
+            // Discrete input does not depend on capture freshness or a fresh
+            // clock sample; its native deadline is an operation watchdog.
+            let point = self
+                .grant
+                .admit_ordered(self.owner, event, now)
+                .ok_or_else(|| anyhow!("window input not admitted"))?;
+            (
+                point,
+                now.saturating_add(crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS),
+            )
+        };
         if self.state != State::Ready {
             bail!("native window command pending or ended");
         }
@@ -1678,12 +1830,7 @@ impl WindowInputSession {
         {
             bail!("point outside bound surface");
         }
-        let deadline = native_deadline(
-            self.origin,
-            deadline
-                .ok_or_else(|| anyhow!("missing deadline"))?
-                .min(self.expires),
-        )?;
+        let deadline = native_deadline(self.origin, deadline.min(self.expires))?;
         self.sequence = self.connection.next_sequence();
         let request = match action {
             PointerAction::Button(button) => {
@@ -1732,7 +1879,7 @@ impl WindowInputSession {
             native_clock_ns().unwrap_or(0),
             deadline,
         ]);
-        self.last_motion_rejected = false;
+        self.last_command_rejected = false;
         self.state = match action {
             PointerAction::Motion => State::Moving,
             PointerAction::Button(_) => State::Pressing,
@@ -1758,9 +1905,9 @@ impl WindowInputSession {
     }
 
     /// Send a scroll only under explicit local wheel authority. Never retry an
-    /// uncertain non-idempotent scroll or extend its event-time deadline.
+    /// uncertain non-idempotent scroll; a late scroll is still applied in order.
     /// # Errors
-    /// Any failure retires the session, including missing wheel permission.
+    /// A rejected scroll fails only that event on a re-authorizable route.
     pub fn wheel(
         &mut self,
         event: viewflow_protocol::WindowPointerWheel,
@@ -1772,7 +1919,7 @@ impl WindowInputSession {
             Err(anyhow!("window session has no wheel authority"))
         };
         if result.is_err() {
-            self.revoke();
+            self.after_rejected_ordered(false);
         }
         result
     }
@@ -1906,6 +2053,7 @@ impl<'a> RoutedWindowInput<'a> {
         metadata: impl FnMut(Vec<u8>) -> Result<()> + Send + 'a,
     ) -> Self {
         session.allow_resize_recovery = allow_switching && authorizations.is_some();
+        session.can_reauthorize = authorizations.is_some();
         Self {
             session,
             clocks,
@@ -2226,10 +2374,19 @@ impl<'a> RoutedWindowInput<'a> {
             match self.session.poll()? {
                 Some(Event::Metadata(bytes)) => (self.metadata)(bytes)?,
                 Some(Event::CaptureReceipt(_)) => bail!("unrouted capture receipt"),
+                Some(Event::Completed(Outcome::Ended))
+                    if self.session.state == State::DesktopPaused => {}
                 Some(Event::Completed(_)) => bail!("unexpected native acknowledgement while idle"),
                 Some(Event::Revoked { .. }) => bail!("unhandled native revocation"),
                 None => break,
             }
+        }
+        // A revocation observed above suspended the route with an END. Confirm
+        // it before installing a newer decision for this route.
+        if self.session.state == State::DesktopEnding {
+            self.session
+                .wait_native(network, &mut self.presentations, &mut self.metadata)
+                .await?;
         }
         // An absent tile is an explicit source withdrawal. Confirm native
         // END (including release of pressed input) before accepting selection.
@@ -2323,6 +2480,7 @@ impl<'a> RoutedWindowInput<'a> {
             match event {
                 Event::Metadata(bytes) => (self.metadata)(bytes)?,
                 Event::CaptureReceipt(_) => bail!("unrouted capture receipt"),
+                Event::Completed(Outcome::Ended) if self.session.state == State::DesktopPaused => {}
                 Event::Completed(_) => bail!("unexpected native acknowledgement while idle"),
                 Event::Revoked { .. } => bail!("native window authorization revoked while idle"),
             }
@@ -2800,7 +2958,7 @@ mod tests {
             window_switch::tests::reply_for(&native, 3, sequence, generation, outcome);
             session.poll().unwrap();
             assert_eq!(session.state, State::DesktopPaused);
-            assert!(session.last_motion_rejected);
+            assert!(session.last_command_rejected);
             // A fresh lease may resume the same still-presented window/frame
             // after confirmed cleanup; no artificial capture change is needed.
             session
@@ -2816,6 +2974,179 @@ mod tests {
             session.poll().unwrap();
             assert_eq!(session.state, State::Ready);
             assert!(!session.recovery_unconfirmed.load(Ordering::Acquire));
+        }
+    }
+
+    fn native_fixture(
+        name: &str,
+        buttons: bool,
+    ) -> (
+        tempfile::TempDir,
+        std::os::fd::OwnedFd,
+        WindowInputSession,
+        Instant,
+    ) {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = directory.path().join(name);
+        let listener = Listener::bind(&path, i32::try_from(std::process::id()).unwrap()).unwrap();
+        let native = socket::socket(
+            AddressFamily::Unix,
+            SockType::SeqPacket,
+            SockFlag::SOCK_NONBLOCK,
+            None,
+        )
+        .unwrap();
+        socket::connect(native.as_raw_fd(), &UnixAddr::new(&path).unwrap()).unwrap();
+        let origin = Instant::now();
+        let begin = if buttons {
+            WindowInputSession::begin_buttons
+        } else {
+            WindowInputSession::begin
+        };
+        let mut session = begin(
+            listener.accept().unwrap(),
+            window_switch::tests::authorization(3, 7),
+            origin,
+        )
+        .unwrap();
+        window_switch::tests::receive(&native);
+        window_switch::tests::reply(&native, 1, 7, 1);
+        session.poll().unwrap();
+        assert_eq!(session.state, State::Ready);
+        (directory, native, session, origin)
+    }
+
+    fn late_button(
+        sequence: u64,
+        state: viewflow_protocol::InputSwitchState,
+    ) -> viewflow_protocol::WindowPointerButton {
+        viewflow_protocol::WindowPointerButton {
+            position: WindowPointerMotion {
+                lease_generation: 7,
+                target_device: Id128(2),
+                target_window: Id128(3),
+                geometry_epoch: 4,
+                presented_frame: 5,
+                sequence,
+                // Long past its freshness target, and no clock sample exists.
+                sender_not_after_ns: 1,
+                x_pixels: 20,
+                y_pixels: 10,
+                viewport_width: 200,
+                viewport_height: 100,
+            },
+            transition: viewflow_protocol::PointerButtonEvent {
+                button: viewflow_protocol::PointerButton::Left,
+                state,
+            },
+        }
+    }
+
+    #[test]
+    fn focus_revocation_suspends_route_and_resumes_on_newer_decision() {
+        for reason in [6, 11, 12, 13, 14, 15] {
+            let (_directory, native, mut session, _) =
+                native_fixture("focus-revocation.sock", false);
+            session.can_reauthorize = true;
+            window_switch::tests::revoked(&native, 2, 7, reason);
+            assert!(session.poll().unwrap().is_none());
+            // Focus-preserving END releases held input on this route only.
+            assert_eq!(session.state, State::DesktopEnding);
+            assert_eq!(window_switch::tests::receive(&native), (62, 2, 7));
+            assert!(session.grant.authorization(0).is_none());
+            window_switch::tests::reply_for(&native, 3, 2, 7, 3);
+            assert!(matches!(
+                session.poll().unwrap(),
+                Some(Event::Completed(Outcome::Ended))
+            ));
+            assert_eq!(session.state, State::DesktopPaused);
+            // A repeated notice for the ended generation changes nothing.
+            window_switch::tests::revoked(&native, 4, 7, reason);
+            assert!(session.poll().unwrap().is_none());
+            assert_eq!(session.state, State::DesktopPaused);
+            session
+                .resume_after_desktop_pause(window_switch::tests::authorization(3, 8))
+                .unwrap();
+            assert_eq!(window_switch::tests::receive(&native), (50, 3, 8));
+            window_switch::tests::reply_for(&native, 5, 3, 8, 1);
+            session.poll().unwrap();
+            assert_eq!(session.state, State::Ready);
+        }
+    }
+
+    #[test]
+    fn revocation_without_reauthorization_source_still_retires_route() {
+        let (_directory, native, mut session, _) = native_fixture("retire.sock", false);
+        window_switch::tests::revoked(&native, 2, 7, 14);
+        assert!(session.poll().is_err());
+        assert_eq!(session.state, State::Ended);
+    }
+
+    #[test]
+    fn expired_lease_suspends_reauthorizable_route() {
+        let (_directory, native, mut session, _) = native_fixture("lease.sock", false);
+        session.can_reauthorize = true;
+        session.expires = 1;
+        assert!(session.poll().unwrap().is_none());
+        assert_eq!(session.state, State::DesktopEnding);
+        assert_eq!(window_switch::tests::receive(&native), (62, 2, 7));
+    }
+
+    #[test]
+    fn late_buttons_are_delivered_in_order() {
+        use viewflow_protocol::InputSwitchState::{Pressed, Released};
+        let (_directory, native, mut session, _) = native_fixture("late-button.sock", true);
+        for (sequence, state) in [(1, Pressed), (2, Released)] {
+            session.button(late_button(sequence, state), None).unwrap();
+            assert_eq!(session.state, State::Pressing);
+            let (opcode, command, generation) = window_switch::tests::receive(&native);
+            assert_eq!((opcode, generation), (55, 7));
+            window_switch::tests::reply(&native, command, 7, 4);
+            session.poll().unwrap();
+            assert_eq!(session.state, State::Ready);
+        }
+    }
+
+    #[test]
+    fn rejected_press_keeps_route_and_rejected_release_suspends_it() {
+        use viewflow_protocol::InputSwitchState::{Pressed, Released};
+        let (_directory, native, mut session, _) = native_fixture("rejected-button.sock", true);
+        session.can_reauthorize = true;
+        session.button(late_button(1, Pressed), None).unwrap();
+        let (_, command, _) = window_switch::tests::receive(&native);
+        window_switch::tests::reply(&native, command, 7, 4);
+        session.poll().unwrap();
+        // A replayed press is rejected without touching the route.
+        assert!(session.button(late_button(1, Pressed), None).is_err());
+        assert_eq!(session.state, State::Ready);
+        // A rejected release cannot leave the button held: END releases it.
+        assert!(session.button(late_button(1, Released), None).is_err());
+        assert_eq!(session.state, State::DesktopEnding);
+        assert_eq!(window_switch::tests::receive(&native), (62, 3, 7));
+    }
+
+    #[test]
+    fn revocation_during_button_finishes_command_then_ends_route() {
+        use viewflow_protocol::InputSwitchState::Pressed;
+        for outcome in [4, 0] {
+            let (_directory, native, mut session, _) = native_fixture("inflight.sock", true);
+            session.can_reauthorize = true;
+            session.button(late_button(1, Pressed), None).unwrap();
+            let (_, command, _) = window_switch::tests::receive(&native);
+            window_switch::tests::revoked(&native, 2, 7, 14);
+            assert!(session.poll().unwrap().is_none());
+            assert_eq!(session.state, State::Pressing);
+            assert!(session.revoked_in_flight);
+            window_switch::tests::reply_for(&native, 3, command, 7, outcome);
+            assert!(matches!(session.poll().unwrap(), Some(Event::Completed(_))));
+            assert_eq!(session.last_command_rejected, outcome == 0);
+            assert_eq!(session.state, State::DesktopEnding);
+            assert_eq!(window_switch::tests::receive(&native), (62, 3, 7));
+            window_switch::tests::reply_for(&native, 4, 3, 7, 3);
+            session.poll().unwrap();
+            assert_eq!(session.state, State::DesktopPaused);
         }
     }
 
@@ -2876,7 +3207,7 @@ mod tests {
             window_switch::tests::reply(&native, sequence, generation, outcome);
             session.poll().unwrap();
             assert_eq!(session.state, State::Ready);
-            assert_eq!(session.last_motion_rejected, outcome == 0);
+            assert_eq!(session.last_command_rejected, outcome == 0);
             assert!(!session.recovery_unconfirmed.load(Ordering::Acquire));
         }
     }

@@ -13,8 +13,9 @@ use viewflow_transport::ClockEstimate;
 impl WindowInputSession {
     /// Deliver on the authenticated shared reader; success requires exact native
     /// confirmation. The caller owns network sequencing and acknowledgement send.
+    /// A rejected key is acknowledged as rejected; see [`Self::key`].
     /// # Errors
-    /// Any context, timing, native or transport failure revokes the route.
+    /// Native socket, context or transport failure revokes the route.
     pub async fn deliver_key(
         &mut self,
         network: &quinn::Connection,
@@ -37,11 +38,23 @@ impl WindowInputSession {
             if let Some(reason) = network.close_reason() {
                 return Err(reason).context("keyboard peer disconnected");
             }
-            self.key(event, estimate)?;
+            if self.key(event, estimate).is_err() {
+                if self.state == State::Ended {
+                    anyhow::bail!("native window keyboard connection failed");
+                }
+                return Ok(viewflow_protocol::WindowKeyboardAck {
+                    event,
+                    result: viewflow_protocol::WindowKeyboardResult::Rejected,
+                });
+            }
             self.wait_native(network, presentations, metadata).await?;
             Ok(viewflow_protocol::WindowKeyboardAck {
                 event,
-                result: viewflow_protocol::WindowKeyboardResult::KeySent,
+                result: if self.last_command_rejected {
+                    viewflow_protocol::WindowKeyboardResult::Rejected
+                } else {
+                    viewflow_protocol::WindowKeyboardResult::KeySent
+                },
             })
         }
         .await;
@@ -89,7 +102,9 @@ impl WindowInputSession {
     /// Queue one authenticated physical usage, never text or a global shortcut.
     /// Completion is observable only through a matching native `KeySent` from poll.
     /// # Errors
-    /// All rejection or uncertainty retires the connection for native cleanup.
+    /// A rejected key-up suspends a re-authorizable route so native END releases
+    /// the key; a rejected key-down fails only that event. Routes without a
+    /// re-authorization source retire for native cleanup.
     pub fn key(
         &mut self,
         event: WindowKeyboardEvent,
@@ -97,7 +112,7 @@ impl WindowInputSession {
     ) -> Result<()> {
         let result = self.send_key(event, estimate);
         if result.is_err() {
-            self.revoke();
+            self.after_rejected_ordered(event.key.state == InputSwitchState::Released);
         }
         result
     }
@@ -140,7 +155,10 @@ impl WindowInputSession {
             event.key.repeat,
         )
         .map_err(|error| anyhow!("native keyboard request: {error:?}"))?;
-        self.connection.send(request)?;
+        if let Err(error) = self.connection.send(request) {
+            self.revoke();
+            return Err(error.into());
+        }
         if let Some(activity) = &self.activity {
             activity.observe(|state, now| state.hold(event.target_window.0, 2,
                 (u64::from(event.key.usage_page) << 32) | u64::from(event.key.usage_id),
@@ -148,6 +166,7 @@ impl WindowInputSession {
         }
         self.sequence = sequence;
         self.pending_key = Some(event);
+        self.last_command_rejected = false;
         self.state = State::Keying;
         self.recovery_unconfirmed.store(true, Ordering::Release);
         Ok(())
