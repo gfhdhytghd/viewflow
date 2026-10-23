@@ -1550,7 +1550,11 @@ sys.stdin.buffer.read()
                 owner.forward_next_disposition_with_clock(|| 110, || Ok(QpcSample { ticks: 100, frequency: 1000 }), deadline, 8192).await.unwrap();
             }
             if fenced { owner.drain_activity().await.unwrap(); }
-            assert_eq!(owner.activity_committed.iter().map(|frame| frame.frame_id).collect::<Vec<_>>(), if fenced { vec![5, 4] } else { vec![5, 7] });
+            let mut committed = owner.activity_committed.iter().map(|frame| frame.frame_id).collect::<Vec<_>>();
+            // Both lanes must drain behind the fence; which lane's frame the
+            // owner forwards first depends on QUIC arrival order between lanes.
+            if fenced { committed.sort_unstable(); }
+            assert_eq!(committed, if fenced { vec![4, 5] } else { vec![5, 7] });
             assert!(owner.activity_pending.is_empty() && owner.activity_boundary.is_none());
         };
         let all = async { tokio::join!(
