@@ -1,0 +1,35 @@
+name: Rust workspace
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component clippy
+      - name: Test workspace without desktop input
+        run: cargo +stable test --locked --workspace
+      # Only unjustified unwraps are a hard error; tests and examples are exempt
+      # through clippy.toml. Other pedantic lints stay advisory.
+      - name: Reject bare unwrap in production code
+        run: cargo +stable clippy --locked --workspace --all-targets -- -D clippy::unwrap_used
+      - name: Build fuzz targets
+        if: hashFiles('fuzz/Cargo.toml') != ''
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-fuzz --locked
+          cd fuzz && cargo +nightly fuzz build
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component clippy
+      # Windows-only presenter, input and readiness paths are not compiled on Linux.
+      - name: Check Windows daemon paths
+        run: cargo +stable clippy --locked -p viewflowd -p viewflow-platform --all-targets -- -D clippy::unwrap_used

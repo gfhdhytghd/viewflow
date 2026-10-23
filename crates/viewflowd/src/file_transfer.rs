@@ -179,7 +179,7 @@ mod windows {
     fn create_directory(path: &Path, descriptor: PSECURITY_DESCRIPTOR) -> io::Result<()> {
         let path = wide_null(path.as_os_str());
         let attributes = SECURITY_ATTRIBUTES {
-            nLength: u32::try_from(size_of::<SECURITY_ATTRIBUTES>()).unwrap(),
+            nLength: u32::try_from(size_of::<SECURITY_ATTRIBUTES>()).expect("Win32 structure size fits u32"),
             lpSecurityDescriptor: descriptor,
             bInheritHandle: 0,
         };
@@ -202,7 +202,7 @@ mod windows {
         let mut required = 0;
         // SAFETY: this is the documented TokenUser size-query form.
         unsafe { GetTokenInformation(token.0, TokenUser, null_mut(), 0, &mut required) };
-        if required < u32::try_from(size_of::<TOKEN_USER>()).unwrap() {
+        if required < u32::try_from(size_of::<TOKEN_USER>()).expect("Win32 structure size fits u32") {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "GetTokenInformation returned an invalid TokenUser size",

@@ -235,10 +235,11 @@ impl Client {
     }
     fn exchange(&mut self, request: &[u8; wire::REQUEST_SIZE]) -> Result<(), WindowsInputError> {
         let result = (|| -> io::Result<_> {
-            if self.pipe.is_none() {
-                self.pipe = Some(Self::connect()?);
-            }
-            let pipe = self.pipe.as_mut().unwrap();
+            let pipe = match self.pipe.take() {
+                Some(pipe) => pipe,
+                None => Self::connect()?,
+            };
+            let pipe = self.pipe.insert(pipe);
             let start = Instant::now();
             write_poll(pipe, request, || start.elapsed() >= WATCHDOG)?;
             let mut reply = [0; 5];

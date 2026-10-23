@@ -62,7 +62,7 @@ impl GpuAtlasWorker {
                 Err(error) => { let _ = ready.send(Err(error)); return; }
             };
             // Do not move the authenticated wire until resource preparation succeeds.
-            let wire = worker_wire.lock_or_recover().take().unwrap();
+            let wire = worker_wire.lock_or_recover().take().expect("the wire stays here until the worker takes it");
             let mut sender = GpuAtlasSender::new(encoder, wire);
             if ready.send(Ok(())).is_err() { return; }
             runtime.block_on(async {
@@ -100,7 +100,7 @@ impl GpuAtlasWorker {
         });
         let thread = match spawned {
             Ok(thread) => thread,
-            Err(error) => return Err((error.into(), wire.lock_or_recover().take().unwrap())),
+            Err(error) => return Err((error.into(), wire.lock_or_recover().take().expect("the wire stays here until the worker takes it"))),
         };
         match initialized.await {
             Ok(Ok(())) => Ok(Self {

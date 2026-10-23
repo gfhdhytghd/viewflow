@@ -1058,7 +1058,7 @@ mod windows {
                 handle,
                 FileAttributeTagInfo,
                 (&raw mut attributes).cast(),
-                u32::try_from(size_of::<FILE_ATTRIBUTE_TAG_INFO>()).unwrap(),
+                u32::try_from(size_of::<FILE_ATTRIBUTE_TAG_INFO>()).expect("Win32 structure size fits u32"),
             )
         } == 0
         {
@@ -1076,7 +1076,7 @@ mod windows {
                 handle,
                 FileStandardInfo,
                 (&raw mut standard).cast(),
-                u32::try_from(size_of::<FILE_STANDARD_INFO>()).unwrap(),
+                u32::try_from(size_of::<FILE_STANDARD_INFO>()).expect("Win32 structure size fits u32"),
             )
         } == 0
         {
@@ -1089,7 +1089,7 @@ mod windows {
         if !(0..=MAX_ARTIFACT_BYTES).contains(&standard.EndOfFile) {
             bail!("{name} exceeds the 64 KiB evidence limit");
         }
-        let mut bytes = Vec::with_capacity(usize::try_from(standard.EndOfFile).unwrap());
+        let mut bytes = Vec::with_capacity(usize::try_from(standard.EndOfFile).expect("bounded by MAX_ARTIFACT_BYTES above"));
         let mut reader = file;
         reader
             .read_to_end(&mut bytes)
@@ -1109,7 +1109,7 @@ mod windows {
                 file.as_raw_handle(),
                 FileDispositionInfo,
                 (&raw const disposition).cast(),
-                u32::try_from(size_of::<FILE_DISPOSITION_INFO>()).unwrap(),
+                u32::try_from(size_of::<FILE_DISPOSITION_INFO>()).expect("Win32 structure size fits u32"),
             )
         } == 0
         {
@@ -1203,7 +1203,7 @@ mod windows {
     ) -> std::io::Result<File> {
         let wide_path = wide_null(path.as_os_str());
         let attributes = SECURITY_ATTRIBUTES {
-            nLength: u32::try_from(size_of::<SECURITY_ATTRIBUTES>()).unwrap(),
+            nLength: u32::try_from(size_of::<SECURITY_ATTRIBUTES>()).expect("Win32 structure size fits u32"),
             lpSecurityDescriptor: descriptor,
             bInheritHandle: 0,
         };
@@ -1290,7 +1290,7 @@ mod windows {
         let mut required = 0;
         // SAFETY: documented size query form.
         unsafe { GetTokenInformation(token.0, TokenUser, null_mut(), 0, &mut required) };
-        if required < u32::try_from(size_of::<TOKEN_USER>()).unwrap() {
+        if required < u32::try_from(size_of::<TOKEN_USER>()).expect("Win32 structure size fits u32") {
             bail!("GetTokenInformation returned an invalid TokenUser size");
         }
         let word_size = size_of::<usize>();

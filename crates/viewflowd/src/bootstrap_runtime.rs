@@ -144,7 +144,7 @@ pub fn force_release_input(config: &ForceReleaseInputConfig) -> Result<()> {
         input_desktop: input_desktop_name,
         requested_input_count: report.requested_input_count,
         inserted_input_count: report.inserted_input_count,
-        verification_stable_ms: u64::try_from(VERIFICATION_STABLE.as_millis()).unwrap(),
+        verification_stable_ms: u64::try_from(VERIFICATION_STABLE.as_millis()).expect("constant fits u64"),
         completed_at_utc: completed_at_utc(),
     };
     write_owner_only_receipt(&config.receipt, &user_sid, &receipt)
@@ -250,7 +250,7 @@ fn current_user_sid() -> Result<String> {
     unsafe {
         GetTokenInformation(token.0, TokenUser, null_mut(), 0, &mut required);
     }
-    if required < u32::try_from(size_of::<TOKEN_USER>()).unwrap() {
+    if required < u32::try_from(size_of::<TOKEN_USER>()).expect("Win32 structure size fits u32") {
         bail!("GetTokenInformation returned an invalid TokenUser size");
     }
     let word_size = size_of::<usize>();
@@ -400,7 +400,7 @@ fn desktop_name(handle: HDESK) -> Result<String> {
     if required_bytes < 2 || required_bytes % 2 != 0 {
         bail!("GetUserObjectInformationW returned an invalid desktop name size");
     }
-    let mut buffer = vec![0_u16; usize::try_from(required_bytes / 2).unwrap()];
+    let mut buffer = vec![0_u16; usize::try_from(required_bytes / 2).expect("u32 fits usize on Windows")];
     // SAFETY: the buffer contains `required_bytes` writable bytes and the
     // desktop handle stays live for the call.
     if unsafe {
@@ -587,7 +587,7 @@ fn create_owner_only_new_file(
 ) -> std::io::Result<File> {
     let wide_path = wide_null(path.as_os_str());
     let attributes = SECURITY_ATTRIBUTES {
-        nLength: u32::try_from(size_of::<SECURITY_ATTRIBUTES>()).unwrap(),
+        nLength: u32::try_from(size_of::<SECURITY_ATTRIBUTES>()).expect("Win32 structure size fits u32"),
         lpSecurityDescriptor: descriptor,
         bInheritHandle: 0,
     };
