@@ -1105,7 +1105,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "native-gpu-nvenc")]
-    fn atlas_pool_disconnect_closes_pending_sources_without_release() {
+    fn atlas_pool_disconnect_retires_only_that_source() {
         use crate::gpu_atlas_capture::AtlasCapturePool;
         use viewflow_protocol::Id128;
         let (socket_a, sender_a) = pair();
@@ -1127,7 +1127,11 @@ mod tests {
         );
         assert!(pool.poll_ready_at(5).unwrap().is_none());
         drop(sender_b);
-        assert!(pool.poll_ready_at(6).is_err());
+        // The disconnected source leaves; the live one forms the batch alone.
+        let mut batch = pool.poll_ready_at(6).unwrap().unwrap();
+        assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0].window, Id128(1));
+        assert_eq!(pool.lost_windows(), &std::collections::BTreeSet::from([Id128(2)]));
         let mut packet = [0; crate::hyprcapture_gpu_release::RELEASE_BYTES];
         // SAFETY: live producer socket and valid writable buffer.
         let received = unsafe {
@@ -1138,16 +1142,14 @@ mod tests {
                 libc::MSG_DONTWAIT,
             )
         };
-        assert_eq!(
-            received, 0,
-            "pending source must close without an HCGR packet"
-        );
-        assert!(
-            pool.restore(vec![])
-                .unwrap_err()
-                .to_string()
-                .contains("retired")
-        );
+        assert_eq!(received, -1, "the live lease is neither released nor closed");
+        // The synthetic lease was never imported to a GPU.
+        let mut source = batch.pop().unwrap();
+        source.receiver.release_after_source_reads(&source.frame).unwrap();
+        pool.restore(vec![(source.window, source.receiver)]).unwrap();
+        pool.remove_at_frame_boundary(Id128(2)).unwrap();
+        assert_eq!(pool.windows(), &std::collections::BTreeSet::from([Id128(1)]));
+        assert!(pool.lost_windows().is_empty());
     }
 
     #[test]

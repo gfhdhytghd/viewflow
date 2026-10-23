@@ -72,6 +72,11 @@ impl std::fmt::Display for AtlasExpiredBeforeDecode {
 }
 impl std::error::Error for AtlasExpiredBeforeDecode {}
 
+/// Consecutive invalid datagrams or abandoned frames tolerated before the
+/// media lane retires. Isolated corruption only drops that frame; a stream
+/// that never yields another admitted pair is a persistent fault.
+const MAX_CONSECUTIVE_MEDIA_DROPS: u32 = 256;
+
 fn check_wait_deadline(deadline: Instant) -> Result<()> {
     if Instant::now() >= deadline {
         return Err(AtlasWaitExpired.into());
@@ -224,6 +229,8 @@ pub struct AtlasReceiverSession {
     reference_gap: bool,
     last_coded_frame: Option<u64>,
     early: Option<EarlyAtlas>,
+    // Invalid datagrams or abandoned frames since the last admitted pair.
+    media_drops: u32,
     control_sequence: ControlSequencer,
     control_read: Option<ControlRead>,
     // Recovery keeps input/clock controls flowing without admitting pictures.
@@ -386,6 +393,7 @@ fn receiver_session(
         reference_gap: true,
         last_coded_frame: None,
         early: None,
+        media_drops: 0,
         control_sequence: ControlSequencer::default(),
         control_read: None,
         fenced_manifest: None,
@@ -1366,9 +1374,10 @@ impl AtlasReceiverSession {
                 self.control_read = Some(start_control_read(self.connection.clone(), sequence));
                 self.process_control(result?, now)
             }
-            PumpEvent::Media(result) => {
-                self.push_media(viewflow_transport::MediaDatagram::decode(result?)?, now)
-            }
+            PumpEvent::Media(result) => match viewflow_transport::MediaDatagram::decode(result?) {
+                Ok(packet) => self.push_media(packet, now),
+                Err(error) => self.drop_media(error.into(), None),
+            },
             PumpEvent::Deadline => anyhow::bail!("unexpected atlas deadline dispatch"),
         }
     }
@@ -1496,10 +1505,23 @@ impl AtlasReceiverSession {
                 0,
             );
         }
-        let expired = self
+        let expired = match self
             .admission
             .stage_with_expiry(manifest.clone(), now, self.feedback.is_some())
-            .map_err(|error| anyhow::anyhow!("atlas admission rejected: {error:?}"))?;
+        {
+            Ok(expired) => expired,
+            // A late manifest is a missed performance target. Drop this
+            // frame and require a keyframe; the media lane stays up.
+            Err(crate::atlas_runtime::AtlasAdmissionError::Expired) => {
+                if self.feedback.is_some() {
+                    true
+                } else {
+                    self.abandon_staged_frame();
+                    return Ok(None);
+                }
+            }
+            Err(error) => anyhow::bail!("atlas admission rejected: {error:?}"),
+        };
         if expired {
             return Err(AtlasExpiredBeforeDecode(manifest).into());
         }
@@ -1526,14 +1548,15 @@ impl AtlasReceiverSession {
                 .take()
                 .ok_or_else(|| anyhow::anyhow!("missing early atlas"))?;
             for buffered in early.packets.into_values() {
+                let frame_id = buffered.packet.frame_id;
                 match self.push_media_inner(buffered.packet, buffered.received_ns, now) {
                     Ok(Some(frame)) => admitted = Some(frame),
                     Ok(None) => {}
                     Err(error) => {
-                        if !error.is::<AtlasExpiredBeforeDecode>() {
-                            self.retire_media();
+                        self.drop_media(error, Some(frame_id))?;
+                        if self.staged.is_none() {
+                            break;
                         }
-                        return Err(error);
                     }
                 }
             }
@@ -1549,9 +1572,13 @@ impl AtlasReceiverSession {
 
     /// Accept one datagram whose timestamp is already in the receiver clock.
     /// Older media is dropped; one latest early frame is buffered until its
-    /// manifest arrives, without timestamp renewal. Errors retire this receiver.
+    /// manifest arrives, without timestamp renewal. A malformed or
+    /// inconsistent datagram drops only itself, or its frame when it belongs
+    /// to the staged frame; see [`Self::drop_media`].
     /// # Errors
-    /// Rejects malformed, inconsistent, over-budget or stale completed media.
+    /// Retires after `MAX_CONSECUTIVE_MEDIA_DROPS` without an admitted pair.
+    /// With feedback, an abandoned staged frame is returned as expired so its
+    /// disposition is still reported.
     pub fn push_media(
         &mut self,
         packet: viewflow_transport::MediaDatagram,
@@ -1581,14 +1608,61 @@ impl AtlasReceiverSession {
             }
             self.trim_receive_traces();
         }
-        let result = self.push_media_inner(packet, now, now);
-        if result
-            .as_ref()
-            .is_err_and(|error| error.downcast_ref::<AtlasExpiredBeforeDecode>().is_none())
-        {
-            self.retire_media();
+        // A foreign-stream datagram must not abandon this stream's frame.
+        let frame_id = (packet.window_id == self.policy.stream_id).then_some(packet.frame_id);
+        match self.push_media_inner(packet, now, now) {
+            Err(error) if !error.is::<AtlasExpiredBeforeDecode>() => {
+                self.drop_media(error, frame_id)
+            }
+            result => result,
         }
-        result
+    }
+
+    /// Drop one bad datagram (or the staged frame it belonged to) instead of
+    /// retiring the media lane. `frame_id` is `None` for undecodable bytes.
+    fn drop_media(
+        &mut self,
+        error: anyhow::Error,
+        frame_id: Option<u64>,
+    ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
+        self.media_drops = self.media_drops.saturating_add(1);
+        if self.media_drops > MAX_CONSECUTIVE_MEDIA_DROPS {
+            self.retire_media();
+            return Err(error.context(format!(
+                "atlas media invalid for {MAX_CONSECUTIVE_MEDIA_DROPS} consecutive datagrams"
+            )));
+        }
+        if self.media_drops == 1 || self.media_drops % 64 == 0 {
+            eprintln!(
+                "atlas-media-dropped count={} frame={frame_id:?} reason={error:#}",
+                self.media_drops
+            );
+        }
+        let Some(staged) = self
+            .staged
+            .as_ref()
+            .filter(|staged| Some(staged.frame_id) == frame_id)
+            .cloned()
+        else {
+            return Ok(None);
+        };
+        // The staged frame can no longer complete. With feedback the sender
+        // waits for its disposition, which the pump reports as expired.
+        if self.feedback.is_some() {
+            return Err(AtlasExpiredBeforeDecode(staged).into());
+        }
+        self.abandon_staged_frame();
+        Ok(None)
+    }
+
+    /// Forget the current frame and require a paired keyframe next, since the
+    /// decoder never receives the dropped references.
+    fn abandon_staged_frame(&mut self) {
+        self.staged = None;
+        self.color = None;
+        self.alpha = None;
+        self.assembler = atlas_assembler(self.policy);
+        self.reference_gap = true;
     }
 
     fn push_media_inner(
@@ -1771,6 +1845,7 @@ impl AtlasReceiverSession {
         }
         self.last_coded_frame = Some(admitted.layout.frame_id);
         self.reference_gap = false;
+        self.media_drops = 0;
         self.staged = None;
         Ok(Some(admitted))
     }
@@ -1804,29 +1879,31 @@ impl AtlasReceiverSession {
         now: u64,
         deadline: Instant,
     ) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
-        let valid = check_deadline(deadline).and_then(|()| {
-            if let Some(frame) = &frame {
-                self.admission
-                    .fresh_for_delivery(&frame.layout, now)
-                    .map_err(|error| {
-                        if self.feedback.is_some()
-                            && error == crate::atlas_runtime::AtlasAdmissionError::Expired
-                        {
-                            // Pair admission consumed the bytes, but no decoder or
-                            // native presenter has received this frame yet.
-                            anyhow::Error::new(AtlasExpiredBeforeDecode(frame.layout.clone()))
-                        } else {
-                            anyhow::anyhow!("atlas expired during admission: {error:?}")
-                        }
-                    })?;
+        if let Some(admitted) = &frame {
+            // Pair admission consumed the bytes, but no decoder or native
+            // presenter has received this frame yet. Arriving late, against
+            // either the frame age or the caller's wait, drops only this frame.
+            let late = Instant::now() >= deadline
+                || match self.admission.fresh_for_delivery(&admitted.layout, now) {
+                    Ok(()) => false,
+                    Err(crate::atlas_runtime::AtlasAdmissionError::Expired) => true,
+                    Err(error) => {
+                        self.retire_media();
+                        anyhow::bail!("atlas rejected during admission: {error:?}");
+                    }
+                };
+            if late {
+                if self.feedback.is_some() {
+                    return Err(AtlasExpiredBeforeDecode(admitted.layout.clone()).into());
+                }
+                // The codec chain already advanced past this undelivered frame.
+                self.reference_gap = true;
+                return Ok(None);
             }
-            Ok(())
-        });
-        if let Err(error) = valid {
-            if !error.is::<AtlasExpiredBeforeDecode>() {
-                self.retire_media();
-            }
-            return Err(error);
+        } else {
+            // Waiting past the caller's deadline with nothing staged is not a
+            // media fault; the retained state stays usable.
+            check_wait_deadline(deadline)?;
         }
         if self.feedback.is_some() {
             if let Some(frame) = &frame {
@@ -1964,8 +2041,10 @@ impl AtlasReceiverSession {
             .await
             .context("atlas datagram deadline expired")??;
         check_deadline(deadline)?;
-        let packet = viewflow_transport::MediaDatagram::decode(bytes)?;
-        let frame = self.push_media(packet, now())?;
+        let frame = match viewflow_transport::MediaDatagram::decode(bytes) {
+            Ok(packet) => self.push_media(packet, now())?,
+            Err(error) => self.drop_media(error.into(), None)?,
+        };
         self.finish_handoff(frame, now(), deadline)
     }
 }
@@ -3880,7 +3959,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn datagram_reference_gap_retires_instead_of_admitting_dependent_p_frame() {
+    async fn datagram_reference_gap_drops_dependent_p_frame_until_keyframe() {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (_client, _server, outbound, inbound) = pair().await;
             let deadline = Instant::now() + Duration::from_secs(2);
@@ -3891,7 +3970,7 @@ pub(crate) mod tests {
             let sender = sender.unwrap();
             let mut receiver = receiver.unwrap();
             let mut sequence = ControlSequencer::default();
-            for frame_id in [1, 2, 4] {
+            for frame_id in [1, 2, 4, 5] {
                 let manifest = AtlasFrame {
                     activity: None,
                     patches: None,
@@ -3904,7 +3983,7 @@ pub(crate) mod tests {
                     height: 64,
                     source_submitted_ns: 100 + frame_id,
                     tiles: vec![],
-                    color_keyframe: frame_id == 1,
+                    color_keyframe: frame_id == 1 || frame_id == 5,
                     alpha_keyframe: true,
                     desktop: None,
                 };
@@ -3935,14 +4014,17 @@ pub(crate) mod tests {
                     if plane == viewflow_transport::MediaPlane::Color {
                         assert!(received.unwrap().is_none());
                     } else if frame_id == 4 {
-                        assert!(received.is_err());
-                        assert!(receiver.retired);
+                        // The undecodable P-frame alone is dropped.
+                        assert!(received.unwrap().is_none());
+                        assert!(!receiver.retired && receiver.reference_gap);
+                        assert_eq!(receiver.last_coded_frame, Some(2));
                     } else {
                         assert!(received.unwrap().is_some());
                     }
                 }
             }
-            assert!(receiver.receive_media(|| 110, deadline).await.is_err());
+            assert_eq!(receiver.last_coded_frame, Some(5));
+            assert_eq!(receiver.media_drops, 0);
         })
         .await
         .unwrap();
@@ -4071,7 +4153,9 @@ pub(crate) mod tests {
                 alpha_keyframe: true,
                 desktop: None,
             };
-            assert!(receiver.stage_manifest(manifest, 1000).is_err());
+            // A late manifest drops its frame without retiring media.
+            assert!(receiver.stage_manifest(manifest, 1000).unwrap().is_none());
+            assert!(!receiver.retired && receiver.reference_gap);
             assert_eq!(receiver.last_coded_frame, None);
             assert_eq!(
                 receiver
@@ -4099,8 +4183,11 @@ pub(crate) mod tests {
             let mut oversized = early_packet(4, viewflow_transport::MediaPlane::Color);
             oversized.source_submitted_ns = 1100;
             oversized.payload = bytes::Bytes::from(vec![0; 1025]);
-            assert!(receiver.push_media(oversized, 1110).is_err());
-            assert!(receiver.retired && receiver.early.is_none());
+            assert!(receiver.push_media(oversized, 1110).unwrap().is_none());
+            assert!(!receiver.retired);
+            // Frame 4 superseded frame 3, but its oversized payload was refused.
+            assert!(receiver.early.as_ref().unwrap().packets.is_empty());
+            assert_eq!(receiver.media_drops, 1);
         })
         .await
         .unwrap();
@@ -4127,7 +4214,12 @@ pub(crate) mod tests {
                         bad.plane = viewflow_transport::MediaPlane::Alpha;
                         bad.source_submitted_ns = 101;
                     }
-                    assert!(receiver.push_media(bad, 110).is_err());
+                    assert!(receiver.push_media(bad, 110).unwrap().is_none());
+                    let early = receiver.early.as_ref().unwrap();
+                    assert!(early.packets.values().all(|buffered| {
+                        buffered.packet.payload.as_ref() == b"synthetic"
+                            && buffered.packet.plane == viewflow_transport::MediaPlane::Color
+                    }));
                 } else {
                     let manifest = AtlasFrame {
                         activity: None,
@@ -4145,9 +4237,13 @@ pub(crate) mod tests {
                         alpha_keyframe: true,
                         desktop: None,
                     };
-                    assert!(receiver.stage_manifest(manifest, 110).is_err());
+                    // Buffered pixels with other metadata abandon only this frame.
+                    assert!(receiver.stage_manifest(manifest, 110).unwrap().is_none());
+                    assert!(receiver.early.is_none() && receiver.staged.is_none());
+                    assert!(receiver.reference_gap);
                 }
-                assert!(receiver.retired && receiver.early.is_none());
+                assert!(!receiver.retired);
+                assert_eq!(receiver.media_drops, 1);
                 assert_eq!(receiver.last_coded_frame, None);
             }
         })
@@ -4156,7 +4252,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn postprocessing_expiry_discards_pair_and_retires_codec_chain() {
+    async fn postprocessing_expiry_discards_pair_and_requires_keyframe() {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (_client, _server, outbound, inbound) = pair().await;
             let deadline = Instant::now() + Duration::from_secs(2);
@@ -4195,9 +4291,44 @@ pub(crate) mod tests {
                 receiver.receive_manifest(&mut sequence, || samples.next().unwrap(), deadline)
             );
             sent.unwrap();
-            assert!(received.is_err());
-            assert!(receiver.retired);
+            assert!(received.unwrap().is_none());
+            assert!(!receiver.retired && receiver.reference_gap);
             assert_eq!(receiver.last_coded_frame, Some(1)); // processed, but not handed off
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn malformed_datagrams_are_dropped_until_a_persistent_bound() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(2);
+            let (_sender, receiver) = tokio::join!(
+                offer_atlas(&outbound, plan(), deadline),
+                accept_atlas(&inbound, plan(), deadline)
+            );
+            let mut receiver = receiver.unwrap();
+            outbound
+                .send_datagram(bytes::Bytes::from_static(b"not an atlas datagram"))
+                .unwrap();
+            assert!(receiver.receive_media(|| 110, deadline).await.unwrap().is_none());
+            assert!(!receiver.retired);
+            assert_eq!(receiver.media_drops, 1);
+            // A valid early datagram still buffers after the dropped one.
+            outbound
+                .send_datagram(early_packet(1, viewflow_transport::MediaPlane::Color).encode())
+                .unwrap();
+            assert!(receiver.receive_media(|| 110, deadline).await.unwrap().is_none());
+            assert_eq!(receiver.early.as_ref().unwrap().frame_id, 1);
+            let mut foreign = early_packet(2, viewflow_transport::MediaPlane::Color);
+            foreign.window_id = Id128(98);
+            for _ in 1..MAX_CONSECUTIVE_MEDIA_DROPS {
+                assert!(receiver.push_media(foreign.clone(), 110).unwrap().is_none());
+            }
+            assert!(!receiver.retired);
+            assert!(receiver.push_media(foreign, 110).is_err());
+            assert!(receiver.retired);
         })
         .await
         .unwrap();

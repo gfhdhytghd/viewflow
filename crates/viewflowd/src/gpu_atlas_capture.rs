@@ -27,6 +27,9 @@ pub struct AtlasCapturePool {
     max_age_ns: u64,
     in_flight: bool,
     partitioned_in_flight: BTreeSet<WindowId>,
+    // Sources whose socket disconnected or delivered an unusable packet. They
+    // leave collection at once; the owner retires them through normal removal.
+    lost: BTreeSet<WindowId>,
 }
 
 impl AtlasCapturePool {
@@ -70,6 +73,13 @@ impl AtlasCapturePool {
         &self.windows
     }
 
+    /// Sources dropped from collection after a per-window failure, awaiting
+    /// `remove_at_frame_boundary`/`withdraw_activity` to stop their producer.
+    #[allow(dead_code, reason = "device/session passthrough not wired yet")]
+    pub(crate) fn lost_windows(&self) -> &BTreeSet<WindowId> {
+        &self.lost
+    }
+
     pub(crate) fn poll_readable_subset(&mut self, cx: &mut std::task::Context<'_>, selected: &BTreeSet<WindowId>) -> std::task::Poll<()> {
         if let Some(slots) = &mut self.slots {
             for (window, slot) in slots.iter_mut().filter(|(window, slot)| selected.contains(window) && slot.pending.is_none()) {
@@ -87,7 +97,8 @@ impl AtlasCapturePool {
     /// Withdraw membership immediately, but keep an in-flight native allocation
     /// owned until its worker proves source reads complete.
     pub(crate) fn withdraw_activity(&mut self, window: WindowId) -> Result<()> {
-        ensure!(!self.in_flight && self.windows.remove(&window), "atlas source missing or legacy batch active");
+        ensure!(!self.in_flight, "legacy atlas batch active");
+        ensure!(self.windows.remove(&window) || self.lost.remove(&window), "atlas source missing");
         if let Some(slots) = &mut self.slots { slots.remove(&window); }
         Ok(())
     }
@@ -101,6 +112,9 @@ impl AtlasCapturePool {
     /// stop and join the producer before reclaiming its native stream identity.
     pub(crate) fn remove_at_frame_boundary(&mut self, window: WindowId) -> Result<()> {
         ensure!(!self.in_flight && !self.partitioned_in_flight.contains(&window), "atlas capture batch is in flight");
+        if self.lost.remove(&window) {
+            return Ok(());
+        }
         let slots = self
             .slots
             .as_mut()
@@ -134,8 +148,10 @@ impl AtlasCapturePool {
             .slots
             .as_mut()
             .ok_or_else(|| anyhow::anyhow!("atlas capture pool is retired"))?;
+        // A lost source keeps its producer until removal stops it, so the same
+        // window cannot be re-enrolled underneath that cleanup.
         ensure!(
-            !slots.contains_key(&window) && self.windows.insert(window),
+            !self.lost.contains(&window) && !slots.contains_key(&window) && self.windows.insert(window),
             "duplicate atlas source"
         );
         slots.insert(
@@ -196,14 +212,17 @@ impl AtlasCapturePool {
             max_age_ns,
             in_flight: false,
             partitioned_in_flight: BTreeSet::new(),
+            lost: BTreeSet::new(),
         })
     }
 
     /// Non-blocking poll. Expired unencoded allocations are explicitly released
     /// because no GPU reader has ever seen them. No source's clock is retagged.
     /// # Errors
-    /// Any malformed/disconnected source retires the entire collection. A pool
-    /// with an outstanding batch cannot be polled until its receivers return.
+    /// A malformed or disconnected source is dropped alone and listed in
+    /// `lost_windows`; the others keep streaming. Clock failures remain fatal,
+    /// and a pool with an outstanding batch cannot be polled until its
+    /// receivers return.
     pub fn poll_ready(&mut self) -> Result<Option<Vec<AtlasCaptureLease>>> {
         self.poll_ready_with_clock(crate::gpu_nvenc_runtime::monotonic_ns)
     }
@@ -222,8 +241,14 @@ impl AtlasCapturePool {
             .slots
             .take()
             .ok_or_else(|| anyhow::anyhow!("atlas capture pool is retired or in flight"))?;
-        for slot in slots.values_mut() {
-            poll_slot(slot, &mut now, self.max_age_ns)?;
+        let mut failed = Vec::new();
+        for (window, slot) in &mut slots {
+            if let Err(error) = poll_slot(slot, &mut now, self.max_age_ns)? {
+                failed.push((*window, error));
+            }
+        }
+        for (window, error) in failed {
+            lose(&mut self.windows, &mut self.lost, &mut slots, window, &error);
         }
         if slots.values().any(|slot| slot.pending.is_none()) {
             self.slots = Some(slots);
@@ -277,10 +302,17 @@ impl AtlasCapturePool {
         ensure!(!self.in_flight && selected.is_subset(&self.windows), "activity capture membership");
         let slots = self.slots.as_mut().ok_or_else(|| anyhow::anyhow!("atlas pool unavailable"))?;
         let mut ready = Vec::new();
+        let mut failed = Vec::new();
         for window in selected.difference(&self.partitioned_in_flight) {
             let slot = slots.get_mut(window).ok_or_else(|| anyhow::anyhow!("activity slot unavailable"))?;
-            poll_slot(slot, &mut now, self.max_age_ns)?;
-            if slot.pending.is_some() { ready.push(*window); }
+            match poll_slot(slot, &mut now, self.max_age_ns)? {
+                Ok(()) if slot.pending.is_some() => ready.push(*window),
+                Ok(()) => {}
+                Err(error) => failed.push((*window, error)),
+            }
+        }
+        for (window, error) in failed {
+            lose(&mut self.windows, &mut self.lost, slots, window, &error);
         }
         let mut leases = Vec::with_capacity(ready.len());
         for window in ready {
@@ -305,8 +337,18 @@ impl AtlasCapturePool {
         ensure!(selected.is_subset(&self.windows), "activity capture membership");
         if !selected.is_disjoint(&self.partitioned_in_flight) { return Ok(None); }
         let slots=self.slots.as_mut().ok_or_else(|| anyhow::anyhow!("atlas pool unavailable"))?;
+        let mut failed = Vec::new();
         for window in selected {
-            poll_slot(slots.get_mut(window).ok_or_else(|| anyhow::anyhow!("activity slot unavailable"))?, &mut now, self.max_age_ns)?;
+            if let Err(error) = poll_slot(slots.get_mut(window).ok_or_else(|| anyhow::anyhow!("activity slot unavailable"))?, &mut now, self.max_age_ns)? {
+                failed.push((*window, error));
+            }
+        }
+        if !failed.is_empty() {
+            // The lane lost a member; the caller reselects from `windows`.
+            for (window, error) in failed {
+                lose(&mut self.windows, &mut self.lost, slots, window, &error);
+            }
+            return Ok(None);
         }
         if selected.iter().any(|id| slots[id].pending.is_none()) { return Ok(None); }
         let mut leases=Vec::with_capacity(selected.len());
@@ -374,13 +416,39 @@ impl AtlasCapturePool {
     }
 }
 
+fn lose(
+    windows: &mut BTreeSet<WindowId>,
+    lost: &mut BTreeSet<WindowId>,
+    slots: &mut BTreeMap<WindowId, Slot>,
+    window: WindowId,
+    error: &anyhow::Error,
+) {
+    eprintln!("atlas-source-lost window={window:?} reason={error:#}");
+    // Dropping the slot drops any pending allocation and its FDs. No GPU
+    // reader has seen it, exactly as for an expired unencoded slot.
+    slots.remove(&window);
+    windows.remove(&window);
+    lost.insert(window);
+}
+
+/// The outer error is a shared clock failure; the inner one belongs to this
+/// source alone and must not retire its peers.
 fn poll_slot(
     slot: &mut Slot,
     clock: &mut impl FnMut() -> Result<i64>,
     max_age_ns: u64,
-) -> Result<()> {
+) -> Result<Result<()>> {
     let now = clock()?;
     ensure!(now > 0, "invalid native capture clock");
+    Ok(poll_slot_at(slot, now, clock, max_age_ns))
+}
+
+fn poll_slot_at(
+    slot: &mut Slot,
+    now: i64,
+    clock: &mut impl FnMut() -> Result<i64>,
+    max_age_ns: u64,
+) -> Result<()> {
     if slot
         .pending
         .as_ref()
@@ -430,5 +498,72 @@ mod empty_desktop_tests {
         }
         assert!(pool.windows().is_empty());
         assert!(AtlasCapturePool::new_with_capacity(vec![], 33_333_333, 0).is_err());
+    }
+}
+
+#[cfg(test)]
+mod lost_source_tests {
+    use super::*;
+    use std::os::fd::{FromRawFd, OwnedFd};
+    use viewflow_protocol::Id128;
+
+    #[allow(unsafe_code)]
+    fn pair() -> (OwnedFd, OwnedFd) {
+        let mut raw = [-1; 2];
+        // SAFETY: output has exactly two descriptor slots.
+        assert_eq!(
+            unsafe { libc::socketpair(libc::AF_UNIX, libc::SOCK_SEQPACKET, 0, raw.as_mut_ptr()) },
+            0
+        );
+        // SAFETY: each successful socketpair result has one owner.
+        unsafe { (OwnedFd::from_raw_fd(raw[0]), OwnedFd::from_raw_fd(raw[1])) }
+    }
+
+    #[allow(unsafe_code)]
+    fn receiver(socket: OwnedFd) -> HyprCaptureGpuSocketReceiver {
+        // SAFETY: test identity query has no preconditions.
+        HyprCaptureGpuSocketReceiver::new(socket, unsafe { libc::geteuid() }, std::process::id())
+            .unwrap()
+    }
+
+    fn pool() -> (AtlasCapturePool, OwnedFd) {
+        let (first, first_peer) = pair();
+        let (second, second_peer) = pair();
+        drop(first_peer);
+        let pool = AtlasCapturePool::new(
+            vec![(Id128(1), receiver(first)), (Id128(2), receiver(second))],
+            1000,
+        )
+        .unwrap();
+        (pool, second_peer)
+    }
+
+    #[test]
+    fn one_disconnected_source_leaves_batch_peers_streaming() {
+        let (mut pool, _live) = pool();
+        assert!(pool.poll_ready_at(10).unwrap().is_none());
+        assert_eq!(pool.windows(), &BTreeSet::from([Id128(2)]));
+        assert_eq!(pool.lost_windows(), &BTreeSet::from([Id128(1)]));
+        assert!(pool.poll_ready_at(11).unwrap().is_none());
+        // A lost window cannot be re-enrolled until normal removal retires it.
+        let (again, _peer) = pair();
+        assert!(pool.add_at_frame_boundary(Id128(1), receiver(again)).is_err());
+        pool.remove_at_frame_boundary(Id128(1)).unwrap();
+        assert!(pool.lost_windows().is_empty());
+        assert_eq!(pool.windows(), &BTreeSet::from([Id128(2)]));
+    }
+
+    #[test]
+    fn one_disconnected_source_leaves_activity_lanes_streaming() {
+        let (mut pool, _live) = pool();
+        let all = BTreeSet::from([Id128(1), Id128(2)]);
+        assert!(pool.poll_available_at(&all, 10).unwrap().is_empty());
+        assert_eq!(pool.lost_windows(), &BTreeSet::from([Id128(1)]));
+        let remaining = BTreeSet::from([Id128(2)]);
+        assert!(pool.poll_available_at(&remaining, 11).unwrap().is_empty());
+        assert!(pool.poll_subset_at(&remaining, 12).unwrap().is_none());
+        pool.withdraw_activity(Id128(1)).unwrap();
+        assert!(pool.lost_windows().is_empty());
+        assert!(pool.withdraw_activity(Id128(1)).is_err());
     }
 }
