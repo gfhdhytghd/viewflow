@@ -2040,7 +2040,7 @@ mod linux_cli {
             || metadata.st_mode & 0o777 != OWNER_MODE
             || metadata.st_nlink != 1
             || metadata.st_size <= 0
-            || metadata.st_size > i64::try_from(MAX_AUTHORIZATION_SIZE).unwrap()
+            || metadata.st_size > i64::try_from(MAX_AUTHORIZATION_SIZE).expect("authorization bound fits i64")
             || has_access_acl(fd)?
         {
             return Err(CliError::Marker(MarkerError::UnsafeMarker));

@@ -261,8 +261,8 @@ impl FrameHeader {
         {
             bail!("invalid HyprCapture stream header");
         }
-        let u64_at = |i| u64::from_be_bytes(bytes[i..i + 8].try_into().unwrap());
-        let u32_at = |i| u32::from_be_bytes(bytes[i..i + 4].try_into().unwrap());
+        let u64_at = |i| u64::from_be_bytes(bytes[i..i + 8].try_into().expect("length checked before field reads"));
+        let u32_at = |i| u32::from_be_bytes(bytes[i..i + 4].try_into().expect("length checked before field reads"));
         let logical_rect = [32, 40, 48, 56].map(|i| f64::from_bits(u64_at(i)));
         let header = Self {
             sequence: u64_at(8),

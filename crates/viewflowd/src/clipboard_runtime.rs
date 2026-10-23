@@ -58,7 +58,7 @@ impl DedicatedClipboardControl {
         );
         let mut leased = clipboard_control_leases()
             .lock()
-            .map_err(|_| anyhow::anyhow!("clipboard control lease registry poisoned"))?;
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         ensure!(
             leased.insert(connection_id),
             "clipboard control reader is already leased for this connection"

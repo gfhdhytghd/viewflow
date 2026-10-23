@@ -1,4 +1,5 @@
 //! Cursor capture on the atlas connection. This worker never owns a socket reader.
+use crate::sync_ext::LockExt;
 use anyhow::{Context, Result, bail, ensure};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -51,8 +52,7 @@ impl NativeCaptureQueue {
     fn push(&self, mut packet: Vec<u8>, received: Instant) -> Result<()> {
         let mut queue = self
             .queued
-            .lock()
-            .map_err(|_| anyhow::anyhow!("capture queue poisoned"))?;
+            .lock_or_recover();
         if packet.get(6..8) == Some(&38u16.to_le_bytes()[..])
             && queue
                 .back()
@@ -97,8 +97,7 @@ impl NativeCaptureQueue {
             let notified = self.ready.notified();
             if let Some(event) = self
                 .queued
-                .lock()
-                .expect("capture queue poisoned")
+                .lock_or_recover()
                 .pop_front()
             {
                 return event;
@@ -570,7 +569,7 @@ async fn run(
                 continue;
             }
             _ = config.reverse_drag.changed.notified(), if pending_reverse_return.is_some() => {
-                let (returned_generation, started, position) = pending_reverse_return.unwrap();
+                let Some((returned_generation, started, position)) = pending_reverse_return else { continue };
                 let latest = *config.reverse_drag.latest_start.lock().await;
                 if let Some((_, drag)) = latest.filter(|(observed, _)| *observed >= started) {
                     // This command continues the original press at the current

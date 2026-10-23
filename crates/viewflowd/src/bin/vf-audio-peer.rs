@@ -211,7 +211,7 @@ async fn playback(connection: &quinn::Connection, native: &Native) -> Result<()>
                     }
                 }
                 _ = tick.tick(), if next.is_some() => {
-                    let sequence = next.unwrap();
+                    let Some(sequence) = next else { continue };
                     let pcm = queue.remove(&sequence);
                     tokio::time::timeout(Duration::from_secs(2),
                         input.write_all(pcm.as_deref().unwrap_or(&silence))).await
@@ -236,8 +236,8 @@ async fn run(config: &Config, endpoint: &quinn::Endpoint) -> Result<()> {
     if let Some(native) = &config.capture {
         loop {
             let connecting = endpoint.connect(
-                config.remote.unwrap(),
-                config.server_name.as_deref().unwrap(),
+                config.remote.context("audio capture requires remote")?,
+                config.server_name.as_deref().context("audio capture requires server_name")?,
             )?;
             match connecting.await {
                 Ok(connection) => {
@@ -257,7 +257,7 @@ async fn run(config: &Config, endpoint: &quinn::Endpoint) -> Result<()> {
         tokio::select! {
             incoming = endpoint.accept() => {
                 let Some(incoming) = incoming else { break; };
-                let native = config.playback.clone().unwrap();
+                let native = config.playback.clone().context("audio receiver requires playback")?;
                 sessions.spawn(async move {
                     let connection = incoming.await?;
                     let result = playback(&connection, &native).await;
@@ -327,6 +327,7 @@ async fn main() -> Result<()> {
 }
 
 #[cfg(all(test, unix))]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     #[tokio::test]

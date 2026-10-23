@@ -1,4 +1,5 @@
 //! Offline CPU profile; does not capture frames or inject input.
+#![allow(clippy::unwrap_used)]
 use bytes::Bytes;
 use std::{hint::black_box, time::Instant};
 use viewflow_protocol::Id128;

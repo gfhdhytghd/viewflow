@@ -1,5 +1,6 @@
 //! Native backend fixtures only: no capture, GUI windows, or injected input.
 #![cfg(unix)]
+#![allow(clippy::unwrap_used)]
 use std::{path::Path, time::Duration};
 use viewflow_transport::{PeerIdentity, build_client_config, build_server_config};
 use viewflowd::reverse_bridge::{ReverseBridgeConfig, run_window_bridge};

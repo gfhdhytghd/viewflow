@@ -1,5 +1,6 @@
 //! Concurrent V11 handoffs over one native pipe. The writer serializes bytes,
 //! while the reader matches either decoder's receipt without a FIFO ACK wait.
+use crate::sync_ext::LockExt;
 use std::{collections::{BTreeMap, VecDeque}, sync::{Arc, Mutex}};
 use anyhow::{Context, Result, ensure};
 use tokio::{io::{AsyncRead, AsyncWrite, AsyncWriteExt}, sync::{oneshot, Notify}, time::{Instant, timeout_at}};
@@ -32,7 +33,7 @@ struct WriteGuard<'a> { state: &'a Mutex<State>, changed: &'a Notify, complete: 
 impl Drop for WriteGuard<'_> {
     fn drop(&mut self) {
         if !self.complete {
-            self.state.lock().unwrap().fail("native activity write cancelled");
+            self.state.lock_or_recover().fail("native activity write cancelled");
             self.changed.notify_one();
         }
     }
@@ -62,7 +63,7 @@ pub(crate) struct ActivityAtlasPresenter<W> {
 impl<W> Drop for ActivityAtlasPresenter<W> {
     fn drop(&mut self) {
         self.reader.abort();
-        self.state.lock().unwrap().fail("native activity presenter stopped");
+        self.state.lock_or_recover().fail("native activity presenter stopped");
     }
 }
 impl<W: AsyncWrite + Unpin + Send> ActivityAtlasPresenter<W> {
@@ -82,13 +83,13 @@ impl<W: AsyncWrite + Unpin + Send> ActivityAtlasPresenter<W> {
         let mut guard = WriteGuard { state: &self.state, changed: &self.changed, complete: false };
         let result = timeout_at(deadline, async {
             let mut writer = self.writer.lock().await;
-            self.state.lock().unwrap().ready()?;
+            self.state.lock_or_recover().ready()?;
             writer.write_all(record).await?;
             writer.flush().await?;
             Ok::<_, anyhow::Error>(())
         }).await.context("native activity pipe write watchdog expired").and_then(|r| r);
         if let Err(error) = &result {
-            self.state.lock().unwrap().fail(error);
+            self.state.lock_or_recover().fail(error);
             self.changed.notify_one();
         }
         guard.complete = true;
@@ -108,7 +109,7 @@ impl<W: AsyncWrite + Unpin + Send> ActivityAtlasPresenter<W> {
         ensure!(start > 0 && frequency != 0 && frequency == native.frequency, "native activity clock changed");
         let (completion, receipt) = oneshot::channel();
         {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock_or_recover();
             state.ready()?;
             ensure!(frame.layout.frame_id > state.last_frame[lane], "native activity frame replay");
             ensure!(!state.pending.values().any(|p| matches!(p.expect, Expect::Frame { lane: other, .. } if other == lane)),
@@ -142,7 +143,7 @@ impl<W: AsyncWrite + Unpin + Send> ActivityAtlasPresenter<W> {
             "native activity recovery clock mismatch or expiry");
         let (completion, receipt) = oneshot::channel();
         {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock_or_recover();
             state.ready()?;
             ensure!(state.committed.contains(&confirmation.atlas_frame), "native activity recovery has no committed frame");
             ensure!(confirmation.sequence > state.last_recovery
@@ -216,13 +217,13 @@ mod tests {
         let priority = async {
             let result = presenter.submit(&fg, target, watchdog, 8192).await.unwrap();
             assert_eq!(result, AtlasDisposition::CommittedLate { commit_ticks: 200 });
-            assert!(presenter.state.lock().unwrap().pending.contains_key(&Key::Frame(4)));
+            assert!(presenter.state.lock_or_recover().pending.contains_key(&Key::Frame(4)));
             priority_finished.send(()).unwrap();
         };
         let all = async { tokio::join!(presenter.submit(&bg, target, watchdog, 8192), priority, native_work) };
         let (background, (), ()) = timeout_at(watchdog, all).await.unwrap();
         assert_eq!(background.unwrap(), AtlasDisposition::Superseded);
-        let state = presenter.state.lock().unwrap();
+        let state = presenter.state.lock_or_recover();
         assert_eq!(state.committed.iter().copied().collect::<Vec<_>>(), vec![5]);
         assert_eq!(state.needs_keyframe, [false, false]);
     }
@@ -251,7 +252,7 @@ async fn read_receipts<R: AsyncRead + Unpin>(mut reader: R, state: Arc<Mutex<Sta
             tokio::pin!(line);
             let line = loop {
                 let deadline = {
-                    let state = state.lock().unwrap();
+                    let state = state.lock_or_recover();
                     state.ready()?;
                     state.pending.values().map(|p| p.deadline).min()
                 };
@@ -266,7 +267,7 @@ async fn read_receipts<R: AsyncRead + Unpin>(mut reader: R, state: Arc<Mutex<Sta
             };
             let key = receipt_key(&line)?;
             let (observed, frequency) = clock()?;
-            let mut state = state.lock().unwrap();
+            let mut state = state.lock_or_recover();
             let pending = state.pending.remove(&key).context("native receipt has no pending operation")?;
             let result = (|| -> Result<Receipt> {
                 ensure!(Instant::now() < pending.deadline, "native activity receipt watchdog expired");
@@ -295,5 +296,5 @@ async fn read_receipts<R: AsyncRead + Unpin>(mut reader: R, state: Arc<Mutex<Sta
         #[allow(unreachable_code)]
         Ok::<_, anyhow::Error>(())
     }.await;
-    if let Err(error) = result { state.lock().unwrap().fail(error); }
+    if let Err(error) = result { state.lock_or_recover().fail(error); }
 }

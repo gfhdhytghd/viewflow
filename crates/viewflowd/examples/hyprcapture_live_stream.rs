@@ -1,4 +1,5 @@
 //! Explicitly start one selected-window stream, measure it, and stop it.
+#![allow(clippy::unwrap_used)]
 #[cfg(target_os = "linux")]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {

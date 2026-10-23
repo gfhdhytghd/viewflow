@@ -1,5 +1,6 @@
 //! Generate synthetic paired Annex-B samples for native decoder validation.
 //! Does not capture the desktop or connect to a peer.
+#![allow(clippy::unwrap_used)]
 
 #[cfg(all(target_os = "linux", feature = "native-nvenc"))]
 fn main() -> Result<(), Box<dyn std::error::Error>> {

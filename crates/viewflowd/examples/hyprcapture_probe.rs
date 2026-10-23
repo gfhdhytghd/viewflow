@@ -1,4 +1,5 @@
 //! Capture one explicitly selected window without transmitting or writing pixels.
+#![allow(clippy::unwrap_used)]
 use anyhow::{Context, Result, bail};
 use std::time::Duration;
 

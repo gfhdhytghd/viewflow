@@ -1,5 +1,7 @@
 //! Receiver-authoritative cursor telemetry on the paired cursor connection.
 //! Datagrams are replaceable observations, never input commands or leases.
+#[cfg(target_os = "macos")]
+use crate::sync_ext::LockExt;
 use std::sync::{Arc, Mutex};
 
 pub(crate) type State = Arc<Mutex<Option<(u64, u64)>>>;
@@ -30,14 +32,14 @@ impl Sample {
         if data.len() != 52 || &data[..8] != MAGIC {
             return None;
         }
-        let word = |offset| u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap());
+        let word = |offset| u64::from_le_bytes(data[offset..offset + 8].try_into().expect("length checked before field reads"));
         let sample = Self {
             generation: word(8),
             anchor_sequence: word(16),
             serial: word(24),
             x: f64::from_bits(word(32)),
             y: f64::from_bits(word(40)),
-            buttons: u32::from_le_bytes(data[48..52].try_into().unwrap()),
+            buttons: u32::from_le_bytes(data[48..52].try_into().expect("length checked before field reads")),
         };
         (sample.generation > 0
             && sample.anchor_sequence > 0
@@ -70,7 +72,7 @@ pub(crate) fn start(connection: quinn::Connection, state: State) -> Option<Publi
             if connection.close_reason().is_some() {
                 break;
             }
-            let anchor = *state.lock().unwrap();
+            let anchor = *state.lock_or_recover();
             let Some((generation, anchor_sequence)) = anchor else {
                 continue;
             };

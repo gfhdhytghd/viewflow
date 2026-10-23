@@ -4,6 +4,7 @@
 //! state-machine boundaries. The daemon's filesystem receiver is crate-private
 //! and is covered by its unit tests; making it public solely for an integration
 //! test would widen the production API.
+#![allow(clippy::unwrap_used)]
 
 use std::{collections::HashMap, net::SocketAddr, time::Duration};
 

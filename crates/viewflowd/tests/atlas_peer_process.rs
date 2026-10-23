@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 #[test]
 fn peer_help_and_invalid_arguments_do_not_require_a_native_backend() {
     let executable = env!("CARGO_BIN_EXE_vf-media-peer");

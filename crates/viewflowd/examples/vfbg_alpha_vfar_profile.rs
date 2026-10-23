@@ -1,5 +1,6 @@
 //! Offline VFAR alpha profiling for one bounded VFBG or VFAR v1 fixture.
 //! This reads the fixture and prints statistics only; it never writes image data.
+#![allow(clippy::unwrap_used)]
 
 use anyhow::{Context, Result, ensure};
 use bytes::Bytes;

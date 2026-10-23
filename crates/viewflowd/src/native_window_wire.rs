@@ -18,8 +18,8 @@ pub struct Input {
 impl Input {
     pub fn decode(bytes: &[u8]) -> Result<Self> {
         ensure!(bytes.len() == 40, "native window input length");
-        let u32_at = |i| u32::from_le_bytes(bytes[i..i + 4].try_into().unwrap());
-        let u64_at = |i| u64::from_le_bytes(bytes[i..i + 8].try_into().unwrap());
+        let u32_at = |i| u32::from_le_bytes(bytes[i..i + 4].try_into().expect("length checked before field reads"));
+        let u64_at = |i| u64::from_le_bytes(bytes[i..i + 8].try_into().expect("length checked before field reads"));
         ensure!(
             u32_at(0) == 2 && u64_at(12) > 0 && (1..=17).contains(&u32_at(20)),
             "native window input identity"

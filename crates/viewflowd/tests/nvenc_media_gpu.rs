@@ -1,4 +1,5 @@
 #![cfg(all(target_os = "linux", feature = "native-nvenc"))]
+#![allow(clippy::unwrap_used)]
 
 use viewflow_protocol::Id128;
 use viewflow_transport::{

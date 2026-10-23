@@ -1,5 +1,5 @@
 //! Window-only transport for macOS, Hyprland and Windows native backends.
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 use viewflow_transport::{PeerIdentity, build_client_config, build_server_config};
@@ -88,7 +88,7 @@ async fn clock_channel(connection: quinn::Connection, client: bool) -> Result<()
             incoming.read_exact(&mut response).await?;
             let t4 = clock_ns()?;
             let read =
-                |offset| u64::from_le_bytes(response[offset..offset + 8].try_into().unwrap());
+                |offset| u64::from_le_bytes(response[offset..offset + 8].try_into().expect("length checked before field reads"));
             ensure!(
                 read(0) == sequence && read(8) == t1,
                 "clock response identity"
@@ -193,7 +193,7 @@ async fn main() -> Result<()> {
                 break;
             }
             let connecting = if let Some(remote) = config.remote {
-                endpoint.connect(remote, config.server_name.as_deref().unwrap())?
+                endpoint.connect(remote, config.server_name.as_deref().context("client requires server_name")?)?
             } else {
                 let Some(incoming) = endpoint.accept().await else {
                     break;

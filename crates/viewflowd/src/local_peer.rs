@@ -87,6 +87,7 @@ pub(crate) fn identity(_stream: &UnixStream) -> io::Result<PeerIdentity> {
 }
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

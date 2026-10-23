@@ -947,6 +947,7 @@ async fn retire_after_error(active: Active, error: anyhow::Error) -> anyhow::Err
 }
 
 #[cfg(all(test, target_os = "linux"))]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

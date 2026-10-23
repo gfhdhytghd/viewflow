@@ -21,8 +21,8 @@ impl ApplicationIcon {
         {
             return Err(WireError::InvalidField("application_icon"));
         }
-        let width = u32::from_be_bytes(self.png[16..20].try_into().unwrap());
-        let height = u32::from_be_bytes(self.png[20..24].try_into().unwrap());
+        let width = u32::from_be_bytes(self.png[16..20].try_into().expect("length checked before field reads"));
+        let height = u32::from_be_bytes(self.png[20..24].try_into().expect("length checked before field reads"));
         if !(1..=256).contains(&width) || !(1..=256).contains(&height) {
             return Err(WireError::InvalidField("application_icon.dimensions"));
         }

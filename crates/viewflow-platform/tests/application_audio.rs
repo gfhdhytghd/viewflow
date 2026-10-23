@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 #[path = "../src/application_audio.rs"]
 mod application_audio;
 

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use viewflow_core::{FrameAdmission, FrameQueue, FrameQueueConfig, WindowSession};
 use viewflow_platform::{AlphaMode, FakeBackend, PlatformBackend, PlatformError, ProxyLifecycle};
 use viewflow_protocol::{

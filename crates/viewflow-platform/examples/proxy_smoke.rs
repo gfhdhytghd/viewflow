@@ -1,4 +1,5 @@
 //! Short, opt-in native desktop check. Does not capture or inject input.
+#![allow(clippy::unwrap_used)]
 use std::{
     fs::OpenOptions,
     io::Write,

@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use std::io::{Cursor, Read};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 

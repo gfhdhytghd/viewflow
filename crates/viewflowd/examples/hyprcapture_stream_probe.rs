@@ -1,4 +1,5 @@
 //! Bounded live stream diagnostic; prints metadata only, never stores pixels.
+#![allow(clippy::unwrap_used)]
 #[cfg(target_os = "linux")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

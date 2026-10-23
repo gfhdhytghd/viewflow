@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use viewflow_core::{Coordinator, CoordinatorError};
 use viewflow_protocol::{
     ClipboardAccept, ClipboardComplete, ClipboardCompletionStatus, ClipboardFlavor, ClipboardOffer,

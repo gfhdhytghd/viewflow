@@ -11,6 +11,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use crate::sync_ext::LockExt;
 use anyhow::{Context, Result, anyhow, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -408,8 +409,7 @@ impl AcceptanceRecorder {
     fn record(&self, update: impl FnOnce(&mut AcceptanceTranscript) -> Result<()>) {
         let mut state = self
             .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .lock_or_recover();
         let Some(mut transcript) = state.armed.take() else {
             return;
         };
@@ -545,8 +545,7 @@ fn serve_control(stream: &mut UnixStream, recorder: &AcceptanceRecorder) -> Resu
             }
             let mut state = recorder
                 .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                .lock_or_recover();
             arm(
                 &mut state,
                 ArmRequest {
@@ -604,8 +603,7 @@ fn serve_control(stream: &mut UnixStream, recorder: &AcceptanceRecorder) -> Resu
             }
             let state = recorder
                 .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+                .lock_or_recover();
             let transcript = state
                 .armed
                 .as_ref()

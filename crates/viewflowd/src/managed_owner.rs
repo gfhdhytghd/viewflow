@@ -43,6 +43,7 @@ pub fn watch() -> anyhow::Result<()> {
 }
 
 #[cfg(all(test, unix))]
+#[allow(clippy::unwrap_used)]
 mod tests {
     #[test]
     #[allow(unsafe_code)] // Test-only ignored signals exercise forced orphan cleanup.

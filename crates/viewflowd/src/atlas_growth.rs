@@ -19,8 +19,10 @@ pub(crate) fn stage_capture_layout_with_limit(
     let snapshot = current.snapshot();
     let extents = |start: u32, max: u32| {
         let mut sizes = vec![start];
-        while *sizes.last().unwrap() < max {
-            sizes.push(sizes.last().unwrap().saturating_mul(2).min(max));
+        let mut size = start;
+        while size < max {
+            size = size.saturating_mul(2).min(max);
+            sizes.push(size);
         }
         sizes
     };
@@ -268,7 +270,7 @@ pub(crate) fn stage_sparse_capture_layout(
             height: (height + 1) & !1,
         };
         let previous = current.placements.iter().find(|p| p.window == window);
-        let unchanged = previous.is_some_and(|p| {
+        let unchanged = previous.filter(|p| {
             p.geometry_epoch == epoch
                 && p.content_width == width
                 && p.content_height == height
@@ -277,8 +279,8 @@ pub(crate) fn stage_sparse_capture_layout(
         next.placements.push(AtlasPlacement {
             window,
             geometry_epoch: epoch,
-            generation: if unchanged {
-                previous.unwrap().generation
+            generation: if let Some(previous) = unchanged {
+                previous.generation
             } else {
                 current
                     .revision

@@ -70,7 +70,7 @@ pub fn decode(
     if &b[..4] != b"VFI2" || b[5] > 1 || b[6..8] != [0, 0] {
         return Err(invalid);
     }
-    let word = |i| u64::from_le_bytes(b[i..i + 8].try_into().unwrap());
+    let word = |i| u64::from_le_bytes(b[i..i + 8].try_into().expect("length checked before field reads"));
     let x = word(8);
     let y = word(16);
     let state = if y & 1 == 1 {
@@ -84,16 +84,16 @@ pub fn decode(
     let event = match b[4] {
         6 if x == 0 && y == 0 => {
             let mut frame = TouchpadFrame {
-                width: u32::from_le_bytes(b[68..72].try_into().unwrap()),
-                height: u32::from_le_bytes(b[72..76].try_into().unwrap()),
+                width: u32::from_le_bytes(b[68..72].try_into().expect("length checked before field reads")),
+                height: u32::from_le_bytes(b[72..76].try_into().expect("length checked before field reads")),
                 count: b[76],
                 ..TouchpadFrame::default()
             };
             for (i, c) in frame.contacts.iter_mut().enumerate() {
                 let base = 80 + i * 12;
-                c.id = u32::from_le_bytes(b[base..base + 4].try_into().unwrap());
-                c.x = u32::from_le_bytes(b[base + 4..base + 8].try_into().unwrap());
-                c.y = u32::from_le_bytes(b[base + 8..base + 12].try_into().unwrap());
+                c.id = u32::from_le_bytes(b[base..base + 4].try_into().expect("length checked before field reads"));
+                c.x = u32::from_le_bytes(b[base + 4..base + 8].try_into().expect("length checked before field reads"));
+                c.y = u32::from_le_bytes(b[base + 8..base + 12].try_into().expect("length checked before field reads"));
             }
             frame.validate().map_err(|_| invalid)?;
             InputEventKind::Touchpad(frame)
@@ -144,9 +144,9 @@ pub fn decode(
                 width_millidip: word(40),
                 height_millidip: word(48),
             },
-            native_x: i32::from_le_bytes(b[56..60].try_into().unwrap()),
-            native_y: i32::from_le_bytes(b[60..64].try_into().unwrap()),
-            scale_milli: u32::from_le_bytes(b[64..68].try_into().unwrap()),
+            native_x: i32::from_le_bytes(b[56..60].try_into().expect("length checked before field reads")),
+            native_y: i32::from_le_bytes(b[60..64].try_into().expect("length checked before field reads")),
+            scale_milli: u32::from_le_bytes(b[64..68].try_into().expect("length checked before field reads")),
         };
         d.bounds.validate().map_err(|_| invalid)?;
         if !(125..=8000).contains(&d.scale_milli) {

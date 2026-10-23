@@ -1,5 +1,6 @@
 //! Local continuous HCGF -> CUDA/NVENC diagnostic, not presentation acceptance.
 //! Run with --features native-gpu-nvenc; no automatic CPU fallback or retry.
+#![allow(clippy::unwrap_used)]
 
 #[cfg(all(target_os = "linux", feature = "native-gpu-nvenc"))]
 fn main() -> anyhow::Result<()> {

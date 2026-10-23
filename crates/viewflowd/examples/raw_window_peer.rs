@@ -3,6 +3,7 @@
 //! This is deliberately a bounded bring-up tool, not a window-streaming
 //! service. It uses mutual TLS, QUIC datagrams for the frame, and one reliable
 //! bidirectional stream for a clock exchange and frame-tagged receipts.
+#![allow(clippy::unwrap_used)]
 
 use std::{
     env,

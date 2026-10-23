@@ -21,4 +21,5 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = "warn"
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "warn"

@@ -1,4 +1,5 @@
 //! Synthetic alpha-only timing, not end-to-end latency acceptance.
+#![allow(clippy::unwrap_used)]
 use std::time::Instant;
 use viewflow_transport::{AlphaRleLimits, decode_alpha_rle, encode_alpha_rle};
 

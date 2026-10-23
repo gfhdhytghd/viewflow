@@ -1,4 +1,5 @@
 #![cfg(target_os = "linux")]
+#![allow(clippy::unwrap_used)]
 
 #[path = "../src/clipboard_runtime.rs"]
 mod clipboard_runtime;

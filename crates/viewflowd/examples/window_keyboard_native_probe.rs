@@ -1,4 +1,5 @@
 //! Explicit owned-widget native keyboard diagnostic, not QUIC/hardware acceptance.
+#![allow(clippy::unwrap_used)]
 #[cfg(not(target_os = "linux"))]
 fn main() {
     panic!("Linux only");

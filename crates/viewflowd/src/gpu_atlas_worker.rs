@@ -5,6 +5,7 @@ use crate::{
     gpu_atlas_sender::{AtlasBatch, AtlasBatchSent, AtlasPublication, GpuAtlasSender},
     gpu_compatible_encoder::AtlasEncoderRecipe,
 };
+use crate::sync_ext::LockExt;
 use anyhow::{Context, Result};
 use tokio::sync::{mpsc, oneshot};
 
@@ -61,7 +62,7 @@ impl GpuAtlasWorker {
                 Err(error) => { let _ = ready.send(Err(error)); return; }
             };
             // Do not move the authenticated wire until resource preparation succeeds.
-            let wire = worker_wire.lock().unwrap().take().unwrap();
+            let wire = worker_wire.lock_or_recover().take().unwrap();
             let mut sender = GpuAtlasSender::new(encoder, wire);
             if ready.send(Ok(())).is_err() { return; }
             runtime.block_on(async {
@@ -99,7 +100,7 @@ impl GpuAtlasWorker {
         });
         let thread = match spawned {
             Ok(thread) => thread,
-            Err(error) => return Err((error.into(), wire.lock().unwrap().take().unwrap())),
+            Err(error) => return Err((error.into(), wire.lock_or_recover().take().unwrap())),
         };
         match initialized.await {
             Ok(Ok(())) => Ok(Self {
@@ -119,8 +120,7 @@ impl GpuAtlasWorker {
                 };
                 Err((
                     error,
-                    wire.lock()
-                        .unwrap()
+                    wire.lock_or_recover()
                         .take()
                         .expect("failed preparation retains wire"),
                 ))

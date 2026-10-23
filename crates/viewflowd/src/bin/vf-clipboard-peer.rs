@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     let run = async {
         loop {
             let connecting = if let Some(remote) = config.remote {
-                endpoint.connect(remote, config.server_name.as_deref().unwrap())?
+                endpoint.connect(remote, config.server_name.as_deref().context("client requires server_name")?)?
             } else {
                 endpoint
                     .accept()

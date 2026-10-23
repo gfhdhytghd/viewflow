@@ -3,6 +3,7 @@
 //! This deliberately has no QUIC, certificates, capture producer, or timing
 //! claims. It is a native presentation diagnostic for visually inspecting one
 //! already-staged frame on the local Windows desktop.
+#![allow(clippy::unwrap_used)]
 
 #[cfg(windows)]
 use std::time::Instant;

@@ -1,4 +1,5 @@
 //! The two media senders share one reader of the negotiated feedback stream.
+use crate::sync_ext::LockExt;
 use anyhow::{Context, Result, ensure};
 use std::{collections::BTreeMap, sync::{Arc, Mutex}};
 use tokio::{io::{AsyncRead, AsyncReadExt}, sync::oneshot};
@@ -39,8 +40,8 @@ impl AtlasActivityFeedback {
                 loop {
                     let mut record = [0; RECORD_BYTES];
                     input.read_exact(&mut record).await?;
-                    let id = u64::from_be_bytes(record[20..28].try_into().unwrap());
-                    let pending = owner.lock().unwrap().pending.remove(&id);
+                    let id = u64::from_be_bytes(record[20..28].try_into().expect("length checked before field reads"));
+                    let pending = owner.lock_or_recover().pending.remove(&id);
                     if let Some((frame, reply)) = pending {
                         let disposition = crate::atlas_feedback::decode(&record, &frame)?;
                         let _ = reply.send(Ok(disposition));
@@ -50,7 +51,7 @@ impl AtlasActivityFeedback {
                 Ok::<(), anyhow::Error>(())
             }.await;
             let reason = result.err().map_or_else(|| "atlas feedback closed".into(), |error| format!("{error:#}"));
-            let mut state = owner.lock().unwrap();
+            let mut state = owner.lock_or_recover();
             state.closed = Some(reason.clone());
             for (_, (_, reply)) in std::mem::take(&mut state.pending) {
                 let _ = reply.send(Err(anyhow::anyhow!(reason.clone())));
@@ -59,7 +60,7 @@ impl AtlasActivityFeedback {
         Arc::new(Self { state, reader })
     }
     pub(crate) fn register(&self, frame: &AtlasFrame) -> Result<FeedbackTicket> {
-        let mut state = self.state.lock().map_err(|_| anyhow::anyhow!("atlas feedback state poisoned"))?;
+        let mut state = self.state.lock_or_recover();
         ensure!(state.closed.is_none(), "atlas feedback closed: {:?}", state.closed);
         ensure!(state.pending.len() < 2 && !state.pending.contains_key(&frame.frame_id), "atlas feedback lane already pending");
         let (send, reply) = oneshot::channel();

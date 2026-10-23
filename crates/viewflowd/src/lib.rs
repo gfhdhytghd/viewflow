@@ -161,6 +161,7 @@ mod readiness_runtime;
 pub mod reverse_bridge;
 #[cfg(unix)]
 mod sidecar_runtime;
+mod sync_ext;
 #[cfg(target_os = "linux")]
 pub mod window_input_runtime;
 pub mod window_preview_input;

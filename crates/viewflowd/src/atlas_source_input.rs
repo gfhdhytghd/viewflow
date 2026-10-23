@@ -5,6 +5,7 @@ use crate::{
         AtlasCommittedInput, AtlasSelectionRequest, AuthorizedWindow, WindowInputSession,
     },
 };
+use crate::sync_ext::LockExt;
 use anyhow::{Context, Result, ensure};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -821,7 +822,7 @@ impl DesktopMoveWorker {
                     }
                     if result.as_ref().is_ok_and(|ack| ack.result == viewflow_protocol::DesktopWindowMoveResult::Applied) {
                         if let Some(active) = controller.active.get(&request.movement.window_id) {
-                            let binding = controller.lane.lock().map_err(|_| anyhow::anyhow!("desktop source state poisoned"))?.native_binding(request.movement.window_id);
+                            let binding = controller.lane.lock_or_recover().native_binding(request.movement.window_id);
                             if let Some(binding) = binding {
                                 let resizing = transfer.as_ref().is_some_and(|drag| drag.resizing)
                                     || (request.movement.desired_width_millidip != 0 && request.movement.desired_width_millidip != active.initial_bounds.width_millidip)
@@ -1034,8 +1035,7 @@ impl DesktopMoveController {
         };
         let binding = match self
             .lane
-            .lock()
-            .map_err(|_| anyhow::anyhow!("desktop source state poisoned"))?
+            .lock_or_recover()
             .native_binding(movement.window_id)
         {
             Some(binding) => binding,

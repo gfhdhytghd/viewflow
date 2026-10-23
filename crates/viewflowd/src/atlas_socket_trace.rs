@@ -1,6 +1,7 @@
 //! Opt-in buffered socket-boundary diagnostics. These timestamps bracket the
 //! runtime's UDP calls, not NIC transmission or arrival. No packet payloads are
 //! retained, and recording stops at a fixed bound without changing I/O results.
+use crate::sync_ext::LockExt;
 use quinn::{
     AsyncTimer, AsyncUdpSocket, Runtime, UdpPoller,
     udp::{RecvMeta, Transmit},
@@ -204,7 +205,7 @@ struct ReadWake {
 }
 impl ReadWake {
     fn register(&self, waker: &Waker) {
-        let mut parent = self.parent.lock().unwrap_or_else(|e| e.into_inner());
+        let mut parent = self.parent.lock_or_recover();
         if parent.as_ref().is_none_or(|p| !p.will_wake(waker)) {
             *parent = Some(waker.clone());
         }
@@ -213,8 +214,7 @@ impl ReadWake {
         let at = self.trace.now();
         let parent = self
             .parent
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
+            .lock_or_recover()
             .clone();
         self.trace.record(Record {
             operation: "recv_wake",
@@ -340,11 +340,12 @@ impl fmt::Debug for ReadyPoller {
 }
 impl UdpPoller for ReadyPoller {
     fn poll_writable(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<io::Result<()>> {
-        if self.future.is_none() {
-            let socket = self.socket.clone();
-            self.future = Some(Box::pin(async move { socket.io.writable().await }));
-        }
-        let result = self.future.as_mut().unwrap().as_mut().poll(cx);
+        let this = &mut *self;
+        let future = this.future.get_or_insert_with(|| {
+            let socket = this.socket.clone();
+            Box::pin(async move { socket.io.writable().await })
+        });
+        let result = future.as_mut().poll(cx);
         if result.is_ready() {
             self.future = None;
         }

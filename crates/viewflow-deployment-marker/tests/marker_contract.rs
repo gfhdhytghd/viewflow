@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use sha2::{Digest, Sha256};
 use viewflow_deployment_marker::{
     COORDINATOR_INSTANCE_OFFSET, CREATED_AT_UNIX_MS_OFFSET, DEPLOYMENT_MARKER_MAGIC,

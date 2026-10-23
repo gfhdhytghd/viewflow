@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use std::{io::Cursor, net::SocketAddr, sync::Arc, time::Duration};
 
 use bytes::Bytes;

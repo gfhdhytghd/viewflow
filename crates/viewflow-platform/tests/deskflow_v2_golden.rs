@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use std::io::Cursor;
 
 use viewflow_platform::sidecar::{CodecError, read_request};

@@ -1,4 +1,5 @@
 //! Independent native encoded media writers. Input remains one ordered stream.
+use crate::sync_ext::LockExt;
 use std::{sync::{Arc, Mutex}, time::{Duration, Instant}};
 use anyhow::{Result, ensure};
 use tokio::{io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt}, sync::{Notify, mpsc, watch}};
@@ -13,6 +14,9 @@ async fn read_record<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 async fn write_record<W: AsyncWrite + Unpin>(writer: &mut W, bytes: &[u8]) -> Result<()> {
+    // Mirror the reader's bound so an oversized record fails here, not as a
+    // wrapped length prefix that desynchronizes the native peer.
+    ensure!((4..=MAX_RECORD).contains(&bytes.len()), "activity record length");
     writer.write_all(&(bytes.len() as u32).to_le_bytes()).await?;
     writer.write_all(bytes).await?;
     writer.flush().await?;
@@ -36,11 +40,11 @@ async fn write_lane<W: AsyncWrite + Unpin>(lane: &SharedLane, writer: &mut W) ->
         // Register before checking the queue so a concurrent producer cannot
         // leave a record asleep. No lock is held across network backpressure.
         let notified = lane.ready.notified();
-        let record = lane.queue.lock().unwrap().pop();
+        let record = lane.queue.lock_or_recover().pop();
         if let Some(record) = record {
-            *lane.in_flight.lock().unwrap()=Some(record.queued);
+            *lane.in_flight.lock_or_recover()=Some(record.queued);
             write_record(writer, &record.bytes).await?;
-            *lane.in_flight.lock().unwrap()=None;
+            *lane.in_flight.lock_or_recover()=None;
         }
         else { notified.await; }
     }
@@ -58,7 +62,7 @@ where R: AsyncRead + Unpin, W: AsyncWrite + Unpin {
         loop {
             let bytes = read_record(output).await?;
             let (index, record) = EncodedRecord::parse(bytes, Instant::now())?;
-            let mut queue = lanes[index].queue.lock().unwrap();
+            let mut queue = lanes[index].queue.lock_or_recover();
             let request_idr = queue.push(record);
             feedback.send_modify(|state| state[index] = Feedback {
                 request_idr, age_us: queue.age(Instant::now()).as_micros().min(u64::MAX as u128) as u64,
@@ -92,10 +96,10 @@ where R: AsyncRead + Unpin, W: AsyncWrite + Unpin {
                 _ = sample.tick() => {
                     let snapshot = *updates.borrow_and_update();
                     for (index, mut state) in snapshot.into_iter().enumerate() {
-                        { let queue = lanes[index].queue.lock().unwrap();
+                        { let queue = lanes[index].queue.lock_or_recover();
                           state.age_us = queue.age(Instant::now()).as_micros().min(u64::MAX as u128) as u64;
                           state.saturated = queue.saturated(); }
-                        if let Some(started)=*lanes[index].in_flight.lock().unwrap() {
+                        if let Some(started)=*lanes[index].in_flight.lock_or_recover() {
                             state.age_us=state.age_us.max(started.elapsed().as_micros().min(u64::MAX as u128) as u64);
                         }
                         write_record(input, &state.record(index)).await?;

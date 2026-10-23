@@ -229,10 +229,10 @@ fn put_f64(out: &mut [u8], at: usize, value: f64) {
     put_u64(out, at, value.to_bits());
 }
 fn u32_at(bytes: &[u8], at: usize) -> u32 {
-    u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap())
+    u32::from_be_bytes(bytes[at..at + 4].try_into().expect("callers check the exact record length"))
 }
 fn u64_at(bytes: &[u8], at: usize) -> u64 {
-    u64::from_be_bytes(bytes[at..at + 8].try_into().unwrap())
+    u64::from_be_bytes(bytes[at..at + 8].try_into().expect("callers check the exact record length"))
 }
 fn f64_at(bytes: &[u8], at: usize) -> f64 {
     f64::from_bits(u64_at(bytes, at))

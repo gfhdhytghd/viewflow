@@ -1,5 +1,6 @@
 //! Explicit, user-operated live QA sender. Posts only with --run-live and a
 //! separately authorized native receiver. Not part of automated cargo tests.
+#![allow(clippy::unwrap_used)]
 use std::{
     error::Error,
     time::{Duration, Instant},

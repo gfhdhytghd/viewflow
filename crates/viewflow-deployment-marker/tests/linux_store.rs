@@ -1,4 +1,5 @@
 #![cfg(target_os = "linux")]
+#![allow(clippy::unwrap_used)]
 
 use std::{fs, os::unix::fs::MetadataExt};
 

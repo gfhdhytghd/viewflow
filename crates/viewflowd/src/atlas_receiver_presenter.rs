@@ -1402,6 +1402,7 @@ pub fn native_record_limit(plan: crate::atlas_session::AtlasSessionPlan) -> Resu
 }
 
 #[cfg(all(test, target_os = "linux"))]
+#[allow(clippy::unwrap_used)]
 mod activity_pipeline_tests {
     use super::*;
 

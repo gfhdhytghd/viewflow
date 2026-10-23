@@ -85,16 +85,16 @@ impl ActivityPriority {
     }
     pub fn last_focus(&self) -> Option<u128> { self.focus_history.last().copied() }
     pub fn impulse(&mut self, id: u128, now_us: u64) {
-        if let Some(id) = self.root(id) {
+        if let Some(window) = self.root(id).and_then(|id| self.windows.get_mut(&id)) {
             self.sequence += 1;
-            let window = self.windows.get_mut(&id).unwrap();
             window.interaction = self.sequence;
             window.until_us = now_us.saturating_add(Self::GRACE_US);
         }
     }
     pub fn hold(&mut self, id: u128, kind: u32, token: u64, down: bool, now_us: u64) {
         if let Some(id) = self.root(id) {
-            let held = &mut self.windows.get_mut(&id).unwrap().held;
+            let Some(window) = self.windows.get_mut(&id) else { return };
+            let held = &mut window.held;
             if down { held.insert((kind, token)); } else { held.remove(&(kind, token)); }
             self.impulse(id, now_us);
         }

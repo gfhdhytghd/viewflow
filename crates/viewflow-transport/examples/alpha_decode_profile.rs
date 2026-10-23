@@ -1,4 +1,5 @@
 //! Offline lossless alpha CPU measurement, without capture or live input.
+#![allow(clippy::unwrap_used)]
 use std::{hint::black_box, time::Instant};
 use viewflow_transport::{AlphaRleLimits, decode_alpha_rle, encode_alpha_rle, validate_alpha_rle};
 fn main() {

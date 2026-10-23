@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use std::time::Duration;
 
 use bytes::Bytes;

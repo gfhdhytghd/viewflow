@@ -1,4 +1,5 @@
 #![cfg(all(target_os = "linux", feature = "native-nvenc"))]
+#![allow(clippy::unwrap_used)]
 
 //! GPU-only end-to-end integrity coverage. This intentionally uses synthetic
 //! receive timestamps so it does not claim a production latency measurement.

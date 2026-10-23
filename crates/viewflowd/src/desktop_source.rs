@@ -6,6 +6,7 @@
 //! inside the configured remote viewport and builds the exact frame-bound
 //! desktop record for the encoder.
 
+use crate::sync_ext::LockExt;
 use anyhow::{Context, Result, ensure};
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -334,8 +335,7 @@ impl DesktopEnrollmentSupervisor {
             self.retiring.remove(&window);
             let mut lane = self
                 .lane
-                .lock()
-                .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?;
+                .lock_or_recover();
             lane.enrolled.remove(&window);
             lane.candidates.remove(&window);
             lane.bindings.remove(&window);
@@ -359,8 +359,7 @@ impl DesktopEnrollmentSupervisor {
             let icons: Vec<_> = {
                 let lane = self
                     .lane
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("desktop icon state poisoned"))?;
+                    .lock_or_recover();
                 self.icons
                     .values()
                     .filter(|icon| {
@@ -399,8 +398,7 @@ impl DesktopEnrollmentSupervisor {
                             return Ok(false);
                         }
                         self.lane
-                            .lock()
-                            .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?
+                            .lock_or_recover()
                             .add_and_reserve_if_eligible(candidate.clone(), &frame)
                     })();
                     let reserved = match reservation {
@@ -417,8 +415,7 @@ impl DesktopEnrollmentSupervisor {
                         .await
                     {
                         self.lane
-                            .lock()
-                            .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?
+                            .lock_or_recover()
                             .unreserve(candidate.window);
                         return Err(error);
                     } else if let Some(input) = input {
@@ -443,8 +440,7 @@ impl DesktopEnrollmentSupervisor {
                 let (eligible, has_capacity) = {
                     let lane = self
                         .lane
-                        .lock()
-                        .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?;
+                        .lock_or_recover();
                     (
                         !self.retired.contains(&candidate.window)
                             && !lane.is_enrolled(candidate.window),
@@ -511,8 +507,7 @@ impl DesktopEnrollmentSupervisor {
                 {
                     let mut lane = self
                         .lane
-                        .lock()
-                        .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?;
+                        .lock_or_recover();
                     lane.z_order = discovered.z_order.clone();
                     lane.active_window = discovered.active_window;
                     lane.raise_serial = discovered.raise_serial;
@@ -523,8 +518,7 @@ impl DesktopEnrollmentSupervisor {
                 let closed = {
                     let lane = self
                         .lane
-                        .lock()
-                        .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?;
+                        .lock_or_recover();
                     lane.enrolled
                         .iter()
                         .filter(|window| {
@@ -587,8 +581,7 @@ impl DesktopEnrollmentSupervisor {
         let stream_id = self.stream_id;
         let viewport = self
             .lane
-            .lock()
-            .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?
+            .lock_or_recover()
             .viewport;
         self.discovery = Some(tokio::task::spawn_blocking(move || {
             discover_local_candidates(socket, viewport, configured, stream_id)
@@ -911,8 +904,7 @@ async fn probe_candidate(
         Ok::<_, anyhow::Error>(
             current
                 && lane
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?
+                    .lock_or_recover()
                     .intersects_remote_viewport(frame.metadata())?,
         )
     }
@@ -1231,8 +1223,7 @@ pub(crate) async fn prepare_lane_from_config(
     let lane = lane_from_config(desktop, initial, stream_id)?;
     let socket = desktop.hyprland_socket.clone();
     let candidates = lane
-        .lock()
-        .map_err(|_| anyhow::anyhow!("desktop enrollment state poisoned"))?
+        .lock_or_recover()
         .candidates
         .values()
         .cloned()

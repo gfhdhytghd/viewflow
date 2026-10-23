@@ -1,4 +1,5 @@
 //! Offline alpha encoder CPU measurement, not end-to-end latency.
+#![allow(clippy::unwrap_used)]
 use std::{hint::black_box, time::Instant};
 use viewflow_transport::{AlphaRleLimits, decode_alpha_rle, encode_alpha_rle};
 fn main() {

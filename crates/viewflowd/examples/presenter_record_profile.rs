@@ -1,4 +1,5 @@
 //! Offline CPU measurement; no capture, presentation, or input.
+#![allow(clippy::unwrap_used)]
 use std::{hint::black_box, time::Instant};
 use viewflowd::gpu_presenter_pipe::{NativePresentationDeadline, encode_deadline_alpha_record};
 fn main() {

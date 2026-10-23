@@ -1,4 +1,5 @@
 //! Compatibility entry point for the bounded native media diagnostic.
+#![allow(clippy::unwrap_used)]
 #[cfg(any(windows, all(target_os = "linux", feature = "native-nvenc")))]
 fn main() -> anyhow::Result<()> {
     viewflowd::coded_peer::run_from_args(std::env::args().skip(1))

@@ -7,6 +7,7 @@
 //! a one-in-flight diagnostic; a VFGP write/submission acknowledgement is not
 //! a compositor scanout acknowledgement.
 
+use crate::sync_ext::LockExt;
 #[cfg(any(windows, test))]
 use std::sync::atomic::AtomicU8;
 #[cfg(windows)]
@@ -2577,7 +2578,7 @@ enum ExpectedNativeCompletion {
 #[cfg(windows)]
 impl PresenterState {
     fn fail(&self, error: impl Into<String>) {
-        let mut failed = self.failed.lock().expect("presenter failure lock");
+        let mut failed = self.failed.lock_or_recover();
         let first_failure = if failed.is_none() {
             let error = error.into();
             *failed = Some(error.clone());
@@ -2590,14 +2591,14 @@ impl PresenterState {
         // `ready.wait` checks `closed` while holding `latest`; set the
         // predicate under that same mutex so a shutdown cannot notify between
         // the check and Condvar wait. The ACK waiter has the same invariant.
-        let latest = self.latest.lock().expect("presenter queue lock");
+        let latest = self.latest.lock_or_recover();
         self.closed.store(true, Ordering::Release);
         self.ready.notify_all();
         drop(latest);
-        let acknowledgement = self.acknowledgement.lock().expect("presenter ACK lock");
+        let acknowledgement = self.acknowledgement.lock_or_recover();
         self.acknowledgement_changed.notify_all();
         drop(acknowledgement);
-        let startup = self.startup_ready.lock().expect("presenter startup lock");
+        let startup = self.startup_ready.lock_or_recover();
         self.startup_changed.notify_all();
         drop(startup);
         // Only after closing the input owners and waking waiters: logging must
@@ -2791,8 +2792,7 @@ impl CompressedPresenter {
                     Ok(line) if line.starts_with("composition preview ready;") => {
                         *reader_state
                             .startup_ready
-                            .lock()
-                            .expect("presenter startup lock") = true;
+                            .lock_or_recover() = true;
                         reader_state.startup_changed.notify_all();
                         eprintln!("compressed presenter: {line}");
                     }
@@ -2804,8 +2804,7 @@ impl CompressedPresenter {
                             record_presenter_completion(&reader_state.pointer_motion, completion);
                             let mut acknowledgement = reader_state
                                 .acknowledgement
-                                .lock()
-                                .expect("presenter ACK lock");
+                                .lock_or_recover();
                             *acknowledgement = Some(completion);
                             reader_state
                                 .acknowledgement_published_ns
@@ -2946,7 +2945,7 @@ impl CompressedPresenter {
         decode_only: bool,
         recover_expired_v4: bool,
     ) -> Result<()> {
-        let mut latest = self.state.latest.lock().expect("presenter queue lock");
+        let mut latest = self.state.latest.lock_or_recover();
         if latest.is_some() || self.state.closed.load(Ordering::Acquire) {
             bail!("compressed presenter is busy or closed")
         }
@@ -2960,8 +2959,7 @@ impl CompressedPresenter {
             completion,
         });
         self.completions
-            .lock()
-            .expect("presenter completion lock")
+            .lock_or_recover()
             .push_back(receiver);
         self.state.ready.notify_one();
         Ok(())
@@ -2970,8 +2968,7 @@ impl CompressedPresenter {
     async fn wait_for_submission(&self) -> Result<NativeCompletion> {
         let completion = self
             .completions
-            .lock()
-            .expect("presenter completion lock")
+            .lock_or_recover()
             .pop_front()
             .context("presenter completion missing")?;
         let wait = if self.recover_expired_v4 {
@@ -2990,8 +2987,7 @@ impl CompressedPresenter {
     async fn wait_for_decode_only(&self) -> Result<()> {
         let completion = self
             .completions
-            .lock()
-            .expect("presenter completion lock")
+            .lock_or_recover()
             .pop_front()
             .context("warmup completion missing")?;
         match tokio::time::timeout(PRESENTER_COLD_START_WAIT, completion).await {
@@ -3006,13 +3002,13 @@ impl CompressedPresenter {
     async fn wait_until_ready(&self) -> Result<()> {
         let state = self.state.clone();
         tokio::task::spawn_blocking(move || {
-            let startup = state.startup_ready.lock().expect("presenter startup lock");
+            let startup = state.startup_ready.lock_or_recover();
             let (startup, timed) = state
                 .startup_changed
                 .wait_timeout_while(startup, PRESENTER_COLD_START_WAIT, |ready| {
                     !*ready && !state.closed.load(Ordering::Acquire)
                 })
-                .expect("presenter startup wait");
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if *startup {
                 Ok(())
             } else if timed.timed_out() {
@@ -3057,7 +3053,7 @@ fn compressed_presenter_writer(
             let mut write_started_ns = 0;
             let mut completion_observed_ns = 0;
             let mut result = (|| -> std::result::Result<NativeCompletion, String> {
-                match child.lock().expect("presenter child lock").try_wait() {
+                match child.lock_or_recover().try_wait() {
                     Ok(Some(status)) => {
                         return Err(format!(
                             "compressed presenter exited before VFGP write: {status}"
@@ -3107,7 +3103,7 @@ fn compressed_presenter_writer(
                         return Err("coded frame became late before VFGP write".to_owned());
                     }
                 }
-                *state.acknowledgement.lock().expect("presenter ACK lock") = None;
+                *state.acknowledgement.lock_or_recover() = None;
                 state.acknowledgement_read_ns.store(0, Ordering::Release);
                 state
                     .acknowledgement_published_ns
@@ -3430,7 +3426,7 @@ fn parse_presenter_output(line: &str) -> std::result::Result<Option<PresenterOut
 #[cfg(any(windows, test))]
 fn record_presenter_completion(state: &Mutex<PointerMotionState>, completion: NativeCompletion) {
     if let NativeCompletion::Presented(identity) = completion {
-        let mut state = state.lock().expect("pointer motion lock");
+        let mut state = state.lock_or_recover();
         if !state.pending_events.is_empty() && state.latest_presented != Some(identity) {
             // Never silently lose queued button transitions on replacement.
             state.events.take();
@@ -3450,7 +3446,7 @@ fn record_presenter_completion(state: &Mutex<PointerMotionState>, completion: Na
 
 #[cfg(any(windows, test))]
 fn close_presenter_pointer_samples(state: &Mutex<PointerMotionState>) {
-    let mut state = state.lock().expect("pointer motion lock");
+    let mut state = state.lock_or_recover();
     state.published_presented = None;
     state.published_history.clear();
     state.pending_events.clear();
@@ -3468,7 +3464,7 @@ fn publish_presenter_input_frame(
     let NativeCompletion::Presented(identity) = completion else {
         return Ok(());
     };
-    let mut state = state.lock().expect("pointer motion lock");
+    let mut state = state.lock_or_recover();
     if tag.window.0 == 0
         || tag.epoch == 0
         || tag.frame == 0

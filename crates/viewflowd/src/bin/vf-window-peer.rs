@@ -1,5 +1,5 @@
 //! Window-only transport for macOS, Hyprland and Windows native backends.
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 use viewflow_transport::{PeerIdentity, build_client_config, build_server_config};
@@ -128,7 +128,7 @@ async fn main() -> Result<()> {
                 break;
             }
             let connecting = if let Some(remote) = config.remote {
-                endpoint.connect(remote, config.server_name.as_deref().unwrap())?
+                endpoint.connect(remote, config.server_name.as_deref().context("client requires server_name")?)?
             } else {
                 let Some(incoming) = endpoint.accept().await else {
                     break;

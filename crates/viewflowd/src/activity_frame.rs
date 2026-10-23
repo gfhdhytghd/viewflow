@@ -25,10 +25,10 @@ impl ActivityFrame {
     }
     pub fn parse(bytes: &[u8]) -> Result<Option<Self>> {
         ensure!(bytes.len() >= 32, "native activity frame too short");
-        let word = |at: usize| u32::from_le_bytes(bytes[at..at+4].try_into().unwrap());
+        let word = |at: usize| u32::from_le_bytes(bytes[at..at+4].try_into().expect("length checked before field reads"));
         if word(0) == 1 { return Ok(None); }
         ensure!(word(0) == 4 && bytes.len() >= 64, "native activity frame type");
-        let wide = |at: usize| u64::from_le_bytes(bytes[at..at+8].try_into().unwrap());
+        let wide = |at: usize| u64::from_le_bytes(bytes[at..at+8].try_into().expect("length checked before field reads"));
         let count = word(32) as usize;
         ensure!(word(4) <= 1 && wide(8) > 0 && count <= 32 && bytes.len() >= 64 + count*8, "native activity frame header");
         let members: Vec<_> = (0..count).map(|i| wide(36+i*8)).collect();

@@ -110,6 +110,7 @@ fn run_source(config: AtlasSourceConfig) -> Result<()> {
 }
 
 #[cfg(all(test, target_os = "linux", feature = "native-gpu-nvenc"))]
+#[allow(clippy::unwrap_used)]
 mod source_runtime_tests {
     #[test]
     fn background_work_progresses_while_native_owner_keeps_its_thread() {

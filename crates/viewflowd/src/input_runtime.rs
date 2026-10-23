@@ -1,5 +1,6 @@
 use std::{collections::BTreeSet, error::Error, fmt, fs, path::Path, str::FromStr};
 
+use crate::sync_ext::LockExt;
 use anyhow::{Context, Result, anyhow, bail};
 use viewflow_protocol::{
     Id128, InputAppliedResult, InputEvent, InputEventKind, InputLease, InputLeaseRevoke,
@@ -312,7 +313,7 @@ impl InputReceiver {
         {
             self.backend.release_all()?;
         }
-        *self.feedback.lock().unwrap() = None;
+        *self.feedback.lock_or_recover() = None;
         self.previous_event_sequence = None;
         self.lease = Some(lease);
         Ok(())
@@ -349,7 +350,7 @@ impl InputReceiver {
         // Do not publish the revoked state until the native backend confirms
         // that all held input has actually been released.
         self.backend.release_all()?;
-        *self.feedback.lock().unwrap() = None;
+        *self.feedback.lock_or_recover() = None;
         self.previous_event_sequence = None;
         self.lease = Some(revoke.lease());
 
@@ -428,9 +429,9 @@ impl InputReceiver {
         }
         self.backend.apply(event)?;
         if matches!(event.event, InputEventKind::DesktopPointerPosition(_)) {
-            *self.feedback.lock().unwrap() = Some((event.lease_generation, event.sequence));
+            *self.feedback.lock_or_recover() = Some((event.lease_generation, event.sequence));
         } else if matches!(event.event, InputEventKind::ReleaseAll) {
-            *self.feedback.lock().unwrap() = None;
+            *self.feedback.lock_or_recover() = None;
         }
         self.previous_event_sequence = Some(event.sequence);
         #[cfg(test)]
@@ -441,7 +442,7 @@ impl InputReceiver {
     }
 
     pub(crate) fn release_all(&mut self) -> Result<()> {
-        *self.feedback.lock().unwrap() = None;
+        *self.feedback.lock_or_recover() = None;
         self.backend.release_all()
     }
 }

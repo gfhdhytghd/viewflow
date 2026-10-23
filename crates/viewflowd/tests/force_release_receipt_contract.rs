@@ -1,3 +1,4 @@
+#![allow(clippy::unwrap_used)]
 use std::{env, fs, path::Path};
 
 use serde::Serialize;
