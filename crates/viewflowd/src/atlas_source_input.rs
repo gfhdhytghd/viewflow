@@ -66,6 +66,7 @@ pub(crate) struct AtlasSourceInput {
     // Source queue delay, conservative event budget left, diagnostic sampling span.
     last_capture_rejection_timing: Option<[u64; 3]>,
     selections_authorized: u64,
+    accept_failures: u64,
 }
 
 impl AtlasSourceInput {
@@ -271,6 +272,7 @@ impl AtlasSourceInput {
             last_capture_rejection: None,
             last_capture_rejection_timing: None,
             selections_authorized: 0,
+            accept_failures: 0,
         })
     }
 
@@ -298,7 +300,18 @@ impl AtlasSourceInput {
             match self.listener.accept() {
                 Ok(native) => self.native = Some(native),
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
-                Err(error) => return Err(error.into()),
+                // A failed local accept (aborted peer, wrong credentials,
+                // descriptor pressure) leaves the listener usable; retry on
+                // the next poll instead of ending media.
+                Err(error) => {
+                    self.accept_failures = self.accept_failures.saturating_add(1);
+                    if self.accept_failures.is_power_of_two() {
+                        eprintln!(
+                            "atlas native pointer accept skipped: count={} {error}",
+                            self.accept_failures
+                        );
+                    }
+                }
             }
         }
         if let Some(committed) = committed {
@@ -508,10 +521,24 @@ impl AtlasSourceInput {
         );
         // Deadline is checked before waiting for the source's local feedback
         // publication; packet arrival cannot manufacture committed evidence.
-        if self
+        let unusable = match self
             .policy
-            .discard_unusable_selection(request.selection, request.clock, now)?
+            .discard_unusable_selection(request.selection, request.clock, now)
         {
+            Ok(unusable) => unusable,
+            // A replayed or malformed request is refused alone; the stream
+            // and any existing grant are unaffected.
+            Err(error) => {
+                eprintln!("atlas selection refused: {error:#}");
+                return self.reject_selection(
+                    request,
+                    viewflow_protocol::AtlasSelectionRejectionReason::EventExpired,
+                    0,
+                    0,
+                );
+            }
+        };
+        if unusable {
             self.selections_timing_discarded = self.selections_timing_discarded.saturating_add(1);
             return self.reject_selection(
                 request,
@@ -583,7 +610,18 @@ impl AtlasSourceInput {
                     expired.max_age_ns,
                 );
             }
-            Err(error) => return Err(error),
+            // Any other refusal (unknown or rebound window, stale request,
+            // replaced surface) concerns this selection only. The peer may
+            // select again; media and the input route continue.
+            Err(error) => {
+                eprintln!("atlas selection refused: {error:#}");
+                return self.reject_selection(
+                    request,
+                    viewflow_protocol::AtlasSelectionRejectionReason::NativeUnavailable,
+                    0,
+                    0,
+                );
+            }
         };
         if self.desktop_phase.load(Ordering::Acquire) == 2 {
             self.desktop_phase

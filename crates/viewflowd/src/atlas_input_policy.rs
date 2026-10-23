@@ -196,6 +196,17 @@ impl AtlasInputPolicy {
         if self.selection_required {
             return Ok(None);
         }
+        if self
+            .current
+            .as_ref()
+            .is_some_and(|current| now_local_ns >= current.expires_local_ns)
+        {
+            // A missed renewal is a scheduling delay, not a stream failure.
+            // The native side expires the old grant on its own; the next
+            // remote selection establishes a fresh lease.
+            self.invalidate_current();
+            return Ok(None);
+        }
         let window = self
             .current
             .as_ref()
@@ -382,7 +393,13 @@ impl AtlasInputPolicy {
             .checked_add(self.lease_duration_ns)
             .context("atlas input deadline overflow")?;
         let mut same_window = false;
-        if let Some(current) = &self.current {
+        // An expired previous lease is simply not continued: this validated
+        // selection starts a fresh generation instead of ending input.
+        if let Some(current) = self
+            .current
+            .as_ref()
+            .filter(|current| context.now_local_ns < current.expires_local_ns)
+        {
             let previous = viewflow_core::WindowPointerGrant::new(
                 current.owner,
                 current.target_device,
@@ -391,7 +408,7 @@ impl AtlasInputPolicy {
                 current.expires_local_ns,
             )
             .and_then(|grant| grant.authorization(context.now_local_ns))
-            .context("atlas native lease expired; new input session required")?;
+            .context("atlas native lease invalid")?;
             same_window = previous.target_window == request.window_id;
             if same_window {
                 if request.source_geometry_epoch < previous.geometry_epoch

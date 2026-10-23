@@ -3294,6 +3294,29 @@ mod tests {
                 (repeated.generation, repeated.expires_local_ns),
                 (first.generation, first.expires_local_ns)
             );
+            // A lease that lapsed before renewal is not continued and does
+            // not end input: the next valid selection starts a fresh one.
+            let mut expiring =
+                AtlasInputPolicy::new(Id128(1), Id128(2), vec![(Id128(3), 123)], 1_000_000_000)
+                    .unwrap();
+            let lapsed = expiring.select(select(1), &evidence, context).unwrap();
+            let late = AtlasSelectionContext {
+                now_local_ns: lapsed.expires_local_ns,
+                clock: context
+                    .clock
+                    .map(|(estimate, _)| (estimate, lapsed.expires_local_ns)),
+                ..context
+            };
+            let late_selection = viewflow_protocol::AtlasWindowSelection::from_frame(
+                &manifest,
+                Id128(3),
+                2,
+                3_000_000_000,
+            )
+            .unwrap();
+            let fresh = expiring.select(late_selection, &evidence, late).unwrap();
+            assert!(fresh.generation > lapsed.generation);
+            assert!(fresh.expires_local_ns > lapsed.expires_local_ns);
             let mut activation_policy =
                 AtlasInputPolicy::new(Id128(1), Id128(2), vec![(Id128(3), 123)], 1_000_000_000)
                     .unwrap();
@@ -3627,16 +3650,21 @@ mod tests {
                         .is_none()
                 );
             }
-            assert!(
-                waiting
-                    .maintain_capture(&resized, Id128(3), original.expires_local_ns, 1, 10)
-                    .is_err()
-            );
-            assert!(
-                maintained
-                    .maintain_capture(&newer, Id128(3), renewed.expires_local_ns, 1, 10)
-                    .is_err()
-            );
+            // An expired lease is dropped, not fatal; only a new selection
+            // can grant input again.
+            for (policy, evidence, expires) in [
+                (&mut waiting, &resized, original.expires_local_ns),
+                (&mut maintained, &newer, renewed.expires_local_ns),
+            ] {
+                for now in [expires, expires + 1] {
+                    assert!(
+                        policy
+                            .maintain_capture(evidence, Id128(3), now, 1, 10)
+                            .unwrap()
+                            .is_none()
+                    );
+                }
+            }
         }
         assert!(bind(&manifest, None).unwrap().is_none());
         assert!(bind(&manifest, Some(ExpiredUnbound)).unwrap().is_none());

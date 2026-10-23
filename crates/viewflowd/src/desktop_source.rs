@@ -19,6 +19,9 @@ use viewflow_protocol::{AtlasDesktopLayout, AtlasWindowPlacement, DesktopRect, I
 
 use crate::gpu_atlas_sender::AtlasCaptureLease;
 
+/// Backoff before rediscovery retries a candidate that failed to enroll.
+const CANDIDATE_RETRY: Duration = Duration::from_secs(2);
+
 /// A local-only candidate identity. `native_address` is parsed from the local
 /// configuration and feeds the source input allowlist only after enrollment.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -379,7 +382,7 @@ impl DesktopEnrollmentSupervisor {
             .as_ref()
             .is_some_and(tokio::task::JoinHandle::is_finished)
         {
-            self.probing = None;
+            let probed = self.probing.take();
             match self.probe.take().expect("checked probe").await {
                 Ok(Ok(Some(ProbedCandidate {
                     candidate,
@@ -403,9 +406,10 @@ impl DesktopEnrollmentSupervisor {
                     })();
                     let reserved = match reservation {
                         Ok(reserved) => reserved,
+                        // The unreserved producer is stopped just below.
                         Err(error) => {
-                            self.stop_later(stream);
-                            return Err(error);
+                            self.defer_candidate(candidate.window, &error);
+                            false
                         }
                     };
                     if !reserved {
@@ -414,25 +418,41 @@ impl DesktopEnrollmentSupervisor {
                         .enroll_at_frame_boundary(candidate.window, stream)
                         .await
                     {
+                        // Enrollment already stopped this producer through
+                        // checked cleanup; enrolled peers are untouched.
                         self.lane
                             .lock_or_recover()
                             .unreserve(candidate.window);
-                        return Err(error);
+                        self.defer_candidate(candidate.window, &error);
                     } else if let Some(input) = input {
                         input.enroll_local_window(candidate.window, candidate.native_address)?;
                     }
                 }
                 Ok(Ok(None)) => {}
-                // Recoverable candidate races return None only after checked
-                // cleanup. An error here must retire the enclosing session.
-                Ok(Err(error)) => return Err(error.context("desktop enrollment failed")),
-                Err(error) => return Err(error).context("desktop enrollment worker stopped"),
+                // A probe error means only this candidate's producer stop was
+                // unconfirmed. That producer was never part of the session,
+                // so retiring the session would not reclaim it either.
+                Ok(Err(error)) => {
+                    if let Some(window) = probed {
+                        self.defer_candidate(window, &error);
+                    }
+                }
+                Err(error) => {
+                    eprintln!("desktop enrollment worker stopped: {error}");
+                    if let Some(window) = probed {
+                        self.capacity_retry.insert(window, Instant::now() + CANDIDATE_RETRY);
+                    }
+                }
             }
         }
         self.start_discovery_if_due()?;
         while let Some(result) = self.cleanup.try_join_next() {
-            if let Err(error) = result.context("desktop discarded stream cleanup worker stopped")? {
-                return Err(error.context("desktop discarded stream cleanup failed"));
+            match result {
+                Ok(Ok(())) => {}
+                Ok(Err(error)) => {
+                    eprintln!("desktop discarded stream cleanup failed: {error:#}");
+                }
+                Err(error) => eprintln!("desktop discarded stream cleanup worker stopped: {error}"),
             }
         }
         if self.probe.is_none() {
@@ -470,6 +490,13 @@ impl DesktopEnrollmentSupervisor {
             }
         }
         Ok(())
+    }
+
+    /// One candidate's enrollment failure skips that window for a while; the
+    /// session and its enrolled windows keep streaming.
+    fn defer_candidate(&mut self, window: WindowId, error: &anyhow::Error) {
+        eprintln!("desktop candidate enrollment deferred: window={window:?} reason={error:#}");
+        self.capacity_retry.insert(window, Instant::now() + CANDIDATE_RETRY);
     }
 
     fn return_capacity_rejected(&mut self, candidate: DesktopCandidate) {
