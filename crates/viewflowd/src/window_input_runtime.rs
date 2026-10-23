@@ -2224,13 +2224,25 @@ impl<'a> RoutedWindowInput<'a> {
             .clocks
             .borrow()
             .map(|snapshot| (snapshot.estimate, snapshot.measured_at_local_ns));
-        sender
-            .try_send(AtlasSelectionRequest {
-                selection,
-                clock,
-                received_local_ns: elapsed_ns(self.session.origin)?,
-            })
-            .map_err(|_| anyhow!("atlas selection owner unavailable or queue full"))
+        match sender.try_send(AtlasSelectionRequest {
+            selection,
+            clock,
+            received_local_ns: elapsed_ns(self.session.origin)?,
+        }) {
+            Ok(()) => Ok(()),
+            // Transient congestion drops this one request; the peer's own
+            // selection watchdog covers the missing answer for that route.
+            Err(tokio::sync::mpsc::error::TrySendError::Full(request)) => {
+                eprintln!(
+                    "atlas selection queue full; dropped selection sequence={}",
+                    request.selection.sequence
+                );
+                Ok(())
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
+                Err(anyhow!("atlas selection owner unavailable"))
+            }
+        }
     }
 
     /// Called only by the shared writer owner after native maintenance. This

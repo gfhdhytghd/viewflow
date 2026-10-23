@@ -1,7 +1,6 @@
 //! Explicit source-local direct keyboard policy on the shared native FIFO.
 use super::{
-    AuthorizedWindow, ClockSnapshot, State, WindowInputSession, conservative_input_deadline,
-    elapsed_ns, native_deadline,
+    AuthorizedWindow, State, WindowInputSession, elapsed_ns, native_deadline,
 };
 use anyhow::{Context, Result, anyhow};
 use std::{sync::atomic::Ordering, time::Instant};
@@ -105,37 +104,28 @@ impl WindowInputSession {
     /// A rejected key-up suspends a re-authorizable route so native END releases
     /// the key; a rejected key-down fails only that event. Routes without a
     /// re-authorization source retire for native cleanup.
+    /// The clock estimate is accepted for callers but no longer gates keys.
     pub fn key(
         &mut self,
         event: WindowKeyboardEvent,
-        estimate: Option<(ClockEstimate, u64)>,
+        _estimate: Option<(ClockEstimate, u64)>,
     ) -> Result<()> {
-        let result = self.send_key(event, estimate);
+        let result = self.send_key(event);
         if result.is_err() {
             self.after_rejected_ordered(event.key.state == InputSwitchState::Released);
         }
         result
     }
 
-    fn send_key(
-        &mut self,
-        event: WindowKeyboardEvent,
-        estimate: Option<(ClockEstimate, u64)>,
-    ) -> Result<()> {
+    fn send_key(&mut self, event: WindowKeyboardEvent) -> Result<()> {
         anyhow::ensure!(
             self.state == State::Ready,
             "native window command pending or ended"
         );
         let now = elapsed_ns(self.origin)?;
-        let deadline = conservative_input_deadline(
-            event.sender_not_after_ns,
-            estimate.map(|(estimate, measured_at_local_ns)| ClockSnapshot {
-                estimate,
-                measured_at_local_ns,
-            }),
-            now,
-        )
-        .ok();
+        // Keys do not depend on capture freshness or a fresh clock sample; like
+        // buttons, a late key is delivered in order under the operation watchdog.
+        let deadline = Some(now.saturating_add(crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS));
         let deadline = self
             .keyboard_grant
             .as_mut()
@@ -517,6 +507,35 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn late_key_without_clock_sample_is_still_delivered_in_order() {
+        let (_directory, peer, mut session) = fixture(true);
+        let now = elapsed_ns(session.origin).unwrap();
+        let auth = session.grant.authorization(now).unwrap();
+        session
+            .key(
+                WindowKeyboardEvent {
+                    lease_generation: auth.lease_generation,
+                    target_device: Id128(2),
+                    target_window: Id128(3),
+                    geometry_epoch: 4,
+                    presented_frame: auth.presented_frame,
+                    sequence: 1,
+                    // Already past its capture-time target, and no clock sample.
+                    sender_not_after_ns: 1,
+                    key: KeyboardHidUsage {
+                        usage_page: 7,
+                        usage_id: 4,
+                        state: InputSwitchState::Pressed,
+                        repeat: false,
+                    },
+                },
+                None,
+            )
+            .unwrap();
+        assert_eq!(receive(&peer), (60, 2, 7));
+    }
+
+    #[test]
     fn keyboard_native_fifo_renewal_preserves_held_usage_and_confirmation() {
         let (_directory, peer, mut session) = fixture(true);
         send(&mut session, 1, false).unwrap();
@@ -596,7 +615,10 @@ pub(super) mod tests {
             send(&mut session, 1, false).unwrap();
             assert_eq!(receive(&peer), (60, 2, 7));
             if !wrong_ack {
-                session.origin -= std::time::Duration::from_millis(40);
+                // Past the operation watchdog, not merely the 33 ms target.
+                session.origin -= std::time::Duration::from_nanos(
+                    crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS,
+                ) + std::time::Duration::from_millis(40);
             }
             reply(&peer, 2, 7, if wrong_ack { 2 } else { 6 });
             assert!(session.poll().is_err());
