@@ -31,12 +31,25 @@ async fn native_supports_activity(config: &ReverseBridgeConfig) -> bool {
         Ok(Ok(output)) if output.status.success() && output.stdout == b"activity-priority-v1\n")
 }
 
+async fn native_quality_capability(config: &ReverseBridgeConfig) -> Option<crate::native_quality::Capability> {
+    let mut command=Command::new(&config.native);
+    command.arg("--quality-capabilities").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    match tokio::time::timeout(Duration::from_secs(2),command.output()).await {
+        Ok(Ok(output)) if output.status.success()=>crate::native_quality::Capability::parse(&output.stdout),
+        _=>None,
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReverseBridgeConfig {
     /// Local launch policy, never a nested JSON configuration key.
     #[serde(skip)]
     pub transparency: Option<bool>,
+    #[serde(skip)]
+    pub quality_mode: Option<crate::native_quality::QualityMode>,
     pub native: PathBuf,
     #[serde(default)]
     pub args: Vec<String>,
@@ -222,6 +235,8 @@ async fn run(
     stopped: &mut watch::Receiver<bool>,
     drag: Option<&SharedNativeDrag>,
 ) -> Result<()> {
+    let quality_capability = if windows_source { native_quality_capability(config).await } else { None };
+    let quality_mode=config.quality_mode.unwrap_or_else(crate::native_quality::QualityMode::from_env);
     let activity_capable = peer_supports_activity(connection) && native_supports_activity(config).await;
     let negotiate = async {
         let (mut send, mut receive) = if windows_source {
@@ -278,7 +293,13 @@ async fn run(
     let mut child = command
         .spawn()
         .context("start native reverse window backend")?;
-    let mut input = child.stdin.take().context("reverse child stdin")?;
+    let native_input = child.stdin.take().context("reverse child stdin")?;
+    // Only source-side input/feedback needs interception. Presenter media and
+    // old binaries keep their direct pipe, with no additional frame lock/copy.
+    let (mut input, mut quality_pipe): (Box<dyn AsyncWrite + Send + Unpin>, _) = if quality_capability.is_some() {
+        let (input, reader)=tokio::io::duplex(64*1024);
+        (Box::new(input), Some((reader,native_input)))
+    } else { (Box::new(native_input),None) };
     let mut output = child.stdout.take().context("reverse child stdout")?;
     eprintln!(
         "reverse-window-bridge ready native_role={} paired_connection=true",
@@ -312,8 +333,14 @@ async fn run(
             }
         }
     };
+    let quality = async {
+        if let Some((reader,writer))=quality_pipe.as_mut() {
+            crate::native_quality::drive(reader,writer,connection,quality_capability,quality_mode).await
+        } else { std::future::pending::<Result<()>>().await }
+    };
     let result = tokio::select! {
         result = session => result,
+        result = quality => result,
         _ = stopped.changed() => Ok(()),
     };
     if let Some((mut send, mut receive)) = priority_stream {
@@ -324,6 +351,8 @@ async fn run(
     // the other direction or its independently owned windows.
     let _ = input.shutdown().await;
     drop(input);
+    if let Some((_,writer))=quality_pipe.as_mut() { let _ = writer.shutdown().await; }
+    drop(quality_pipe);
     let _ = send.finish();
     let _ = receive.stop(0_u32.into());
     match tokio::time::timeout(Duration::from_secs(2), child.wait()).await {

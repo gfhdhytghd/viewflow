@@ -1,5 +1,6 @@
 #include "diagnostics.hpp"
 #include "mft_encoder.hpp"
+#include "../reverse-common/quality_control.hpp"
 #include <mfapi.h>
 #include <mferror.h>
 #include <mfidl.h>
@@ -125,6 +126,12 @@ HRESULT MediaFoundationEncoder::start(ID3D11Device* device, unsigned width, unsi
     VF_HR(MFSetAttributeRatio(input.Get(), MF_MT_FRAME_RATE, fps, 1));
     VF_HR(MFSetAttributeRatio(input.Get(), MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
     VF_HR(s.encoder->SetInputType(s.input_id, input.Get(), 0));
+    if(s.codec){
+        VARIANT rate;VariantInit(&rate);rate.vt=VT_UI4;rate.ulVal=eAVEncCommonRateControlMode_CBR;
+        const auto hr=s.codec->SetValue(&CODECAPI_AVEncCommonRateControlMode,&rate);
+        std::fprintf(stderr,"encoder_set name=rate_control hr=%08lx\n",static_cast<unsigned long>(hr));
+        set_bitrate(24000);
+    }
     if (s.codec) {
         VARIANT value; VariantInit(&value); value.vt = VT_BOOL; value.boolVal = VARIANT_TRUE;
         {const auto hr=s.codec->SetValue(&CODECAPI_AVLowLatencyMode, &value);std::fprintf(stderr,"encoder_set name=low_latency hr=%08lx\n",static_cast<unsigned long>(hr));report_property(s.codec.Get(),"low_latency",CODECAPI_AVLowLatencyMode);}
@@ -138,6 +145,14 @@ HRESULT MediaFoundationEncoder::start(ID3D11Device* device, unsigned width, unsi
     VF_HR(s.encoder->ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0));
     s.width = width; s.height = height; s.fps = fps;
     return S_OK;
+}
+HRESULT MediaFoundationEncoder::set_bitrate(unsigned kbps) {
+    auto& s=*impl_;if(!s.codec)return E_NOINTERFACE;
+    VARIANT rate;VariantInit(&rate);rate.vt=VT_UI4;rate.ulVal=quality::bitrate_bps(kbps,24000);
+    const auto maximum=s.codec->SetValue(&CODECAPI_AVEncCommonMaxBitRate,&rate);
+    const auto mean=s.codec->SetValue(&CODECAPI_AVEncCommonMeanBitRate,&rate);
+    std::fprintf(stderr,"native-quality encoder=mft kbps=%u mean=%08lx max=%08lx\n",rate.ulVal/1000,static_cast<unsigned long>(mean),static_cast<unsigned long>(maximum));
+    return mean;
 }
 HRESULT MediaFoundationEncoder::can_submit() {
     auto& s=*impl_;if(!s.encoder)return E_UNEXPECTED;

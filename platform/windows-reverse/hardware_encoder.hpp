@@ -20,6 +20,7 @@ public:
     HardwareEncoder();
     ~HardwareEncoder();
     HRESULT start(ID3D11Device*, unsigned width, unsigned height, unsigned fps = 60, unsigned codec = 1);
+    HRESULT set_bitrate(unsigned kbps);
     HRESULT can_submit();
     HRESULT submit(ID3D11Texture2D* bgra, std::int64_t timestamp, bool keyframe);
     HRESULT poll(std::vector<EncodedFrame>&);

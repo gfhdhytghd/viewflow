@@ -33,7 +33,11 @@ if role == 'source':
             record(struct.pack('<IIQQQIQQ', 4, lane, 1, 2, 2, 2, 1, 2) + frame[4:])
     else: record(frame)
     event = read()
-    while event is not None and struct.unpack_from('<I',event)[0] == 5: event = read()
+    while event is not None and struct.unpack_from('<I',event)[0] in (5,7):
+        if struct.unpack_from('<I',event)[0] == 7:
+            assert struct.unpack('<IIIII',event) == (7,1,6000,60,1000)
+            (root / 'quality-seen').write_text('v1')
+        event = read()
     assert struct.unpack_from('<I', event)[0] == 2
     assert struct.unpack_from('<Q', event, 12)[0] == 1
     with (root / 'roundtrips').open('a') as log: log.write('ordered\n')
@@ -56,6 +60,7 @@ with (root / (role + '-cleaned')).open('a') as log: log.write('eof\n')
 fn config(root: &Path, source: bool, restart: bool) -> ReverseBridgeConfig {
     ReverseBridgeConfig {
         transparency: source.then_some(false),
+        quality_mode: None,
         native: Path::new("/usr/bin/python3").into(),
         activity_priority: Default::default(),
         args: vec![
@@ -68,10 +73,10 @@ fn config(root: &Path, source: bool, restart: bool) -> ReverseBridgeConfig {
 }
 
 async fn trial(server_is_source: bool, restart: bool) {
-    trial_mode(server_is_source,restart,false,false).await;
+    trial_mode(server_is_source,restart,false,false,false).await;
 }
 
-async fn trial_mode(server_is_source: bool, restart: bool, capable: bool, off: bool) {
+async fn trial_mode(server_is_source: bool, restart: bool, capable: bool, off: bool, quality: bool) {
     let root = tempfile::tempdir().unwrap();
     std::fs::write(root.path().join("native.py"), NATIVE_FIXTURE).unwrap();
     let identity = PeerIdentity::from_pem(
@@ -95,16 +100,18 @@ async fn trial_mode(server_is_source: bool, restart: bool, capable: bool, off: b
     let received = received.unwrap();
     let mut source_config = config(root.path(), true, restart);
     let mut presenter_config = config(root.path(), false, restart);
-    if capable {
+    if capable || quality {
         use std::os::unix::fs::PermissionsExt;
         let path = root.path().join("capable-native.py");
         let fixture = format!("#!/usr/bin/python3\nimport sys\nif sys.argv[1:] == ['--activity-priority-capabilities']:\n    print('activity-priority-v1'); sys.exit(0)\n{}", NATIVE_FIXTURE);
+        let fixture = if quality { fixture.replace("import sys\n", "import sys\nif sys.argv[1:] == ['--quality-capabilities']:\n    print('native-quality-v1 max_kbps=24000 max_fps=60'); sys.exit(0)\n") } else { fixture };
         std::fs::write(&path, fixture).unwrap();
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
         for config in [&mut source_config, &mut presenter_config] {
             config.native = path.clone(); config.args.remove(0);
         }
     }
+    if quality { source_config.quality_mode=Some(viewflowd::native_quality::QualityMode::SaveBandwidth); }
     if off { presenter_config.activity_priority = viewflowd::activity_priority::ActivityPriorityMode::Off; }
     let (source, presenter) = if server_is_source {
         (received.clone(), sent.clone())
@@ -143,6 +150,7 @@ async fn trial_mode(server_is_source: bool, restart: bool, capable: bool, off: b
             "{role} missed EOF cleanup"
         );
     }
+    if quality { assert!(root.path().join("quality-seen").exists()); }
     server.close(0u32.into(), b"done");
     client.close(0u32.into(), b"done");
 }
@@ -238,10 +246,16 @@ async fn listener_presents_two_sources_without_waiting_for_first_to_close() {
 
 #[tokio::test]
 async fn negotiated_two_lanes_keep_ordered_input_and_restart() {
-    trial_mode(false, true, true, false).await;
-    trial_mode(true, false, true, false).await;
+    trial_mode(false, true, true, false,false).await;
+    trial_mode(true, false, true, false,false).await;
 }
 #[tokio::test]
 async fn activity_off_retains_legacy_native_records() {
-    trial_mode(false, false, true, true).await;
+    trial_mode(false, false, true, true,false).await;
+}
+
+#[tokio::test]
+async fn quality_capability_updates_and_cleans_up_with_and_without_activity() {
+    trial_mode(false,true,true,false,true).await;
+    trial_mode(true,false,true,true,true).await;
 }

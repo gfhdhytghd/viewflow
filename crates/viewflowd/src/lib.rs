@@ -44,6 +44,7 @@ mod activity_atlas_scheduler;
 pub mod activity_frame;
 mod activity_media;
 mod activity_relay;
+pub mod native_quality;
 pub mod alpha_reference;
 pub mod atlas_clock;
 #[cfg(target_os = "linux")]

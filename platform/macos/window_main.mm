@@ -105,6 +105,7 @@ static int trace_secondary_events() {
 }
 
 int main(int argc, const char* argv[]) {
+    if(argc==2 && std::string_view(argv[1])=="--quality-capabilities") { std::puts("native-quality-v1 max_kbps=80000 max_fps=60"); return 0; }
     if(argc==2 && std::string_view(argv[1])=="--activity-priority-capabilities") { std::puts("activity-priority-v1"); return 0; }
     @autoreleasepool {
         std::signal(SIGPIPE, SIG_IGN);

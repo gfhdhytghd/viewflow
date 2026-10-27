@@ -21,6 +21,7 @@
 #include "../reverse-common/wire.hpp"
 #include "../reverse-common/activity_input.hpp"
 #include "../reverse-common/activity_feedback.hpp"
+#include "../reverse-common/quality_control.hpp"
 #include "../reverse-common/activity_hint.hpp"
 #include "../reverse-common/window_residency.hpp"
 #include "../windows-window-capture/wgc_window_capture.hpp"
@@ -173,6 +174,7 @@ struct App {
     std::mutex activity_mutex;
     viewflow::activity::Priority<std::uint64_t> activity;
     viewflow::activity::Feedback lane_feedback[2][3];
+    viewflow::quality::State quality;
     viewflow::activity::Feedback feedback(unsigned lane) {
         std::lock_guard lock(activity_mutex);viewflow::activity::Feedback result;result.lane=lane;
         for(auto& stage:lane_feedback[lane]){
@@ -367,8 +369,10 @@ struct App {
         try {
             while(running) {
                 std::uint8_t prefix[4];if(fread(prefix,1,4,stdin)!=4)break;
-                vf::Reader length{{prefix,4}};auto size=length.u32();if(size!=40 && !(size==24 && viewflow::activity::negotiated()))throw std::runtime_error("reverse input record size");
+                vf::Reader length{{prefix,4}};auto size=length.u32();if(size!=20 && size!=40 && !(size==24 && viewflow::activity::negotiated()))throw std::runtime_error("reverse input record size");
                 std::vector<std::uint8_t> bytes(size);if(fread(bytes.data(),1,size,stdin)!=size)break;
+                if(size==20){try{quality.accept(viewflow::quality::unpack(bytes));}
+                    catch(const std::exception& error){std::fprintf(stderr,"native-quality ignored=%s\n",error.what());}continue;}
                 if(size==24){
                     if(vf::Reader{bytes}.u32()==6){std::lock_guard lock(activity_mutex);
                         viewflow::activity::observe(activity,viewflow::activity::unpack_hint(bytes),viewflow::activity::now_us());continue;}
@@ -729,6 +733,7 @@ std::string title(HWND window) {
 }
 }
 int main(int argc,char** argv) {
+    if(argc==2 && std::string_view(argv[1])=="--quality-capabilities") { _setmode(_fileno(stdout), _O_BINARY); std::puts("native-quality-v1 max_kbps=24000 max_fps=60"); return 0; }
     if(argc==2 && std::string_view(argv[1])=="--activity-priority-capabilities") { _setmode(_fileno(stdout), _O_BINARY); std::puts("activity-priority-v1"); return 0; }
     try {
         std::vector<std::string_view> arguments;
@@ -800,6 +805,7 @@ int main(int argc,char** argv) {
             vf::AtlasCapacity capacity;
             unsigned width{},height{};std::map<std::int64_t,vf::Frame> pending;
             viewflow::activity::Congestion congestion;
+            unsigned applied_kbps{};
         };
         Lane lanes[2];
         vf::shm::ReadbackWait readback_wait;
@@ -900,7 +906,7 @@ int main(int argc,char** argv) {
                     const auto background_fps=activity_enabled?lane.congestion.background_fps(60):60u;
                     const bool weighted_single=activity_enabled && !dual && preferred_window;
                     const bool background_due=!weighted_single || single_budget.background_due(viewflow::activity::now_us(),background_fps);
-                    const auto target_fps=activity_enabled && !lane_index && !weighted_single?background_fps:60u;
+                    const auto target_fps=std::min(activity_enabled && !lane_index && !weighted_single?background_fps:60u,app.quality.fps.load());
                     if(vf_diag::metrics() && lane.reported_fps!=target_fps){lane.reported_fps=target_fps;vf_diag::trace("profile_budget lane=%u at=%lld target_fps=%u congestion=%u activity=%u preferred=%llu\n",lane_index,qpc100ns(),target_fps,lane.congestion.level(),unsigned(activity_enabled),(unsigned long long)preferred_window);}
                     const auto publish=[&](std::uint64_t id,std::uint64_t owner){
                         (void)owner;return !weighted_single || background_due || schedule.belongs(id,preferred_window);
@@ -970,7 +976,14 @@ int main(int argc,char** argv) {
                     std::string_view(std::getenv("VIEWFLOW_SHM_CAPTURE_PACED"))=="1";
                 if(!capture_paced && Clock::now()<next_frame && urgent==submitted_urgent){++lane.skips[0];continue;}
                 if((lane.readback && !lane.readback->available()) || (lane.d12 && !lane.d12->available())){++lane.skips[1];continue;}
-                if(encoder){const auto ready=encoder->can_submit();check(ready);if(ready==S_FALSE){continue;}}
+                if(encoder){
+                    const auto requested_kbps=app.quality.kbps.load();
+                    if(requested_kbps && lane.applied_kbps!=requested_kbps){
+                        const auto status=encoder->set_bitrate(requested_kbps);
+                        if(status==S_FALSE)continue; // Poll existing work above, then retry before fresh input.
+                        lane.applied_kbps=requested_kbps; // Unsupported changes retain the working encoder.
+                    }
+                    const auto ready=encoder->can_submit();check(ready);if(ready==S_FALSE){continue;}}
                 if(lane_index && (!schedule.preferred || !lanes[0].atlas))continue;
                 std::vector<std::shared_ptr<Source>> sources;
                 {std::lock_guard lock(app.source_mutex);for(auto& [_,source]:app.sources)sources.push_back(source);}
@@ -1107,7 +1120,8 @@ int main(int argc,char** argv) {
                     }
                     if(use_shared){lane.readback=std::make_unique<vf::shm::Readback>(*shared_frames);lane.readback->latest_ready=std::getenv("VIEWFLOW_SHM_LATEST_READY") && std::string_view(std::getenv("VIEWFLOW_SHM_LATEST_READY"))=="1";lane.readback->measure=vf_diag::metrics();lane.readback->measure_gpu=vf_diag::metrics() && std::getenv("VIEWFLOW_SHM_GPU_TIMING");lane.readback->single_pending=std::getenv("VIEWFLOW_SHM_SINGLE_READBACK") && std::string_view(std::getenv("VIEWFLOW_SHM_SINGLE_READBACK"))=="1";}
                     else {
-                        encoder=std::make_unique<vf::HardwareEncoder>();check(encoder->start(app.device.Get(),width,height,60,2));
+                        encoder=std::make_unique<vf::HardwareEncoder>();check(encoder->start(app.device.Get(),width,height,60,2));lane.applied_kbps=0;
+                        if(const auto kbps=app.quality.kbps.load();kbps){const auto status=encoder->set_bitrate(kbps);if(status!=S_FALSE)lane.applied_kbps=kbps;}
                         alpha=std::make_unique<vf::AlphaPlane>();check(alpha->start(app.device.Get(),width,height));
                     }
                     atlas_view.Reset();atlas_target.Reset();atlas.Reset();

@@ -19,6 +19,7 @@ public:
     Ticket submit(CVPixelBufferRef color, reverse::Frame metadata);
     static reverse::Frame finish(Ticket ticket);
     void flush();
+    void set_bitrate(unsigned kbps);
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;

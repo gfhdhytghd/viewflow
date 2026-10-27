@@ -28,6 +28,7 @@ HRESULT HardwareEncoder::start(ID3D11Device* d,unsigned w,unsigned h,unsigned fp
  std::fprintf(stderr,"encoder_backend selected=mft vendor=%u forced=%u\n",desc.VendorId,unsigned(force_mft));
  impl_->mft=std::make_unique<MediaFoundationEncoder>();return impl_->mft->start(d,w,h,fps,codec);
 }
+HRESULT HardwareEncoder::set_bitrate(unsigned kbps){return impl_->vpl?impl_->vpl->set_bitrate(kbps):impl_->mft?impl_->mft->set_bitrate(kbps):E_UNEXPECTED;}
 HRESULT HardwareEncoder::can_submit(){return impl_->vpl?impl_->vpl->can_submit():impl_->mft?impl_->mft->can_submit():E_UNEXPECTED;}
 HRESULT HardwareEncoder::submit(ID3D11Texture2D* t,std::int64_t pts,bool key){return impl_->vpl?impl_->vpl->submit(t,pts,key):impl_->mft?impl_->mft->submit(t,pts,key):E_UNEXPECTED;}
 HRESULT HardwareEncoder::request_output(){return impl_->vpl?impl_->vpl->request_output():impl_->mft?S_OK:E_UNEXPECTED;}

@@ -1,6 +1,7 @@
 #include "../reverse-common/opaque_alpha.hpp"
 #include "../reverse-common/activity_input.hpp"
 #include "../reverse-common/activity_feedback.hpp"
+#include "../reverse-common/quality_control.hpp"
 #include "../reverse-common/activity_hint.hpp"
 #include "window_native.hpp"
 #include "window_codec.hpp"
@@ -259,6 +260,7 @@ struct Source {
     viewflow::activity::SingleLaneBudget single_budget;
     std::vector<std::uint64_t> activity_members;
     std::uint64_t activity_epoch=1,activity_preferred{},activity_focus{};
+    viewflow::quality::State quality;
     unsigned host_background_fps{};double host_sample_at{};
     void poll_host_budget(){
         if(!activity_enabled || options.activity_coordinator.empty())return;
@@ -1034,6 +1036,7 @@ struct Source {
         const bool weighted_single=activity_enabled && !dual && preferred_window;
         const bool background_due=!weighted_single || single_budget.background_due(viewflow::activity::now_us(),target_fps);
         if(weighted_single)target_fps=options.fps;
+        target_fps=std::min(target_fps,quality.fps.load());
         const auto publish=[&](std::uint64_t id,std::uint64_t owner){
             (void)owner;return !weighted_single || background_due || activity.belongs(id,preferred_window);
         };
@@ -1173,6 +1176,7 @@ struct Source {
                     const auto split = NSProcessInfo.processInfo.systemUptime;
                     job->alpha = alpha_cache.encode(transparency ? planes.alpha : lane.opaque_mask.get(*job,[&](const auto& tile){return versions.contains(tile.id);}), job->width, job->height);
                     const auto alpha = NSProcessInfo.processInfo.systemUptime;
+                    encoder.set_bitrate(quality.kbps.load());
                     auto ticket = encoder.submit(planes.color, std::move(*job));
                     auto complete = [this, job, versions, ticket, start, split, alpha] {
                         @autoreleasepool {
@@ -1372,6 +1376,8 @@ int run_source(const Options& options) {
     std::atomic<bool> input_ended{false};
     Input input([&](std::vector<uint8_t> bytes) {
         vf::Reader tag{bytes};const auto record_type=tag.u32();
+        if(record_type==7){try{source.quality.accept(viewflow::quality::unpack(bytes));}
+            catch(const std::exception& error){std::fprintf(stderr,"native-quality ignored=%s\n",error.what());}return;}
         if(record_type==6 && source.activity_enabled){
             const auto hint=viewflow::activity::unpack_hint(bytes);
             dispatch_sync(dispatch_get_main_queue(), ^{if(!source.quitting)viewflow::activity::observe(source.activity,hint,viewflow::activity::now_us());});return;

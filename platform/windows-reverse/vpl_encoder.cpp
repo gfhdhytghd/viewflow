@@ -1,4 +1,5 @@
 #include "vpl_encoder.hpp"
+#include "../reverse-common/quality_control.hpp"
 #include "diagnostics.hpp"
 #include <d3d11_4.h>
 #include <wrl/client.h>
@@ -15,7 +16,7 @@
 #include "vpl_allocator.hpp"
 namespace viewflow::reverse {
 using Microsoft::WRL::ComPtr;
-#define VF_VPL_FUNCTIONS(F) F(MFXLoad) F(MFXUnload) F(MFXCreateConfig) F(MFXSetConfigFilterProperty) F(MFXCreateSession) F(MFXClose) F(MFXQueryVersion) F(MFXVideoCORE_SetHandle) F(MFXVideoCORE_SetFrameAllocator) F(MFXVideoENCODE_QueryIOSurf) F(MFXVideoENCODE_Query) F(MFXVideoENCODE_Init) F(MFXVideoENCODE_GetVideoParam) F(MFXVideoENCODE_Close) F(MFXVideoENCODE_EncodeFrameAsync) F(MFXVideoCORE_SyncOperation)
+#define VF_VPL_FUNCTIONS(F) F(MFXLoad) F(MFXUnload) F(MFXCreateConfig) F(MFXSetConfigFilterProperty) F(MFXCreateSession) F(MFXClose) F(MFXQueryVersion) F(MFXVideoCORE_SetHandle) F(MFXVideoCORE_SetFrameAllocator) F(MFXVideoENCODE_QueryIOSurf) F(MFXVideoENCODE_Query) F(MFXVideoENCODE_Init) F(MFXVideoENCODE_Reset) F(MFXVideoENCODE_GetVideoParam) F(MFXVideoENCODE_Close) F(MFXVideoENCODE_EncodeFrameAsync) F(MFXVideoCORE_SyncOperation)
 #define VF_HR(expr) do { const HRESULT r=(expr);if(FAILED(r)){std::fprintf(stderr,"vpl error=%s hr=%08lx\n",#expr,(unsigned long)r);return r;}}while(0)
 #define VF_MFX(expr) do { const mfxStatus r=(expr);if(r<0){std::fprintf(stderr,"vpl error=%s status=%d\n",#expr,r);return E_FAIL;}}while(0)
 static long long clock100ns(){LARGE_INTEGER t{},f{};QueryPerformanceCounter(&t);QueryPerformanceFrequency(&f);return t.QuadPart/f.QuadPart*10000000+(t.QuadPart%f.QuadPart)*10000000/f.QuadPart;}
@@ -104,6 +105,21 @@ HRESULT VplEncoder::start_impl(ID3D11Device* device,unsigned width,unsigned heig
  s.width=width;s.height=height;s.fps=fps;return S_OK;
 }
 
+HRESULT VplEncoder::set_bitrate(unsigned kbps){
+ auto& s=*impl_;if(!s.started)return E_UNEXPECTED;
+ // Drain accepted work before Reset; never discard an in-flight frame.
+ if(!s.pending.empty() || !s.timestamps.empty() || s.draining){request_output();return S_FALSE;}
+ mfxExtHEVCTiles tiles{};tiles.Header={MFX_EXTBUFF_HEVC_TILES,sizeof(tiles)};
+ mfxExtBuffer* query_ext[]={&tiles.Header};mfxVideoParam p{};p.ExtParam=query_ext;p.NumExtParam=1;
+ if(s.pMFXVideoENCODE_GetVideoParam(s.session,&p)<0)return E_FAIL;
+ p.mfx.TargetKbps=p.mfx.MaxKbps=static_cast<mfxU16>(quality::bitrate_bps(kbps,24000)/1000);
+ mfxExtEncoderResetOption reset{};reset.Header={MFX_EXTBUFF_ENCODER_RESET_OPTION,sizeof(reset)};
+ reset.StartNewSequence=MFX_CODINGOPTION_OFF;
+ mfxExtBuffer* ext[]={&tiles.Header,&reset.Header};p.ExtParam=ext;p.NumExtParam=2;
+ const auto result=s.pMFXVideoENCODE_Reset(s.session,&p);
+ std::fprintf(stderr,"native-quality encoder=vpl kbps=%u status=%d\n",p.mfx.TargetKbps,result);
+ return result<0?E_FAIL:S_OK;
+}
 HRESULT VplEncoder::can_submit(){auto& s=*impl_;if(!s.started)return E_UNEXPECTED;return !s.draining && s.pending.size()<s.depth && s.free_input()?S_OK:S_FALSE;}
 HRESULT VplEncoder::submit(ID3D11Texture2D* bgra,std::int64_t pts,bool key){
  auto& s=*impl_;if(!s.started||!bgra||pts<0)return E_INVALIDARG;if(s.draining||s.pending.size()>=s.depth)return S_FALSE;auto* selected=s.free_input();if(!selected)return S_FALSE;auto& input_surface=*selected;

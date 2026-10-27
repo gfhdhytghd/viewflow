@@ -1,4 +1,5 @@
 #include "window_codec.hpp"
+#include "../reverse-common/quality_control.hpp"
 #include "../reverse-common/annex_b.hpp"
 #import <Foundation/Foundation.h>
 #import <CoreImage/CoreImage.h>
@@ -62,6 +63,22 @@ struct Encoder::Impl {
     VTCompressionSessionRef session{};
     unsigned width{}, height{}, codec{}, fps{60};
     bool latency{}, pipeline{};
+    unsigned target_kbps{}, applied_bps{};
+    void apply_bitrate() {
+        if(!session || !target_kbps)return;
+        const int bitrate=static_cast<int>(quality::bitrate_bps(target_kbps,quality::mac_ceiling_kbps(width,height,fps)));
+        if(applied_bps==static_cast<unsigned>(bitrate))return;
+        CF<CFNumberRef> number{CFNumberCreate(nullptr,kCFNumberIntType,&bitrate)};
+        const auto average=VTSessionSetProperty(session,kVTCompressionPropertyKey_AverageBitRate,number);
+        const double bytes=bitrate/8.0,seconds=1.0;
+        CF<CFNumberRef> byte_number{CFNumberCreate(nullptr,kCFNumberDoubleType,&bytes)};
+        CF<CFNumberRef> second_number{CFNumberCreate(nullptr,kCFNumberDoubleType,&seconds)};
+        const void* values[]={byte_number,second_number};
+        CF<CFArrayRef> limits{CFArrayCreate(nullptr,values,2,&kCFTypeArrayCallBacks)};
+        const auto maximum=VTSessionSetProperty(session,kVTCompressionPropertyKey_DataRateLimits,limits);
+        std::fprintf(stderr,"native-quality encoder=videotoolbox kbps=%d average=%d limits=%d\n",bitrate/1000,int(average),int(maximum));
+        applied_bps=static_cast<unsigned>(bitrate);
+    }
     std::vector<Ticket> pending;
     void reset() {
         if (session) {
@@ -72,7 +89,7 @@ struct Encoder::Impl {
             std::lock_guard lock(ticket->mutex);
             if (!ticket->done) { ticket->status = kVTInvalidSessionErr; ticket->done = true; ticket->changed.notify_all(); }
         }
-        pending.clear(); pipeline = false;
+        pending.clear(); pipeline = false;applied_bps=0;
     }
     ~Impl() { reset(); }
     void prepare(const reverse::Frame& frame) {
@@ -116,6 +133,7 @@ struct Encoder::Impl {
         const auto speed_status = VTSessionSetProperty(session, kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality, kCFBooleanTrue);
         std::fprintf(stderr, "macos-encoder mode=%s fps=%u bitrate=%d max-delay-status=%d speed-status=%d\n",
             latency ? "latency" : "frame-rate", fps, bitrate, int(delay_status), int(speed_status));
+        apply_bitrate();
         check(VTCompressionSessionPrepareToEncodeFrames(session), "prepare encoder");
     }
 };
@@ -123,6 +141,7 @@ Encoder::Encoder(unsigned fps, bool latency) : impl_(std::make_unique<Impl>()) {
     impl_->fps = fps; impl_->latency = latency;
 }
 Encoder::~Encoder() = default;
+void Encoder::set_bitrate(unsigned kbps) { impl_->target_kbps=kbps;impl_->apply_bitrate(); }
 reverse::Frame Encoder::encode(CVPixelBufferRef color, reverse::Frame frame) {
     auto ticket = submit(color, std::move(frame));
     flush();

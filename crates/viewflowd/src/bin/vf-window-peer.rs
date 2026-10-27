@@ -15,6 +15,8 @@ enum Role {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Config {
+    #[serde(default = "viewflowd::native_quality::QualityMode::from_env")]
+    quality_mode: viewflowd::native_quality::QualityMode,
     #[serde(default = "viewflowd::atlas_peer::default_transparency")]
     transparency: bool,
     bind: SocketAddr,
@@ -85,6 +87,7 @@ async fn main() -> Result<()> {
     };
     let mut config: Config = serde_json::from_slice(&std::fs::read(path)?)?;
     config.backend.transparency = Some(config.transparency);
+    config.backend.quality_mode = Some(config.quality_mode);
     config.validate()?;
     if validate {
         println!("window-peer-config-valid");
@@ -188,6 +191,15 @@ mod tests {
             assert!(client.validate().is_err());
             client.server_name = Some("paired-device".into());
             client.validate().unwrap();
+        }
+    }
+    #[test]
+    fn quality_mode_defaults_and_parses() {
+        use viewflowd::native_quality::QualityMode;
+        assert_eq!(config("source", "null").quality_mode, QualityMode::Auto);
+        for (name,expected) in [("auto",QualityMode::Auto),("high_quality",QualityMode::HighQuality),("save_bandwidth",QualityMode::SaveBandwidth)] {
+            let json=format!(r#"{{"bind":"127.0.0.1:0","role":"source","quality_mode":"{name}","certificate":"/tmp/cert","private_key":"/tmp/key","certificate_authority":"/tmp/ca","backend":{{"native":"/tmp/native"}}}}"#);
+            assert_eq!(serde_json::from_str::<Config>(&json).unwrap().quality_mode,expected);
         }
     }
     #[test]
