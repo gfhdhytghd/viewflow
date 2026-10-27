@@ -271,7 +271,8 @@ class ApplicationModel(QObject):
     @staticmethod
     def link_signature(profile, item):
         prefix = item.get('peerID', '') + '-'
-        return (item, {k: v for k, v in profile.get('configs', {}).items() if k.startswith(prefix)},
+        return (item, {k: v for k, v in profile.get('configs', {}).items()
+                       if '${profile}/' + k in item.get('args', [])},
                 {k: v for k, v in profile.get('files', {}).items() if k.startswith(prefix)})
 
     def paired_connection(self, event):
@@ -336,6 +337,13 @@ class ApplicationModel(QObject):
             if name == 'login': self.login = enabled; self.set_login()
             elif name == 'lockInput': self.lock_input = enabled; self.lock_changed()
             else: raise ValueError('未知设置')
+        except Exception as error: self.set_message(str(error))
+        self.publish()
+
+    @Slot(str, str, bool)
+    def setConnectionOption(self, identity, name, enabled):
+        if self.passive or self.quitting: return
+        try: self.pairing.set_connection_option(identity, name, enabled)
         except Exception as error: self.set_message(str(error))
         self.publish()
 

@@ -20,7 +20,7 @@ enum Component: String, Codable, CaseIterable, Identifiable {
         case .windowsReceive: return "接收其他电脑的窗口"
         case .windowsShare: return "共享这台 Mac 的窗口"
         case .clipboard: return "剪贴板同步"
-        case .hid: return "原生触控板 HID"
+        case .hid: return "触控板 HID 转发"
         }
     }
     var symbol: String {
@@ -78,6 +78,15 @@ struct ConnectionProfile: Codable, Equatable {
     var frameRate = 60
     var maxWindows = 8
     var performanceMode = "frame-rate"
+    // Optional keys keep older pairing files decodable with the default on.
+    var transparency: Bool?
+    var hidForwarding: Bool?
+    var transparencyEnabled: Bool { transparency ?? true }
+    var hidForwardingEnabled: Bool { hidForwarding ?? true }
+
+    static func presentationEnvironment(transparency: Bool) -> [String: String] {
+        ["VIEWFLOW_TRANSPARENCY": transparency ? "1" : "0"]
+    }
 
     struct Endpoint: Codable, Equatable {
         var address: String

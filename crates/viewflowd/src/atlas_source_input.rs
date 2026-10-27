@@ -213,7 +213,7 @@ impl AtlasSourceInput {
                 position_offset: (0.0, 0.0),
                 position_scale: (1.0, 1.0),
                 ready_file: None,
-                raw_touchpad: true,
+                raw_touchpad: pointer.hid_forwarding,
                 external_touchpad: false,
                 local: crate::atlas_cursor_handoff::local_displays(
                     &desktop.hyprland_socket,

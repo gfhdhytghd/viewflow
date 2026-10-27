@@ -137,3 +137,19 @@ Windows 输入后端在程序目录的 `touchpad.log` 记录触点数量变化�
 通过；Hyprland 插件 10 项及 reverse 2 项测试通过。已观察到 Linux 本地
 事件继续放行、没有远端手势锁定残留；这不等同于本地动作或 Windows
 手势的用户验收结果，实际滚动和三／四指动作仍由用户确认。
+
+## 应用中的连接选项
+
+每条连接默认开启“透明窗口”和“触控板 HID 转发”，设置随配对记录保存。
+“透明窗口”控制窗口透明效果；关闭后仍保留窗口和普通输入。
+关闭“触控板 HID 转发”时，Linux 使用普通触控板输入：指针移动、点击、
+双指滚动（滚轮）继续转发，不再发送原始多指接触帧；原生多指手势不可用。
+任一端关闭 HID 后，配对状态更新会让 Linux 回到该普通输入路径。
+
+配置对应 `desktop-share.json` 的 `pointer.hid_forwarding`、顶层 `transparency`，
+以及窗口 peer 的 `transparency`。启动环境使用 `VIEWFLOW_TRANSPARENCY=0/1`；
+HID 关闭时 `VIEWFLOW_CURSOR_RAW_TOUCHPAD=0` 和
+`VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD=0`，开启时仅 Windows raw 或 macOS external
+对应的一项为 `1`。独立 Linux → Mac HID 发送器也读取路由的
+`pointer.hid_forwarding`，关闭时释放触点；查询暂时失败不会覆盖这个显式关闭设置。
+macOS 应用的“触控板 HID 转发”独立于“鼠标与键盘”服务。

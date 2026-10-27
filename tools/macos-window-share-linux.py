@@ -136,6 +136,7 @@ def main():
                         break
                     address, pid, stable = identity
                     config = {k: route[k] for k in ('server_name', 'certificate', 'private_key', 'certificate_authority')}
+                    config['transparency'] = os.environ.get('VIEWFLOW_TRANSPARENCY', '1') != '0'
                     config.update(bind='[::]:0' if args.remote.startswith('[') else '0.0.0.0:0', remote=args.remote, role='source', backend={
                         'native': str(args.source), 'args': ['--window', address, '--compositor-pid',
                         str(route['compositor_pid']), '--fps', '60', '--performance-mode',

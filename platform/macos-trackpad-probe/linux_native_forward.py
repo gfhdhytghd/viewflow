@@ -26,7 +26,8 @@ WIDTH, HEIGHT = 16000, 11490
 
 def captured_for_route(status, config, peer_pid, alive, destination):
     """Use compositor capture ownership, never keyboard focus or cursor XY."""
-    return (alive and peer_pid > 0 and config.get('remote', '').rsplit(':', 1)[0] == destination
+    return (alive and peer_pid > 0 and config.get('pointer', {}).get('hid_forwarding', True)
+            and config.get('remote', '').rsplit(':', 1)[0] == destination
             and status.get('connected') == 1 and status.get('phase') == 3
             and isinstance(status.get('remote'), list) and len(status['remote']) == 5
             and status['remote'][0] == config.get('pointer', {}).get('cursor_monitor_id'))
@@ -58,7 +59,8 @@ class ViewflowRoute:
             if identity != self.identity:
                 self.last_active = False
                 self.identity = identity
-            if not alive or config.get('remote', '').rsplit(':', 1)[0] != self.destination:
+            if (not config.get('pointer', {}).get('hid_forwarding', True)
+                    or not alive or config.get('remote', '').rsplit(':', 1)[0] != self.destination):
                 self.last_active = False
                 return False
         except (OSError, ValueError, KeyError, IndexError):

@@ -72,7 +72,7 @@ class GroupProfileTests(unittest.TestCase):
         profile = build_group_profile(host.connection_state())
         receivers = {c['id']: c for c in profile['components'] if c['id'].endswith('-windows-receive')}
         self.assertEqual(receivers[mac.device['id'] + '-windows-receive']['environment'],
-                         {'VIEWFLOW_REVERSE_MAC_SHADOW': '1'})
+                         {'VIEWFLOW_REVERSE_MAC_SHADOW': '1', 'VIEWFLOW_TRANSPARENCY': '1'})
         self.assertNotIn('VIEWFLOW_REVERSE_MAC_SHADOW',
                          receivers[win.device['id'] + '-windows-receive'].get('environment', {}))
 

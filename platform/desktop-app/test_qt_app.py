@@ -46,6 +46,31 @@ class QtAppTests(unittest.TestCase):
                 'components': [{'id': 'windows', 'title': '窗口共享', 'program': 'fixture', 'args': [], 'enabled': True},
                                {'id': 'clipboard', 'title': '剪贴板', 'program': 'fixture', 'args': [], 'enabled': False}]}
 
+    def test_connection_option_reconciliation_preserves_unaffected_workers(self):
+        import copy
+        old = dict(self.profile('Group'), groupID='a'*32,
+                   configs={'a-windows.json': {'transparency': True}, 'a-clipboard.json': {'bind': 'local'}})
+        for item in old['components']:
+            item['peerID'] = 'a'
+            item['args'] = ['--config', '${profile}/a-' + item['id'] + '.json']
+        self.model.activate(old)
+        self.model.running = True
+        for worker in self.model.workers: worker.stop = Mock()
+        new = copy.deepcopy(old)
+        new['configs']['a-windows.json']['transparency'] = False
+        with patch.object(qt_app, 'build_group_profile', return_value=new):
+            self.model.paired_connection(dict(reason='updated'))
+        self.assertEqual(set(self.model.pending_reuse), {'clipboard'})
+        self.model.workers[0].stop.assert_called_once()
+        self.model.workers[1].stop.assert_not_called()
+
+    def test_connection_option_slot_updates_pairing_state(self):
+        self.model.passive = False
+        self.model.pairing = Mock()
+        self.model.pairing.snapshot.return_value = dict(members=[], machines=[], code='', addresses=[], warning='')
+        self.model.setConnectionOption('a'*32, 'hid_forwarding', False)
+        self.model.pairing.set_connection_option.assert_called_once_with('a'*32, 'hid_forwarding', False)
+
     def test_display_drag_previews_snap_and_saves_snapped_position(self):
         from PySide6.QtCore import Qt, QPointF
         from PySide6.QtQuick import QQuickItem

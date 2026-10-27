@@ -43,6 +43,7 @@ struct GroupDisplay: Decodable, Identifiable {
     @Published var role = ""
     @Published var groupID = ""
     @Published var members: [GroupMember] = []
+    var hidForwarding = true
     var connected: ((ConnectionProfile?, String) -> Void)?
     private var process: Process?
     private var input: Pipe?
@@ -60,7 +61,7 @@ struct GroupDisplay: Decodable, Identifiable {
             let scale = screen?.backingScaleFactor ?? 1
             child.arguments = ["--directory", ProfileStore.root.appendingPathComponent("pairing").path,
                 "--width", String(Int(size.width * scale)), "--height", String(Int(size.height * scale)),
-                "--scale", String(Double(scale))]
+                "--scale", String(Double(scale)), "--hid-forwarding", hidForwarding ? "1" : "0"]
             child.standardInput = stdin; child.standardOutput = stdout
             child.standardError = FileHandle.nullDevice
             stdout.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -109,6 +110,16 @@ struct GroupDisplay: Decodable, Identifiable {
                 }
             } catch { warning = error.localizedDescription }
         }
+    }
+
+    func setHIDForwarding(_ enabled: Bool) {
+        hidForwarding = enabled
+        if process == nil { start() }
+        do {
+            var data = try JSONSerialization.data(withJSONObject: ["action": "setHIDForwarding", "enabled": enabled])
+            data.append(10)
+            try input?.fileHandleForWriting.write(contentsOf: data)
+        } catch { warning = error.localizedDescription }
     }
 
     func send(_ action: String, address: String = "", code: String = "", id: String = "", role: String = "", x: Int = 0, y: Int = 0) {

@@ -32,6 +32,41 @@ class PairingProfileTests(unittest.TestCase):
         return (build_profile(a, record(b, ak, issued['local_certificate'])),
                 build_profile(b, record(a, bk, issued['peer_certificate'])))
 
+    def test_connection_options_cover_every_launch_mode(self):
+        for local_platform, remote_platform in itertools.permutations(('linux', 'windows', 'macos'), 2):
+            local, peer = device(local_platform, 'a', 41000), device(remote_platform, 'b', 42000)
+            for enabled in (True, False):
+                record = dict(device=peer, certificate='cert', private_key='key', authority='ca',
+                              host='127.0.0.1', stream_id='c'*32,
+                              options=dict(transparency=enabled, hid_forwarding=enabled))
+                profile = build_profile(local, record)
+                if local_platform == 'macos':
+                    self.assertEqual(profile['transparency'], enabled)
+                    self.assertEqual(profile['hidForwarding'], enabled)
+                    continue
+                for item in profile['components']:
+                    if item['program'] == 'vf-clipboard-peer':
+                        self.assertNotIn('environment', item)
+                        continue
+                    env = item['environment']
+                    self.assertEqual(env['VIEWFLOW_TRANSPARENCY'], str(int(enabled)))
+                    if item['program'] in ('vf-window-peer', 'paired-linux-session'):
+                        self.assertEqual(profile['configs'][item['id']+'.json']['transparency'], enabled)
+                    if item['program'] == 'paired-linux-session':
+                        self.assertEqual(profile['configs']['desktop-share.json']['pointer']['hid_forwarding'], enabled)
+                        self.assertEqual(env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'], str(int(enabled and remote_platform == 'windows')))
+                        self.assertEqual(env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD'], str(int(enabled and remote_platform == 'macos')))
+                        self.assertTrue(profile['configs']['desktop-share.json']['pointer']['wheel'])
+                record.pop('options')
+                default = build_profile(local, record)
+                if local_platform == 'linux':
+                    self.assertTrue(default['configs']['desktop-share.json']['pointer']['hid_forwarding'])
+                    record['remote_options'] = dict(hid_forwarding=False)
+                    fallback = build_profile(local, record)
+                    self.assertFalse(fallback['configs']['desktop-share.json']['pointer']['hid_forwarding'])
+                    env = next(c['environment'] for c in fallback['components'] if c['id'] == 'desktop-share')
+                    self.assertEqual((env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'], env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD']), ('0', '0'))
+
     def test_every_platform_pair_generates_local_allowlisted_profile(self):
         for first, second in itertools.combinations(('linux', 'windows', 'macos'), 2):
             for profile in self.profiles(first, second):

@@ -261,3 +261,15 @@ QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software python3 -m unittest discover
 
 The same UI resources are included in Linux and Windows bundles. Build and run
 the Windows package on Windows to validate native dialogs, tray, and rendering.
+
+## 透明窗口与触控板 HID 转发
+
+桌面应用在配对页为每条连接提供“透明窗口”和“触控板 HID 转发”，默认均开启，
+随配对记录保存。变更会重新生成配置，只重启配置或环境变化的组件；剪贴板和
+其他连接不受影响。透明效果使用 `transparency` 和 `VIEWFLOW_TRANSPARENCY`，
+HID 使用 `pointer.hid_forwarding` 与 cursor 的 raw/external 环境变量。
+
+macOS 应用在概览提供“透明窗口”设置，并将原生 HID 服务标为“触控板 HID 转发”；
+两项设置保存在本机。HID 关闭会经认证配对更新通知 Linux 发送端，切换为普通
+指针、点击和双指滚轮，不影响“鼠标与键盘”服务。此切换需等待对端收到配对状态
+更新（通常下一个重连轮询周期），不应以关闭整个连接替代。

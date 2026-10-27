@@ -13,6 +13,9 @@ def geometry(device, x=0):
 def build_profile(local, record):
     validate_device(local)
     peer = validate_device(record['device'])
+    options = record.get('options', {})
+    transparency = options.get('transparency', True)
+    hid = options.get('hid_forwarding', True) and record.get('remote_options', {}).get('hid_forwarding', True)
     platform, remote_platform = local['platform'], peer['platform']
     server = 'vf-' + peer['id'] + '.local'
     remote = lambda service: endpoint(record['host'], peer['ports'][service])
@@ -42,7 +45,7 @@ def build_profile(local, record):
                                x=local.get('share_origin', [local_width, 0])[0], y=local.get('share_origin', [local_width, 0])[1]),
             presentationScale=presentation_scale,
             presentationOriginX=incoming_origin, presentationOriginY=incoming_y, frameRate=60, maxWindows=8,
-            performanceMode='frame-rate')
+            performanceMode='frame-rate', transparency=transparency, hidForwarding=hid)
     profile = dict(version=2, platform=platform, name=peer['name'], peerID=peer['id'],
                    components=[], configs={}, files={})
     tls = {}
@@ -92,7 +95,7 @@ def build_profile(local, record):
             source = dict(desktop=dict(topology_generation=1, local_display=geometry(local),
                 remote_display=display, hyprland_socket='${profile}/pending-hyprland.sock',
                 native_control_dir='${profile}/native-control', auto_enroll=True, max_enrolled_windows=8, candidates=[]),
-                pointer=dict(devices=devices, native_socket='${profile}/pending-input.sock', wheel=True, direct_keyboard=True),
+                pointer=dict(hid_forwarding=hid, devices=devices, native_socket='${profile}/pending-input.sock', wheel=True, direct_keyboard=True),
                 capture_provider='viewflow', disposition_recovery=True, bind=bind('atlas'),
                 remote=remote('atlas' if remote_platform == 'windows' else 'input'), server_name=server,
                 compositor_pid=1, fps=60, startup_timeout_ms=10000, media_idle_timeout_ms=3000, media=media, windows=[])
@@ -109,6 +112,15 @@ def build_profile(local, record):
                      native_presenter='${program:viewflow_windows_composition_preview}', **media,
                      startup_timeout_ms=10000, media_idle_timeout_ms=3000, clock_silence_timeout_ms=3000),
                 ['receive', '--config', '${profile}/desktop-receive.json'])
+    for item in profile['components']:
+        if item['program'] in ('vf-window-peer', 'paired-linux-session', 'vf-media-peer'):
+            env = item.setdefault('environment', {})
+            env['VIEWFLOW_TRANSPARENCY'] = '1' if transparency else '0'
+            if item['program'] == 'paired-linux-session':
+                env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'] = '1' if hid and remote_platform == 'windows' else '0'
+                env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD'] = '1' if hid and remote_platform == 'macos' else '0'
+            if item['program'] in ('vf-window-peer', 'paired-linux-session'):
+                profile['configs'][item['id'] + '.json']['transparency'] = transparency
     return profile
 
 

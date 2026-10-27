@@ -569,6 +569,18 @@ ApplicationWindow {
                                     Heading { text: modelData.name }
                                     BodyText { text: modelData.platform + " · " + (modelData.role === "host" ? window.t("主机") : window.t("从机")) + (modelData.local ? " · " + window.t("本机") : " · " + (modelData.online ? window.t("在线") : window.t("等待重连"))) }
                                     BodyText { visible: !!modelData.address; text: modelData.address || ""; font.pixelSize: 12 }
+                                    SettingSwitch {
+                                        visible: !modelData.local && !!modelData.options
+                                        text: window.t("透明窗口")
+                                        checked: !modelData.options || modelData.options.transparency !== false
+                                        onToggled: window.backend.setConnectionOption(modelData.id, "transparency", checked)
+                                    }
+                                    SettingSwitch {
+                                        visible: !modelData.local && !!modelData.options
+                                        text: window.t("触控板 HID 转发")
+                                        checked: !modelData.options || modelData.options.hid_forwarding !== false
+                                        onToggled: window.backend.setConnectionOption(modelData.id, "hid_forwarding", checked)
+                                    }
                                     ActionButton { visible: window.state.discovery.role === "host" && !modelData.local; text: window.t("移出连接组"); enabled: !window.state.busy; onClicked: window.backend.removeGroupMember(modelData.id) }
                                 }
                             }

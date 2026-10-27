@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--width', type=int, required=True)
     parser.add_argument('--height', type=int, required=True)
     parser.add_argument('--scale', type=float, required=True)
+    parser.add_argument('--hid-forwarding', choices=('0', '1'), default='1')
     args = parser.parse_args()
     commands = queue.Queue()
     def read_commands():
@@ -27,6 +28,7 @@ def main():
     threading.Thread(target=read_commands, daemon=True).start()
     def emit(value): print(json.dumps(value, ensure_ascii=False), flush=True)
     service = PairingService(args.directory, 'macos', dict(width=args.width, height=args.height, scale=args.scale))
+    service.set_default_connection_option('hid_forwarding', args.hid_forwarding == '1')
     busy = threading.Event()
     def operation(command):
         try:
@@ -52,6 +54,9 @@ def main():
                 try: service.show_code()
                 except Exception as error: service.events.put(dict(type='error', message=str(error)))
             if action == 'cancelCode': service.cancel_code()
+            if action == 'setHIDForwarding':
+                try: service.set_default_connection_option('hid_forwarding', command['enabled'])
+                except Exception as error: service.events.put(dict(type='error', message=str(error)))
             if action in ('connect', 'setRole', 'leaveGroup', 'removeMember', 'reconnect', 'disconnect', 'setDisplayPosition') and not busy.is_set():
                 last_error = ''
                 busy.set()
