@@ -35,7 +35,7 @@ class PairingServiceTests(unittest.TestCase):
         mac.reconnect()
         after = build_group_profile(host.connection_state())
         prefix = mac.device['id'] + '-'
-        self.assertFalse(after['configs'][prefix+'desktop-share.json']['pointer']['hid_forwarding'])
+        self.assertFalse(after['configs'][prefix+'desktop-share.json']['pointer'].get('hid_forwarding', True))
         win_prefix = win.device['id'] + '-'
         for name, value in before['configs'].items():
             if name.startswith(win_prefix): self.assertEqual(value, after['configs'][name])
@@ -51,7 +51,7 @@ class PairingServiceTests(unittest.TestCase):
         self.assertFalse(reopened.peers[host.device['id']]['options']['hid_forwarding'])
         mac.set_default_connection_option('hid_forwarding', True)
         mac.reconnect()
-        self.assertTrue(build_group_profile(host.connection_state())['configs'][prefix+'desktop-share.json']['pointer']['hid_forwarding'])
+        self.assertTrue(build_group_profile(host.connection_state())['configs'][prefix+'desktop-share.json']['pointer'].get('hid_forwarding', True))
 
     def test_option_defaults_apply_to_new_pairings(self):
         host = self.service('default-host', role='host')

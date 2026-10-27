@@ -51,16 +51,17 @@ class PairingProfileTests(unittest.TestCase):
                     env = item['environment']
                     self.assertEqual(env['VIEWFLOW_TRANSPARENCY'], str(int(enabled)))
                     if item['program'] in ('vf-window-peer', 'paired-linux-session'):
-                        self.assertEqual(profile['configs'][item['id']+'.json']['transparency'], enabled)
+                        self.assertEqual(profile['configs'][item['id']+'.json'].get('transparency', True), enabled)
                     if item['program'] == 'paired-linux-session':
-                        self.assertEqual(profile['configs']['desktop-share.json']['pointer']['hid_forwarding'], enabled)
+                        self.assertEqual(profile['configs']['desktop-share.json']['pointer'].get('hid_forwarding', True), enabled)
                         self.assertEqual(env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'], str(int(enabled and remote_platform == 'windows')))
                         self.assertEqual(env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD'], str(int(enabled and remote_platform == 'macos')))
                         self.assertTrue(profile['configs']['desktop-share.json']['pointer']['wheel'])
                 record.pop('options')
                 default = build_profile(local, record)
                 if local_platform == 'linux':
-                    self.assertTrue(default['configs']['desktop-share.json']['pointer']['hid_forwarding'])
+                    # Defaults are omitted so older daemons still parse the config.
+                    self.assertNotIn('hid_forwarding', default['configs']['desktop-share.json']['pointer'])
                     record['remote_options'] = dict(hid_forwarding=False)
                     fallback = build_profile(local, record)
                     self.assertFalse(fallback['configs']['desktop-share.json']['pointer']['hid_forwarding'])

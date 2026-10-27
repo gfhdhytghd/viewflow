@@ -95,7 +95,7 @@ def build_profile(local, record):
             source = dict(desktop=dict(topology_generation=1, local_display=geometry(local),
                 remote_display=display, hyprland_socket='${profile}/pending-hyprland.sock',
                 native_control_dir='${profile}/native-control', auto_enroll=True, max_enrolled_windows=8, candidates=[]),
-                pointer=dict(hid_forwarding=hid, devices=devices, native_socket='${profile}/pending-input.sock', wheel=True, direct_keyboard=True),
+                pointer=dict(devices=devices, native_socket='${profile}/pending-input.sock', wheel=True, direct_keyboard=True),
                 capture_provider='viewflow', disposition_recovery=True, bind=bind('atlas'),
                 remote=remote('atlas' if remote_platform == 'windows' else 'input'), server_name=server,
                 compositor_pid=1, fps=60, startup_timeout_ms=10000, media_idle_timeout_ms=3000, media=media, windows=[])
@@ -119,8 +119,12 @@ def build_profile(local, record):
             if item['program'] == 'paired-linux-session':
                 env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'] = '1' if hid and remote_platform == 'windows' else '0'
                 env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD'] = '1' if hid and remote_platform == 'macos' else '0'
-            if item['program'] in ('vf-window-peer', 'paired-linux-session'):
-                profile['configs'][item['id'] + '.json']['transparency'] = transparency
+            # Write only non-default options so configs stay readable by
+            # daemons that predate these fields.
+            if item['program'] in ('vf-window-peer', 'paired-linux-session') and not transparency:
+                profile['configs'][item['id'] + '.json']['transparency'] = False
+            if item['program'] == 'paired-linux-session' and not hid:
+                profile['configs'][item['id'] + '.json']['pointer']['hid_forwarding'] = False
     return profile
 
 
