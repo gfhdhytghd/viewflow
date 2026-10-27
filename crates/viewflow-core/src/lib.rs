@@ -6,6 +6,7 @@ mod coordinator;
 mod decoration;
 mod frame_queue;
 mod hid;
+mod rate_control;
 mod topology;
 mod transfer;
 mod visibility;
@@ -22,6 +23,9 @@ pub use audio::{
 pub use coordinator::{Coordinator, CoordinatorError, CoordinatorOutcome};
 pub use decoration::{CaptureGeometry, CaptureGeometryError, CaptureSlice};
 pub use frame_queue::{FrameAdmission, FrameQueue, FrameQueueConfig, FrameRejectReason};
+pub use rate_control::{
+    NetworkSample, QualityMode, QualityTarget, RateControlConfig, RateController,
+};
 pub use hid::{ActiveHidRoute, HidLeaseError, HidLeaseManager};
 pub use topology::{DisplaySlice, TopologyError, TopologyMap};
 pub use transfer::{
