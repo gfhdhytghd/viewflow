@@ -105,6 +105,15 @@ impl MediaAssembler {
         }
     }
 
+    /// Missing slots for a known incomplete plane. None means no chunk has
+    /// arrived yet; callers may request the entire plane. Allocates only on loss.
+    #[must_use]
+    pub fn missing_chunks(&self, window_id: WindowId, frame_id: u64, plane: MediaPlane) -> Option<Vec<u16>> {
+        let key = FrameKey { plane: PlaneKey { window_id, plane }, frame_id };
+        self.pending.get(&key).map(|pending| pending.chunks.iter().enumerate()
+            .filter_map(|(i, slot)| slot.is_none().then_some(i as u16)).collect())
+    }
+
     /// Adds one packet and emits a complete color or alpha plane when ready.
     ///
     /// # Errors
