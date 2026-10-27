@@ -15,6 +15,15 @@ def decode(p):
 
 
 class NativeForwardTests(unittest.TestCase):
+    def test_disabled_hid_route_releases_even_while_remote_captured(self):
+        status = dict(connected=1, phase=3, remote=[2, 0, 0, 1920, 1080])
+        config = dict(remote='mac:44139', pointer=dict(cursor_monitor_id=2))
+        self.assertTrue(captured_for_route(status, config, 123, True, 'mac'))
+        config['pointer']['hid_forwarding'] = False
+        self.assertFalse(captured_for_route(status, config, 123, True, 'mac'))
+        config['pointer']['hid_forwarding'] = True
+        self.assertTrue(captured_for_route(status, config, 123, True, 'mac'))
+
     def test_composite_route_follows_either_viewport_and_observes_release(self):
         class Route:
             enabled = False
@@ -156,6 +165,15 @@ class NativeForwardTests(unittest.TestCase):
             config['remote'] = 'mac:44139'
             run.side_effect = subprocess.TimeoutExpired('hyprctl', .2)
             self.assertFalse(route.active()) # old owner must not survive target change
+            run.side_effect = None
+            run.return_value.stdout = json.dumps(status)
+            self.assertTrue(route.active())
+            config['pointer']['hid_forwarding'] = False
+            run.side_effect = subprocess.TimeoutExpired('hyprctl', .2)
+            self.assertFalse(route.active()) # explicit off overrides cached ownership
+            self.assertFalse(route.last_active)
+            config['pointer']['hid_forwarding'] = True
+            self.assertFalse(route.active()) # off cannot restore a stale cached owner
             run.side_effect = None
             run.return_value.stdout = json.dumps(status)
             self.assertTrue(route.active())

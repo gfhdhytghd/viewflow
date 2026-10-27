@@ -147,6 +147,8 @@ private struct MainView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(model.pairing.groupID.isEmpty || model.pairing.busy)
             }
+            Toggle("透明窗口", isOn: Binding(get: { model.transparency }, set: { model.setTransparency($0) }))
+                .toggleStyle(.switch)
             ForEach(Component.allCases) { component in
                 GroupBox {
                     HStack(spacing: 12) {

@@ -24,6 +24,43 @@ class PairingServiceTests(unittest.TestCase):
     def join(self, host, client, code=None):
         return client.connect(f'127.0.0.1:{host.port}', code or host.show_code(), host.device['id'])
 
+    def test_options_persist_and_sync_without_replacing_unrelated_links(self):
+        from pairing_profiles import build_group_profile
+        host = self.service('options-host', role='host')
+        mac = self.service('options-mac', 'macos', 'client')
+        win = self.service('options-win', 'windows', 'client')
+        self.join(host, mac); self.join(host, win)
+        before = build_group_profile(host.connection_state())
+        mac.set_default_connection_option('hid_forwarding', False)
+        mac.reconnect()
+        after = build_group_profile(host.connection_state())
+        prefix = mac.device['id'] + '-'
+        self.assertFalse(after['configs'][prefix+'desktop-share.json']['pointer']['hid_forwarding'])
+        win_prefix = win.device['id'] + '-'
+        for name, value in before['configs'].items():
+            if name.startswith(win_prefix): self.assertEqual(value, after['configs'][name])
+        host.set_connection_option(mac.device['id'], 'transparency', False)
+        mac.reconnect()
+        self.assertFalse(host.peers[mac.device['id']]['options']['transparency'])
+        self.assertFalse(mac.peers[host.device['id']]['remote_options']['transparency'])
+        saved = json.loads(host.state_path.read_text())
+        self.assertFalse(saved['links'][mac.device['id']]['options']['transparency'])
+        saved_mac = json.loads(mac.state_path.read_text())
+        self.assertFalse(saved_mac['option_defaults']['hid_forwarding'])
+        reopened = self.service('options-mac', 'macos')
+        self.assertFalse(reopened.peers[host.device['id']]['options']['hid_forwarding'])
+        mac.set_default_connection_option('hid_forwarding', True)
+        mac.reconnect()
+        self.assertTrue(build_group_profile(host.connection_state())['configs'][prefix+'desktop-share.json']['pointer']['hid_forwarding'])
+
+    def test_option_defaults_apply_to_new_pairings(self):
+        host = self.service('default-host', role='host')
+        client = self.service('default-client', 'macos', 'client')
+        client.set_default_connection_option('hid_forwarding', False)
+        self.join(host, client)
+        self.assertFalse(host.peers[client.device['id']]['remote_options']['hid_forwarding'])
+        self.assertFalse(client.peers[host.device['id']]['options']['hid_forwarding'])
+
     def test_numeric_gap_is_normalized_in_saved_and_runtime_positions(self):
         from pairing_profiles import build_group_profile
         host, client = self.service('gap-host', role='host'), self.service('gap-client', 'macos', 'client')

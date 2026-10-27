@@ -7,6 +7,8 @@ import re
 
 
 EN = {
+    '透明窗口': 'Transparent windows',
+    '触控板 HID 转发': 'Touchpad HID forwarding',
     '系统依赖': 'System dependencies',
     'Viewflow 只检查并提示所需组件。请通过系统包管理器自行安装，不会从 GUI 提权或修改系统软件。': 'Viewflow only checks and lists required components. Install them with your system package manager; the GUI does not elevate privileges or modify system software.',
     '先检查环境以显示所需依赖。': 'Check the environment first to see required dependencies.',

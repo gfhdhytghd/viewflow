@@ -126,6 +126,9 @@ pub struct AtlasSourceConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AtlasSourcePointerConfig {
+    /// Forward native touchpad contacts; false retains pointer and wheel input.
+    #[serde(default = "AtlasSourcePointerConfig::default_hid_forwarding")]
+    pub hid_forwarding: bool,
     /// Exact native owned remote-output ID. Omission disables cursor capture.
     #[serde(default)]
     pub cursor_monitor_id: Option<i64>,
@@ -138,6 +141,12 @@ pub struct AtlasSourcePointerConfig {
     /// remain unsupported. Requires the full wheel/button native capability.
     #[serde(default)]
     pub direct_keyboard: bool,
+}
+
+impl AtlasSourcePointerConfig {
+    fn default_hid_forwarding() -> bool {
+        true
+    }
 }
 
 fn validate_input_capabilities(wheel: bool, direct_keyboard: bool) -> Result<()> {
@@ -1293,6 +1302,7 @@ occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
         );
         let layout = source.layout().unwrap();
         source.pointer = Some(AtlasSourcePointerConfig {
+            hid_forwarding: true,
             cursor_monitor_id: None,
             devices: AtlasPointerConfig {
                 owner_device: format!("{:032x}", 10),
@@ -1311,6 +1321,17 @@ occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
         assert!(source.layout().is_ok());
         source.pointer.as_mut().unwrap().direct_keyboard = false;
         source.pointer.as_mut().unwrap().wheel = false;
+        let mut pointer_json = serde_json::to_value(source.pointer.as_ref().unwrap()).unwrap();
+        pointer_json.as_object_mut().unwrap().remove("hid_forwarding");
+        assert!(
+            serde_json::from_value::<AtlasSourcePointerConfig>(pointer_json.clone())
+                .unwrap().hid_forwarding
+        );
+        pointer_json["hid_forwarding"] = serde_json::json!(false);
+        assert!(
+            !serde_json::from_value::<AtlasSourcePointerConfig>(pointer_json)
+                .unwrap().hid_forwarding
+        );
         let serialized = serde_json::to_vec(&source).unwrap();
         let mut old = serde_json::to_value(&source).unwrap();
         old["pointer"].as_object_mut().unwrap().remove("wheel");

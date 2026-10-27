@@ -11,6 +11,7 @@ import Combine
     @Published var message = ""
     @Published private(set) var statuses: [Component: String] = [:]
     @Published private(set) var enabled: Set<Component> = Set(Component.allCases)
+    @Published private(set) var transparency = UserDefaults.standard.object(forKey: "transparency") as? Bool ?? true
     private var workers: [String: ManagedWorker] = [:]
     private var selected: Set<String> = []
     private var inventoryBusy = false
@@ -48,6 +49,7 @@ import Combine
         catch { if FileManager.default.fileExists(atPath: ProfileStore.root.appendingPathComponent("connection.json").path) { message = error.localizedDescription } }
         configuredProfile = profile
         pairing.connected = { [weak self] incoming, reason in self?.reconcileGroup(incoming, reason: reason) }
+        pairing.hidForwarding = enabled.contains(.hid)
         pairing.start()
         permissions.refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
@@ -68,7 +70,13 @@ import Combine
         let shouldStart = running || (reason == "joined" || reason == "connected") || (reason == "restored" && UserDefaults.standard.bool(forKey: "running"))
         let sameGroup = configuredProfile?.groupID == incoming.groupID && incoming.groupID != nil
         let old = Dictionary(uniqueKeysWithValues: (configuredProfile?.groupConnections ?? []).map { ($0.pairingDeviceID!, $0) })
-        let preserved = Set((incoming.groupConnections ?? []).filter { old[$0.pairingDeviceID!] == $0 }.compactMap(\.pairingDeviceID))
+        let preserved = Set((incoming.groupConnections ?? []).filter { link in
+            guard var previous = old[link.pairingDeviceID!] else { return false }
+            // HID routing metadata is consumed by the sender; standard input,
+            // windows and clipboard processes do not need to restart for it.
+            previous.hidForwarding = link.hidForwarding
+            return previous == link
+        }.compactMap(\.pairingDeviceID))
         pendingRetained = sameGroup ? Set(workers.values.filter { preserved.contains($0.groupPeerID ?? "") && !$0.stopping }.map(\.id)) : []
         if sameGroup, let sharedHID = workers["corehid"], !sharedHID.stopping, enabled.contains(.hid) {
             pendingRetained.insert(sharedHID.id)
@@ -88,9 +96,18 @@ import Combine
         }
         identity = linkIdentities[profile.pairingDeviceID ?? ""] ?? [:]
     }
+    func setTransparency(_ value: Bool) {
+        transparency = value
+        UserDefaults.standard.set(value, forKey: "transparency")
+        for worker in workers.values where worker.component == .windowsShare || worker.component == .windowsReceive {
+            worker.stop()
+        }
+        tick()
+    }
     func setEnabled(_ component: Component, _ value: Bool) {
         if value { enabled.insert(component) } else { enabled.remove(component) }
         UserDefaults.standard.set(enabled.map(\.rawValue), forKey: "components")
+        if component == .hid { pairing.setHIDForwarding(value) }
         tick()
     }
     func start() {
@@ -130,6 +147,7 @@ import Combine
         if workers[id] == nil {
             let new = try ManagedWorker(id: id, component: component, executable: BundleTools.executable(binary), arguments: arguments())
             new.groupPeerID = peerID
+            new.environment = ConnectionProfile.presentationEnvironment(transparency: transparency)
             new.changed = { [weak self] in self?.objectWillChange.send() }
             workers[id] = new
         }
@@ -227,6 +245,7 @@ import Combine
                             try worker(id, component: component, binary: "vf-window-peer", peerID: peer) {
                                 var fields = linkIdentities[peer] ?? identity
                                 fields["bind"] = receiver.bind; fields["role"] = "presenter"
+                                fields["transparency"] = transparency
                                 fields["backend"] = ["native": try BundleTools.executable("viewflow-macos-windows").path,
                                     "args": ["present", "--scale", String(receiver.scale),
                                              "--origin-x", String(receiver.originX), "--origin-y", String(receiver.originY),
@@ -308,6 +327,7 @@ import Combine
                     var fields = linkIdentities[peer.id] ?? identity
                     fields["bind"] = peer.address.hasPrefix("[") ? "[::]:0" : "0.0.0.0:0"
                     fields["remote"] = peer.address; fields["server_name"] = peer.serverName; fields["role"] = "source"
+                    fields["transparency"] = transparency
                     var sourceArgs = ["source", "--window", String(window.windowID), "--scale", String(peer.id == "linux" ? max(2, peer.captureScale) : peer.captureScale),
                                  "--fps", String(profile.frameRate), "--codec", peer.codec ?? "h264",
                                  "--performance-mode", profile.performanceMode,

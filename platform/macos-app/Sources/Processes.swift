@@ -106,6 +106,7 @@ enum NativeProbe {
     private(set) var stopping = false
     var desired = false
     var groupPeerID: String?
+    var environment: [String: String] = [:]
     var changed: (() -> Void)?
     private var retry = RestartPolicy()
     private let ownership = ServiceOwnership()
@@ -142,6 +143,7 @@ enum NativeProbe {
             var environment = ProcessInfo.processInfo.environment
             environment["VIEWFLOW_CURSOR_FEEDBACK"] = "1"
             environment["VIEWFLOW_OWNER_PID"] = String(getpid())
+            environment.merge(self.environment) { _, configured in configured }
             child.environment = environment
             child.terminationHandler = { [weak self] child in
                 DispatchQueue.main.async {

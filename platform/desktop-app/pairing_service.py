@@ -185,6 +185,32 @@ class PairingService:
                                       links=list(self.peers.values()), device=self.device,
                                       connected=list(self.connected) if not self.paused else [], paused=self.paused))
 
+    def set_default_connection_option(self, name, enabled):
+        if name not in ('transparency', 'hid_forwarding') or type(enabled) is not bool:
+            raise ValueError('无效的连接选项。')
+        with self.lock:
+            self.state.setdefault('option_defaults', {})[name] = enabled
+            for record in self.peers.values(): record.setdefault('options', {})[name] = enabled
+            self._save()
+        self._emit('updated')
+        self.wakeup.set()
+
+    def set_connection_option(self, identity, name, enabled):
+        if name not in ('transparency', 'hid_forwarding') or type(enabled) is not bool:
+            raise ValueError('无效的连接选项。')
+        with self.lock:
+            record = self.peers[identity]
+            record.setdefault('options', {})[name] = enabled
+            self._save()
+        self._emit('updated')
+        self.wakeup.set()
+
+    @staticmethod
+    def connection_options(value):
+        if not isinstance(value, dict): raise ValueError('无效的连接选项。')
+        return {name: value[name] for name in ('transparency', 'hid_forwarding')
+                if name in value and type(value[name]) is bool}
+
     def display_layout(self):
         group = self.state['group']
         if not group: return []
@@ -263,6 +289,7 @@ class PairingService:
                 members.append(dict(id=identity, name=device['name'], platform=device['platform'],
                     role='host' if identity == group['host_id'] else 'client', local=identity == self.device['id'],
                     address=self.peers.get(identity, {}).get('address', ''),
+                    options=self.peers[identity].get('options', {}) if identity in self.peers else None,
                     online=identity == self.device['id'] or time.monotonic() - self.last_seen.get(identity, -100) < 12
                         or (self.state['role'] == 'client' and identity != group['host_id'] and member.get('online', False))))
             machines = []
@@ -402,12 +429,13 @@ class PairingService:
                     else:
                         self.connected.add(peer_id)
                         previous = copy.deepcopy(current)
-                        current.update(device=device, host=host, address=wire.endpoint(host, port))
+                        current.update(device=device, host=host, address=wire.endpoint(host, port),
+                                       remote_options=self.connection_options(request.get('options', {})))
                         self._update_member(device)
                         self._normalize_layout()
                         changed = not was_connected or previous != current
                         self.last_seen[peer_id] = time.monotonic(); self._update_member(device); self._save()
-                        channel.send(dict(status='ok', group=self._public_group(), device=current['local_device'], peer_device=current['device']))
+                        channel.send(dict(status='ok', group=self._public_group(), device=current['local_device'], peer_device=current['device'], options=current.get('options', {})))
                 if mode == 'leave': self._changed('removed')
                 elif changed: self._changed('connected' if not was_connected else 'updated')
         except Exception:
@@ -451,6 +479,8 @@ class PairingService:
             key = wire.new_key()
             issued = wire.issue_pair(self.device['id'], key, peer_id, request['public_key'])
             record = dict(device=device, local_device=local, slot=slot, group_id=group['id'],
+                options=(previous or {}).get('options', copy.deepcopy(self.state.get('option_defaults', {}))),
+                remote_options=self.connection_options(request.get('options', {})),
                 secret=secrets.token_hex(32), private_key=wire.private_key_pem(key),
                 certificate=issued['local_certificate'], authority=issued['authority'],
                 stream_id=secrets.token_hex(16), host=host, address=wire.endpoint(host, port))
@@ -466,7 +496,7 @@ class PairingService:
             self._changed('joined')
             channel.send(dict(status='ok', group=group, device=local, peer_device=record['device'], slot=slot,
                 certificate=issued['peer_certificate'], authority=issued['authority'],
-                secret=record['secret'], stream_id=record['stream_id']))
+                secret=record['secret'], stream_id=record['stream_id'], options=record.get('options', {})))
             if channel.receive() != {'ready': True}: raise ValueError('pairing not acknowledged')
             with self.lock:
                 self.last_seen[peer_id] = time.monotonic(); self.failures.pop(host, None)
@@ -544,7 +574,7 @@ class PairingService:
                 channel = wire.authenticate(sock, code if mode == 'pair' else previous['secret'],
                     self.device['id'], remote_id, True)
                 channel.send(dict(role='client', device=self.device, pairing_port=self.port,
-                    public_key=wire.public_key(key) if key else None))
+                    public_key=wire.public_key(key) if key else None, options=(previous or {}).get('options', self.state.get('option_defaults', {}))))
                 response = channel.receive()
                 if response.get('status') == 'error': raise ValueError(response['message'])
                 if response.get('status') == 'paused':
@@ -563,14 +593,18 @@ class PairingService:
                     if not isinstance(response['secret'], str) or len(response['secret']) != 64: raise ValueError('invalid reconnect secret')
                     wire.valid_id(response['stream_id'])
                     record = {k: response[k] for k in ('certificate', 'authority', 'secret', 'stream_id', 'slot')}
-                    record.update(private_key=wire.private_key_pem(key), local_device=copy.deepcopy(self.device), group_id=group['id'])
+                    record.update(private_key=wire.private_key_pem(key), local_device=copy.deepcopy(self.device), group_id=group['id'],
+                                  options=copy.deepcopy(self.state.get('option_defaults', {})))
                 else: record = copy.deepcopy(previous)
                 record['local_device'] = wire.validate_device(copy.deepcopy(response.get('peer_device', self.device)))
                 if record['local_device']['id'] != self.device['id']: raise ValueError('本机显示器身份不匹配。')
-                record.update(device=device, address=wire.endpoint(host, port), host=wire.socket_host(sock.getpeername()))
+                record.update(device=device, address=wire.endpoint(host, port), host=wire.socket_host(sock.getpeername()),
+                              remote_options=self.connection_options(response.get('options', {})))
                 with self.lock:
                     if self.state['role'] != 'client' or self.state['group'] != existing_group:
                         raise ValueError('本机角色或连接组已更改，请重试。')
+                    if remote_id in self.peers:
+                        record['options'] = copy.deepcopy(self.peers[remote_id].get('options', {}))
                     newly_connected = remote_id not in self.connected
                     if self.paused and mode == 'resume': return
                     self.connected.add(remote_id)
