@@ -41,7 +41,9 @@ impl RateControlConfig {
             mode,
             max_kbps,
             min_kbps: (max_kbps / 20).clamp(1, 2_000),
-            save_bandwidth_kbps: (max_kbps / 4).max(1),
+            // An absolute cap: a fraction of a very high wired ceiling would
+            // still be far more than a shared wireless link can carry.
+            save_bandwidth_kbps: (max_kbps / 4).clamp(1, SAVE_BANDWIDTH_MAX_KBPS),
             max_fps: max_fps.max(1),
         }
     }
@@ -69,6 +71,10 @@ pub struct NetworkSample {
     pub queue_age_us: u64,
     /// Frames the receiver dropped to a keyframe since the previous sample.
     pub frames_dropped: u64,
+    /// Bytes actually sent over the interval, in kbit/s (0 = unknown). Under
+    /// congestion this approximates the bottleneck, so a high ceiling can
+    /// converge in one step instead of many multiplicative cuts.
+    pub send_kbps: u32,
 }
 
 /// What the encoder and capture should use now.
@@ -85,7 +91,12 @@ pub struct QualityTarget {
 const FPS_STEPS: [u32; 3] = [60, 30, 20];
 const SCALE_STEPS: [u16; 3] = [1000, 750, 500];
 
+const SAVE_BANDWIDTH_MAX_KBPS: u32 = 20_000;
 const DECREASE_HOLD_MIN_US: u64 = 200_000;
+// After this long without congestion the ramp speeds up, so a link that has
+// recovered does not take tens of seconds to return to full quality.
+const FAST_RAMP_AFTER_US: u64 = 5_000_000;
+const FAST_INCREASE_PER_SECOND: f64 = 0.30;
 const INCREASE_HOLD_US: u64 = 1_000_000;
 const INCREASE_PER_SECOND: f64 = 0.08;
 const LADDER_DOWN_US: u64 = 2_000_000;
@@ -177,7 +188,11 @@ impl RateController {
                 .is_none_or(|last| sample.now_us.saturating_sub(last) >= hold);
             if may_decrease {
                 let factor = if loss_ratio(&sample) >= HEAVY_LOSS_RATIO { 0.7 } else { 0.85 };
-                self.kbps = (self.kbps * factor).max(floor);
+                let mut next = self.kbps * factor;
+                if sample.send_kbps > 0 {
+                    next = next.min(f64::from(sample.send_kbps) * 0.9);
+                }
+                self.kbps = next.max(floor);
                 self.last_decrease_us = Some(sample.now_us);
             }
             if self.kbps <= floor {
@@ -206,7 +221,12 @@ impl RateController {
             {
                 #[allow(clippy::cast_precision_loss)]
                 let seconds = elapsed_us as f64 / 1_000_000.0;
-                self.kbps = (self.kbps * (1.0 + INCREASE_PER_SECOND * seconds)).min(ceiling);
+                let rate = if sample.now_us.saturating_sub(since) >= FAST_RAMP_AFTER_US {
+                    FAST_INCREASE_PER_SECOND
+                } else {
+                    INCREASE_PER_SECOND
+                };
+                self.kbps = (self.kbps * (1.0 + rate * seconds)).min(ceiling);
             }
         }
         self.kbps = self.kbps.clamp(floor, ceiling);
@@ -225,6 +245,29 @@ impl RateController {
             || (loss >= RANDOM_LOSS_RATIO && rtt_inflated)
             || queue_growing
             || (rtt_inflated && sample.frames_dropped > 0)
+    }
+}
+
+/// Turns a cumulative sent-byte counter (e.g. `quinn` `udp_tx.bytes`) into
+/// [`NetworkSample::send_kbps`] for the interval since the previous call.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SendRateMeter {
+    last: Option<(u64, u64)>,
+}
+
+impl SendRateMeter {
+    pub fn update(&mut self, now_us: u64, total_bytes: u64) -> u32 {
+        let rate = self.last.map_or(0, |(at, bytes)| {
+            let elapsed_us = now_us.saturating_sub(at);
+            if elapsed_us == 0 {
+                return 0;
+            }
+            // bytes * 8 / ms = kbit/s; saturates rather than wrapping.
+            let kbps = total_bytes.saturating_sub(bytes).saturating_mul(8_000) / elapsed_us;
+            u32::try_from(kbps).unwrap_or(u32::MAX)
+        });
+        self.last = Some((now_us, total_bytes));
+        rate
     }
 }
 
@@ -264,6 +307,7 @@ mod tests {
             sent_packets: 1000,
             queue_age_us: queue_ms * 1000,
             frames_dropped: 0,
+            send_kbps: 0,
         }
     }
 
@@ -340,6 +384,8 @@ mod tests {
         }
         let mut save = controller(QualityMode::SaveBandwidth);
         assert_eq!(save.on_sample(sample(0, 3, 0, 5)).kbps, 10_000);
+        let mut wired = RateController::new(RateControlConfig::new(QualityMode::SaveBandwidth, 900_000, 60));
+        assert_eq!(wired.on_sample(sample(0, 3, 0, 5)).kbps, 20_000);
         save.set_mode(QualityMode::HighQuality);
         assert_eq!(save.target().kbps, 40_000);
     }
@@ -349,4 +395,42 @@ mod tests {
         let mut rc = RateController::new(RateControlConfig::new(QualityMode::Auto, 10_000, 24));
         assert_eq!(rc.on_sample(sample(0, 3, 0, 5)).max_fps, 24);
     }
+
+    #[test]
+    fn send_rate_meter_reports_interval_kbps() {
+        let mut meter = SendRateMeter::default();
+        assert_eq!(meter.update(0, 1_000), 0);
+        // 250 kB in 200 ms = 10 Mbit/s.
+        assert_eq!(meter.update(200_000, 251_000), 10_000);
+        assert_eq!(meter.update(200_000, 260_000), 0);
+    }
+
+    #[test]
+    fn measured_send_rate_converges_a_high_ceiling_in_one_step() {
+        let mut rc = RateController::new(RateControlConfig::new(QualityMode::Auto, 900_000, 60));
+        rc.on_sample(sample(0, 4, 0, 5));
+        let mut congested = sample(300, 40, 30, 60);
+        congested.send_kbps = 30_000;
+        assert_eq!(rc.on_sample(congested).kbps, 27_000);
+    }
+
+    #[test]
+    fn stable_recovery_ramps_faster_after_five_seconds() {
+        let mut rc = controller(QualityMode::Auto);
+        rc.on_sample(sample(0, 4, 0, 5));
+        let mut t = 100;
+        while rc.target().kbps > rc.config().min_kbps {
+            rc.on_sample(sample(t, 40, 30, 60));
+            t += 100;
+        }
+        let low = rc.target().kbps;
+        // 5 s clear at the slow rate, then 5 s at the fast rate.
+        for _ in 0..50 { rc.on_sample(sample(t, 4, 0, 5)); t += 100; }
+        let slow = rc.target().kbps;
+        for _ in 0..50 { rc.on_sample(sample(t, 4, 0, 5)); t += 100; }
+        let fast = rc.target().kbps;
+        assert!(f64::from(slow) / f64::from(low) < 1.6);
+        assert!(f64::from(fast) / f64::from(slow) > 3.0);
+    }
+
 }

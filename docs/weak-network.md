@@ -63,11 +63,18 @@ alpha 平面后，80ms 等待结束仍保留 staged 帧且无处置回执。本�
 
 配置 `AtlasSourceConfig.quality_mode` 支持 `auto`（缺省）、`high_quality`、
 `save_bandwidth`，拒绝拼写错误。Linux coded sender 对应
-`--quality-mode auto|high_quality|save_bandwidth`。策略在启动时选择，尚无运行中 UI。
+`--quality-mode auto|high_quality|save_bandwidth`。策略在启动时选择；桌面应用和 macOS 应用的"画质与网络"选项写入此字段
+（仅非默认值），修改后重启发送端组件。
+
+收敛：采样同时把 QUIC `udp_tx.bytes` 换算为实际发送速率 `send_kbps`。拥塞时目标
+直接降到 `min(当前 × 0.85/0.7, 实际发送速率 × 0.9)`，因此 900 Mbps 的自动上限
+在一步内收敛到无线链路的实际容量，而不是经历数十次乘性下降；链路持续 5 秒
+无拥塞后升速从每秒 8% 提高到 30%，恢复更快。
 
 - **Auto**：每个编码 lane 上限 900,000 kbps，干净链路保持上限；复用共享
   `RateController`，拥塞时降低码率，到 2,000 kbps 下限后降低帧率到 30/20。
-  SaveBandwidth 同样自适应，但上限为 225,000 kbps。这个上限是编码质量上限，
+  SaveBandwidth 同样自适应，但上限为 20,000 kbps（共享核心对省带宽模式取
+  `min(上限/4, 20 Mbps)`，避免高有线上限的四分之一仍远超无线链路）。这个上限是编码质量上限，
   不是带宽预留或要求始终发送这么多数据；静止内容实际输出可以很低。
   两个活动 lane 各自允许完整画布的上限，不能把总上限平均分配而降低前台质量。
 - **HighQuality**：保持以前的固定质量与原有捕获调度；GPU NVENC 仍为

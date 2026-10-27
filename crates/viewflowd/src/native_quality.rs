@@ -68,6 +68,7 @@ pub(crate) fn record(cap: Option<Capability>, target: QualityTarget) -> Option<[
 struct Observations {
     stages: [[(u64, bool); 3]; 2],
     dropped: u64,
+    meter: viewflow_core::SendRateMeter,
 }
 impl Observations {
     fn feedback(&mut self, header: &[u8]) {
@@ -111,6 +112,7 @@ impl Observations {
             lost_packets: lost.saturating_sub(previous.1),
             queue_age_us,
             frames_dropped: std::mem::take(&mut self.dropped),
+            send_kbps: self.meter.update(now_us, stats.udp_tx.bytes),
         };
         *previous = (sent, lost);
         sample

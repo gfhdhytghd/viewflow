@@ -23,7 +23,9 @@ impl SourceQualityMode {
         match self {
             Self::HighQuality => 0,
             Self::Auto => AUTO_CEILING_KBPS,
-            Self::SaveBandwidth => AUTO_CEILING_KBPS / 4,
+            Self::SaveBandwidth => {
+                RateControlConfig::new(self.core(), AUTO_CEILING_KBPS, 60).save_bandwidth_kbps
+            }
         }
     }
 }
@@ -91,6 +93,8 @@ impl QualityTelemetry {
 pub struct QualitySampler {
     controller: RateController,
     previous: (u64, u64, u64),
+    meter: viewflow_core::SendRateMeter,
+    send_kbps: u32,
 }
 impl QualitySampler {
     pub fn new(mode: SourceQualityMode, fps: u32, lost: u64, sent: u64) -> Self {
@@ -101,7 +105,13 @@ impl QualitySampler {
                 fps,
             )),
             previous: (lost, sent, 0),
+            meter: viewflow_core::SendRateMeter::default(),
+            send_kbps: 0,
         }
+    }
+    /// Cumulative bytes sent on the connection; feeds the next sample.
+    pub fn record_sent_bytes(&mut self, now_us: u64, total_bytes: u64) {
+        self.send_kbps = self.meter.update(now_us, total_bytes);
     }
     pub fn sample(
         &mut self,
@@ -119,6 +129,7 @@ impl QualitySampler {
             sent_packets: sent.saturating_sub(self.previous.1),
             queue_age_us,
             frames_dropped: dropped.saturating_sub(self.previous.2),
+            send_kbps: std::mem::take(&mut self.send_kbps),
         };
         self.previous = (lost, sent, dropped);
         let mut target = self.controller.on_sample(sample);
@@ -149,7 +160,7 @@ mod tests {
             serde_json::from_str::<SourceQualityMode>("\"save_bandwidth\"")
                 .unwrap()
                 .initial_kbps(),
-            AUTO_CEILING_KBPS / 4
+            20_000
         );
         assert!(serde_json::from_str::<SourceQualityMode>("\"typo\"").is_err());
     }
@@ -210,8 +221,10 @@ impl QualityMonitor {
                 }
                 let stats = connection.stats();
                 let (age, dropped) = telemetry.observe();
+                let now_us = origin.elapsed().as_micros() as u64;
+                sampler.record_sent_bytes(now_us, stats.udp_tx.bytes);
                 let next = sampler.sample(
-                    origin.elapsed().as_micros() as u64,
+                    now_us,
                     stats.path.rtt.as_micros().min(u128::from(u64::MAX)) as u64,
                     stats.path.lost_packets,
                     stats.path.sent_packets,
