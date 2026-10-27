@@ -1,5 +1,6 @@
 #include "gpu_sparse_atlas.cuh"
 #include "alpha_copy_profile.hpp"
+#include "opaque_alpha.hpp"
 #include "cuda_dmabuf_encoder.hpp"
 #include "../linux-media/device_selection.hpp"
 #include "gpu_import_cleanup.hpp"
@@ -165,6 +166,7 @@ struct CudaDmabufEncoder::Impl {
   bool timingsAll = false;
   bool borrowPreparedTile = true;
   bool reuseAlpha = true;
+  OpaqueAlphaCache opaqueAlpha;
   std::shared_ptr<const std::vector<unsigned char>> lastAlpha;
   // Cached registrations retain storage identity, never ownership of a live
   // producer read. Every use still waits its native fence, maps, unmaps, and
@@ -1074,7 +1076,7 @@ bool CudaDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   const size_t alphaBytes = size_t(impl_->config.outputWidth) * impl_->config.outputHeight;
   std::vector<unsigned char> rawAlpha;
   std::shared_ptr<const std::vector<unsigned char>> sharedAlpha;
-  const bool comparedOnGpu = impl_->gpuAlphaDiff && impl_->alphaDeviceValid &&
+  const bool comparedOnGpu = impl_->config.transparency && impl_->gpuAlphaDiff && impl_->alphaDeviceValid &&
       impl_->lastAlpha && impl_->lastAlpha->size() == alphaBytes;
   bool alphaReused = false, deviceSnapshotUpdated = false;
   auto failedAlphaPreparation = [&] {
@@ -1087,58 +1089,68 @@ bool CudaDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   };
   if (!cudaOk(cudaGetLastError(), error, "RGBA NV12 launch"))
     return failedAlphaPreparation();
-  if (comparedOnGpu) {
-    if (!cudaOk(cudaMemsetAsync(impl_->alphaChangedDevice, 0, sizeof(unsigned), impl_->stream),
-                error, "alpha change flag reset")) return failedAlphaPreparation();
-    alphaChanged<<<g, b, 0, impl_->stream>>>(impl_->alpha, impl_->alphaPitch,
-        impl_->previousAlphaDevice, impl_->config.outputWidth,
-        impl_->config.outputHeight, impl_->alphaChangedDevice);
-    if (!cudaOk(cudaGetLastError(), error, "alpha comparison launch") ||
-        !cudaOk(cudaMemcpyAsync(impl_->alphaChangedHost, impl_->alphaChangedDevice,
-                               sizeof(unsigned), cudaMemcpyDeviceToHost, impl_->stream),
-                error, "alpha comparison result") ||
-        !cudaOk(cudaStreamSynchronize(impl_->stream), error, "NV12/alpha comparison completion"))
-      return failedAlphaPreparation();
-    alphaReused = *impl_->alphaChangedHost == 0;
-    timingExit.mark("alpha_gpu_check");
+  if (!impl_->config.transparency) {
+    sharedAlpha = impl_->opaqueAlpha.get(impl_->config.outputWidth, impl_->config.outputHeight, inputs, sparseResult ? &*sparseResult : nullptr);
+    alphaReused = true;
   }
-  if (!alphaReused) {
-    if (!impl_->pinnedAlpha) rawAlpha.resize(alphaBytes);
-    unsigned char* alphaDestination = impl_->pinnedAlpha ? impl_->pinnedAlpha : rawAlpha.data();
-    if (impl_->gpuAlphaDiff) {
-      // The device mirror is now a candidate. If NVENC or any later step fails
-      // or expires, it must not authorize reuse of the old CPU snapshot.
-      impl_->alphaDeviceValid = false;
-      if (!cudaOk(cudaMemcpy2DAsync(impl_->previousAlphaDevice, size_t(impl_->config.outputWidth),
-                  impl_->alpha, impl_->alphaPitch, size_t(impl_->config.outputWidth),
-                  impl_->config.outputHeight, cudaMemcpyDeviceToDevice, impl_->stream),
-                  error, "retain device alpha candidate")) return failedAlphaPreparation();
-      deviceSnapshotUpdated = true;
+  if (!readAlphaIfEnabled(impl_->config.transparency, [&] {
+    if (comparedOnGpu) {
+      if (!cudaOk(cudaMemsetAsync(impl_->alphaChangedDevice, 0, sizeof(unsigned), impl_->stream),
+                  error, "alpha change flag reset")) return failedAlphaPreparation();
+      alphaChanged<<<g, b, 0, impl_->stream>>>(impl_->alpha, impl_->alphaPitch,
+          impl_->previousAlphaDevice, impl_->config.outputWidth,
+          impl_->config.outputHeight, impl_->alphaChangedDevice);
+      if (!cudaOk(cudaGetLastError(), error, "alpha comparison launch") ||
+          !cudaOk(cudaMemcpyAsync(impl_->alphaChangedHost, impl_->alphaChangedDevice,
+                                 sizeof(unsigned), cudaMemcpyDeviceToHost, impl_->stream),
+                  error, "alpha comparison result") ||
+          !cudaOk(cudaStreamSynchronize(impl_->stream), error, "NV12/alpha comparison completion"))
+        return failedAlphaPreparation();
+      alphaReused = *impl_->alphaChangedHost == 0;
+      timingExit.mark("alpha_gpu_check");
     }
-    if (!cudaOk(cudaMemcpy2DAsync(alphaDestination, size_t(impl_->config.outputWidth),
-                  impl_->alpha, impl_->alphaPitch, size_t(impl_->config.outputWidth),
-                  impl_->config.outputHeight, cudaMemcpyDeviceToHost, impl_->stream),
-                error, "alpha download") ||
-        !cudaOk(cudaStreamSynchronize(impl_->stream), error, "NV12/alpha completion"))
-      return failedAlphaPreparation();
-    timingExit.mark("alpha_full_readback");
-    if (impl_->reuseAlpha && !comparedOnGpu) {
-      AlphaCopyProfile profile("native_alpha_compare", metadata.frameId, alphaBytes);
-      alphaReused = impl_->lastAlpha && impl_->lastAlpha->size() == alphaBytes &&
-          std::memcmp(impl_->lastAlpha->data(), alphaDestination, alphaBytes) == 0;
+    if (!alphaReused) {
+      if (!impl_->pinnedAlpha) rawAlpha.resize(alphaBytes);
+      unsigned char* alphaDestination = impl_->pinnedAlpha ? impl_->pinnedAlpha : rawAlpha.data();
+      if (impl_->gpuAlphaDiff) {
+        // The device mirror is now a candidate. If NVENC or any later step fails
+        // or expires, it must not authorize reuse of the old CPU snapshot.
+        impl_->alphaDeviceValid = false;
+        if (!cudaOk(cudaMemcpy2DAsync(impl_->previousAlphaDevice, size_t(impl_->config.outputWidth),
+                    impl_->alpha, impl_->alphaPitch, size_t(impl_->config.outputWidth),
+                    impl_->config.outputHeight, cudaMemcpyDeviceToDevice, impl_->stream),
+                    error, "retain device alpha candidate")) return failedAlphaPreparation();
+        deviceSnapshotUpdated = true;
+      }
+      if (!cudaOk(cudaMemcpy2DAsync(alphaDestination, size_t(impl_->config.outputWidth),
+                    impl_->alpha, impl_->alphaPitch, size_t(impl_->config.outputWidth),
+                    impl_->config.outputHeight, cudaMemcpyDeviceToHost, impl_->stream),
+                  error, "alpha download") ||
+          !cudaOk(cudaStreamSynchronize(impl_->stream), error, "NV12/alpha completion"))
+        return failedAlphaPreparation();
+      timingExit.mark("alpha_full_readback");
+      if (impl_->reuseAlpha && !comparedOnGpu) {
+        AlphaCopyProfile profile("native_alpha_compare", metadata.frameId, alphaBytes);
+        alphaReused = impl_->lastAlpha && impl_->lastAlpha->size() == alphaBytes &&
+            std::memcmp(impl_->lastAlpha->data(), alphaDestination, alphaBytes) == 0;
+      }
+      if (!alphaReused && impl_->pinnedAlpha) {
+        AlphaCopyProfile profile("pinned_to_vector", metadata.frameId, alphaBytes);
+        rawAlpha.assign(impl_->pinnedAlpha, impl_->pinnedAlpha + alphaBytes);
+      }
     }
-    if (!alphaReused && impl_->pinnedAlpha) {
-      AlphaCopyProfile profile("pinned_to_vector", metadata.frameId, alphaBytes);
-      rawAlpha.assign(impl_->pinnedAlpha, impl_->pinnedAlpha + alphaBytes);
-    }
-  }
-  if (impl_->reuseAlpha)
-    sharedAlpha = alphaReused ? impl_->lastAlpha :
-        std::make_shared<const std::vector<unsigned char>>(std::move(rawAlpha));
+    if (impl_->config.transparency && impl_->reuseAlpha)
+      sharedAlpha = alphaReused ? impl_->lastAlpha :
+          std::make_shared<const std::vector<unsigned char>>(std::move(rawAlpha));
+    return true;
+  })) return false;
+  if (!impl_->config.transparency &&
+      !cudaOk(cudaStreamSynchronize(impl_->stream), error, "NV12 completion without alpha readback"))
+    return failedAlphaPreparation();
   if (logTimings)
     std::fprintf(stderr, "GPU alpha-transfer frame=%llu compared=%u download_bytes=%zu candidate=%u\n",
                  (unsigned long long)metadata.frameId, unsigned(comparedOnGpu),
-                 comparedOnGpu && alphaReused ? size_t(0) : alphaBytes, unsigned(deviceSnapshotUpdated));
+                 alphaReused ? size_t(0) : alphaBytes, unsigned(deviceSnapshotUpdated));
   if (logTimings)
     std::fprintf(stderr, "GPU alpha-storage frame=%llu mode=%s reused=%u bytes=%zu\n",
                  (unsigned long long)metadata.frameId,

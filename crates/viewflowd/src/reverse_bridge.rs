@@ -34,6 +34,9 @@ async fn native_supports_activity(config: &ReverseBridgeConfig) -> bool {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReverseBridgeConfig {
+    /// Local launch policy, never a nested JSON configuration key.
+    #[serde(skip)]
+    pub transparency: Option<bool>,
     pub native: PathBuf,
     #[serde(default)]
     pub args: Vec<String>,
@@ -267,6 +270,9 @@ async fn run(
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .kill_on_drop(true);
+    if windows_source && let Some(enabled) = config.transparency {
+        command.env("VIEWFLOW_TRANSPARENCY", if enabled { "1" } else { "0" });
+    }
     #[cfg(windows)]
     command.creation_flags(0x0800_0000); // CREATE_NO_WINDOW; never take UI focus.
     let mut child = command

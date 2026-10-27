@@ -121,6 +121,9 @@ typedef struct vf_gpu_dmabuf_output vf_gpu_dmabuf_output;
 
 // Creation, encode, every output operation, and destruction must occur on the
 // creating worker thread. No function throws across this ABI.
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_options(
+    const vf_gpu_dmabuf_encoder_config* config, uint32_t codec, uint32_t transparency, vf_gpu_dmabuf_encoder** output);
+
 vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_codec(
     const vf_gpu_dmabuf_encoder_config* config, uint32_t codec, vf_gpu_dmabuf_encoder** output);
 

@@ -12,7 +12,7 @@ public:
     }
 };
 }
-extern "C" viewflow::gpu::MediaEncoderBackend* viewflow_create_cuda_encoder_v1(
+extern "C" viewflow::gpu::MediaEncoderBackend* viewflow_create_cuda_encoder_v2(
     const viewflow::gpu::GpuDmabufEncoderConfig* config,std::string* error) {
     try {return new viewflow::gpu::CudaBackend(*config,error);}
     catch(const std::exception& failure) {if(error)*error=failure.what();return nullptr;}

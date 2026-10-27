@@ -83,9 +83,15 @@ pub struct AtlasSourceWindow {
     pub geometry_epoch: u64,
 }
 
+pub fn default_transparency() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AtlasSourceConfig {
+    #[serde(default = "default_transparency")]
+    pub transparency: bool,
     #[serde(default)]
     pub activity_priority: crate::activity_priority::ActivityPriorityMode,
     #[serde(default)]
@@ -1208,7 +1214,8 @@ mod tests {
     fn source_layout_rejects_aliases_and_is_order_independent() {
         let receiver = config();
         let mut source = AtlasSourceConfig {
-                        activity_priority: Default::default(),
+            transparency: true,
+            activity_priority: Default::default(),
 occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
             reverse: None,
             desktop: None,
@@ -1238,6 +1245,10 @@ occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
                 .collect(),
         };
         let mut encoded = serde_json::to_value(&source).unwrap();
+        encoded.as_object_mut().unwrap().remove("transparency");
+        assert!(serde_json::from_value::<AtlasSourceConfig>(encoded.clone()).unwrap().transparency);
+        encoded["transparency"] = serde_json::json!(false);
+        assert!(!serde_json::from_value::<AtlasSourceConfig>(encoded.clone()).unwrap().transparency);
         encoded.as_object_mut().unwrap().remove("performance_mode");
         let legacy: AtlasSourceConfig = serde_json::from_value(encoded.clone()).unwrap();
         assert_eq!(legacy.performance_mode, AtlasPerformanceMode::FrameRate);

@@ -240,9 +240,10 @@ unsafe extern "C" {
         required: *mut usize,
     ) -> u32;
 
-    fn vf_gpu_dmabuf_encoder_create_with_codec(
+    fn vf_gpu_dmabuf_encoder_create_with_options(
         config: *const CConfig,
         codec: u32,
+        transparency: u32,
         output: *mut *mut EncoderOpaque,
     ) -> u32;
     fn vf_gpu_dmabuf_encoder_destroy(encoder: *mut EncoderOpaque) -> u32;
@@ -417,6 +418,7 @@ pub struct GpuEncoder {
     height: u32,
     max_color: usize,
     alpha_bytes: usize,
+    transparency: bool,
     failed: bool,
     _thread_bound: PhantomData<Rc<()>>,
 }
@@ -436,11 +438,19 @@ impl GpuEncoder {
     }
 
     pub fn new_with_codec(
+        width: u32, height: u32, max_color: usize, max_alpha: usize,
+        codec: viewflow_transport::VideoCodec,
+    ) -> Result<Self> {
+        Self::new_with_transparency(width, height, max_color, max_alpha, codec, true)
+    }
+
+    pub fn new_with_transparency(
         width: u32,
         height: u32,
         max_color: usize,
         max_alpha: usize,
         codec: viewflow_transport::VideoCodec,
+        transparency: bool,
     ) -> Result<Self> {
         ensure!(
             matches!(
@@ -468,7 +478,7 @@ impl GpuEncoder {
         let mut raw = std::ptr::null_mut();
         // SAFETY: config and output slot are valid for the synchronous call.
         let status = unsafe {
-            vf_gpu_dmabuf_encoder_create_with_codec(&raw const config, codec as u32, &raw mut raw)
+            vf_gpu_dmabuf_encoder_create_with_options(&raw const config, codec as u32, u32::from(transparency), &raw mut raw)
         };
         if status != 0 {
             if !raw.is_null() {
@@ -483,6 +493,7 @@ impl GpuEncoder {
             height,
             max_color,
             alpha_bytes,
+            transparency,
             failed: false,
             _thread_bound: PhantomData,
         })
@@ -821,7 +832,7 @@ impl GpuEncoder {
             ));
             copy
         });
-        let raw_alpha = if copy_alpha {
+        let raw_alpha = if self.transparency && copy_alpha {
             owned
                 .copy_plane(self.alpha_bytes, vf_gpu_dmabuf_output_copy_raw_alpha)?
                 .into()

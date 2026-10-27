@@ -52,6 +52,7 @@ pub struct CodecIdentity {
 /// Bounded resource configuration for [`CompatibleEncoder`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Config {
+    pub transparency: bool,
     pub max_input_bytes: usize,
     pub max_color_access_unit_bytes: usize,
     pub max_alpha_access_unit_bytes: usize,
@@ -100,6 +101,7 @@ struct EncodedAlpha {
 /// paired with alpha from a new generation.
 pub struct CompatibleEncoder {
     config: Config,
+    opaque_alpha: Option<(u32, u32, Bytes)>,
     native: Option<HyprcaptureEncoder>,
     generation: Option<GenerationKey>,
     pending: Vec<PendingAlpha>,
@@ -121,6 +123,7 @@ impl CompatibleEncoder {
         }
         Ok(Self {
             config,
+            opaque_alpha: None,
             native: None,
             generation: None,
             pending: Vec::new(),
@@ -136,12 +139,18 @@ impl CompatibleEncoder {
         Some(descriptor_pair(self.generation?))
     }
 
-    /// This producer never marks an actual alpha plane as omitted, including
-    /// fully opaque source frames.
+    /// Existing peers retain required alpha. Omission is only allowed when
+    /// explicitly negotiated, and only for the fully opaque CPU source mode.
     #[must_use]
     pub const fn codec_session_policy(&self) -> CodecSessionPolicy {
+        self.negotiated_codec_session_policy(false)
+    }
+
+    pub const fn negotiated_codec_session_policy(&self, opaque_may_omit: bool) -> CodecSessionPolicy {
         CodecSessionPolicy {
-            alpha_plane: AlphaPlanePolicy::Required,
+            alpha_plane: if !self.config.transparency && opaque_may_omit {
+                AlphaPlanePolicy::OpaqueMayOmit
+            } else { AlphaPlanePolicy::Required },
         }
     }
 
@@ -301,6 +310,13 @@ impl CompatibleEncoder {
         header: &FrameHeader,
         rgba: &[u8],
     ) -> Result<(Vec<EncodedAccessUnit>, EncodedAlpha)> {
+        if !self.config.transparency {
+            let payload = self.opaque_payload(header.width, header.height)?;
+            let output = self.native.as_mut()
+                .ok_or_else(|| anyhow::anyhow!("native encoder generation was unavailable"))?
+                .submit(header.clone(), rgba)?;
+            return Ok((output, EncodedAlpha { payload }));
+        }
         std::thread::scope(|scope| -> Result<_> {
             let alpha_worker = std::thread::Builder::new()
                 .name("viewflow-vfar".into())
@@ -327,12 +343,21 @@ impl CompatibleEncoder {
         })
     }
 
+    fn opaque_payload(&mut self, width: u32, height: u32) -> Result<Bytes> {
+        if let Some((w, h, payload)) = &self.opaque_alpha
+            && (*w, *h) == (width, height) { return Ok(payload.clone()); }
+        let payload = viewflow_transport::encode_alpha_rle(width, height, &vec![255; width as usize * height as usize])?;
+        self.opaque_alpha = Some((width, height, payload.clone()));
+        Ok(payload)
+    }
+
     #[cfg(test)]
     fn submit_serial_alpha(
         &mut self,
         header: &FrameHeader,
         rgba: &[u8],
     ) -> Result<(Vec<EncodedAccessUnit>, EncodedAlpha)> {
+        if !self.config.transparency { return self.submit_parallel_alpha(header, rgba); }
         let alpha = EncodedAlpha {
             payload: encode_rgba_alpha_rle(
                 header.width,
@@ -511,6 +536,7 @@ mod tests {
 
     fn config() -> Config {
         Config {
+            transparency: true,
             max_input_bytes: 256 * 256 * 4,
             max_color_access_unit_bytes: 1_000_000,
             max_alpha_access_unit_bytes: 256 * 256 + 24,
@@ -529,6 +555,23 @@ mod tests {
             stride: 1024,
             payload_bytes: 256 * 256 * 4,
         }
+    }
+
+    #[test]
+    fn disabled_transparency_caches_opaque_alpha_and_requires_omission_negotiation() {
+        let mut settings = config();
+        settings.transparency = false;
+        let mut encoder = CompatibleEncoder::new(settings).unwrap();
+        let first = encoder.opaque_payload(256, 256).unwrap();
+        let second = encoder.opaque_payload(256, 256).unwrap();
+        assert_eq!(first.as_ptr(), second.as_ptr());
+        assert_eq!(encoder.codec_session_policy().alpha_plane, AlphaPlanePolicy::Required);
+        assert_eq!(encoder.negotiated_codec_session_policy(true).alpha_plane, AlphaPlanePolicy::OpaqueMayOmit);
+        let decoded = decode_alpha_rle(first, AlphaRleLimits {
+            max_coded_width:256,max_coded_height:256,max_luma_samples:65536,
+            max_decoded_bytes:65536,max_encoded_bytes:65560,
+        }).unwrap();
+        assert!(decoded.samples.iter().all(|a| *a == 255));
     }
 
     #[test]
@@ -668,6 +711,7 @@ mod tests {
         const SAMPLES: u64 = 160;
         let pixels = usize::try_from(u64::from(WIDTH) * u64::from(HEIGHT)).unwrap();
         let config = Config {
+            transparency: true,
             max_input_bytes: pixels * 4,
             max_color_access_unit_bytes: 32 * 1024 * 1024,
             max_alpha_access_unit_bytes: pixels + 24,

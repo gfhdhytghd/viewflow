@@ -2614,7 +2614,7 @@ pub(crate) mod tests {
             let alpha = viewflow_transport::encode_alpha_rle(
                 64,
                 64,
-                &vec![if id < 4 { 7 } else { 93 }; 4096],
+                &vec![if id < 4 { 255 } else { 0 }; 4096],
             )
             .unwrap();
             let expected_reference = matches!(id, 2 | 3 | 6);
@@ -3694,6 +3694,7 @@ pub(crate) mod tests {
         // Construction is CPU-only; no prepare_size or GPU import is invoked.
         let encoder = crate::gpu_compatible_encoder::GpuAtlasCompatibleEncoder::new(
             crate::compatible_encoder::Config {
+                transparency: true,
                 max_input_bytes: 16384,
                 max_color_access_unit_bytes: 16384,
                 max_alpha_access_unit_bytes: 16384,

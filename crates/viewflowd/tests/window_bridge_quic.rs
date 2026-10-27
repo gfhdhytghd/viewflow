@@ -24,6 +24,7 @@ def read():
 attempts = root / (role + '-starts')
 with attempts.open('a') as log: log.write('start\n')
 if role == 'source':
+    assert os.environ.get('VIEWFLOW_TRANSPARENCY') == '0'
     # Valid VFRV record framing; synthetic codec bytes aren't decoded here.
     frame = struct.pack('<IIIIqII', 1, 1, 2, 2, 1, 1, 0)
     frame += struct.pack('<I', 5) + bytes(5) + struct.pack('<I', 5) + b'\0\0\0\1\x65'
@@ -54,6 +55,7 @@ with (root / (role + '-cleaned')).open('a') as log: log.write('eof\n')
 
 fn config(root: &Path, source: bool, restart: bool) -> ReverseBridgeConfig {
     ReverseBridgeConfig {
+        transparency: source.then_some(false),
         native: Path::new("/usr/bin/python3").into(),
         activity_priority: Default::default(),
         args: vec![

@@ -1,10 +1,25 @@
 #include "window_frame_schedule.hpp"
+#include "../reverse-common/opaque_alpha.hpp"
 
 #include <cassert>
 
 using namespace viewflow;
 
 int main() {
+    reverse::OpaqueAlphaCache masks;
+    reverse::Frame frame;frame.width=8;frame.height=6;
+    reverse::Tile content{};content.width=8;content.height=6;content.flags=16;
+    content.body_x=2;content.body_y=1;content.body_width=4;content.body_height=3;
+    frame.tiles.push_back(content);
+    const auto& mask=masks.get(frame);const auto* storage=mask.data();
+    for(unsigned y=0;y<6;++y)for(unsigned x=0;x<8;++x)
+        assert(mask[y*8+x]==((x>=2 && x<6 && y>=1 && y<4)?255:0));
+    assert(masks.get(frame).data()==storage);
+    const auto& absent=masks.get(frame,[](const auto&) { return false; });
+    assert(std::all_of(absent.begin(),absent.end(),[](auto a){return a==0;}));
+    reverse::set_resident_rect(frame.tiles[0],{2,1,4,3});
+    frame.tiles[0].atlas_x=0;frame.tiles[0].atlas_y=0;
+    assert(masks.get(frame)[0]==255);
     macos::FrameSchedule schedule;
     reverse::Tile tile{1, 0, 10, 20, 64, 32, 0, 0, "first", 0, 0};
     std::vector<reverse::Tile> tiles{tile};
