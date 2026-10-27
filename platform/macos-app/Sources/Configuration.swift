@@ -84,8 +84,15 @@ struct ConnectionProfile: Codable, Equatable {
     var transparencyEnabled: Bool { transparency ?? true }
     var hidForwardingEnabled: Bool { hidForwarding ?? true }
 
-    static func presentationEnvironment(transparency: Bool) -> [String: String] {
-        ["VIEWFLOW_TRANSPARENCY": transparency ? "1" : "0"]
+    static let qualityModes = ["auto", "high_quality", "save_bandwidth"]
+
+    static func presentationEnvironment(transparency: Bool, qualityMode: String = "auto") -> [String: String] {
+        var environment = ["VIEWFLOW_TRANSPARENCY": transparency ? "1" : "0"]
+        // Unset means auto, so older window sources keep their defaults.
+        if qualityMode != "auto" && qualityModes.contains(qualityMode) {
+            environment["VIEWFLOW_QUALITY_MODE"] = qualityMode
+        }
+        return environment
     }
 
     struct Endpoint: Codable, Equatable {

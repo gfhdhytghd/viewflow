@@ -19,6 +19,7 @@ from zeroconf import IPVersion, ServiceBrowser, ServiceInfo, Zeroconf
 
 import pairing_protocol as wire
 from display_arrangement import arrange
+from pairing_profiles import QUALITY_ORDER
 
 SERVICE = '_viewflow._tcp.local.'
 MAX_MEMBERS = 3
@@ -85,6 +86,7 @@ def validate_group(value, host_id, local_id):
     if slots[0] != 0 or any(type(s) is not int or not 0 <= s < MAX_MEMBERS for s in slots) or len(set(slots)) != len(slots):
         raise ValueError('连接组位置无效。')
     return copy.deepcopy(value)
+
 
 
 class PairingService:
@@ -185,8 +187,14 @@ class PairingService:
                                       links=list(self.peers.values()), device=self.device,
                                       connected=list(self.connected) if not self.paused else [], paused=self.paused))
 
+    @staticmethod
+    def valid_connection_option(name, value):
+        if name in ('transparency', 'hid_forwarding'): return type(value) is bool
+        if name == 'quality_mode': return value in QUALITY_ORDER
+        return False
+
     def set_default_connection_option(self, name, enabled):
-        if name not in ('transparency', 'hid_forwarding') or type(enabled) is not bool:
+        if not self.valid_connection_option(name, enabled):
             raise ValueError('无效的连接选项。')
         with self.lock:
             self.state.setdefault('option_defaults', {})[name] = enabled
@@ -196,7 +204,7 @@ class PairingService:
         self.wakeup.set()
 
     def set_connection_option(self, identity, name, enabled):
-        if name not in ('transparency', 'hid_forwarding') or type(enabled) is not bool:
+        if not self.valid_connection_option(name, enabled):
             raise ValueError('无效的连接选项。')
         with self.lock:
             record = self.peers[identity]
@@ -208,8 +216,8 @@ class PairingService:
     @staticmethod
     def connection_options(value):
         if not isinstance(value, dict): raise ValueError('无效的连接选项。')
-        return {name: value[name] for name in ('transparency', 'hid_forwarding')
-                if name in value and type(value[name]) is bool}
+        return {name: value[name] for name in ('transparency', 'hid_forwarding', 'quality_mode')
+                if name in value and PairingService.valid_connection_option(name, value[name])}
 
     def display_layout(self):
         group = self.state['group']

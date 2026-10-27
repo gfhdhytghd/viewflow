@@ -347,6 +347,13 @@ class ApplicationModel(QObject):
         except Exception as error: self.set_message(str(error))
         self.publish()
 
+    @Slot(str, str)
+    def setQualityMode(self, identity, mode):
+        if self.passive or self.quitting: return
+        try: self.pairing.set_connection_option(identity, 'quality_mode', mode)
+        except Exception as error: self.set_message(str(error))
+        self.publish()
+
     @Slot(str, bool)
     def setComponentEnabled(self, name, enabled):
         if self.passive or self.quitting: return

@@ -14,6 +14,9 @@ import Foundation
         precondition(!off.transparencyEnabled && !off.hidForwardingEnabled)
         precondition(ConnectionProfile.presentationEnvironment(transparency: false)["VIEWFLOW_TRANSPARENCY"] == "0")
         precondition(ConnectionProfile.presentationEnvironment(transparency: true)["VIEWFLOW_TRANSPARENCY"] == "1")
+        precondition(ConnectionProfile.presentationEnvironment(transparency: true)["VIEWFLOW_QUALITY_MODE"] == nil)
+        precondition(ConnectionProfile.presentationEnvironment(transparency: true, qualityMode: "save_bandwidth")["VIEWFLOW_QUALITY_MODE"] == "save_bandwidth")
+        precondition(ConnectionProfile.presentationEnvironment(transparency: true, qualityMode: "ultra")["VIEWFLOW_QUALITY_MODE"] == nil)
         precondition(Component.hid.title == "触控板 HID 转发")
         for value in ["127.0.0.1:123", "[::1]:443", "[2001:db8::1]:65535"] { try ConnectionProfile.validateAddress(value) }
         for value in ["127.0.0.1:0", "127.0.0.256:123", "[:::]:123", "[a:b]:123", "1.2.3.4:65536", "1.2.3.4:1\n"] {

@@ -10,12 +10,23 @@ def geometry(device, x=0):
     return dict(x=x, y=0, width=display['width'], height=display['height'], scale=display['scale'])
 
 
+QUALITY_ORDER = ('high_quality', 'auto', 'save_bandwidth')
+
+
+def quality_mode(local, remote):
+    """Both ends share one link: the more bandwidth-conserving explicit choice
+    wins. An unset side (None) has no preference and never overrides the other."""
+    known = [mode for mode in (local, remote) if mode in QUALITY_ORDER]
+    return max(known, key=QUALITY_ORDER.index, default='auto')
+
+
 def build_profile(local, record):
     validate_device(local)
     peer = validate_device(record['device'])
     options = record.get('options', {})
     transparency = options.get('transparency', True)
     hid = options.get('hid_forwarding', True) and record.get('remote_options', {}).get('hid_forwarding', True)
+    quality = quality_mode(options.get('quality_mode'), record.get('remote_options', {}).get('quality_mode'))
     platform, remote_platform = local['platform'], peer['platform']
     server = 'vf-' + peer['id'] + '.local'
     remote = lambda service: endpoint(record['host'], peer['ports'][service])
@@ -45,7 +56,8 @@ def build_profile(local, record):
                                x=local.get('share_origin', [local_width, 0])[0], y=local.get('share_origin', [local_width, 0])[1]),
             presentationScale=presentation_scale,
             presentationOriginX=incoming_origin, presentationOriginY=incoming_y, frameRate=60, maxWindows=8,
-            performanceMode='frame-rate', transparency=transparency, hidForwarding=hid)
+            performanceMode='frame-rate', transparency=transparency, hidForwarding=hid,
+            **({} if quality == 'auto' else dict(qualityMode=quality)))
     profile = dict(version=2, platform=platform, name=peer['name'], peerID=peer['id'],
                    components=[], configs={}, files={})
     tls = {}
@@ -116,6 +128,7 @@ def build_profile(local, record):
         if item['program'] in ('vf-window-peer', 'paired-linux-session', 'vf-media-peer'):
             env = item.setdefault('environment', {})
             env['VIEWFLOW_TRANSPARENCY'] = '1' if transparency else '0'
+            if quality != 'auto': env['VIEWFLOW_QUALITY_MODE'] = quality
             if item['program'] == 'paired-linux-session':
                 env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'] = '1' if hid and remote_platform == 'windows' else '0'
                 env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD'] = '1' if hid and remote_platform == 'macos' else '0'
@@ -123,6 +136,8 @@ def build_profile(local, record):
             # daemons that predate these fields.
             if item['program'] in ('vf-window-peer', 'paired-linux-session') and not transparency:
                 profile['configs'][item['id'] + '.json']['transparency'] = False
+            if item['program'] in ('vf-window-peer', 'paired-linux-session') and quality != 'auto':
+                profile['configs'][item['id'] + '.json']['quality_mode'] = quality
             if item['program'] == 'paired-linux-session' and not hid:
                 profile['configs'][item['id'] + '.json']['pointer']['hid_forwarding'] = False
     return profile

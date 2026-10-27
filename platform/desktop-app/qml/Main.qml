@@ -581,6 +581,15 @@ ApplicationWindow {
                                         checked: !modelData.options || modelData.options.hid_forwarding !== false
                                         onToggled: window.backend.setConnectionOption(modelData.id, "hid_forwarding", checked)
                                     }
+                                    ChoiceBox {
+                                        visible: !modelData.local && !!modelData.options
+                                        Layout.fillWidth: true
+                                        objectName: "qualityMode"
+                                        Accessible.name: window.t("画质与网络")
+                                        model: [window.t("自动适应网络"), window.t("高画质（有线）"), window.t("省带宽（无线）")]
+                                        currentIndex: ["auto", "high_quality", "save_bandwidth"].indexOf(modelData.options && modelData.options.quality_mode ? modelData.options.quality_mode : "auto")
+                                        onActivated: window.backend.setQualityMode(modelData.id, ["auto", "high_quality", "save_bandwidth"][currentIndex])
+                                    }
                                     ActionButton { visible: window.state.discovery.role === "host" && !modelData.local; text: window.t("移出连接组"); enabled: !window.state.busy; onClicked: window.backend.removeGroupMember(modelData.id) }
                                 }
                             }

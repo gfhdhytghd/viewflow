@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-from pairing_profiles import build_profile
+from pairing_profiles import build_profile, quality_mode
 from pairing_protocol import new_key, issue_pair, public_key, private_key_pem
 from runtime import materialize, validate_profile, SCRIPTS
 
@@ -31,6 +31,34 @@ class PairingProfileTests(unittest.TestCase):
                         authority=issued['authority'], host='127.0.0.1', stream_id='c'*32)
         return (build_profile(a, record(b, ak, issued['local_certificate'])),
                 build_profile(b, record(a, bk, issued['peer_certificate'])))
+
+    def test_quality_mode_combines_to_the_more_conserving_choice(self):
+        self.assertEqual(quality_mode('auto', 'auto'), 'auto')
+        self.assertEqual(quality_mode('high_quality', 'auto'), 'auto')
+        self.assertEqual(quality_mode('high_quality', 'high_quality'), 'high_quality')
+        self.assertEqual(quality_mode('auto', 'save_bandwidth'), 'save_bandwidth')
+        self.assertEqual(quality_mode('bogus', 'high_quality'), 'high_quality')
+        # An unset peer has no preference and does not override a local choice.
+        self.assertEqual(quality_mode('high_quality', None), 'high_quality')
+        self.assertEqual(quality_mode(None, None), 'auto')
+
+    def test_quality_mode_is_written_only_when_not_auto(self):
+        for local_platform, remote_platform in itertools.permutations(('linux', 'windows', 'macos'), 2):
+            local, peer = device(local_platform, 'a', 41000), device(remote_platform, 'b', 42000)
+            for mode in ('auto', 'high_quality', 'save_bandwidth'):
+                record = dict(device=peer, certificate='cert', private_key='key', authority='ca',
+                              host='127.0.0.1', stream_id='c'*32, options=dict(quality_mode=mode))
+                profile = build_profile(local, record)
+                if local_platform == 'macos':
+                    self.assertEqual(profile.get('qualityMode', 'auto'), mode)
+                    continue
+                for item in profile['components']:
+                    if item['program'] == 'vf-clipboard-peer': continue
+                    self.assertEqual(item['environment'].get('VIEWFLOW_QUALITY_MODE', 'auto'), mode)
+                    if item['program'] in ('vf-window-peer', 'paired-linux-session'):
+                        config = profile['configs'][item['id'] + '.json']
+                        if mode == 'auto': self.assertNotIn('quality_mode', config)
+                        else: self.assertEqual(config['quality_mode'], mode)
 
     def test_connection_options_cover_every_launch_mode(self):
         for local_platform, remote_platform in itertools.permutations(('linux', 'windows', 'macos'), 2):

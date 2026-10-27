@@ -24,6 +24,15 @@ class PairingServiceTests(unittest.TestCase):
     def join(self, host, client, code=None):
         return client.connect(f'127.0.0.1:{host.port}', code or host.show_code(), host.device['id'])
 
+    def test_quality_mode_option_accepts_only_known_values(self):
+        from pairing_service import PairingService
+        self.assertTrue(PairingService.valid_connection_option('quality_mode', 'save_bandwidth'))
+        self.assertFalse(PairingService.valid_connection_option('quality_mode', 'ultra'))
+        self.assertFalse(PairingService.valid_connection_option('quality_mode', True))
+        self.assertFalse(PairingService.valid_connection_option('transparency', 'auto'))
+        self.assertEqual(PairingService.connection_options(
+            dict(quality_mode='ultra', transparency=False, hid_forwarding='yes')), dict(transparency=False))
+
     def test_options_persist_and_sync_without_replacing_unrelated_links(self):
         from pairing_profiles import build_group_profile
         host = self.service('options-host', role='host')
