@@ -149,6 +149,12 @@ private struct MainView: View {
             }
             Toggle("透明窗口", isOn: Binding(get: { model.transparency }, set: { model.setTransparency($0) }))
                 .toggleStyle(.switch)
+            Picker("画质与网络", selection: Binding(get: { model.qualityMode }, set: { model.setQualityMode($0) })) {
+                Text("自动适应网络").tag("auto")
+                Text("高画质（有线）").tag("high_quality")
+                Text("省带宽（无线）").tag("save_bandwidth")
+            }
+            .pickerStyle(.menu)
             ForEach(Component.allCases) { component in
                 GroupBox {
                     HStack(spacing: 12) {

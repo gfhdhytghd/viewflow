@@ -12,6 +12,8 @@ import Combine
     @Published private(set) var statuses: [Component: String] = [:]
     @Published private(set) var enabled: Set<Component> = Set(Component.allCases)
     @Published private(set) var transparency = UserDefaults.standard.object(forKey: "transparency") as? Bool ?? true
+    @Published private(set) var qualityMode = UserDefaults.standard.string(forKey: "qualityMode")
+        .flatMap { ConnectionProfile.qualityModes.contains($0) ? $0 : nil } ?? "auto"
     private var workers: [String: ManagedWorker] = [:]
     private var selected: Set<String> = []
     private var inventoryBusy = false
@@ -104,6 +106,16 @@ import Combine
         }
         tick()
     }
+    func setQualityMode(_ value: String) {
+        guard ConnectionProfile.qualityModes.contains(value), value != qualityMode else { return }
+        qualityMode = value
+        UserDefaults.standard.set(value, forKey: "qualityMode")
+        // Only senders encode; receivers keep running.
+        for worker in workers.values where worker.component == .windowsShare {
+            worker.stop()
+        }
+        tick()
+    }
     func setEnabled(_ component: Component, _ value: Bool) {
         if value { enabled.insert(component) } else { enabled.remove(component) }
         UserDefaults.standard.set(enabled.map(\.rawValue), forKey: "components")
@@ -147,7 +159,7 @@ import Combine
         if workers[id] == nil {
             let new = try ManagedWorker(id: id, component: component, executable: BundleTools.executable(binary), arguments: arguments())
             new.groupPeerID = peerID
-            new.environment = ConnectionProfile.presentationEnvironment(transparency: transparency)
+            new.environment = ConnectionProfile.presentationEnvironment(transparency: transparency, qualityMode: qualityMode)
             new.changed = { [weak self] in self?.objectWillChange.send() }
             workers[id] = new
         }
@@ -328,6 +340,7 @@ import Combine
                     fields["bind"] = peer.address.hasPrefix("[") ? "[::]:0" : "0.0.0.0:0"
                     fields["remote"] = peer.address; fields["server_name"] = peer.serverName; fields["role"] = "source"
                     fields["transparency"] = transparency
+                    if qualityMode != "auto" { fields["quality_mode"] = qualityMode }
                     var sourceArgs = ["source", "--window", String(window.windowID), "--scale", String(peer.id == "linux" ? max(2, peer.captureScale) : peer.captureScale),
                                  "--fps", String(profile.frameRate), "--codec", peer.codec ?? "h264",
                                  "--performance-mode", profile.performanceMode,
