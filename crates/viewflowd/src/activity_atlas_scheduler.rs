@@ -35,6 +35,8 @@ impl AtlasActivityScheduler {
         }
     }
 
+    pub(crate) fn set_target_fps(&mut self, fps: u32) { self.target_fps = fps.max(1); }
+
     pub(crate) fn local_activation(&self, window: WindowId) {
         self.activity.observe(|state, _| state.focus(window.0));
     }
@@ -218,6 +220,21 @@ mod tests {
         assert_eq!(new.focus, old.focus);
         assert!(scheduler.select(1, 0).is_empty());
     }
+    #[test]
+    fn quality_target_paces_foreground_and_background_and_recovers() {
+        let (_, mut scheduler) = setup(true);
+        scheduler.set_target_fps(20);
+        for lane in [0, 1] {
+            let selected = scheduler.select(lane, 0);
+            assert!(!selected.is_empty());
+            scheduler.admitted(lane, &selected, 0);
+            assert!(scheduler.select(lane, 49_999).is_empty());
+            assert!(!scheduler.select(lane, 50_000).is_empty());
+        }
+        scheduler.set_target_fps(60);
+        assert!(!scheduler.select(1, 16_667).is_empty());
+    }
+
     #[test]
     fn two_connections_do_not_share_activity_or_backpressure() {
         let (one, mut a) = setup(true);

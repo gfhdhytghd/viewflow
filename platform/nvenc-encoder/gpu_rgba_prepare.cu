@@ -8,6 +8,10 @@ __device__ unsigned char up(unsigned char c, unsigned char a) {
   if (!a) return 0;
   return static_cast<unsigned char>(min((int(c)*255+a/2)/a,255));
 }
+__global__ void opaqueMask(unsigned char* rgba,size_t pitch,int width,int height,int left,int top,int right,int bottom) {
+  int x=int(blockIdx.x*blockDim.x+threadIdx.x), y=int(blockIdx.y*blockDim.y+threadIdx.y);
+  if(x<width && y<height) rgba[size_t(y)*pitch+size_t(x)*4+3]=(x>=left && x<right && y>=top && y<bottom)?255:0;
+}
 __global__ void init(int* seam) { *seam=INT_MAX; }
 __global__ void copyk(RgbaPrepare p) {
   size_t x=size_t(blockIdx.x)*blockDim.x+threadIdx.x, y=size_t(blockIdx.y)*blockDim.y+threadIdx.y;
@@ -45,6 +49,10 @@ bool overlap(const void* a,size_t as,const void* b,size_t bs) {
   if(av>UINTPTR_MAX-as||bv>UINTPTR_MAX-bs)return true;
   return av<bv+bs&&bv<av+as;
 }
+}
+cudaError_t maskOpaqueRgba(unsigned char* rgba,size_t pitch,int width,int height,int left,int top,int right,int bottom,cudaStream_t stream) {
+  opaqueMask<<<dim3((width+15)/16,(height+15)/16),dim3(16,16),0,stream>>>(rgba,pitch,width,height,left,top,right,bottom);
+  return cudaGetLastError();
 }
 cudaError_t prepareRgba(const RgbaPrepare& p,cudaStream_t stream) {
   if(!p.src||!p.rgba||!p.alpha||p.srcWidth<=0||p.srcHeight<=0||p.width<=0||p.height<=0||

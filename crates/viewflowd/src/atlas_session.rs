@@ -186,6 +186,8 @@ fn alpha_identity(frame: &AtlasFrame) -> [u8; 40] {
 }
 
 pub struct AtlasSenderSession {
+    pub(crate) quality_telemetry: std::sync::Arc<crate::quality::QualityTelemetry>,
+    pub(crate) quality_lane: usize,
     #[cfg(test)]
     drop_chunk: Option<(u64, viewflow_transport::MediaPlane, u16)>,
     retransmit: Option<std::sync::Arc<crate::atlas_loss::Retransmit>>,
@@ -337,6 +339,8 @@ pub async fn offer_atlas(
             alpha_cache: None,
             feedback: None,
             activity_feedback: None,
+            quality_telemetry: Default::default(),
+            quality_lane: 0,
             last_disposition: None,
             shared_control: None,
             control_started: std::sync::atomic::AtomicBool::new(false),
@@ -598,6 +602,8 @@ async fn offer_warmed_atlas_mode(
             alpha_cache: None,
             feedback,
             activity_feedback: None,
+            quality_telemetry: Default::default(),
+            quality_lane: 0,
             last_disposition: None,
             shared_control: None,
             control_started: std::sync::atomic::AtomicBool::new(false),
@@ -788,6 +794,7 @@ impl AtlasSenderSession {
             connection: self.connection.clone(), plan: self.plan, frame_send_poisoned: false,
             alpha_reference: self.alpha_reference, alpha_cache: None, feedback: None,
             activity_feedback: Some(feedback), last_disposition: None,
+            quality_telemetry: self.quality_telemetry.clone(), quality_lane: 1,
             shared_control: self.shared_control.clone(),
             control_started: std::sync::atomic::AtomicBool::new(false),
         })
@@ -895,6 +902,7 @@ impl AtlasSenderSession {
         let trace = crate::atlas_feedback::trace_frame(manifest.frame_id);
         let started = trace.then(Instant::now);
         trace_connection(&self.connection, manifest.frame_id, "source", "begin", 0);
+        self.quality_telemetry.begin(self.quality_lane);
         let encoded_bytes = color.len().saturating_add(alpha.len());
         // Freshness decides whether to start this frame. It must not cancel a
         // partially sent manifest/pair or terminate the stream at 33 ms.
@@ -1012,6 +1020,8 @@ impl AtlasSenderSession {
                 started.map_or(0, |t| t.elapsed().as_micros()),
             );
         }
+        self.quality_telemetry.finish(self.quality_lane,
+            self.last_disposition == Some(crate::atlas_feedback::AtlasFrameDisposition::ExpiredUnbound));
         if self.alpha_reference
             && !alpha_referenced
             && matches!(self.last_disposition, Some(crate::atlas_feedback::AtlasFrameDisposition::Committed

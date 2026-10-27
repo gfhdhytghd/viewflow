@@ -43,6 +43,8 @@ pub struct GpuAtlasDevice {
     empty_published: bool,
     committed_input: Option<crate::window_input_runtime::AtlasCommittedInput>,
     desktop: Option<crate::desktop_source::SharedDesktopSourceLane>,
+    quality_period: Option<std::time::Duration>,
+    quality_last: Option<Instant>,
 }
 
 impl GpuAtlasDevice {
@@ -62,7 +64,25 @@ impl GpuAtlasDevice {
             }
             return std::task::Poll::Pending;
         }
+        if self.quality_period.is_some_and(|period| self.quality_last.is_some_and(|last| last.elapsed() < period)) {
+            // The source's housekeeping timer wakes at 1 ms; a queued capture
+            // must not create a busy loop while this pacing interval remains.
+            return std::task::Poll::Pending;
+        }
         self.active.as_mut().map_or(std::task::Poll::Pending, |(pool, _)| pool.poll_readable(cx))
+    }
+
+    pub(crate) fn apply_quality(&mut self, target: viewflow_core::QualityTarget, adaptive: bool, nominal_fps: u32) {
+        self.quality_period = (adaptive && target.max_fps < nominal_fps).then(|| std::time::Duration::from_nanos(1_000_000_000 / u64::from(target.max_fps.max(1))));
+        if let Some(activity) = &mut self.activity {
+            if adaptive { activity.scheduler.set_target_fps(target.max_fps); }
+            if adaptive {
+                for worker in activity.workers.iter_mut().flatten() { worker.set_bitrate_kbps(target.kbps); }
+                if let Some(sender) = &mut activity.fallback { sender.set_bitrate_kbps(target.kbps); }
+            }
+        } else if adaptive {
+            if let Some((_, Some(sender))) = &mut self.active { sender.set_bitrate_kbps(target.kbps); }
+        }
     }
 
     pub(crate) fn set_occlusion(
@@ -166,6 +186,8 @@ impl GpuAtlasDevice {
             empty_published: false,
             committed_input: None,
             desktop: None,
+            quality_period: None,
+            quality_last: None,
         })
     }
 
@@ -295,10 +317,15 @@ impl GpuAtlasDevice {
             self.active = Some((pool, Some(sender)));
             return Ok(AtlasDevicePoll::Waiting);
         }
+        if self.quality_period.is_some_and(|period| self.quality_last.is_some_and(|last| last.elapsed() < period)) {
+            self.active = Some((pool, Some(sender)));
+            return Ok(AtlasDevicePoll::Waiting);
+        }
         let Some(sources) = pool.poll_ready()? else {
             self.active = Some((pool, Some(sender)));
             return Ok(AtlasDevicePoll::Waiting);
         };
+        self.quality_last = Some(Instant::now());
         self.committed_input = None;
         // Stage all changed captures as one candidate. The encoder validates
         // the resulting snapshot and forces fresh color/alpha keyframes on a

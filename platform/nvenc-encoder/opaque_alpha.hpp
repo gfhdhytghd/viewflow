@@ -1,5 +1,6 @@
 #pragma once
 #include "gpu_dmabuf_encoder.cuh"
+#include "sparse_atlas_plan.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -9,6 +10,25 @@ namespace viewflow::gpu {
 // path adds only the cached policy branch.
 template<class Capture> bool readAlphaIfEnabled(bool enabled, Capture&& capture) {
     return !enabled || capture();
+}
+inline std::array<int,4> opaqueContentRect(const DmabufFrame& frame) {
+    std::array<int,4> rect{0,0,frame.cropWidth,frame.cropHeight};
+    if(frame.shadow) {
+        const auto& s=*frame.shadow;
+        rect={int(std::clamp(std::ceil(s.cutoutLeft-.5),0.,double(frame.cropWidth))),
+              int(std::clamp(std::ceil(s.cutoutTop-.5),0.,double(frame.cropHeight))),
+              int(std::clamp(std::ceil(s.cutoutLeft+s.cutoutWidth-.5),0.,double(frame.cropWidth))),
+              int(std::clamp(std::ceil(s.cutoutTop+s.cutoutHeight-.5),0.,double(frame.cropHeight)))};
+    }
+    return rect;
+}
+inline void classifyOpaqueCells(const std::vector<DmabufAtlasTile>& tiles, std::vector<SparseCell>& cells) {
+    for(auto& c:cells) {
+        const auto r=opaqueContentRect(tiles.at(c.source).frame);
+        const int x=int(c.sourceX),y=int(c.sourceY),right=x+int(c.width),bottom=y+int(c.height);
+        c.alpha=right<=r[0] || bottom<=r[1] || x>=r[2] || y>=r[3] ? CellAlpha::Empty :
+            x>=r[0] && y>=r[1] && right<=r[2] && bottom<=r[3] ? CellAlpha::Opaque : CellAlpha::Mixed;
+    }
 }
 // Geometry-only immutable alpha: no GPU read, and no per-frame pixel work when
 // the content rectangles are unchanged. Coordinates are displayed crop pixels.

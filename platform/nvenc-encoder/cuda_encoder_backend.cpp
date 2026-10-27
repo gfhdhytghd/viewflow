@@ -6,13 +6,14 @@ class CudaBackend final:public MediaEncoderBackend {
 public:
     CudaBackend(const GpuDmabufEncoderConfig& config,std::string* error):encoder(config,error) {}
     bool ready()const override{return encoder.ready();}
+    bool setBitrateKbps(std::uint32_t kbps,std::string* error)override{return encoder.setBitrateKbps(kbps,error);}
     bool encodeAtlas(const std::vector<DmabufAtlasTile>& tiles,FrameMetadata metadata,bool idr,int64_t deadline,
         EncodedDmabufFrame& output,std::string* error,EncodeDisposition* disposition,const SparseOptions* sparse)override {
         return encoder.encodeAtlas(tiles,metadata,idr,deadline,output,error,disposition,sparse);
     }
 };
 }
-extern "C" viewflow::gpu::MediaEncoderBackend* viewflow_create_cuda_encoder_v2(
+extern "C" viewflow::gpu::MediaEncoderBackend* viewflow_create_cuda_encoder_v3(
     const viewflow::gpu::GpuDmabufEncoderConfig* config,std::string* error) {
     try {return new viewflow::gpu::CudaBackend(*config,error);}
     catch(const std::exception& failure) {if(error)*error=failure.what();return nullptr;}

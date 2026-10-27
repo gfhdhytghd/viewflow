@@ -100,6 +100,7 @@ struct EncodedAlpha {
 /// delayed output and rebuilds the native producer so old color can never be
 /// paired with alpha from a new generation.
 pub struct CompatibleEncoder {
+    bitrate_kbps: u32,
     config: Config,
     opaque_alpha: Option<(u32, u32, Bytes)>,
     native: Option<HyprcaptureEncoder>,
@@ -122,6 +123,7 @@ impl CompatibleEncoder {
             bail!("compatible encoder bounds must be nonzero");
         }
         Ok(Self {
+            bitrate_kbps: 0,
             config,
             opaque_alpha: None,
             native: None,
@@ -199,6 +201,12 @@ impl CompatibleEncoder {
     /// Ask the existing native context for an IDR on its next input. This does
     /// not change identities, configuration, capture timestamps, or pending AUs.
     /// Before initialization, the first frame already requests an IDR.
+    pub fn set_bitrate_kbps(&mut self, kbps: u32) -> Result<()> {
+        crate::quality::apply_bitrate(&mut self.bitrate_kbps, kbps, |next| {
+            if let Some(encoder) = &mut self.native { encoder.set_bitrate_kbps(next)?; }
+            Ok(())
+        })
+    }
     pub fn request_keyframe(&mut self) {
         if let Some(native) = self.native.as_mut() {
             native.request_keyframe();
@@ -249,6 +257,7 @@ impl CompatibleEncoder {
                 alpha_policy: AlphaPolicy::ColorOnlyExternalAlpha,
                 alpha_fidelity: AlphaFidelity::Lossless,
             })?);
+            if let Some(native) = &mut self.native { native.set_bitrate_kbps(self.bitrate_kbps)?; }
             self.generation = Some(key);
             self.window_id = Some(identity.window_id);
             self.last_config_generation = Some(identity.config_generation);

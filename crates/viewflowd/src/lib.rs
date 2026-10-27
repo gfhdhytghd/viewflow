@@ -1,3 +1,4 @@
+pub mod quality;
 mod atlas_loss;
 pub mod managed_owner;
 use std::{

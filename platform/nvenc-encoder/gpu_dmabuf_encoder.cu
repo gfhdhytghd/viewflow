@@ -404,6 +404,11 @@ struct CudaDmabufEncoder::Impl {
     encoder->time_base = {1, 1000000000};
     encoder->framerate = {60, 1};
     encoder->max_b_frames = 0;
+    if (config.bitrateKbps) {
+      encoder->bit_rate = int64_t(config.bitrateKbps) * 1000;
+      encoder->rc_max_rate = encoder->bit_rate;
+      encoder->rc_buffer_size = int(config.bitrateKbps) * 1000;
+    }
     // Keep the stream decodable after a dropped AU without making every frame
     // an IDR.  With no B frames, this is a persistent low-latency P-frame GOP.
     encoder->gop_size = 120;
@@ -440,9 +445,9 @@ struct CudaDmabufEncoder::Impl {
               "NVENC lookahead") ||
         !avOk(av_opt_set(encoder->priv_data, "forced-idr", "1", 0), error,
               "NVENC forced IDR") ||
-        !avOk(av_opt_set(encoder->priv_data, "rc", "constqp", 0), error,
+        !avOk(av_opt_set(encoder->priv_data, "rc", config.bitrateKbps ? "vbr" : "constqp", 0), error,
               "NVENC rc") ||
-        !avOk(av_opt_set(encoder->priv_data, "qp", "10", 0), error,
+        !avOk(av_opt_set(encoder->priv_data, config.bitrateKbps ? "cq" : "qp", config.bitrateKbps ? "7" : "10", 0), error,
               "NVENC qp") ||
         (config.colorCodec == 2 && !avOk(av_opt_set(encoder->priv_data, "profile", "high", 0), error,
               "NVENC High profile")) ||
@@ -498,6 +503,18 @@ CudaDmabufEncoder::CudaDmabufEncoder(CudaDmabufEncoder &&) noexcept = default;
 CudaDmabufEncoder &
 CudaDmabufEncoder::operator=(CudaDmabufEncoder &&) noexcept = default;
 bool CudaDmabufEncoder::ready() const { return impl_ && impl_->good; }
+bool CudaDmabufEncoder::setBitrateKbps(std::uint32_t kbps, std::string* error) {
+  if (!impl_ || !impl_->encoder || !impl_->config.bitrateKbps || !kbps || kbps > 1000000) {
+    fail(error, "bitrate update requires an initialized VBR encoder and 1..1000000 kbps");
+    return false;
+  }
+  // FFmpeg reconfig_encoder applies these fields on the next submitted frame.
+  impl_->encoder->bit_rate = int64_t(kbps) * 1000;
+  impl_->encoder->rc_max_rate = int64_t(kbps) * 1000;
+  impl_->encoder->rc_buffer_size = int(kbps) * 1000;
+  impl_->config.bitrateKbps = kbps;
+  return true;
+}
 bool CudaDmabufEncoder::encode(const DmabufFrame &input, bool forceIdr,
                               std::int64_t deadline, EncodedDmabufFrame &output,
                               std::string *error, EncodeDisposition *disposition) {
@@ -852,6 +869,13 @@ bool CudaDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
     cleanup();
     return false;
   }
+  if (!impl_->config.transparency && sparse) {
+    const auto r=opaqueContentRect(input);
+    if (!cudaOk(maskOpaqueRgba(impl_->rgba,impl_->rgbaPitch,input.cropWidth,input.cropHeight,
+            r[0],r[1],r[2],r[3],impl_->stream),error,"opaque content mask")) {
+      cudaGraphicsUnmapResources(1,&resource,impl_->stream); mapped=false; cleanup(); return false;
+    }
+  }
   const cudaError_t unmapResult =
       cudaGraphicsUnmapResources(1, &resource, impl_->stream);
   mapped = false;
@@ -972,7 +996,8 @@ bool CudaDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
         sy += h;
       }
     }
-    if (!cudaOk(classifySparseCells(prepared.tiles.data(), prepared.tiles.size(), cells, impl_->stream),
+    if (!impl_->config.transparency) classifyOpaqueCells(inputs,cells);
+    else if (!cudaOk(classifySparseCells(prepared.tiles.data(), prepared.tiles.size(), cells, impl_->stream),
                 error, "classify sparse alpha")) return false;
     auto plan = planSparseAtlas(cells, impl_->config.outputWidth, impl_->config.outputHeight, sparse->prerender, 256);
     if (sparse->stablePlacement) {

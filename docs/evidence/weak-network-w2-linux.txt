@@ -1,0 +1,40 @@
+Linux W2 owned-texture evidence, 2026-10-27
+NVIDIA RTX PRO 6000 Blackwell Workstation Edition, driver 615.78.08
+FFmpeg n9.0.2, libavcodec 63.1.102
+Final scrolling fixture (VBR log label originally said cq10; source actually uses CQ 7):
+bitrate codec=h264 mode=qp10 segment=0 target_kbps=0 measured_kbps=34215.1 frames=90
+bitrate codec=h264 mode=qp10 segment=1 target_kbps=0 measured_kbps=34225.5 frames=90
+bitrate codec=h264 mode=qp10 segment=2 target_kbps=0 measured_kbps=34107.2 frames=90
+bitrate codec=h264 mode=vbr-cq7 segment=0 target_kbps=900000 measured_kbps=133202.1 frames=90
+bitrate codec=h264 mode=vbr-cq7 segment=1 target_kbps=8000 measured_kbps=6180.5 frames=90
+bitrate codec=h264 mode=vbr-cq7 segment=2 target_kbps=32000 measured_kbps=22079.2 frames=90
+bitrate codec=av1 mode=qp10 segment=0 target_kbps=0 measured_kbps=48818.6 frames=90
+bitrate codec=av1 mode=qp10 segment=1 target_kbps=0 measured_kbps=49261.3 frames=90
+bitrate codec=av1 mode=qp10 segment=2 target_kbps=0 measured_kbps=49104.6 frames=90
+bitrate codec=av1 mode=vbr-cq7 segment=0 target_kbps=900000 measured_kbps=293121.1 frames=90
+bitrate codec=av1 mode=vbr-cq7 segment=1 target_kbps=8000 measured_kbps=4128.6 frames=90
+bitrate codec=av1 mode=vbr-cq7 segment=2 target_kbps=32000 measured_kbps=26604.1 frames=90
+
+Initial flickering-glyph stress fixture, fixed QP 10:
+bitrate codec=h264 mode=qp10 segment=0 target_kbps=0 measured_kbps=708779.2 frames=90
+bitrate codec=h264 mode=qp10 segment=1 target_kbps=0 measured_kbps=709001.0 frames=90
+bitrate codec=h264 mode=qp10 segment=2 target_kbps=0 measured_kbps=708844.3 frames=90
+bitrate codec=av1 mode=qp10 segment=0 target_kbps=0 measured_kbps=288198.4 frames=90
+bitrate codec=av1 mode=qp10 segment=1 target_kbps=0 measured_kbps=288220.1 frames=90
+bitrate codec=av1 mode=qp10 segment=2 target_kbps=0 measured_kbps=288109.8 frames=90
+
+Initial CQ 10 stress fixture: FAILED old 12 Mbps bound (retained evidence):
+FAIL bitrate follows runtime target
+bitrate codec=h264 mode=vbr-cq10 segment=0 target_kbps=900000 measured_kbps=599177.3 frames=90
+bitrate codec=h264 mode=vbr-cq10 segment=1 target_kbps=8000 measured_kbps=14798.5 frames=90
+bitrate codec=h264 mode=vbr-cq10 segment=2 target_kbps=32000 measured_kbps=32526.8 frames=90
+
+Final validation:
+cargo test --workspace: 950 passed, 0 failed, 4 ignored
+cargo test -p viewflowd --features native-gpu-nvenc: 734 passed, 0 failed, 15 ignored
+owned_synthetic_bitrate_reconfiguration --ignored: 1 passed, 0 failed, 0 ignored
+owned_bitrate_cabi_reconfiguration --ignored: 1 passed, 0 failed, 0 ignored
+cargo clippy --workspace --all-targets -- -D clippy::unwrap_used: PASS (existing warnings remain)
+c++ -std=c++20 -UNDEBUG -I platform/nvenc-encoder platform/nvenc-encoder/opaque_quality_test.cpp -o /tmp/viewflow-opaque-quality-test && /tmp/viewflow-opaque-quality-test: PASS
+git diff --check: PASS
+No live screen capture, input injection, focus changes, deployment or push. VA-API hardware and real Wi-Fi/netem: unverified.

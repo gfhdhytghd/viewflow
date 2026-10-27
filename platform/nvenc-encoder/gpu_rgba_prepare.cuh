@@ -8,5 +8,6 @@ struct RgbaPrepare { const unsigned char* src; size_t srcPitch; int srcWidth, sr
 // Caller keeps buffers alive until stream synchronization, including on error.
 // No device-wide sync. Temporary scratch uses stream-ordered allocation.
 // Unpremultiply commutes with the seam copy; shadow repair remains separate.
+cudaError_t maskOpaqueRgba(unsigned char* rgba, size_t pitch, int width, int height, int left, int top, int right, int bottom, cudaStream_t);
 cudaError_t prepareRgba(const RgbaPrepare&, cudaStream_t);
 }

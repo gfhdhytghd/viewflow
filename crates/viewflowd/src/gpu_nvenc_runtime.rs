@@ -240,10 +240,12 @@ unsafe extern "C" {
         required: *mut usize,
     ) -> u32;
 
-    fn vf_gpu_dmabuf_encoder_create_with_options(
+    fn vf_gpu_dmabuf_encoder_set_bitrate_kbps(encoder: *mut EncoderOpaque, kbps: u32) -> u32;
+    fn vf_gpu_dmabuf_encoder_create_with_bitrate(
         config: *const CConfig,
         codec: u32,
         transparency: u32,
+        kbps: u32,
         output: *mut *mut EncoderOpaque,
     ) -> u32;
     fn vf_gpu_dmabuf_encoder_destroy(encoder: *mut EncoderOpaque) -> u32;
@@ -452,6 +454,19 @@ impl GpuEncoder {
         codec: viewflow_transport::VideoCodec,
         transparency: bool,
     ) -> Result<Self> {
+        Self::new_with_bitrate(width, height, max_color, max_alpha, codec, transparency, 0)
+    }
+
+    pub fn set_bitrate_kbps(&mut self, kbps: u32) -> Result<()> {
+        // SAFETY: the handle remains owned by this thread; setter never consumes it.
+        let status = unsafe { vf_gpu_dmabuf_encoder_set_bitrate_kbps(self.raw.as_ptr(), kbps) };
+        ensure!(status == 0, "GPU bitrate update failed: {}", self.last_error());
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_bitrate(width: u32, height: u32, max_color: usize, max_alpha: usize,
+        codec: viewflow_transport::VideoCodec, transparency: bool, kbps: u32) -> Result<Self> {
         ensure!(
             matches!(
                 codec,
@@ -478,7 +493,7 @@ impl GpuEncoder {
         let mut raw = std::ptr::null_mut();
         // SAFETY: config and output slot are valid for the synchronous call.
         let status = unsafe {
-            vf_gpu_dmabuf_encoder_create_with_options(&raw const config, codec as u32, u32::from(transparency), &raw mut raw)
+            vf_gpu_dmabuf_encoder_create_with_bitrate(&raw const config, codec as u32, u32::from(transparency), kbps, &raw mut raw)
         };
         if status != 0 {
             if !raw.is_null() {
@@ -1040,6 +1055,39 @@ mod tests {
         assert!(GpuEncoder::new(3, 2, 100, 100).is_err());
         assert!(GpuEncoder::new(100, 100, 100, 9_999).is_err());
         assert!(GpuEncoder::new(2, 2, 0, 100).is_err());
+    }
+
+    #[test]
+    #[ignore = "owned empty GPU canvas, C ABI bitrate changes and IDR; no capture"]
+    fn owned_bitrate_cabi_reconfiguration() {
+        for codec in [viewflow_transport::VideoCodec::H264, viewflow_transport::VideoCodec::Av1] {
+            let mut encoder = GpuEncoder::new_with_bitrate(256, 256, 1024*1024, 256*256, codec, false, 10000).unwrap();
+            for frame in 1..=3 {
+                encoder.set_bitrate_kbps(if frame == 2 { 4000 } else { 10000 }).unwrap();
+                let now = monotonic_ns().unwrap();
+                let out = encoder.encode_atlas_recoverable(&[], GpuAtlasIdentity {
+                    frame_id: frame, capture_monotonic_ns: now as u64, geometry_epoch: 1,
+                }, true, now+5_000_000_000).unwrap();
+                assert!(matches!(out, GpuEncodeOutcome::Encoded(frame) if frame.idr));
+                assert!(encoder.set_bitrate_kbps(0).is_err());
+                assert!(!encoder.failed);
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "owned 4K EGL texture bitrate/IDR oracle, H264 and AV1; no screen or input"]
+    fn owned_synthetic_bitrate_reconfiguration() {
+        let build = env!("VIEWFLOW_GPU_NATIVE_BUILD");
+        let status = std::process::Command::new("cmake").args(["--build", build, "--target", "viewflow-gpu-bitrate-test", "--parallel", "2"])
+            .status().unwrap();
+        assert!(status.success());
+        for codec in ["h264", "av1"] {
+            let output = std::process::Command::new(std::path::Path::new(build).join("viewflow-gpu-bitrate-test"))
+                .args([codec, "vbr"]).output().unwrap();
+            eprintln!("{}", String::from_utf8_lossy(&output.stdout));
+            assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        }
     }
 
     #[test]

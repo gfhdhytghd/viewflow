@@ -39,6 +39,10 @@ impl GpuAtlasSession {
         .await;
     }
 
+    pub(crate) fn apply_quality(&mut self, target: viewflow_core::QualityTarget, adaptive: bool, nominal_fps: u32) {
+        if let Some(device) = &mut self.device { device.apply_quality(target, adaptive, nominal_fps); }
+    }
+
     pub(crate) fn set_occlusion(
         &mut self,
         mode: crate::atlas_occlusion::AtlasOcclusionMode,

@@ -135,6 +135,8 @@ vf_nvenc_status vf_nvenc_encoder_copy_last_error(const vf_nvenc_encoder* encoder
                                                   char* destination, size_t capacity,
                                                   size_t* required);
 
+vf_nvenc_status vf_nvenc_encoder_create_with_bitrate(const vf_nvenc_encoder_config*, uint32_t kbps, vf_nvenc_encoder**);
+vf_nvenc_status vf_nvenc_encoder_set_bitrate_kbps(vf_nvenc_encoder*, uint32_t kbps);
 #ifdef __cplusplus
 }
 #endif

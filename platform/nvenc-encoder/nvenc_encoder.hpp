@@ -50,6 +50,7 @@ struct EncoderConfig {
   std::size_t max_pending_frames;
   AlphaPolicy alpha_policy;
   AlphaFidelity alpha_fidelity;
+  std::uint32_t bitrate_kbps = 0;
 };
 
 enum class AlphaDisposition { EncodedFullRange, OpaqueOmitted, ExternalAlpha };
@@ -106,6 +107,7 @@ class Encoder {
   [[nodiscard]] static std::unique_ptr<Encoder> create(const EncoderConfig& config,
                                                         std::string* error);
   ~Encoder();
+  bool set_bitrate_kbps(std::uint32_t kbps, std::string* error);
   Encoder(const Encoder&) = delete;
   Encoder& operator=(const Encoder&) = delete;
   Encoder(Encoder&&) noexcept;
