@@ -9,8 +9,9 @@ namespace viewflow::media {
 // carried by the existing lossless side channel, never through chroma planes.
 class VaapiEncoder {
 public:
-    VaapiEncoder(int width,int height,unsigned codec,const std::string& renderNode);
+    VaapiEncoder(int width,int height,unsigned codec,const std::string& renderNode, uint32_t kbps = 0);
     ~VaapiEncoder();
+    void setBitrateKbps(uint32_t kbps);
     std::vector<uint8_t> encode(std::span<const uint8_t> rgba, bool idr, bool& keyframe);
 private:
     struct Impl;

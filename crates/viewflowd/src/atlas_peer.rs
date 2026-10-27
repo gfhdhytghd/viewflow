@@ -90,6 +90,8 @@ pub fn default_transparency() -> bool {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AtlasSourceConfig {
+    #[serde(default)]
+    pub quality_mode: crate::quality::SourceQualityMode,
     #[serde(default = "default_transparency")]
     pub transparency: bool,
     #[serde(default)]
@@ -1223,6 +1225,7 @@ mod tests {
     fn source_layout_rejects_aliases_and_is_order_independent() {
         let receiver = config();
         let mut source = AtlasSourceConfig {
+            quality_mode: Default::default(),
             transparency: true,
             activity_priority: Default::default(),
 occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
@@ -1254,6 +1257,15 @@ occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
                 .collect(),
         };
         let mut encoded = serde_json::to_value(&source).unwrap();
+        encoded.as_object_mut().unwrap().remove("quality_mode");
+        assert_eq!(serde_json::from_value::<AtlasSourceConfig>(encoded.clone()).unwrap().quality_mode, crate::quality::SourceQualityMode::Auto);
+        encoded["quality_mode"] = serde_json::json!("high_quality");
+        assert_eq!(serde_json::from_value::<AtlasSourceConfig>(encoded.clone()).unwrap().quality_mode, crate::quality::SourceQualityMode::HighQuality);
+        encoded["quality_mode"] = serde_json::json!("save_bandwidth");
+        assert_eq!(serde_json::from_value::<AtlasSourceConfig>(encoded.clone()).unwrap().quality_mode, crate::quality::SourceQualityMode::SaveBandwidth);
+        encoded["quality_mode"] = serde_json::json!("typo");
+        assert!(serde_json::from_value::<AtlasSourceConfig>(encoded.clone()).is_err());
+        encoded.as_object_mut().unwrap().remove("quality_mode");
         encoded.as_object_mut().unwrap().remove("transparency");
         assert!(serde_json::from_value::<AtlasSourceConfig>(encoded.clone()).unwrap().transparency);
         encoded["transparency"] = serde_json::json!(false);

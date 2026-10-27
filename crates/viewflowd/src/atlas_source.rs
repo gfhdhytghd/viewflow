@@ -29,7 +29,7 @@ fn native_now() -> Result<u64> {
     Ok(u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?)
 }
 
-fn prepare(plan: AtlasSessionPlan, transparency: bool) -> Result<GpuAtlasCompatibleEncoder> {
+fn prepare(plan: AtlasSessionPlan, transparency: bool, quality: crate::quality::SourceQualityMode) -> Result<GpuAtlasCompatibleEncoder> {
     let mut encoder = GpuAtlasCompatibleEncoder::new(Config {
         transparency,
         max_input_bytes: usize::try_from(plan.max_decoded_bytes)?,
@@ -38,6 +38,7 @@ fn prepare(plan: AtlasSessionPlan, transparency: bool) -> Result<GpuAtlasCompati
         max_pending_frames: 2,
     })?;
     encoder.set_color_codec(plan.color.codec)?;
+    encoder.set_bitrate_kbps(quality.initial_kbps())?;
     encoder.prepare_size(plan.color.coded_width, plan.color.coded_height)?;
     Ok(encoder)
 }
@@ -153,7 +154,7 @@ pub async fn run_until(
     let tls = viewflow_transport::build_client_config(&identity)
         .map_err(|e| anyhow::anyhow!("atlas client TLS configuration: {e}"))?;
     // No capture leases or clock stream exist during expensive GPU preparation.
-    let mut warm_encoder = prepare(plan, config.transparency)?;
+    let mut warm_encoder = prepare(plan, config.transparency, config.quality_mode)?;
     if let Some(desktop) = &config.desktop {
         let visible = desktop.remote_display.rect()?;
         let resident = desktop.seam_cache_viewport()?;
@@ -251,8 +252,9 @@ pub async fn run_until(
             })
             .transpose()?;
         let negotiated_activity = peer.sender.activity_enabled();
+        let quality_telemetry = peer.sender.quality_telemetry.clone();
         let mut session = warmup.into_live(peer.sender).await?;
-        session.set_occlusion(if config.transparency { config.occlusion } else { crate::atlas_occlusion::AtlasOcclusionMode::Off })?;
+        session.set_occlusion(config.occlusion)?;
         if negotiated_activity {
             let handle = crate::activity_priority::ActivityHandle::default();
             if let Some(input) = &mut input { input.attach_activity(handle.clone()); }
@@ -276,6 +278,7 @@ pub async fn run_until(
             &config,
             session,
             &peer.connection,
+            quality_telemetry,
             (peer.mapping, peer.clock),
             stop_rx,
             input,
@@ -378,6 +381,7 @@ async fn run_live(
     config: &AtlasSourceConfig,
     mut session: GpuAtlasSession,
     connection: &quinn::Connection,
+    quality_telemetry: std::sync::Arc<crate::quality::QualityTelemetry>,
     clock: (
         watch::Receiver<crate::atlas_clock::AtlasClockMapping>,
         ClockWorker,
@@ -393,6 +397,10 @@ async fn run_live(
         config.windows.len(),
         input.is_some()
     );
+    let quality = crate::quality::QualityMonitor::start(connection.clone(), quality_telemetry,
+        config.quality_mode, config.fps, "atlas");
+    let mut next_quality = Instant::now();
+    let mut last_target = None;
     let mut waiting = 0_u64;
     let mut expired = 0_u64;
     let mut enqueued = 0_u64;
@@ -416,6 +424,15 @@ async fn run_live(
             }
             if let Some(desktop) = &mut desktop {
                 desktop.poll_one(&mut session, input.as_mut()).await.context("update desktop capture enrollment")?;
+            }
+            let now = Instant::now();
+            if now >= next_quality {
+                next_quality = now + Duration::from_millis(200);
+                let target = quality.target();
+                if last_target != Some(target) {
+                    session.apply_quality(target, config.quality_mode != crate::quality::SourceQualityMode::HighQuality, config.fps);
+                    last_target = Some(target);
+                }
             }
             let mapping = *mapping_rx.borrow();
             if let Some(input) = &mut input {
@@ -548,6 +565,7 @@ mod tests {
         eprintln!("owned capture geometry={geometry:?}");
         let root = std::env::temp_dir();
         let config = AtlasSourceConfig {
+            quality_mode: Default::default(),
             transparency: true,
             activity_priority: Default::default(),
 occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
@@ -591,7 +609,7 @@ occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
         };
         let plan = config.media.plan().unwrap();
         let layout = config.layout().unwrap();
-        let encoder = prepare(plan, true).unwrap();
+        let encoder = prepare(plan, true, crate::quality::SourceQualityMode::HighQuality).unwrap();
         let deadline = Instant::now() + Duration::from_secs(10);
         let (_tx, stop) = watch::channel(false);
         let streams = start_sources(&config, deadline, &stop).await.unwrap();

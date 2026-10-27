@@ -1,5 +1,6 @@
 #include "vaapi_encoder.hpp"
 #include <stdexcept>
+#include <chrono>
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
@@ -23,12 +24,17 @@ struct VaapiEncoder::Impl {
     AVCodecContext* codec{};
     Frame staging;
     int64_t pts{};
+    std::string node;
+    unsigned codecId{};
+    uint32_t bitrate{}, pending{};
+    std::chrono::steady_clock::time_point rebuilt = std::chrono::steady_clock::now();
     ~Impl() { avcodec_free_context(&codec); av_buffer_unref(&frames); av_buffer_unref(&device); }
 };
-VaapiEncoder::VaapiEncoder(int width,int height,unsigned codec,const std::string& renderNode):impl_(std::make_unique<Impl>()) {
+VaapiEncoder::VaapiEncoder(int width,int height,unsigned codec,const std::string& renderNode,uint32_t kbps):impl_(std::make_unique<Impl>()) {
     if(width<2 || height<2 || width%2 || height%2 || (codec!=2 && codec!=4) || renderNode.empty())
         throw std::invalid_argument("VA-API requires even dimensions, H264/AV1, and a render node");
     auto& s=*impl_;
+    s.node=renderNode; s.codecId=codec; s.bitrate=s.pending=kbps;
     check(av_hwdevice_ctx_create(&s.device,AV_HWDEVICE_TYPE_VAAPI,renderNode.c_str(),nullptr,0),"create VA-API device");
     s.frames=av_hwframe_ctx_alloc(s.device); if(!s.frames) throw std::bad_alloc();
     auto* pool=reinterpret_cast<AVHWFramesContext*>(s.frames->data);
@@ -45,7 +51,8 @@ VaapiEncoder::VaapiEncoder(int width,int height,unsigned codec,const std::string
     c->flags|=AV_CODEC_FLAG_LOW_DELAY;
     c->color_range=AVCOL_RANGE_MPEG; c->colorspace=AVCOL_SPC_BT709;
     c->color_primaries=AVCOL_PRI_BT709; c->color_trc=AVCOL_TRC_BT709;
-    check(av_opt_set(c->priv_data,"rc_mode","CQP",0),"set VA-API CQP");
+    c->bit_rate=int64_t(kbps)*1000; c->rc_max_rate=c->bit_rate;
+    check(av_opt_set(c->priv_data,"rc_mode",kbps?"VBR":"CQP",0),"set VA-API rate control");
     check(av_opt_set_int(c->priv_data,"qp",10,0),"set VA-API QP");
     check(av_opt_set_int(c->priv_data,"async_depth",1,0),"set VA-API async depth");
     if(codec==2) {
@@ -55,9 +62,22 @@ VaapiEncoder::VaapiEncoder(int width,int height,unsigned codec,const std::string
     check(avcodec_open2(c,encoder,nullptr),"open hardware VA-API encoder");
     s.staging=frame(); s.staging->format=AV_PIX_FMT_NV12; s.staging->width=width; s.staging->height=height;
     check(av_frame_get_buffer(s.staging.get(),32),"allocate VA-API upload staging");
+    s.rebuilt=std::chrono::steady_clock::now();
 }
 VaapiEncoder::~VaapiEncoder()=default;
+void VaapiEncoder::setBitrateKbps(uint32_t kbps) {
+    if (!kbps || kbps>1000000 || !impl_->bitrate) throw std::invalid_argument("VA-API update requires VBR");
+    impl_->pending=kbps;
+}
 std::vector<uint8_t> VaapiEncoder::encode(std::span<const uint8_t> rgba,bool idr,bool& keyframe) {
+    if (impl_->pending!=impl_->bitrate && std::chrono::steady_clock::now()-impl_->rebuilt>=std::chrono::seconds(1)) {
+        // Replacement creates its own first-frame IDR. Failure retains the old stream.
+        try {
+            VaapiEncoder replacement(impl_->codec->width,impl_->codec->height,impl_->codecId,impl_->node,impl_->pending);
+            impl_.swap(replacement.impl_);
+            idr=true;
+        } catch (const std::exception&) { impl_->rebuilt=std::chrono::steady_clock::now(); }
+    }
     auto& s=*impl_; const int w=s.codec->width,h=s.codec->height;
     if(rgba.size()!=size_t(w)*h*4) throw std::invalid_argument("VA-API RGBA size mismatch");
     check(av_frame_make_writable(s.staging.get()),"writable VA-API staging");

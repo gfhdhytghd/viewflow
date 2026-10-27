@@ -183,13 +183,18 @@ void vf_nvenc_output_au_destroy(vf_nvenc_output_au* output) { delete output; }
 
 vf_nvenc_status vf_nvenc_encoder_create(const vf_nvenc_encoder_config* config,
                                          vf_nvenc_encoder** output) {
+  return vf_nvenc_encoder_create_with_bitrate(config, 0, output);
+}
+vf_nvenc_status vf_nvenc_encoder_create_with_bitrate(const vf_nvenc_encoder_config* config, uint32_t kbps, vf_nvenc_encoder** output) {
   return no_throw([&] {
+    if (kbps > 1000000) return VF_NVENC_INVALID_CONFIG;
     if (output == nullptr) return VF_NVENC_INVALID_ARGUMENT;
     *output = nullptr;
     EncoderConfig native{};
     const auto status = map_config(config, &native);
     if (status != VF_NVENC_OK) return status;
     std::string error;
+    native.bitrate_kbps=kbps;
     auto created = Encoder::create(native, &error);
     if (!created) return VF_NVENC_ENCODER_FAILED;
     *output = new vf_nvenc_encoder{std::move(created), {}};
@@ -197,6 +202,12 @@ vf_nvenc_status vf_nvenc_encoder_create(const vf_nvenc_encoder_config* config,
   });
 }
 
+vf_nvenc_status vf_nvenc_encoder_set_bitrate_kbps(vf_nvenc_encoder* encoder, uint32_t kbps) {
+  return no_throw([&] {
+    if (!encoder) return VF_NVENC_INVALID_ARGUMENT;
+    return encoder->encoder->set_bitrate_kbps(kbps,&encoder->last_error) ? VF_NVENC_OK : VF_NVENC_INVALID_CONFIG;
+  });
+}
 void vf_nvenc_encoder_destroy(vf_nvenc_encoder* encoder) { delete encoder; }
 
 vf_nvenc_status vf_nvenc_encoder_submit(vf_nvenc_encoder* encoder, const uint8_t* straight_rgba,

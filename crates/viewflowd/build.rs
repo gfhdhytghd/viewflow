@@ -139,6 +139,7 @@ fn build_gpu_encoder() {
         .status()
         .expect("build GPU encoder");
     assert!(status.success(), "GPU encoder native build failed");
+    println!("cargo:rustc-env=VIEWFLOW_GPU_NATIVE_BUILD={}", output.display());
     println!("cargo:rustc-link-search=native={}", output.display());
     println!("cargo:rustc-link-lib=static=viewflow-gpu-dmabuf-encoder");
     // The CUDA implementation is an optional DSO loaded only for NVIDIA.

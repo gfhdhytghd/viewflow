@@ -11,6 +11,7 @@ public:
   CudaDmabufEncoder(const CudaDmabufEncoder &) = delete;
   CudaDmabufEncoder &operator=(const CudaDmabufEncoder &) = delete;
   bool ready() const;
+  bool setBitrateKbps(std::uint32_t kbps, std::string *error = nullptr);
   bool encode(const DmabufFrame &, bool forceIdr,
               std::int64_t absoluteMonotonicDeadlineNs,
               EncodedDmabufFrame &, std::string *error = nullptr,

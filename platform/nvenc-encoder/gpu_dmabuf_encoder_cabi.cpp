@@ -161,7 +161,14 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_codec(
 
 vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_options(
     const vf_gpu_dmabuf_encoder_config* config, uint32_t codec, uint32_t transparency, vf_gpu_dmabuf_encoder** output) {
+  return vf_gpu_dmabuf_encoder_create_with_bitrate(config, codec, transparency, 0, output);
+}
+
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_bitrate(
+    const vf_gpu_dmabuf_encoder_config* config, uint32_t codec, uint32_t transparency,
+    uint32_t kbps, vf_gpu_dmabuf_encoder** output) {
   return no_throw([&] {
+    if (kbps > 1000000) return VF_GPU_DMABUF_INVALID_CONFIG;
     if (output == nullptr) return VF_GPU_DMABUF_INVALID_ARGUMENT;
     *output = nullptr;
     if (transparency > 1) return VF_GPU_DMABUF_INVALID_CONFIG;
@@ -170,6 +177,7 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_options(
     const auto status = map_config(config, &native);
     if (status != VF_GPU_DMABUF_OK) return status;
     native.colorCodec = codec;
+    native.bitrateKbps = kbps;
     native.transparency = transparency != 0;
     std::string error;
     auto created = std::make_unique<GpuDmabufEncoder>(native, &error);
@@ -178,6 +186,20 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_options(
       return VF_GPU_DMABUF_ENCODER_FAILED;
     }
     *output = new vf_gpu_dmabuf_encoder{std::move(created), std::this_thread::get_id(), {}};
+    return VF_GPU_DMABUF_OK;
+  });
+}
+
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_set_bitrate_kbps(vf_gpu_dmabuf_encoder* encoder, uint32_t kbps) {
+  return no_throw([&] {
+    const auto status = require_owner(encoder);
+    if (status != VF_GPU_DMABUF_OK) return status;
+    if (encoder->terminal_failed) return VF_GPU_DMABUF_ENCODER_FAILED;
+    std::string error;
+    if (!encoder->value->setBitrateKbps(kbps, &error)) {
+      set_error(encoder, error);
+      return VF_GPU_DMABUF_INVALID_CONFIG; // quality failure does not poison media
+    }
     return VF_GPU_DMABUF_OK;
   });
 }

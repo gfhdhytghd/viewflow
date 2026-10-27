@@ -65,6 +65,7 @@ struct GpuDmabufEncoderConfig {
   int outputWidth = 0, outputHeight = 0;
   std::size_t maxAccessUnitBytes = 4U * 1024U * 1024U;
   bool transparency = true;
+  std::uint32_t bitrateKbps = 0; // zero preserves legacy fixed QP 10
   std::uint32_t colorCodec = 2; // transport H264=2, AV1=4
 };
 
@@ -99,6 +100,7 @@ public:
   GpuDmabufEncoder(const GpuDmabufEncoder &) = delete;
   GpuDmabufEncoder &operator=(const GpuDmabufEncoder &) = delete;
   bool ready() const;
+  bool setBitrateKbps(std::uint32_t kbps, std::string *error = nullptr);
   bool encode(const DmabufFrame &, bool forceIdr,
               std::int64_t absoluteMonotonicDeadlineNs,
               EncodedDmabufFrame &, std::string *error = nullptr,

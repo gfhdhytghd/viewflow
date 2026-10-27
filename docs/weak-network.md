@@ -59,17 +59,96 @@ alpha 平面后，80ms 等待结束仍保留 staged 帧且无处置回执。本�
 `cargo test -p viewflowd --features native-gpu-nvenc` 727 通过、13 忽略。
 自动化不注入真实鼠标/键盘。实机 Wi-Fi、`tc netem`、吞吐与视觉体验尚未验证。
 
-### W2 自适应码率与画质
+### W2 Linux 自适应码率与帧率（2026-10-27 已实现）
 
-1. 码率控制器：输入 QUIC RTT/丢包/拥塞窗口、发送队列年龄、处置回执延迟；
-   AIMD 式调整目标码率，下限保证可用、上限为当前固定画质。
-2. 编码器改为可运行时调整码率的码控：NVENC 由 `constqp` 改为 VBR/CBR 并在
-   帧间更新码率；Windows VPL 用 `Reset`，MFT 设置 `CODECAPI_AVEncCommonMeanBitRate`；
-   macOS 设置 `AverageBitRate`；VA-API 在关键帧处重建。
-3. 码率降到下限仍拥塞时，依次降低前台帧率、缩小编码分辨率（沿用
-   `config_generation` + 关键帧，接收端放大），并可关闭透明度（见透明度
-   可选功能）。网络恢复后按相反顺序逐级回升。
-4. 弱网下用帧内刷新或参考帧失效替代整帧 IDR，避免恢复时的码率尖峰。
+配置 `AtlasSourceConfig.quality_mode` 支持 `auto`（缺省）、`high_quality`、
+`save_bandwidth`，拒绝拼写错误。Linux coded sender 对应
+`--quality-mode auto|high_quality|save_bandwidth`。策略在启动时选择，尚无运行中 UI。
+
+- **Auto**：每个编码 lane 上限 900,000 kbps，干净链路保持上限；复用共享
+  `RateController`，拥塞时降低码率，到 2,000 kbps 下限后降低帧率到 30/20。
+  SaveBandwidth 同样自适应，但上限为 225,000 kbps。这个上限是编码质量上限，
+  不是带宽预留或要求始终发送这么多数据；静止内容实际输出可以很低。
+  两个活动 lane 各自允许完整画布的上限，不能把总上限平均分配而降低前台质量。
+- **HighQuality**：保持以前的固定质量与原有捕获调度；GPU NVENC 仍为
+  `constqp qp=10`，CPU NVENC 保持原来的默认颜色设置，VA-API 保持 CQP 10。
+  网络观测不改变码率或前台帧率。900 Mbps 日志值代表自动策略的参考上限，
+  HighQuality 本身没有新增加的码率限制。
+- 独立 Tokio 定时任务每 200 ms 读取 QUIC `path.rtt`、累计 `lost_packets` /
+  `sent_packets` 的饱和差值、两 lane 最老的未完成媒体发送年龄，以及
+  `ExpiredUnbound` 累计差值。即使媒体所有者正在等待反馈，采样仍继续。
+  coded 路径对应使用在途发送年龄和 REJECT 差值。每次目标变化及每 5 秒输出
+  `atlas-quality` / `coded-quality` 一行。计数只需固定数量原子字段，没有新增
+  逐帧分配、锁或系统调用；计时沿用 Linux 的单调时钟/vDSO。
+- 码率更新在编码器所有者线程的帧边界执行；活动 lane 利用现有 batch command
+  携带最新目标，不增加逐帧队列。捕获选择复用活动调度器的帧率字段，严重拥塞
+  时也限制前台；单 lane 和 coded 在编码前丢弃不需要的捕获，保持输入/反馈处理。
+  质量设置失败仅记录并保留当前编码器，不结束会话。
+- GPU / CPU NVENC 的自动模式为 VBR + CQ 7，保持 p1、ULL、零 lookahead、零
+  B-frame、按需 IDR。CQ 与 const-QP 不是同一个参数；采用更保守 CQ 7 保留
+  原 QP 10 的质量余量。更新 `AVCodecContext.bit_rate` / `rc_max_rate` /
+  `rc_buffer_size`，FFmpeg 在下一帧经 `NvEncReconfigureEncoder` 应用，
+  不重开编码器。[FFmpeg 实现](https://github.com/FFmpeg/FFmpeg/blob/master/libavcodec/nvenc.c)
+  的 `reconfig_encoder` 只在非 constqp 且硬件支持动态码率时执行更新；本机
+  H.264、AV1 的实测见下表。新增 C ABI 函数保留旧构造函数语义，内部可选 CUDA
+  DSO 工厂从 v2 升为 v3，防止错载旧布局。
+- VA-API 自动模式选择 VBR。码率变化合并为一个待处理目标，在下一次编码时
+  创建替换编码器并强制其首帧 IDR；两次重建至少间隔 1 秒。准备失败保留旧实例，
+  一秒后可重试。VA-API 硬件动态行为尚未在本 NVIDIA 主机验证。
+- `transparency=false` 不再强制关闭 occlusion。根据内容 cutout 矩形标记
+  opaque/empty/mixed cell，跳过 GPU alpha 分类读回；合成使用相同的矩形 alpha，
+  部分边界保守保留。CUDA 原位 mask 不分配存储；VA-API 对已有 prepared RGBA
+  写相同 mask。原有不可容纳的画布处理不变。
+
+#### 测量与限制
+
+主机：NVIDIA RTX PRO 6000 Blackwell Workstation Edition，驱动 615.78.08，
+FFmpeg n9.0.2 / libavcodec 63.1.102。全部是**自有 EGL 纹理**，3840×2160、
+60 fps 时间戳，滚动编辑器式字形、平色面板及移动渐变；不捕获桌面、不注入输入。
+每段 120 帧，去掉前 30 帧后用 `bytes × 8 × 60 / 90 / 1000` 计算 kbps。
+VBR 在**同一个对象**中依次使用 900,000 → 8,000 → 32,000 kbps，段首请求
+IDR，均返回关键帧。测试检查低段与恢复段在目标的 0.5–2 倍范围内，并检查
+恢复确实提高码率；VBR 不是严格逐帧上限。
+
+| 编码器 | 原 QP 10（三段）kbps | VBR CQ 7 上限段 | 8,000 目标 | 32,000 目标 |
+| --- | --- | --- | --- | --- |
+| H.264 | 34,215 / 34,226 / 34,107 | 133,202 | 6,181 | 22,079 |
+| AV1 | 48,819 / 49,261 / 49,105 | 293,121 | 4,129 | 26,604 |
+
+另一个每帧改变字形的高运动压力纹理（不是普通滚动）在原 QP 10 下达到
+H.264 708,779–709,001 kbps、AV1 288,110–288,220 kbps，因此选用 900 Mbps
+保守上限，而不是任意 24/40 Mbps。早期 CQ 10 压力测试的 H.264 8 Mbps 段
+实际 14.80 Mbps，超过当时 12 Mbps 断言；该失败保留在证据中，不能声称硬限流。
+最终 CQ 7 滚动纹理通过；不能仅凭这些码率数字证明所有真实内容的主观画质、
+PSNR 或端到端延迟无回退，实机视觉验收仍待用户操作。
+
+复现：`cargo test -p viewflowd --features native-gpu-nvenc
+owned_synthetic_bitrate_reconfiguration -- --ignored --nocapture`；只运行自有纹理
+oracle，不运行需要真实捕获/输入的其他 ignored 测试。C ABI 另有
+`owned_bitrate_cabi_reconfiguration` 验证两种 codec 的更新、IDR 和错误后继续。
+固定 QP 基线可用 CMake target `viewflow-gpu-bitrate-test h264 fixed` / `av1 fixed`；
+附加 `stress` 参数运行高运动压力纹理。
+证据见 [Linux W2 验证记录](evidence/weak-network-w2-linux.txt)。
+
+最终验证：`cargo test --workspace` 950 通过 / 4 忽略；
+`cargo test -p viewflowd --features native-gpu-nvenc` 734 通过 / 15 忽略；
+`cargo clippy --workspace --all-targets -- -D clippy::unwrap_used` 通过（保留既有
+warning）。显式运行自有纹理 bitrate oracle 与自有空画布 C ABI oracle 各 1 通过；
+矩形 mask C++ 测试通过。未运行需要真实桌面捕获或输入的 ignored 用例。
+
+**缩放尚未启用**：适配层强制 `scale_permille=1000`，没有修改共享控制器。
+当前 atlas patch 的源裁剪像素、编码画布像素与原生 presenter 的纹理尺寸直接
+对应，`config_generation` 只能宣告新尺寸，不能表达两套坐标；直接缩小会造成
+裁剪错误及输入位置偏差。后续应在 warmup 协商独立 `atlas_encode_scale_version`，
+每 tile 同时传原始捕获像素范围和编码 texel 范围；保持输入的原始逻辑/捕获坐标，
+native presenter 在独立源/目标矩形间采样放大。切换时先排空该 lane，发布新
+codec descriptor + config_generation + 成对 IDR，收到确认才使用新尺寸；旧端
+不接受该能力时始终保持 1000。必须分别验证 Windows/Mac 原生裁剪、阴影、
+稀疏 patch、桌面跨屏与双 lane 切换后再启用。
+
+本阶段未实现帧内刷新、参考失效编码、自动切换透明度、真实 Wi-Fi / netem
+验收或应用设置 UI；未改动 Windows/macOS 编码器。没有新增会话结束条件、
+33 ms 安全边界或输入授权限制。
 
 #### W2 原生 Windows / macOS 源端（2026-10-27）
 

@@ -72,7 +72,8 @@ unsafe extern "C" {
     fn vf_nvenc_output_list_take(list: *mut CList, index: usize, output: *mut *mut AuOpaque)
     -> u32;
     fn vf_nvenc_output_au_destroy(output: *mut AuOpaque);
-    fn vf_nvenc_encoder_create(config: *const CConfig, output: *mut *mut EncoderOpaque) -> u32;
+    fn vf_nvenc_encoder_create_with_bitrate(config: *const CConfig, kbps: u32, output: *mut *mut EncoderOpaque) -> u32;
+    fn vf_nvenc_encoder_set_bitrate_kbps(encoder: *mut EncoderOpaque, kbps: u32) -> u32;
     fn vf_nvenc_encoder_destroy(encoder: *mut EncoderOpaque);
     fn vf_nvenc_encoder_submit(
         encoder: *mut EncoderOpaque,
@@ -178,6 +179,13 @@ impl Encoder {
     /// Rejects invalid resource bounds or alpha quantizers, unsupported native
     /// configuration, and GPU/driver initialization failures.
     pub fn new(config: EncoderConfig) -> Result<Self, NvencError> {
+        Self::new_with_bitrate(config, 0)
+    }
+    pub fn set_bitrate_kbps(&mut self, kbps: u32) -> Result<(), NvencError> {
+        // SAFETY: same-thread owned handle, setter does not consume it.
+        status_ok(unsafe { vf_nvenc_encoder_set_bitrate_kbps(self.raw.as_ptr(), kbps) })
+    }
+    pub fn new_with_bitrate(config: EncoderConfig, kbps: u32) -> Result<Self, NvencError> {
         if config.width == 0
             || config.height == 0
             || config.max_access_unit_bytes == 0
@@ -216,7 +224,7 @@ impl Encoder {
             reserved: [0; 7],
         };
         let mut raw = std::ptr::null_mut();
-        let status = unsafe { vf_nvenc_encoder_create(&raw const c, &raw mut raw) };
+        let status = unsafe { vf_nvenc_encoder_create_with_bitrate(&raw const c, kbps, &raw mut raw) };
         status_ok(status)?;
         Ok(Self {
             poisoned: false,

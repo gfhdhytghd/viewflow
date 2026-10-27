@@ -15,6 +15,7 @@ enum Command {
         u64,
         tokio::time::Instant,
         Option<crate::atlas_occlusion::AtlasOcclusionMode>,
+        Option<u32>,
     ),
     Grow(u32, u32),
 }
@@ -38,6 +39,7 @@ pub(crate) struct GpuAtlasWorker {
     busy: bool,
     occlusion: Option<crate::atlas_occlusion::AtlasOcclusionMode>,
     buffered: Option<Result<WorkerEvent>>,
+    bitrate: Option<u32>,
 }
 impl GpuAtlasWorker {
     /// On initialization failure, return the untouched wire owner so the
@@ -70,8 +72,9 @@ impl GpuAtlasWorker {
                     let result = tokio::select! {
                         command = receive.recv() => match command {
                             None => break,
-                            Some(Command::Batch(batch, sequence, deadline, mode)) => {
+                            Some(Command::Batch(batch, sequence, deadline, mode, bitrate)) => {
                                 if let Some(mode) = mode { if let Err(error) = sender.set_occlusion(mode) { let _ = events.send(Err(error)).await; break; } }
+                                if let Some(kbps) = bitrate { sender.set_bitrate_kbps(kbps); }
                                 let released = events.clone();
                                 sender.submit_batch_with_release(batch, sequence, deadline, Some(Box::new(move |receivers| {
                                     released.try_send(Ok(WorkerEvent::Released(receivers)))
@@ -110,6 +113,7 @@ impl GpuAtlasWorker {
                 busy: false,
                 occlusion: None,
                 buffered: None,
+                bitrate: None,
             }),
             result => {
                 let _ = thread.join();
@@ -145,6 +149,7 @@ impl GpuAtlasWorker {
                 sequence,
                 deadline,
                 self.occlusion.take(),
+                self.bitrate.take(),
             ))
             .map_err(|error| anyhow::anyhow!("atlas worker queue: {error}"))?;
         self.busy = true;
@@ -198,6 +203,7 @@ impl GpuAtlasWorker {
         self.busy = true;
         Ok(())
     }
+    pub(crate) fn set_bitrate_kbps(&mut self, kbps: u32) { self.bitrate = Some(kbps); }
     pub(crate) fn set_occlusion(&mut self, mode: crate::atlas_occlusion::AtlasOcclusionMode) {
         self.occlusion = Some(mode);
     }

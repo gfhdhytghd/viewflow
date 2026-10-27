@@ -30,6 +30,7 @@ struct GenerationKey {
 }
 
 pub struct HyprcaptureEncoder {
+    bitrate_kbps: u32,
     config: Config,
     last: Option<FrameHeader>,
     generation: Option<GenerationKey>,
@@ -49,6 +50,7 @@ impl HyprcaptureEncoder {
             bail!("NVENC adapter bounds must be nonzero");
         }
         Ok(Self {
+            bitrate_kbps: 0,
             config,
             last: None,
             generation: None,
@@ -61,6 +63,12 @@ impl HyprcaptureEncoder {
     /// Force an IDR on the next accepted input without rebuilding the encoder.
     /// Earlier pending outputs retain their original metadata and are not
     /// retroactively keyframes; callers must still inspect each returned AU.
+    pub fn set_bitrate_kbps(&mut self, kbps: u32) -> Result<()> {
+        crate::quality::apply_bitrate(&mut self.bitrate_kbps, kbps, |next| {
+            if let Some(encoder) = &mut self.encoder { encoder.set_bitrate_kbps(next)?; }
+            Ok(())
+        })
+    }
     pub fn request_keyframe(&mut self) {
         self.keyframe_requested = true;
     }
@@ -86,14 +94,14 @@ impl HyprcaptureEncoder {
             self.generation = None;
             self.pending.clear();
             self.encoder = Some(
-                Encoder::new(EncoderConfig {
+                Encoder::new_with_bitrate(EncoderConfig {
                     width: header.width,
                     height: header.height,
                     max_access_unit_bytes: self.config.max_access_unit_bytes,
                     max_pending_frames: self.config.max_pending_frames,
                     alpha_policy: self.config.alpha_policy,
                     alpha_fidelity: self.config.alpha_fidelity,
-                })
+                }, self.bitrate_kbps)
                 .map_err(|error| anyhow::anyhow!(error))?,
             );
             self.generation = Some(key);

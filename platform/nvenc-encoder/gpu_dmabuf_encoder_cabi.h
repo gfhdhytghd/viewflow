@@ -197,6 +197,11 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_copy_last_error(
     const vf_gpu_dmabuf_encoder* encoder, char* destination, size_t capacity,
     size_t* required);
 
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_bitrate(
+    const vf_gpu_dmabuf_encoder_config*, uint32_t codec, uint32_t transparency,
+    uint32_t kbps, vf_gpu_dmabuf_encoder**);
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_set_bitrate_kbps(vf_gpu_dmabuf_encoder*, uint32_t kbps);
+
 #ifdef __cplusplus
 }
 #endif

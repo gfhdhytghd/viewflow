@@ -132,6 +132,13 @@ using Context = std::unique_ptr<AVCodecContext, ContextDeleter>;
       return nullptr;
     }
   }
+  if (!alpha && config.bitrate_kbps) {
+    context->bit_rate = int64_t(config.bitrate_kbps) * 1000;
+    context->rc_max_rate = context->bit_rate;
+    context->rc_buffer_size = int(config.bitrate_kbps) * 1000;
+    if (!set_encoder_option(context.get(), "rc", "vbr", error) ||
+        !set_encoder_option_int(context.get(), "cq", 7, error)) return nullptr;
+  }
   if (alpha) {
     context->color_range = AVCOL_RANGE_JPEG;
     context->color_primaries = AVCOL_PRI_UNSPECIFIED;
@@ -221,6 +228,19 @@ struct Encoder::Impl {
 
 Encoder::Encoder(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
 Encoder::~Encoder() = default;
+bool Encoder::set_bitrate_kbps(std::uint32_t kbps, std::string* error) {
+  if (!kbps || kbps>1000000 || !impl_->config.bitrate_kbps) { if(error)*error="bitrate update requires VBR";return false; }
+  if (impl_->vaapi) {
+    try { impl_->vaapi->setBitrateKbps(kbps); }
+    catch(const std::exception& e) { if(error)*error=e.what(); return false; }
+  } else {
+    impl_->color->bit_rate=int64_t(kbps)*1000;
+    impl_->color->rc_max_rate=impl_->color->bit_rate;
+    impl_->color->rc_buffer_size=int(kbps)*1000;
+  }
+  impl_->config.bitrate_kbps=kbps;
+  return true;
+}
 Encoder::Encoder(Encoder&&) noexcept = default;
 Encoder& Encoder::operator=(Encoder&&) noexcept = default;
 
@@ -230,7 +250,7 @@ std::unique_ptr<Encoder> Encoder::create(const EncoderConfig& config, std::strin
   auto impl = std::make_unique<Impl>(config);
   try {
     const auto selected=media::selection(false);
-    if(selected.vaapi) impl->vaapi=std::make_unique<media::VaapiEncoder>(config.width,config.height,2,selected.renderNode);
+    if(selected.vaapi) impl->vaapi=std::make_unique<media::VaapiEncoder>(config.width,config.height,2,selected.renderNode,config.bitrate_kbps);
     else {
       impl->color = make_context(config, AV_PIX_FMT_RGBA, false, error);
       if (!impl->color) return nullptr;

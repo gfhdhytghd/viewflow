@@ -21,7 +21,7 @@ GpuDmabufEncoder::GpuDmabufEncoder(const GpuDmabufEncoderConfig& config,std::str
             // Keep the module resident: CUDA may retain process-lifetime state.
             static void* module=dlopen("libviewflow-cuda-encoder.so",RTLD_NOW|RTLD_LOCAL);
             if(!module) throw std::runtime_error("NVIDIA media module or its CUDA driver dependency is unavailable");
-            auto create=reinterpret_cast<CreateCudaEncoder>(dlsym(module,"viewflow_create_cuda_encoder_v2"));
+            auto create=reinterpret_cast<CreateCudaEncoder>(dlsym(module,"viewflow_create_cuda_encoder_v3"));
             if(!create) throw std::runtime_error("NVIDIA media module has an incompatible interface");
             impl_->cuda.reset(create(&config,error));
             if(impl_->cuda && impl_->cuda->ready())
@@ -38,6 +38,12 @@ bool GpuDmabufEncoder::ready()const {
     if(!impl_) return false;
     if(impl_->cuda) return impl_->cuda->ready();
     return bool(impl_->vaapi);
+}
+bool GpuDmabufEncoder::setBitrateKbps(std::uint32_t kbps,std::string* error) {
+    if(impl_ && impl_->cuda) return impl_->cuda->setBitrateKbps(kbps,error);
+    if(impl_ && impl_->vaapi) return impl_->vaapi->setBitrateKbps(kbps,error);
+    if(error) *error="encoder unavailable";
+    return false;
 }
 bool GpuDmabufEncoder::encode(const DmabufFrame& frame,bool idr,int64_t deadline,EncodedDmabufFrame& output,std::string* error,EncodeDisposition* disposition) {
     if(!impl_ || frame.cropWidth!=impl_->config.outputWidth || frame.cropHeight!=impl_->config.outputHeight) {

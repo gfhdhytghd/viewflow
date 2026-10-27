@@ -40,10 +40,14 @@ struct VaapiDmabufEncoder::Impl {
     bool recoveryIdr=true;
     OpaqueAlphaCache opaqueAlpha;
     std::shared_ptr<const std::vector<unsigned char>> lastAlpha;
-    Impl(const GpuDmabufEncoderConfig& c,const std::string& node):config(c),egl(node),encoder(c.outputWidth,c.outputHeight,c.colorCodec,node) {}
+    Impl(const GpuDmabufEncoderConfig& c,const std::string& node):config(c),egl(node),encoder(c.outputWidth,c.outputHeight,c.colorCodec,node,c.bitrateKbps) {}
 };
 VaapiDmabufEncoder::VaapiDmabufEncoder(const GpuDmabufEncoderConfig& c,const std::string& node):impl_(std::make_unique<Impl>(c,node)) {}
 VaapiDmabufEncoder::~VaapiDmabufEncoder()=default;
+bool VaapiDmabufEncoder::setBitrateKbps(uint32_t kbps,std::string* error) {
+    try { impl_->encoder.setBitrateKbps(kbps); return true; }
+    catch(const std::exception& e) { if(error)*error=e.what(); return false; }
+}
 bool VaapiDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,FrameMetadata metadata,
     bool forceIdr,int64_t deadline,EncodedDmabufFrame& output,std::string* error,EncodeDisposition* disposition,const SparseOptions* sparse) {
     output={};
@@ -84,6 +88,12 @@ bool VaapiDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
         for(const auto& tile:inputs) {
             if(!waitFence(tile.frame.nativeFenceFd,deadline)) return expired();
             prepared.push_back(readPortableDmabuf(s.egl.display(),tile));
+            if(!s.config.transparency && sparse) {
+                const auto r=opaqueContentRect(tile.frame);
+                auto& p=prepared.back();
+                for(int y=0;y<p.height;++y)for(int x=0;x<p.width;++x)
+                    p.rgba[(size_t(y)*p.width+x)*4+3]=(x>=r[0] && x<r[2] && y>=r[1] && y<r[3])?255:0;
+            }
             if(nowNs()>=deadline) return expired();
         }
         std::vector<unsigned char> rgba(size_t(width)*height*4,0);
@@ -117,7 +127,8 @@ bool VaapiDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
         sy += h;
       }
     }
-    classifyCpuCells(prepared,cells);
+    if (!s.config.transparency) classifyOpaqueCells(inputs,cells);
+    else classifyCpuCells(prepared,cells);
     auto plan = planSparseAtlas(cells, width, height, sparse->prerender, 256);
     if (sparse->stablePlacement) {
       std::vector<std::pair<uint32_t, uint32_t>> origins;

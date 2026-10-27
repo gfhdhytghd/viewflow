@@ -123,6 +123,7 @@ pub(crate) struct AtlasEncoderRecipe {
     config: Config,
     codec: VideoCodec,
     size: (u32, u32),
+    bitrate_kbps: u32,
     occlusion: crate::atlas_occlusion::AtlasOcclusionMode,
     canvas_limit: (u32, u32),
     seam_cache: Option<(viewflow_protocol::DesktopRect, viewflow_protocol::DesktopRect)>,
@@ -136,6 +137,7 @@ impl AtlasEncoderRecipe {
     pub(crate) fn create(self) -> Result<GpuAtlasCompatibleEncoder> {
         let mut encoder = GpuAtlasCompatibleEncoder::new(self.config)?;
         encoder.set_color_codec(self.codec)?;
+        encoder.set_bitrate_kbps(self.bitrate_kbps)?;
         encoder.prepare_size(self.size.0, self.size.1)?;
         encoder.set_occlusion(self.occlusion, self.canvas_limit);
         encoder.seam_cache = self.seam_cache;
@@ -149,6 +151,7 @@ impl GpuAtlasCompatibleEncoder {
         ensure!(!self.inner.failed, "cannot recreate a retired encoder");
         Ok(AtlasEncoderRecipe {
             config: self.inner.config, codec: self.inner.color_codec,
+            bitrate_kbps: self.inner.bitrate_kbps,
             size: self.inner.prepared_size.context("atlas encoder not prepared")?,
             occlusion: self.occlusion, canvas_limit: self.canvas_limit, seam_cache: self.seam_cache,
         })
@@ -171,7 +174,7 @@ impl GpuAtlasCompatibleEncoder {
         mode: crate::atlas_occlusion::AtlasOcclusionMode,
         limit: (u32, u32),
     ) {
-        self.occlusion = if self.inner.config.transparency { mode } else { crate::atlas_occlusion::AtlasOcclusionMode::Off };
+        self.occlusion = mode;
         self.canvas_limit = limit;
         self.request_keyframe();
     }
@@ -214,8 +217,12 @@ impl GpuAtlasCompatibleEncoder {
         Ok(())
     }
 
-    /// # Errors
-    /// Must run before capture leases are held, as for the single-window adapter.
+    /// Change the native VBR target between submissions without replacing its context.
+    pub fn set_bitrate_kbps(&mut self, kbps: u32) -> Result<()> {
+        self.inner.set_bitrate_kbps(kbps)
+    }
+
+    /// Prepare resources before capture leases are held.
     pub fn prepare_size(&mut self, width: u32, height: u32) -> Result<()> {
         self.inner.prepare_size(width, height)
     }
@@ -241,13 +248,14 @@ impl GpuAtlasCompatibleEncoder {
             "atlas canvas exceeds GPU budget"
         );
         // Construction finishes before replacing the existing encoder.
-        let next = GpuEncoder::new_with_transparency(
+        let next = GpuEncoder::new_with_bitrate(
             width,
             height,
             self.inner.config.max_color_access_unit_bytes,
             pixels,
             self.inner.color_codec,
             self.inner.config.transparency,
+            self.inner.bitrate_kbps,
         )?;
         self.inner.encoder = Some(next);
         self.inner.prepared_size = Some((width, height));
@@ -742,6 +750,7 @@ fn validate_atlas_nonoverlap(layout: &AtlasSnapshot) -> Result<()> {
 
 /// Persistent, thread-bound producer; every error requires capture retirement.
 pub struct GpuCompatibleEncoder {
+    bitrate_kbps: u32,
     color_codec: VideoCodec,
     config: Config,
     encoder: Option<GpuEncoder>,
@@ -765,6 +774,7 @@ impl GpuCompatibleEncoder {
             "GPU compatible encoder bounds must be nonzero"
         );
         Ok(Self {
+            bitrate_kbps: 0,
             color_codec: VideoCodec::H264,
             config,
             encoder: None,
@@ -783,6 +793,13 @@ impl GpuCompatibleEncoder {
             let mut pair = descriptors(generation);
             pair.color.codec = self.color_codec;
             pair
+        })
+    }
+
+    pub fn set_bitrate_kbps(&mut self, kbps: u32) -> Result<()> {
+        crate::quality::apply_bitrate(&mut self.bitrate_kbps, kbps, |next| {
+            if let Some(encoder) = &mut self.encoder { encoder.set_bitrate_kbps(next)?; }
+            Ok(())
         })
     }
 
@@ -809,13 +826,14 @@ impl GpuCompatibleEncoder {
                 .is_some_and(|n| n <= self.config.max_input_bytes),
             "GPU frame exceeds input resource bound"
         );
-        self.encoder = Some(GpuEncoder::new_with_transparency(
+        self.encoder = Some(GpuEncoder::new_with_bitrate(
             width,
             height,
             self.config.max_color_access_unit_bytes,
             pixels,
             self.color_codec,
             self.config.transparency,
+            self.bitrate_kbps,
         )?);
         self.prepared_size = Some((width, height));
         self.failed = false;
@@ -909,13 +927,14 @@ impl GpuCompatibleEncoder {
             self.alpha_cache = None;
             if self.prepared_size != Some((generation.width, generation.height)) {
                 self.encoder = None;
-                self.encoder = Some(GpuEncoder::new_with_transparency(
+                self.encoder = Some(GpuEncoder::new_with_bitrate(
                     generation.width,
                     generation.height,
                     self.config.max_color_access_unit_bytes,
                     pixels,
                     self.color_codec,
                     self.config.transparency,
+                    self.bitrate_kbps,
                 )?);
                 self.prepared_size = Some((generation.width, generation.height));
             }

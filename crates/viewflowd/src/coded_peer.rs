@@ -406,6 +406,8 @@ impl FrameIdentity {
 #[allow(clippy::struct_excessive_bools)] // Explicit CLI capability gates.
 #[derive(Clone)]
 struct Options {
+    #[cfg_attr(not(all(target_os = "linux", feature = "native-nvenc")), allow(dead_code))]
+    quality_mode: crate::quality::SourceQualityMode,
     role: String,
     cert: String,
     key: String,
@@ -904,6 +906,13 @@ enum SenderEncoder {
 
 #[cfg(all(target_os = "linux", feature = "native-nvenc"))]
 impl SenderEncoder {
+    fn set_bitrate_kbps(&mut self, kbps: u32) -> Result<()> {
+        match self {
+            Self::Cpu(encoder) => encoder.set_bitrate_kbps(kbps),
+            #[cfg(feature = "native-gpu-nvenc")]
+            Self::Gpu(encoder) => encoder.set_bitrate_kbps(kbps),
+        }
+    }
     // None is exclusive to verified pre-NVENC expiry, not a queued CPU output.
     fn submit_live(
         &mut self,
@@ -1869,6 +1878,7 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                     gpu_crop_size.context("GPU probe did not produce crop size")?;
                 let mut encoder =
                     crate::gpu_compatible_encoder::GpuCompatibleEncoder::new(encoder_config)?;
+                encoder.set_bitrate_kbps(o.quality_mode.initial_kbps())?;
                 encoder.prepare_size(width, height)?;
                 SenderEncoder::Gpu(Box::new(encoder))
             }
@@ -1879,6 +1889,7 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
         } else {
             SenderEncoder::Cpu(Box::new(CompatibleEncoder::new(encoder_config)?))
         };
+        if !o.capture_gpu { encoder.set_bitrate_kbps(o.quality_mode.initial_kbps())?; }
         // Native encoder cold initialization completes before HCGF allocation.
         // Otherwise it could consume the producer's fixed 500 ms lease.
         let source = source.insert(if o.capture_gpu {
@@ -2147,7 +2158,25 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
         let deadline = MediaLifetime::live(o.persistent, Instant::now() + o.timeout, o.timeout);
         let mut submitted_frames = 0_u64;
         let mut input_snapshots = BTreeMap::new();
+        let quality_telemetry = std::sync::Arc::new(crate::quality::QualityTelemetry::default());
+        let quality = crate::quality::QualityMonitor::start(c.clone(), quality_telemetry.clone(), o.quality_mode, 60, "coded");
+        let mut next_quality = Instant::now();
+        let mut last_target = None;
+        let mut quality_fps = 60;
+        let mut last_capture = None;
         'session: while deadline.active(Instant::now()) {
+            let now = Instant::now();
+            if now >= next_quality {
+                next_quality = now + Duration::from_millis(200);
+                let target = quality.target();
+                if last_target != Some(target) && o.quality_mode != crate::quality::SourceQualityMode::HighQuality {
+                    if let Err(error) = encoder.set_bitrate_kbps(target.kbps) {
+                        eprintln!("coded-quality apply_failed=true detail={error:#}");
+                    }
+                    quality_fps = target.max_fps;
+                }
+                last_target = Some(target);
+            }
             let capture_wait_deadline = Instant::now() + o.timeout;
             let capture = loop {
                 if let Some(reason) = c.close_reason() {
@@ -2158,6 +2187,12 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                 }
                 if let Some(frame) = source.recv()? {
                     stats.capture_received = stats.capture_received.saturating_add(1);
+                    if o.quality_mode != crate::quality::SourceQualityMode::HighQuality && quality_fps < 60 && last_capture.is_some_and(|last: Instant| last.elapsed() < Duration::from_nanos(1_000_000_000 / u64::from(quality_fps))) {
+                        source.release_unencoded(&frame)?;
+                        tokio::time::sleep(Duration::from_millis(1)).await;
+                        continue;
+                    }
+                    last_capture = Some(Instant::now());
                     if frame.capture_ns() <= ready_capture_floor {
                         // `recv_latest` may still expose a queued capture
                         // from before READY. It cannot become live media.
@@ -2282,6 +2317,7 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                 meta.extend_from_slice(&tag.encode());
                 meta.extend_from_slice(&frame.color_metadata.encode()?);
                 meta.extend_from_slice(&frame.alpha_metadata.encode()?);
+                quality_telemetry.begin(0);
                 let dispatch_started = Instant::now();
                 let color_payload_bytes = frame.color.payload.len();
                 let alpha_reference_key = alpha_reference.as_ref().and_then(|cache| {
@@ -2416,6 +2452,7 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                         .context("receiver control stream ended before response")?;
                 let frame_control =
                     admit_frame_control(kind, &payload, tag, source_submitted_ns, clock.now_ns())?;
+                quality_telemetry.finish(0, matches!(frame_control, FrameControl::Reject));
                 let quic_stats = c.stats();
                 eprintln!(
                     "coded QUIC frame={} dispatch_and_control_us={} path_rtt_ns={} cwnd={} lost_packets={} congestion_events={}",
@@ -5159,6 +5196,12 @@ where
         }
     }
     Ok(Options {
+        quality_mode: match v.get("quality-mode").map(String::as_str).unwrap_or("auto") {
+            "auto" => crate::quality::SourceQualityMode::Auto,
+            "high_quality" => crate::quality::SourceQualityMode::HighQuality,
+            "save_bandwidth" => crate::quality::SourceQualityMode::SaveBandwidth,
+            _ => bail!("--quality-mode must be auto, high_quality, or save_bandwidth"),
+        },
         role,
         cert: req("cert")?,
         key: req("key")?,

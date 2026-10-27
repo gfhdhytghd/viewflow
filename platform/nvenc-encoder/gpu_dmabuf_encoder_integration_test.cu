@@ -789,4 +789,5 @@ int main(int argc, char** argv) {
     return 1;
   glDeleteTextures(1, &tex);
   std::puts("PASS GPU DMA-BUF encoder GOP native-fence and atlas integration");
+  return 0;
 }
