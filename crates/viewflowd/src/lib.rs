@@ -1,3 +1,4 @@
+mod atlas_loss;
 pub mod managed_owner;
 use std::{
     collections::BTreeMap,

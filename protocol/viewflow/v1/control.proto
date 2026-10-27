@@ -670,6 +670,8 @@ message AtlasSession {
   // Optional V3 alpha references; enabled only when offered and accepted.
   bool alpha_reference = 18;
   uint32 activity_priority_version = 19;
+  // Optional dedicated-stream selective retransmission; 0 disables, 1 = VFNA v1.
+  uint32 nack_version = 20;
 }
 
 message ControlEnvelope {
