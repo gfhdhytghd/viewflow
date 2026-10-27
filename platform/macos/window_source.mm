@@ -1,3 +1,4 @@
+#include "../reverse-common/opaque_alpha.hpp"
 #include "../reverse-common/activity_input.hpp"
 #include "../reverse-common/activity_feedback.hpp"
 #include "../reverse-common/activity_hint.hpp"
@@ -241,6 +242,7 @@ struct Source {
         vm::Encoder encoder;
         vm::FrameSchedule frame_schedule;
         vm::ExactAlphaCache alpha_cache;
+        vf::OpaqueAlphaCache opaque_mask;
         vm::SerialWorker encode_worker,completion_worker;
         unsigned encoder_pending{};
         bool encoding{},force_keyframe=true,dirty=true;
@@ -274,6 +276,7 @@ struct Source {
             if(age>=0 && age<2 && (fps==0 || fps==30 || fps==15 || fps==5))host_background_fps=fps;
         }
     }
+    const bool transparency = vf::transparency_enabled();
     vm::InputPriority input_priority;
     vm::FrameSchedule::Versions submitted_popup_versions;
     uint64_t priority_submitted{},priority_reserved{},priority_scans{};
@@ -568,7 +571,7 @@ struct Source {
             config.ignoreShadowsSingleWindow = YES;
             config.ignoreGlobalClipSingleWindow = YES;
             // Preserve the window shape for native popup material extraction.
-            config.shouldBeOpaque = NO;
+            config.shouldBeOpaque = !transparency;
         }
         // latest retains one IOSurface until its replacement arrives. A
         // single-buffer pool cannot deliver that replacement; queue size here
@@ -1166,9 +1169,9 @@ struct Source {
                 auto& encoder=lane.encoder;auto& completion_worker=lane.completion_worker;
                 const auto start = NSProcessInfo.processInfo.systemUptime;
                 try {
-                    auto planes = vm::split_planes(context, atlas, job->width, job->height, color_space, direct_pixels.get(), true);
+                    auto planes = vm::split_planes(context, atlas, job->width, job->height, color_space, direct_pixels.get(), true, transparency);
                     const auto split = NSProcessInfo.processInfo.systemUptime;
-                    job->alpha = alpha_cache.encode(planes.alpha, job->width, job->height);
+                    job->alpha = alpha_cache.encode(transparency ? planes.alpha : lane.opaque_mask.get(*job,[&](const auto& tile){return versions.contains(tile.id);}), job->width, job->height);
                     const auto alpha = NSProcessInfo.processInfo.systemUptime;
                     auto ticket = encoder.submit(planes.color, std::move(*job));
                     auto complete = [this, job, versions, ticket, start, split, alpha] {
@@ -1284,7 +1287,9 @@ struct Source {
                 const CGRect surface = CGRectMake(0, 0, CVPixelBufferGetWidth(image), CVPixelBufferGetHeight(image));
                 const double density = scale * content_scale.doubleValue;
                 points = native.size;
-                if (!CGRectIsEmpty(outer) && CGRectContainsRect(surface, outer) &&
+                if (!capture->owner->transparency && !CGRectIsEmpty(outer) && CGRectContainsRect(surface, outer)) {
+                    body = outer;
+                } else if (!CGRectIsEmpty(outer) && CGRectContainsRect(surface, outer) &&
                     CVPixelBufferLockBaseAddress(image, kCVPixelBufferLock_ReadOnly) == kCVReturnSuccess) {
                     const auto found = vm::window_body(static_cast<const uint8_t*>(CVPixelBufferGetBaseAddress(image)),
                         CVPixelBufferGetBytesPerRow(image),

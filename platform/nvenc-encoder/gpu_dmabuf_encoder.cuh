@@ -64,6 +64,7 @@ struct DmabufAtlasTile {
 struct GpuDmabufEncoderConfig {
   int outputWidth = 0, outputHeight = 0;
   std::size_t maxAccessUnitBytes = 4U * 1024U * 1024U;
+  bool transparency = true;
   std::uint32_t colorCodec = 2; // transport H264=2, AV1=4
 };
 

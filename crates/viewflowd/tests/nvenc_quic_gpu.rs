@@ -55,6 +55,7 @@ async fn lossless_alpha_pair_survives_quic_to_presenter_pipe() {
     use viewflowd::{compatible_encoder, gpu_presenter_pipe, hyprcapture_stream::FrameHeader};
     tokio::time::timeout(Duration::from_secs(10), async {
         let mut encoder = compatible_encoder::CompatibleEncoder::new(compatible_encoder::Config {
+            transparency: true,
             max_input_bytes: MAX_ACCESS_UNIT_BYTES,
             max_color_access_unit_bytes: MAX_ACCESS_UNIT_BYTES,
             max_alpha_access_unit_bytes: MAX_ACCESS_UNIT_BYTES,

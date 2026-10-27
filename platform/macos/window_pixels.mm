@@ -131,7 +131,7 @@ struct GPUAlpha {
 };
 }
 Planes split_planes(CIContext* context, CIImage* image, unsigned width, unsigned height, CGColorSpaceRef color_space,
-    CVPixelBufferRef captured, bool captured_srgb) {
+    CVPixelBufferRef captured, bool captured_srgb, bool transparency) {
     if (!context || !image || !width || !height || uint64_t(width) * height > reverse::max_pixels)
         throw std::runtime_error("invalid window pixel extent");
     if (captured && (CVPixelBufferGetWidth(captured) != width || CVPixelBufferGetHeight(captured) != height ||
@@ -147,15 +147,16 @@ Planes split_planes(CIContext* context, CIImage* image, unsigned width, unsigned
             throw std::runtime_error("synchronize source atlas");
         CVPixelBufferUnlockBaseAddress(pixels.pixels, kCVPixelBufferLock_ReadOnly);
     }
-    Planes result; result.alpha.resize(static_cast<size_t>(width) * height);
+    Planes result;
+    if (transparency) result.alpha.resize(static_cast<size_t>(width) * height);
     thread_local GPUAlpha alpha;
     result.color = allocate(width, height);
     // Capture is explicitly configured as sRGB. For other callers, preserve
     // Core Image color conversion unless their input has the same guarantee.
-    if ((!captured || captured_srgb) && color_space && CGColorSpaceGetName(color_space) &&
+    if (transparency && (!captured || captured_srgb) && color_space && CGColorSpaceGetName(color_space) &&
         CFEqual(CGColorSpaceGetName(color_space), kCGColorSpaceSRGB) &&
         alpha.begin(pixels.pixels, width, height, result.color) && alpha.finish(result.alpha)) return result;
-    const bool submitted = alpha.begin(pixels.pixels, width, height);
+    const bool submitted = transparency && alpha.begin(pixels.pixels, width, height);
     // CIColorMatrix operates on unpremultiplied values; a separate
     // unpremultiply filter would divide by alpha twice.
     CIImage* color = captured ? image : [CIImage imageWithCVPixelBuffer:pixels.pixels];
@@ -164,7 +165,7 @@ Planes split_planes(CIContext* context, CIImage* image, unsigned width, unsigned
     [context render:color toCVPixelBuffer:result.color bounds:rect colorSpace:color_space];
     // Color rendering and alpha extraction can overlap. The shared alpha buffer
     // is reused only after completion; the captured IOSurface remains retained.
-    if (!submitted || !alpha.finish(result.alpha)) {
+    if (transparency && (!submitted || !alpha.finish(result.alpha))) {
         if (CVPixelBufferLockBaseAddress(pixels.pixels, kCVPixelBufferLock_ReadOnly) != kCVReturnSuccess)
             throw std::runtime_error("lock source alpha");
         const auto* base = static_cast<const uint8_t*>(CVPixelBufferGetBaseAddress(pixels.pixels));

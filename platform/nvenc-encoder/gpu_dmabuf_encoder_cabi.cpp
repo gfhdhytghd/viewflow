@@ -156,14 +156,21 @@ vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create(
 
 vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_codec(
     const vf_gpu_dmabuf_encoder_config* config, uint32_t codec, vf_gpu_dmabuf_encoder** output) {
+  return vf_gpu_dmabuf_encoder_create_with_options(config, codec, 1, output);
+}
+
+vf_gpu_dmabuf_status vf_gpu_dmabuf_encoder_create_with_options(
+    const vf_gpu_dmabuf_encoder_config* config, uint32_t codec, uint32_t transparency, vf_gpu_dmabuf_encoder** output) {
   return no_throw([&] {
     if (output == nullptr) return VF_GPU_DMABUF_INVALID_ARGUMENT;
     *output = nullptr;
+    if (transparency > 1) return VF_GPU_DMABUF_INVALID_CONFIG;
     if (codec != 2 && codec != 4) return VF_GPU_DMABUF_INVALID_CONFIG;
     GpuDmabufEncoderConfig native{};
     const auto status = map_config(config, &native);
     if (status != VF_GPU_DMABUF_OK) return status;
     native.colorCodec = codec;
+    native.transparency = transparency != 0;
     std::string error;
     auto created = std::make_unique<GpuDmabufEncoder>(native, &error);
     if (!created->ready()) {

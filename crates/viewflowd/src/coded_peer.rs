@@ -1843,6 +1843,7 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
         write_record(&mut tx, BLUR_RECT, &blur.encode()).await?;
         write_record(&mut tx, BLUR_RADIUS, &radius.to_be_bytes()).await?;
         let encoder_config = Config {
+            transparency: std::env::var_os("VIEWFLOW_TRANSPARENCY").is_none_or(|v| v != "0"),
             max_input_bytes: o.max_frame_bytes,
             max_color_access_unit_bytes: o.max_frame_bytes,
             max_alpha_access_unit_bytes: o.max_frame_bytes,

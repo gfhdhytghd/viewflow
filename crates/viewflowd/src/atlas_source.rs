@@ -29,8 +29,9 @@ fn native_now() -> Result<u64> {
     Ok(u64::try_from(crate::gpu_nvenc_runtime::monotonic_ns()?)?)
 }
 
-fn prepare(plan: AtlasSessionPlan) -> Result<GpuAtlasCompatibleEncoder> {
+fn prepare(plan: AtlasSessionPlan, transparency: bool) -> Result<GpuAtlasCompatibleEncoder> {
     let mut encoder = GpuAtlasCompatibleEncoder::new(Config {
+        transparency,
         max_input_bytes: usize::try_from(plan.max_decoded_bytes)?,
         max_color_access_unit_bytes: plan.policy.max_encoded_bytes,
         max_alpha_access_unit_bytes: plan.policy.max_encoded_bytes,
@@ -152,7 +153,7 @@ pub async fn run_until(
     let tls = viewflow_transport::build_client_config(&identity)
         .map_err(|e| anyhow::anyhow!("atlas client TLS configuration: {e}"))?;
     // No capture leases or clock stream exist during expensive GPU preparation.
-    let mut warm_encoder = prepare(plan)?;
+    let mut warm_encoder = prepare(plan, config.transparency)?;
     if let Some(desktop) = &config.desktop {
         let visible = desktop.remote_display.rect()?;
         let resident = desktop.seam_cache_viewport()?;
@@ -184,7 +185,7 @@ pub async fn run_until(
         };
         let streams = start_sources(&config, deadline, &stop_rx).await?;
         let mut warmup = GpuAtlasWarmup::new(streams, warm_encoder, plan, layout.clone()).await?;
-        warmup.set_occlusion(config.occlusion);
+        warmup.set_occlusion(if config.transparency { config.occlusion } else { crate::atlas_occlusion::AtlasOcclusionMode::Off });
         let startup = async {
             let frames = warmup
                 .collect_active_until(deadline, stopped(&mut stop_rx.clone()))
@@ -251,7 +252,7 @@ pub async fn run_until(
             .transpose()?;
         let negotiated_activity = peer.sender.activity_enabled();
         let mut session = warmup.into_live(peer.sender).await?;
-        session.set_occlusion(config.occlusion)?;
+        session.set_occlusion(if config.transparency { config.occlusion } else { crate::atlas_occlusion::AtlasOcclusionMode::Off })?;
         if negotiated_activity {
             let handle = crate::activity_priority::ActivityHandle::default();
             if let Some(input) = &mut input { input.attach_activity(handle.clone()); }
@@ -547,7 +548,8 @@ mod tests {
         eprintln!("owned capture geometry={geometry:?}");
         let root = std::env::temp_dir();
         let config = AtlasSourceConfig {
-                        activity_priority: Default::default(),
+            transparency: true,
+            activity_priority: Default::default(),
 occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
             reverse: None,
             pointer: None,
@@ -589,7 +591,7 @@ occlusion: crate::atlas_occlusion::AtlasOcclusionMode::Opaque,
         };
         let plan = config.media.plan().unwrap();
         let layout = config.layout().unwrap();
-        let encoder = prepare(plan).unwrap();
+        let encoder = prepare(plan, true).unwrap();
         let deadline = Instant::now() + Duration::from_secs(10);
         let (_tx, stop) = watch::channel(false);
         let streams = start_sources(&config, deadline, &stop).await.unwrap();

@@ -97,6 +97,7 @@ fn build_gpu_encoder() {
         "../linux-media/vaapi_encoder.hpp",
         "gpu_dmabuf_encoder.cuh",
         "alpha_copy_profile.hpp",
+        "opaque_alpha.hpp",
         "gpu_import_cleanup.hpp",
         "gpu_dmabuf_encoder_cabi.cpp",
         "gpu_dmabuf_encoder_cabi.h",

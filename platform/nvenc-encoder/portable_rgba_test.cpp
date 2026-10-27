@@ -1,8 +1,27 @@
 #include "portable_rgba.hpp"
+#include "opaque_alpha.hpp"
 #include <cassert>
 #include <iostream>
 using namespace viewflow::gpu;
 int main() {
+    unsigned readbacks=0;
+    assert(readAlphaIfEnabled(false,[&] { ++readbacks; return true; }));
+    assert(readbacks==0);
+    assert(readAlphaIfEnabled(true,[&] { ++readbacks; return true; }));
+    assert(readbacks==1);
+    OpaqueAlphaCache mask;
+    DmabufAtlasTile tile;tile.frame.cropWidth=8;tile.frame.cropHeight=6;
+    auto opaque=mask.get(8,6,{tile});
+    assert(std::all_of(opaque->begin(),opaque->end(),[](auto a){return a==255;}));
+    assert(opaque==mask.get(8,6,{tile}));
+    ShadowSnapshot shadow{};shadow.cutoutLeft=2;shadow.cutoutTop=1;
+    shadow.cutoutWidth=4;shadow.cutoutHeight=3;tile.frame.shadow=shadow;
+    auto rect=mask.get(8,6,{tile});
+    for(int y=0;y<6;++y)for(int x=0;x<8;++x)
+        assert((*rect)[y*8+x]==((x>=2 && x<6 && y>=1 && y<4)?255:0));
+    assert(rect==mask.get(8,6,{tile}));
+    // No capture or GPU readback is needed to rebuild after geometry changes.
+    tile.x=1;assert(rect!=mask.get(10,6,{tile}));
     // Exhaust all alpha/channel pairs. Transparency must not leak hidden RGB.
     DmabufAtlasTile descriptor;descriptor.frame.cropWidth=65536;descriptor.frame.cropHeight=1;
     std::vector<unsigned char> pixels(65536*4);

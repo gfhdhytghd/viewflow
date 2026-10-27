@@ -1,5 +1,6 @@
 #include "vaapi_dmabuf_encoder.hpp"
 #include "portable_rgba.hpp"
+#include "opaque_alpha.hpp"
 #include "portable_dmabuf_import.hpp"
 #include "../linux-media/egl_device.hpp"
 #include "../linux-media/vaapi_encoder.hpp"
@@ -37,6 +38,7 @@ struct VaapiDmabufEncoder::Impl {
     std::thread::id owner=std::this_thread::get_id();
     std::vector<SparsePatch> lastSparsePatches;
     bool recoveryIdr=true;
+    OpaqueAlphaCache opaqueAlpha;
     std::shared_ptr<const std::vector<unsigned char>> lastAlpha;
     Impl(const GpuDmabufEncoderConfig& c,const std::string& node):config(c),egl(node),encoder(c.outputWidth,c.outputHeight,c.colorCodec,node) {}
 };
@@ -186,6 +188,9 @@ bool VaapiDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
         auto bytes=s.encoder.encode(rgba,forceIdr,keyframe);
         if(bytes.size()>s.config.maxAccessUnitBytes) throw std::runtime_error("VA-API access unit exceeds negotiated bound");
         output.colorAnnexB=std::move(bytes);output.idr=keyframe;output.metadata=metadata;
+        if (!s.config.transparency) {
+            output.sharedAlpha=s.opaqueAlpha.get(width,height,inputs,sparseResult ? &*sparseResult : nullptr);
+        } else {
         output.rawAlpha.resize(size_t(width)*height);
         for(size_t i=0;i<output.rawAlpha.size();++i) output.rawAlpha[i]=rgba[i*4+3];
         const char* reuse=std::getenv("VIEWFLOW_GPU_ALPHA_REUSE");
@@ -193,6 +198,7 @@ bool VaapiDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
             if(s.lastAlpha && *s.lastAlpha==output.rawAlpha) output.sharedAlpha=s.lastAlpha;
             else output.sharedAlpha=std::make_shared<const std::vector<unsigned char>>(std::move(output.rawAlpha));
             output.rawAlpha.clear();s.lastAlpha=output.sharedAlpha;
+        }
         }
         output.sparse=std::move(sparseResult);
         if(output.sparse) s.lastSparsePatches=output.sparse->patches;

@@ -15,6 +15,7 @@
 #include "hardware_encoder.hpp"
 #include "alpha_plane.hpp"
 #include "alpha_encode.hpp"
+#include "../reverse-common/opaque_alpha.hpp"
 #include "touchpad.hpp"
 #include "window_inventory.hpp"
 #include "../reverse-common/wire.hpp"
@@ -795,6 +796,7 @@ int main(int argc,char** argv) {
             std::vector<std::uint8_t> raw_alpha,last_raw_alpha,last_encoded_alpha,opaque_encoded_alpha;
             std::future<std::pair<std::vector<std::uint8_t>,std::vector<std::uint8_t>>> alpha_work;
             std::int64_t alpha_work_tag{};
+            vf::OpaqueAlphaCache opaque_mask;
             vf::AtlasCapacity capacity;
             unsigned width{},height{};std::map<std::int64_t,vf::Frame> pending;
             viewflow::activity::Congestion congestion;
@@ -802,6 +804,7 @@ int main(int argc,char** argv) {
         Lane lanes[2];
         vf::shm::ReadbackWait readback_wait;
         const bool activity_enabled=viewflow::activity::negotiated();bool dual=activity_enabled;
+        const bool transparency=vf::transparency_enabled();
         bool alpha_async=activity_enabled;
         App::Scheduling previous_schedule;std::uint64_t activity_epoch=1;
         viewflow::activity::SingleLaneBudget single_budget;
@@ -1258,8 +1261,18 @@ int main(int argc,char** argv) {
                 // The atlas was cleared to alpha zero. Fewer copied pixels than
                 // its area proves transparent padding remains, so skip the GPU
                 // all-opaque query and queue the exact full-plane readback now.
-                const auto alpha_begin=qpc100ns();const auto queued=alpha->enqueue(alpha_surface,pts,!direct_source && copied_pixels<std::uint64_t(width)*height);check(queued);
-                if(queued!=S_OK)throw std::runtime_error("alpha queue ownership mismatch");const auto alpha_end=qpc100ns();
+                const auto alpha_begin=qpc100ns();
+                if(transparency) {
+                    const auto queued=alpha->enqueue(alpha_surface,pts,!direct_source && copied_pixels<std::uint64_t(width)*height);check(queued);
+                    if(queued!=S_OK)throw std::runtime_error("alpha queue ownership mismatch");
+                } else {
+                    const auto& mask=lane.opaque_mask.get(frame,[&](const auto& tile){return copied_versions.contains(tile.id);});
+                    if(mask!=last_raw_alpha || last_encoded_alpha.empty()) {
+                        last_encoded_alpha=vf::encode_windows_alpha(mask);last_raw_alpha=mask;
+                    }
+                    frame.alpha=last_encoded_alpha;
+                }
+                const auto alpha_end=qpc100ns();
                 if(direct_lock.owns_lock())direct_lock.unlock(); // Both GPU consumers have queued ownership.
                 changes.submitted(frame.tiles,std::move(copied_versions));last_submission=Clock::now();submitted_urgent=urgent;
                 for(const auto& tile:frame.tiles)if(tile.flags&2)if(auto source=app.source_for(tile.id)){

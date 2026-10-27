@@ -15,6 +15,8 @@ enum Role {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Config {
+    #[serde(default = "viewflowd::atlas_peer::default_transparency")]
+    transparency: bool,
     bind: SocketAddr,
     remote: Option<SocketAddr>,
     server_name: Option<String>,
@@ -81,7 +83,8 @@ async fn main() -> Result<()> {
         [mode, flag, path] if mode == "validate" && flag == "--config" => (true, path),
         _ => anyhow::bail!(USAGE),
     };
-    let config: Config = serde_json::from_slice(&std::fs::read(path)?)?;
+    let mut config: Config = serde_json::from_slice(&std::fs::read(path)?)?;
+    config.backend.transparency = Some(config.transparency);
     config.validate()?;
     if validate {
         println!("window-peer-config-valid");
@@ -179,6 +182,7 @@ mod tests {
     #[test]
     fn role_does_not_depend_on_listener_or_operating_system() {
         for role in ["source", "presenter"] {
+            assert!(config(role, "null").transparency);
             config(role, "null").validate().unwrap();
             let mut client = config(role, "\"127.0.0.1:44000\"");
             assert!(client.validate().is_err());
@@ -186,6 +190,14 @@ mod tests {
             client.validate().unwrap();
         }
     }
+    #[test]
+    fn transparency_can_be_disabled() {
+        let json = r#"{"bind":"127.0.0.1:0","role":"source","remote":null,
+            "certificate":"/tmp/cert","private_key":"/tmp/key","certificate_authority":"/tmp/ca",
+            "transparency":false,"backend":{"native":"/tmp/native"}}"#;
+        assert!(!serde_json::from_str::<Config>(json).unwrap().transparency);
+    }
+
     #[tokio::test]
     async fn unchanged_desktop_survives_transport_idle_periods() {
         let identity = PeerIdentity::from_pem(

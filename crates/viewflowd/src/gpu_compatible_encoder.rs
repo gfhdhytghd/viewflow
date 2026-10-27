@@ -171,7 +171,7 @@ impl GpuAtlasCompatibleEncoder {
         mode: crate::atlas_occlusion::AtlasOcclusionMode,
         limit: (u32, u32),
     ) {
-        self.occlusion = mode;
+        self.occlusion = if self.inner.config.transparency { mode } else { crate::atlas_occlusion::AtlasOcclusionMode::Off };
         self.canvas_limit = limit;
         self.request_keyframe();
     }
@@ -241,12 +241,13 @@ impl GpuAtlasCompatibleEncoder {
             "atlas canvas exceeds GPU budget"
         );
         // Construction finishes before replacing the existing encoder.
-        let next = GpuEncoder::new_with_codec(
+        let next = GpuEncoder::new_with_transparency(
             width,
             height,
             self.inner.config.max_color_access_unit_bytes,
             pixels,
             self.inner.color_codec,
+            self.inner.config.transparency,
         )?;
         self.inner.encoder = Some(next);
         self.inner.prepared_size = Some((width, height));
@@ -808,12 +809,13 @@ impl GpuCompatibleEncoder {
                 .is_some_and(|n| n <= self.config.max_input_bytes),
             "GPU frame exceeds input resource bound"
         );
-        self.encoder = Some(GpuEncoder::new_with_codec(
+        self.encoder = Some(GpuEncoder::new_with_transparency(
             width,
             height,
             self.config.max_color_access_unit_bytes,
             pixels,
             self.color_codec,
+            self.config.transparency,
         )?);
         self.prepared_size = Some((width, height));
         self.failed = false;
@@ -907,12 +909,13 @@ impl GpuCompatibleEncoder {
             self.alpha_cache = None;
             if self.prepared_size != Some((generation.width, generation.height)) {
                 self.encoder = None;
-                self.encoder = Some(GpuEncoder::new_with_codec(
+                self.encoder = Some(GpuEncoder::new_with_transparency(
                     generation.width,
                     generation.height,
                     self.config.max_color_access_unit_bytes,
                     pixels,
                     self.color_codec,
+                    self.config.transparency,
                 )?);
                 self.prepared_size = Some((generation.width, generation.height));
             }
@@ -1135,6 +1138,7 @@ mod tests {
     #[ignore = "requires NVIDIA GPU; owned empty canvases only, no desktop input"]
     fn owned_atlas_grows_to_8192_by_4096() {
         let mut encoder = GpuAtlasCompatibleEncoder::new(Config {
+            transparency: true,
             max_input_bytes: 256 << 20,
             max_color_access_unit_bytes: 64 << 20,
             max_alpha_access_unit_bytes: 64 << 20,
@@ -1365,6 +1369,7 @@ mod tests {
     #[test]
     fn invalid_atlas_batch_retires_adapter_before_gpu_initialization() {
         let mut encoder = GpuAtlasCompatibleEncoder::new(Config {
+            transparency: true,
             max_input_bytes: 4096,
             max_color_access_unit_bytes: 4096,
             max_alpha_access_unit_bytes: 4096,
@@ -1478,6 +1483,7 @@ mod tests {
                 },
                 100,
                 Config {
+                    transparency: true,
                     max_input_bytes: 16384,
                     max_color_access_unit_bytes: 1024,
                     max_alpha_access_unit_bytes: 8192,
@@ -1516,6 +1522,7 @@ mod tests {
     #[test]
     fn clean_expiry_consumes_lineage_without_changing_pending_idr_or_alpha() {
         let config = Config {
+            transparency: true,
             max_input_bytes: 16,
             max_color_access_unit_bytes: 1024,
             max_alpha_access_unit_bytes: 1024,
@@ -1549,6 +1556,7 @@ mod tests {
     #[test]
     fn drained_late_packet_consumes_lineage_and_repairs_both_reference_chains() {
         let config = Config {
+            transparency: true,
             max_input_bytes: 16,
             max_color_access_unit_bytes: 1024,
             max_alpha_access_unit_bytes: 1024,
@@ -1605,6 +1613,7 @@ mod tests {
     fn gpu_transport_keeps_alpha_and_session_lineage() {
         let generation = generation();
         let config = Config {
+            transparency: true,
             max_input_bytes: 16,
             max_color_access_unit_bytes: 1024,
             max_alpha_access_unit_bytes: 1024,
@@ -1667,6 +1676,7 @@ mod tests {
 
     fn config() -> Config {
         Config {
+            transparency: true,
             max_input_bytes: 64,
             max_color_access_unit_bytes: 1024,
             max_alpha_access_unit_bytes: 1024,

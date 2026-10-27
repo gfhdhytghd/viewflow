@@ -134,3 +134,31 @@ Hardware checks on 2026-09-07 used owned textures, without desktop input:
 - Protocol and parser tests cover sparse patch validation and fragmented input.
 
 These checks establish the tested behavior, not 8K full-motion throughput.
+
+## 按连接关闭透明度
+
+`desktop-share.json`（atlas 源端）和 `vf-window-peer` 配置支持顶层
+`"transparency": false`；省略时为 `true`，保持原有行为。原生 Windows/macOS
+源端接受 `VIEWFLOW_TRANSPARENCY=0`，Rust window peer 只给源端子进程传递此设置；
+独立 Linux coded 源端也读取此环境变量。旧原生程序忽略该变量，仍可正常连接。
+
+关闭后使用几何矩形 alpha：已知窗口内容区域内部不透明，阴影边距和 atlas 空白
+保持透明；无内容矩形信息的 CPU coded 源端使用全不透明平面。圆角、半透明终端、
+磨砂效果和真实阴影不再精确保留。Linux 此模式停用依赖真实 alpha 的遮挡裁剪优化。
+配置在连接/源进程启动时读取，修改后需重新连接。
+
+CUDA 路径跳过 alpha 比较和 GPU→CPU 下载，并跳过可选的 Rust alpha 拷贝；
+macOS 跳过 Metal alpha 提取和 CPU alpha 读取；Windows 不再提交 alpha readback。
+VA-API 目前用 CPU 准备颜色，仍需读取 RGBA，但跳过额外的 alpha 提取循环。
+矩形掩码仅在几何改变时重建，编码复用已有缓存。此选项不改变输入或连接可用性策略。
+
+不增加网络格式。Atlas 继续使用协商后的 84 字节 `VFAF` 引用，关键帧发送完整
+`VFAR`。例如 3840×2160 全不透明平面由现有 RLE 编成 129624 字节
+（原始 alpha 为 8294400 字节），稳定非关键帧 alpha 负载约 5040 字节/秒
+（60 fps，不含传输头）；每个完整关键帧另加约 126.6 KiB。矩形边缘会略增 RLE
+开销，实际节省取决于原 alpha 的复杂度和关键帧频率。Windows 全不透明平面已有
+6 字节编码捷径；带透明边距的矩形使用原有 RLE。兼容 coded 路径继续发送常量
+VFAR；只有显式协商允许时才可采用 `OpaqueMayOmit`，不能对旧端省略必需的平面。
+相对于逐帧读取原始 alpha，4K60 最多省去约 497.7 MB/s 的 alpha 下载；已有的
+未变化 alpha 优化会减少此上限。关闭 alpha 遮挡裁剪也可能增加颜色流量，因此不能保证
+总码率按此幅度下降。以上为格式计算，非无线网络或实机吞吐测量。

@@ -14,7 +14,7 @@ struct Planes {
     ~Planes() { if (color) CVPixelBufferRelease(color); }
 };
 Planes split_planes(CIContext* context, CIImage* image, unsigned width, unsigned height, CGColorSpaceRef color_space,
-    CVPixelBufferRef captured = nullptr, bool captured_srgb = false);
+    CVPixelBufferRef captured = nullptr, bool captured_srgb = false, bool transparency = true);
 CIImage* join_planes(CVPixelBufferRef color, std::span<const uint8_t> alpha);
 // Shares immutable alpha storage through the last Core Image/Metal consumer.
 CIImage* join_planes(CVPixelBufferRef color, std::shared_ptr<const std::vector<uint8_t>> alpha);

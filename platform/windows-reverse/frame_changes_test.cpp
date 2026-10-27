@@ -1,7 +1,17 @@
 #include "frame_changes.hpp"
+#include "../reverse-common/opaque_alpha.hpp"
+#include "alpha_encode.hpp"
 #include <cassert>
 using namespace viewflow::reverse;
 int main(){
+ OpaqueAlphaCache masks;Frame f;f.width=8;f.height=6;
+ Tile body{};body.width=8;body.height=6;f.tiles={body};
+ const auto& opaque=masks.get(f);assert(encode_windows_alpha(opaque)==encode_windows_opaque_alpha(48));
+ f.tiles[0].flags=16;f.tiles[0].body_x=2;f.tiles[0].body_y=1;f.tiles[0].body_width=4;f.tiles[0].body_height=3;
+ const auto& mask=masks.get(f);const auto* ptr=mask.data();
+ for(unsigned y=0;y<6;++y)for(unsigned x=0;x<8;++x)assert(mask[y*8+x]==((x>=2 && x<6 && y>=1 && y<4)?255:0));
+ assert(masks.get(f).data()==ptr);
+
  FrameChangeTracker c;Tile t{1,0,10,20,6144,3456,0,0,"sample",0,0};std::vector<Tile> tiles{t};FrameChangeTracker::Versions v{{1,1}};
  assert(c.needs_frame(tiles,v,false,false));c.submitted(tiles,v);assert(!c.needs_frame(tiles,v,false,false));
  assert(c.needs_frame(tiles,v,true,false));assert(c.needs_frame(tiles,v,false,true));
