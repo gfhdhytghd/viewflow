@@ -11,6 +11,7 @@ import os
 import signal
 from pathlib import Path
 import subprocess
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 def stable_target_time(row):
@@ -42,6 +43,45 @@ SCENARIOS = [('clean', 'auto'), ('wifi1', 'auto'), ('wifi5', 'auto'),
              ('cap20', 'high_quality'), ('cap20', 'save_bandwidth')]
 
 
+def wait_for_other_measurements(record):
+    """Do not overlap another worktree's owned netem experiment (60s polls)."""
+    while True:
+        found = subprocess.run(['pgrep', '-af', 'weak-network-test|netem_session'],
+                               text=True, capture_output=True, check=False)
+        if found.returncode not in (0, 1):
+            raise RuntimeError('pgrep failed: ' + found.stderr.strip())
+        active = []
+        deferred_launchers = []
+        for line in found.stdout.splitlines():
+            pid, command = line.split(' ', 1)
+            if int(pid) == os.getpid():
+                continue
+            argv = command.split()
+            # Ignore shell source that merely mentions these command names.
+            launcher = (len(argv) > 1 and Path(argv[0]).name.startswith('python')
+                        and Path(argv[1]).name == 'weak-network-test.py')
+            owned_test = (argv and Path(argv[0]).name.startswith('viewflowd-')
+                          and TEST in argv)
+            if owned_test or (launcher and int(pid) < os.getpid()):
+                active.append(line)
+            elif launcher:
+                # Two launchers can both be waiting between scenarios. Elect
+                # the lower PID, rather than waiting forever for each other.
+                # An actual test always blocks regardless of launcher priority.
+                deferred_launchers.append(line)
+        record('UTC ' + datetime.datetime.now(datetime.timezone.utc).isoformat()
+               + ' $ pgrep -af "weak-network-test|netem_session"; other measurement processes='
+               + str(len(active)))
+        for line in active:
+            record(line)
+        for line in deferred_launchers:
+            record('lower-priority launcher (no active test): ' + line)
+        if not active:
+            return
+        print('Waiting for other netem measurement (60s poll)', flush=True)
+        time.sleep(60)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--seconds', type=int, default=30)
@@ -67,7 +107,9 @@ def main():
         record('git ' + subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
                + ' + working tree changes; source SHA256 below')
         import hashlib
-        for p in ['tools/weak-network-test.py', 'crates/viewflowd/src/atlas_netem_test.rs',
+        for p in ['tools/weak-network-test.py', 'protocol/viewflow/v1/control.proto',
+                  'crates/viewflow-core/src/atlas_pipeline.rs',
+                  'crates/viewflowd/src/atlas_netem_test.rs',
                   'crates/viewflowd/src/atlas_session.rs', 'crates/viewflowd/src/atlas_loss.rs',
                   'crates/viewflow-core/src/rate_control.rs', 'crates/viewflowd/src/quality.rs',
                   'crates/viewflowd/src/coded_peer.rs', 'crates/viewflowd/src/gpu_atlas_sender.rs',
@@ -84,6 +126,7 @@ def main():
         for scenario, mode in SCENARIOS:
             if args.scenario and scenario != args.scenario:
                 continue
+            wait_for_other_measurements(record)
             print(f'Running {scenario}/{mode} ({args.seconds}s)', flush=True)
             env = os.environ.copy()
             env.update(VF_NETEM_PRIVATE='1', VF_NETEM_SCENARIO=scenario,

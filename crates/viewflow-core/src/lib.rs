@@ -1,6 +1,9 @@
 //! Platform-independent Viewflow state machines.
 
 mod atlas;
+/// Experimental metadata-only pipeline bookkeeping. Not wired to transport or
+/// native presentation; its presence is not a negotiated capability.
+pub mod atlas_pipeline;
 mod audio;
 mod coordinator;
 mod decoration;

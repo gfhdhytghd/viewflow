@@ -1,0 +1,1101 @@
+$ cargo test -p viewflowd --features native-gpu-nvenc
+UTC 2026-10-29T04:41:20.521639+00:00
+   Compiling viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/pipeline/crates/viewflowd)
+warning: unnecessary parentheses around method argument
+    --> crates/viewflowd/src/atlas_preview_input.rs:1830:25
+     |
+1830 |                         (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+     |                         ^
+1831 |                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS),
+     |                                                                                    ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+1830 ~                         crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+1831 ~                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS,
+     |
+
+warning: variable does not need to be mutable
+    --> crates/viewflowd/src/atlas_presenter_child.rs:1006:21
+     |
+1006 |                 let mut child = match mode {
+     |                     ----^^^^^
+     |                     |
+     |                     help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `wait_input_recovery_request` is never used
+    --> crates/viewflowd/src/atlas_receiver_presenter.rs:1209:25
+     |
+ 546 | impl AtlasReceiverPresenter {
+     | --------------------------- method in this implementation
+...
+1209 |     pub(crate) async fn wait_input_recovery_request(
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `poll_ready_subset` is never used
+   --> crates/viewflowd/src/gpu_atlas_capture.rs:278:19
+    |
+ 35 | impl AtlasCapturePool {
+    | --------------------- method in this implementation
+...
+278 |     pub(crate) fn poll_ready_subset(
+    |                   ^^^^^^^^^^^^^^^^^
+
+warning: `viewflowd` (lib test) generated 4 warnings (run `cargo fix --lib -p viewflowd --tests` to apply 2 suggestions)
+warning: method `into_activity` is never used
+   --> crates/viewflowd/src/atlas_presenter.rs:359:19
+    |
+279 | impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
+    | -------------------------------------------------------------------------- method in this implementation
+...
+359 |     pub(crate) fn into_activity(
+    |                   ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `tiles`, `start`, and `native` are never read
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:14:26
+   |
+14 |     Frame { lane: usize, tiles: usize, start: u64, native: NativePresentationDeadline },
+   |     -----                ^^^^^         ^^^^^       ^^^^^^
+   |     |
+   |     fields in this variant
+
+warning: fields `confirmation` and `start` are never read
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:15:16
+   |
+15 |     Recovery { confirmation: crate::atlas_input_recovery::InputRecoveryConfirmation, start: u64 },
+   |     --------   ^^^^^^^^^^^^                                                          ^^^^^
+   |     |
+   |     fields in this variant
+
+warning: variants `Frame` and `Recovery` are never constructed
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:17:16
+   |
+17 | enum Receipt { Frame(AtlasDisposition), Recovery(u64) }
+   |      -------   ^^^^^                    ^^^^^^^^
+   |      |
+   |      variants in this enum
+
+warning: field `deadline` is never read
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:20:5
+   |
+18 | struct Pending {
+   |        ------- field in this struct
+19 |     expect: Expect,
+20 |     deadline: Instant,
+   |     ^^^^^^^^
+
+warning: associated function `start` is never used
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:71:19
+   |
+69 | impl<W: AsyncWrite + Unpin + Send> ActivityAtlasPresenter<W> {
+   | ------------------------------------------------------------ associated function in this implementation
+70 |     /// Caller has completed native readiness and all three warmup receipts.
+71 |     pub(crate) fn start<R: AsyncRead + Unpin + Send + 'static>(
+   |                   ^^^^^
+
+warning: function `receipt_key` is never used
+   --> crates/viewflowd/src/atlas_activity_presenter.rs:232:4
+    |
+232 | fn receipt_key(line: &str) -> Result<Key> {
+    |    ^^^^^^^^^^^
+
+warning: function `read_receipts` is never used
+   --> crates/viewflowd/src/atlas_activity_presenter.rs:247:10
+    |
+247 | async fn read_receipts<R: AsyncRead + Unpin>(mut reader: R, state: Arc<Mutex<State>>, changed: Arc<Notify>, clock: Clock) {
+    |          ^^^^^^^^^^^^^
+
+warning: method `enable_activity` is never used
+  --> crates/viewflowd/src/atlas_presenter_child.rs:89:19
+   |
+74 | impl AtlasPresenterChild {
+   | ------------------------ method in this implementation
+...
+89 |     pub(crate) fn enable_activity(&mut self,
+   |                   ^^^^^^^^^^^^^^^
+
+warning: method `validate_media_fence` is never used
+  --> crates/viewflowd/src/atlas_receiver_presenter.rs:48:19
+   |
+36 | impl NativeGeometryControl {
+   | -------------------------- method in this implementation
+...
+48 |     pub(crate) fn validate_media_fence(&self, armed: bool) -> Result<()> {
+   |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `cleared` is never used
+   --> crates/viewflowd/src/atlas_receiver_presenter.rs:144:14
+    |
+ 92 | impl AtlasInputRecoveryFence {
+    | ---------------------------- method in this implementation
+...
+144 |     async fn cleared(&self) {
+    |              ^^^^^^^
+
+warning: methods `enable_activity`, `drain_activity`, and `wait_input_recovery_request` are never used
+    --> crates/viewflowd/src/atlas_receiver_presenter.rs:547:19
+     |
+ 546 | impl AtlasReceiverPresenter {
+     | --------------------------- methods in this implementation
+ 547 |     pub(crate) fn enable_activity(&mut self,
+     |                   ^^^^^^^^^^^^^^^
+...
+ 583 |     async fn drain_activity(&mut self) -> Result<()> {
+     |              ^^^^^^^^^^^^^^
+...
+1209 |     pub(crate) async fn wait_input_recovery_request(
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `with_fenced_controls` is never used
+    --> crates/viewflowd/src/atlas_session.rs:1469:25
+     |
+1172 | impl AtlasReceiverSession {
+     | ------------------------- method in this implementation
+...
+1469 |     pub(crate) async fn with_fenced_controls<T>(
+     |                         ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `encode` is never used
+  --> crates/viewflowd/src/cursor_feedback.rs:20:12
+   |
+19 | impl Sample {
+   | ----------- method in this implementation
+20 |     pub fn encode(self) -> Vec<u8> {
+   |            ^^^^^^
+
+warning: methods `poll_ready_subset` and `poll_subset_with_clock` are never used
+   --> crates/viewflowd/src/gpu_atlas_capture.rs:278:19
+    |
+ 35 | impl AtlasCapturePool {
+    | --------------------- methods in this implementation
+...
+278 |     pub(crate) fn poll_ready_subset(
+    |                   ^^^^^^^^^^^^^^^^^
+...
+332 |     fn poll_subset_with_clock(
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_atlas_batch` is never used
+   --> crates/viewflowd/src/gpu_compatible_encoder.rs:622:4
+    |
+622 | fn validate_atlas_batch(
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `apply_event` is never used
+   --> crates/viewflowd/src/input_runtime.rs:367:19
+    |
+231 | impl InputReceiver {
+    | ------------------ method in this implementation
+...
+367 |     pub(crate) fn apply_event(
+    |                   ^^^^^^^^^^^
+
+warning: `viewflowd` (lib) generated 18 warnings (1 duplicate)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.30s
+     Running unittests src/lib.rs (target/debug/deps/viewflowd-0feda313f2895333)
+
+running 735 tests
+test activity_priority::tests::only_sustained_congestion_throttles_and_recovery_is_slow ... ok
+test acceptance_runtime::tests::missing_or_out_of_order_events_fail_closed ... ok
+test activity_media::tests::overflow_finishes_inflight_and_never_sends_broken_prediction_chain ... ok
+test activity_media::tests::background_saturation_does_not_consume_priority_capacity ... ok
+test activity_media::tests::large_idr_can_recover_and_age_tracks_oldest_waiting_frame ... ok
+test alpha_reference::tests::every_key_byte_and_lineage_field_are_bound ... ok
+test acceptance_runtime::tests::durable_state_from_another_daemon_is_not_resumed ... ok
+test alpha_reference::tests::exact_current_alpha_reuses_bytes_without_any_timestamp ... ok
+test acceptance_runtime::tests::peer_auth_rejects_wrong_uid_and_zero_pid_contract ... ok
+test alpha_reference::tests::baseline_is_bounded_and_vfar_validated_before_install ... ok
+test acceptance_runtime::tests::missing_hid_coverage_or_over_budget_sample_cannot_pass ... ok
+test activity_atlas_scheduler::tests::quality_target_paces_foreground_and_background_and_recovers ... ok
+test activity_atlas_scheduler::tests::scroll_changes_lane_immediately_and_popup_follows_owner ... ok
+test activity_atlas_scheduler::tests::background_has_opportunity_and_fallback_keeps_all_tiles_eligible ... ok
+test activity_atlas_scheduler::tests::two_connections_do_not_share_activity_or_backpressure ... ok
+test activity_atlas_scheduler::tests::runtime_resource_fallback_advances_epoch_and_keeps_membership ... ok
+test activity_priority::tests::interaction_then_last_focus_without_hover_activation ... ok
+test activity_frame::tests::envelope_roundtrip_legacy_and_invalid_membership ... ok
+test atlas_cursor_handoff::tests::absolute_position_keeps_negative_global_origin ... ok
+test atlas_cursor_handoff::tests::bottom_neighbor_supports_pointer_and_drag_without_filling_gap ... ok
+test acceptance_runtime::tests::exact_runtime_event_sequence_is_required ... ok
+test acceptance_runtime::tests::active_route_disconnect_requires_containment_and_can_never_pass ... ok
+test atlas_cursor_handoff::tests::global_return_crosses_each_seam_and_clamps_large_delta ... ok
+test atlas_cursor_handoff::tests::key_mapping_preserves_physical_letters_and_modifiers ... ok
+test atlas_cursor_handoff::tests::drag_return_claims_only_eight_physical_pixels_toward_shared_edge ... ok
+test atlas_cursor_handoff::tests::motion_outside_shared_overlap_does_not_return ... ok
+test atlas_cursor_handoff::tests::native_cursor_return_uses_mac_height_and_requires_shared_edge_motion ... ok
+test atlas_cursor_handoff::tests::original_event_expiry_reserves_clock_mapping_error_without_relaxing_horizon ... ok
+test atlas_cursor_handoff::tests::revoked_native_tail_is_discarded_without_reading_its_expired_timestamp ... ok
+test atlas_activity_feedback::tests::priority_feedback_does_not_wait_for_background ... ok
+test atlas_activity_presenter::tests::native_priority_receipt_bypasses_pending_background_decode ... ok
+test atlas_cursor_handoff::tests::delayed_native_capture_receipt_confirms_actual_activation ... ok
+test atlas_feedback::tests::exact_identity_and_reserved_bits_are_required ... ok
+test atlas_growth::enrollment_tests::admission_preserves_existing_slots_and_window_limit ... ok
+test atlas_growth::enrollment_tests::first_large_window_is_admitted_before_canvas_growth ... ok
+test atlas_growth::sparse_tests::sparse_membership_does_not_spend_whole_window_rectangles ... ok
+test atlas_growth::tests::full_canvas_and_oversize_have_bounded_local_behavior ... ok
+test atlas_growth::tests::grows_only_when_needed_and_keeps_existing_allocations ... ok
+test atlas_input_policy::rejection_regression::capture_419ms_is_rejected_even_with_2339ms_of_event_lifetime_remaining ... ok
+test atlas_input_policy::rejection_regression::interactive_capture_age_is_not_a_performance_authorization_cutoff ... ok
+test atlas_input_recovery::tests::receipt_is_exact_control_bound_and_not_a_picture_receipt ... ok
+test atlas_input_recovery::tests::recovery_rejection_line_is_exact ... ok
+test atlas_input_recovery::tests::fixed_control_layout_never_claims_picture_payload ... ok
+test atlas_cursor_handoff::tests::rejected_activation_keeps_dispatcher_available_for_cleanup ... ok
+test atlas_input_recovery::tests::rejected_gesture_controls_are_explicit_and_cannot_weaken_legacy_recovery ... ok
+test atlas_clock::tests::calibration_selects_low_jitter_without_relaxing_the_bound ... ok
+test atlas_cursor_handoff::tests::return_fence_waits_for_every_inflight_ack_and_never_releases_after_failure ... ok
+test atlas_clock::tests::excessive_uncertainty_retires_the_connection ... ok
+test atlas_loss::tests::missing_repairs_retry_with_control_grace_but_stop_after_three_rounds ... ok
+test atlas_loss::tests::nack_is_versioned_bounded_and_strict ... ok
+test atlas_input_recovery::tests::rejected_notice_allows_same_geometry_only_with_exact_explicit_cause ... ok
+test atlas_peer::tests::av1_policy_keeps_lossless_alpha_and_explicit_wire_identity ... ok
+test atlas_loss::tests::retransmit_cache_is_bounded_per_lane_and_shares_payloads ... ok
+test atlas_input_recovery::tests::suspended_notice_is_exact_typed_lineage_not_input ... ok
+test atlas_clock::tests::cancelled_refresh_cannot_be_reused ... ok
+test atlas_peer::tests::av1_window_receiver_preserves_negotiated_codec_without_desktop_input ... ok
+test atlas_peer::tests::dynamic_canvas_negotiates_capacity_separately_from_initial_codec ... ok
+test atlas_peer::tests::receiver_config_has_two_frame_budget_and_explicit_native_limit ... ok
+test atlas_peer::tests::shared_media_policy_preserves_receiver_wire_contract ... ok
+test atlas_peer::tests::input_queue_closure_does_not_erase_pending_media_cleanup_error ... ok
+test atlas_peer::tests::input_recovery_is_default_off_and_requires_the_exact_keyboard_route ... ok
+test atlas_peer::tests::pointer_config_requires_paired_ids_and_dispositions ... ok
+test atlas_peer::tests::receiver_config_rejects_unknown_and_invalid_local_policy ... ok
+test atlas_peer::tests::source_layout_rejects_aliases_and_is_order_independent ... ok
+test atlas_pointer::tests::focus_release_is_cleanup_and_cannot_become_pointer_motion ... ok
+test atlas_pointer::tests::bounded_native_queue_distinguishes_full_from_closed_without_record_contents ... ok
+test atlas_pointer::tests::late_button_and_wheel_are_delivered_while_late_motion_is_dropped ... ok
+test atlas_pointer::tests::malformed_records_never_become_events ... ok
+test atlas_pointer::tests::keyboard_record_has_no_pointer_coordinates_and_keeps_original_deadline ... ok
+test atlas_pointer::tests::only_button_down_requests_keyboard_activation ... ok
+test atlas_pointer::tests::native_ordered_operation_budget_clamps_instead_of_failing ... ok
+test atlas_pointer::tests::recovery_receipts_require_opt_in_and_never_enter_input_queue ... ok
+test atlas_pointer::tests::desktop_and_pointer_lanes_retain_their_shared_stdout_arrival_order ... ok
+test atlas_cursor_receiver::tests::cursor_owner_mismatch_closes_the_same_session ... ok
+test atlas_pointer::tests::source_identity_and_original_deadline_survive_conversion ... ok
+test atlas_pointer::tests::rejected_notice_boundary_comes_only_from_prior_dispatched_input ... ok
+test atlas_pointer::tests::recovery_notice_overflow_or_consumer_close_is_fatal_while_idle ... ok
+test atlas_pointer::tests::stdout_batches_pipe_reads_without_reordering_records ... ok
+test atlas_presenter::disposition_tests::disposition_rejects_identity_clock_and_wire_ambiguity ... ok
+test atlas_pointer::tests::wheel_retains_fractional_axes_identity_and_original_deadline ... ok
+test atlas_presenter::disposition_tests::expired_requires_no_commit_and_elapsed_deadline ... ok
+test atlas_pointer::tests::stdout_separates_idle_events_receipts_and_closure ... ok
+test atlas_pointer::tests::stdout_overflow_and_native_retirement_are_terminal ... ok
+test atlas_presenter::disposition_tests::on_time_commit_may_have_late_receipt_without_becoming_scanout ... ok
+test atlas_presenter::disposition_tests::superseded_has_no_commit_and_does_not_require_deadline_expiry ... ok
+test atlas_presenter::tests::activity_readiness_can_decline_without_downgrading_input_capabilities ... ok
+test atlas_presenter::tests::desktop_geometry_receipt_preserves_media_identity_and_encodes_native_sequence ... ok
+test atlas_cursor_handoff::tests::stalled_capture_queue_coalesces_motion_without_crossing_button_order ... ok
+test atlas_clock::tests::refreshed_mapping_is_conservative_expiring_and_connection_bound ... ok
+test atlas_presenter::tests::disposition_does_not_fall_back_to_legacy_readiness ... ok
+test atlas_presenter::tests::desktop_readiness_is_exact_and_never_downgrades_to_recovery ... ok
+test atlas_presenter::tests::disposition_handoff_requires_negotiation_and_recovers_exact_expiry ... ok
+test atlas_cursor_receiver::tests::disabled_cursor_route_does_not_accept_remote_input ... ok
+test atlas_cursor_receiver::tests::blocked_preview_does_not_block_ordered_cursor_acks_or_cleanup ... ok
+test atlas_presenter::tests::duplex_handoff_matches_atlas_frame_not_physical_receipt ... ok
+test atlas_presenter::tests::legacy_frame_past_its_target_is_still_presented_and_keeps_the_pipe ... ok
+test atlas_presenter::tests::keyboard_readiness_requires_exact_capability_without_fallback ... ok
+test atlas_presenter::tests::late_commit_keeps_pipe_and_decode_reference_for_next_frame ... ok
+test atlas_presenter::tests::native_declined_recovery_keeps_pipe_and_a_mismatched_decline_retires_it ... ok
+test atlas_presenter::tests::native_lines_share_read_ahead_without_one_pipe_read_per_byte ... ok
+test atlas_presenter::tests::recovery_readiness_is_exact_and_never_silently_upgrades_or_downgrades ... ok
+test atlas_presenter::tests::recovery_transaction_requires_exact_receipt_and_preserves_picture_floor ... ok
+test atlas_presenter::tests::rejected_controls_cannot_name_the_unbound_frame ... ok
+test atlas_presenter::tests::rejected_cancel_and_fresh_resume_share_ordered_pipe_without_picture_payload ... ok
+test atlas_presenter::tests::disposition_prewrite_expiry_writes_no_native_bytes ... ok
+test atlas_presenter::tests::visual_submission_never_accepts_physical_or_legacy_ack ... ok
+test atlas_presenter::tests::rejected_recovery_preserves_expired_gap_and_requires_next_paired_keyframe ... ok
+test atlas_presenter::tests::recovery_rejected_before_write_keeps_pipe_and_written_faults_retire_it ... ok
+test atlas_presenter::tests::wheel_readiness_requires_exact_capability_without_fallback ... ok
+test atlas_presenter_child::tests::desktop_mode_requires_v7_capacity_before_launch ... ok
+test atlas_presenter_child::tests::invalid_proxy_capacity_never_launches_a_child ... ok
+test atlas_cursor_handoff::tests::pipelined_acks_accept_out_of_order_completion_without_extending_deadlines ... ok
+test atlas_cursor_handoff::tests::return_claim_allows_queued_geometry_before_revoke_ack ... ok
+test atlas_presenter_child::tests::keyboard_mode_owns_stdout_worker_and_reaps_child ... ok
+test atlas_presenter_child::tests::desktop_mode_owns_every_output_lane_and_requires_exact_readiness ... ok
+test atlas_presenter_child::tests::recovery_mode_owns_stdout_worker_and_reaps_child ... ok
+test atlas_presenter_child::tests::pointer_mode_owns_stdout_worker_and_reaps_child ... ok
+test atlas_presenter::tests::cancelled_readiness_retires_partial_reader ... ok
+test atlas_presenter::tests::disposition_partial_write_cannot_use_receipt_grace ... ok
+test atlas_presenter::tests::disposition_failure_and_cancel_retire_pipe ... ok
+test atlas_presenter_child::tests::shutdown_reaps_owned_native_contract_process ... ok
+test atlas_presenter_child::tests::wheel_mode_owns_stdout_worker_and_reaps_child ... ok
+test atlas_presenter_child::tests::recovery_notice_consumer_loss_retires_the_owned_child ... ok
+test atlas_cursor_handoff::tests::explicit_injection_failure_releases_local_before_remote_cleanup ... ok
+test atlas_presenter_child::tests::rejected_readiness_does_not_leave_a_live_child ... ok
+test atlas_presenter_child::tests::cancelled_startup_terminates_partial_ready_process ... ok
+test atlas_pointer::tests::desktop_moves_require_opt_in_and_never_enter_other_native_lanes ... ok
+test atlas_preview_input::tests::geometry_recovery_settles_inflight_publication_and_ignores_notice_age ... ok
+test atlas_pointer::tests::recovery_notice_is_opt_in_typed_and_never_a_receipt_or_input ... ok
+test atlas_preview_input::tests::recovery_is_an_explicit_keyboard_only_opt_in ... ok
+test atlas_cursor_receiver::tests::full_cursor_queue_waits_then_delivers_in_order ... ok
+test atlas_preview_input::tests::recovery_requires_a_fresh_exact_source_authorization ... ok
+test atlas_preview_input::tests::stale_capture_cancels_then_drains_then_selects_fresh_without_replaying_event ... ok
+test atlas_cursor_handoff::tests::delayed_click_and_expired_motion_ack_do_not_require_capture_rollback ... ok
+test atlas_presenter::tests::recovery_partial_write_and_cancel_drop_native_io ... ok
+test atlas_receiver_presenter::tests::cancellation_can_name_retained_frame_but_resume_requires_newest_exact_tile ... ok
+test atlas_presenter::tests::completed_write_resumption_uses_exact_native_disposition ... ok
+test atlas_receiver_presenter::tests::recovery_control_requires_every_newest_committed_tile_identity ... ok
+test atlas_receiver_presenter::tests::desktop_receipt_queue_does_not_require_or_clear_input_media_fence ... ok
+test atlas_receiver_presenter::tests::recovery_fence_finishes_crossed_forward_then_rejects_later_admission ... ok
+test atlas_receiver_presenter::tests::recovery_fence_wakes_idle_reception_but_finishes_ready_admission ... ok
+test atlas_receiver_presenter::tests::rejected_selection_retry_wakes_media_wait_without_resuming_input ... ok
+test atlas_runtime::tests::all_tiles_have_clock_bounds_and_alpha_is_required ... ok
+test atlas_runtime::tests::exact_pair_required_and_delivery_consumes_slot ... ok
+test atlas_runtime::tests::latest_feedback_frame_keeps_original_timestamp_and_replay_checks ... ok
+test atlas_runtime::tests::layout_and_source_changes_need_new_generation ... ok
+test atlas_runtime::tests::layout_transition_and_resurrection_are_fenced ... ok
+test atlas_runtime::tests::mismatches_leave_valid_pending_frame_intact ... ok
+test atlas_session::netem_test::owned_netem_session ... ignored, owned RGBA NVENC + private netns only; run tools/weak-network-test.py
+test atlas_runtime::tests::replacement_never_pairs_old_media_or_renews_time ... ok
+test atlas_preview_input::tests::missing_source_readiness_expires_without_sending_a_probe ... ok
+test atlas_session::tests::activity_receiver_keeps_both_handoffs_and_feedback_independent ... ok
+test atlas_cursor_handoff::tests::rejected_local_release_retries_without_replaying_drag_or_input ... ok
+test atlas_receiver_presenter::activity_pipeline_tests::activity_owner_advances_priority_while_background_native_receipt_is_pending ... ok
+test atlas_receiver_presenter::activity_pipeline_tests::activity_recovery_fence_drains_both_native_lanes_before_arming_completes ... ok
+test atlas_session::tests::cancelled_native_warmup_closes_dedicated_connection ... ok
+test atlas_session::tests::desktop_move_ack_is_routed_to_the_shared_input_supervisor ... ok
+test atlas_session::tests::datagram_reference_gap_drops_dependent_p_frame_until_keyframe ... ok
+test atlas_session::tests::duplicate_completed_plane_does_not_abandon_other_plane_repair ... ok
+test atlas_session::tests::early_buffer_is_bounded_and_late_layout_still_pairs ... ok
+test atlas_presenter::tests::warmed_pipe_accepts_growing_admitted_frames_in_both_receipt_modes ... ok
+test atlas_session::tests::early_datagrams_deliver_when_manifest_arrives_without_timestamp_renewal ... ok
+test atlas_session::tests::feedback_warning_still_propagates_real_stream_failure ... ok
+test atlas_session::tests::handoff_dispatches_input_before_native_completion ... ok
+test atlas_session::tests::activity_negotiation_downgrades_without_reopening_connection ... ok
+test atlas_presenter_child::tests::negotiated_codec_reaches_every_window_launch_mode ... ok
+test atlas_session::tests::binding_changes_per_connection_and_missing_ack_times_out ... ok
+test atlas_session::tests::early_packet_or_manifest_conflict_never_retags_buffered_pixels ... ok
+test atlas_session::tests::handoff_control_close_preserves_native_cleanup_error ... ok
+test atlas_session::tests::malformed_datagrams_are_dropped_until_a_persistent_bound ... ok
+test atlas_session::tests::mtls_negotiation_then_reliable_manifest_reaches_admission ... ok
+test atlas_session::tests::mtls_rejects_different_plan_and_tampered_acceptance ... ok
+test atlas_session::tests::feedback_warning_preserves_the_same_partial_reliable_read ... ok
+test atlas_session::tests::idle_frame_wait_yields_to_recovery_and_resumes_same_session ... ok
+test atlas_session::tests::native_warmup_failure_closes_both_handshake_ends ... ok
+test atlas_session::tests::nack_repairs_current_frame_after_latency_target ... ok
+test atlas_session::tests::postprocessing_lateness_hands_off_pair_without_retiring_codec_chain ... ok
+test atlas_session::tests::malformed_warmup_never_reaches_native ... ok
+test atlas_session::tests::pipeline_sender_advertises_zero_and_requires_zero_acceptance ... ok
+test atlas_session::tests::full_control_queue_preserves_native_completion_and_fenced_resume ... ok
+test atlas_session::tests::pre_send_expiry_preserves_sender_and_queues_no_frame ... ok
+test atlas_session::tests::pipeline_offer_is_declined_without_disrupting_v3_startup ... ok
+test atlas_session::tests::queued_repair_datagrams_preserve_quinn_send_accounting ... ok
+test atlas_session::tests::quic_receiver_forwards_to_supervised_pipe_after_wait_timeout ... ok
+test atlas_session::tests::recovery_fence_dispatches_grant_after_manifest_without_admitting_or_retiming_frame ... ok
+test atlas_session::tests::recovery_control_wait_exits_on_timeout_or_input_owner_close ... ok
+test atlas_session::tests::recovery_fence_rejects_second_unacknowledged_manifest ... ok
+test atlas_session::tests::selection_rejection_crosses_real_shared_transport_without_retiring_media ... ok
+test atlas_session::tests::sender_planes_reach_unified_receiver ... ok
+test atlas_session::tests::selection_rejection_capability_is_required_in_both_handshake_directions ... ok
+test atlas_cursor_handoff::tests::cursor_without_any_event_acks_preserves_connection_and_click_position ... ok
+test atlas_session::tests::progressing_frame_outlives_initial_loss_wait_without_expiry ... ok
+test atlas_session::tests::shared_writer_interleaves_atlas_and_input_without_reusing_control_sequence ... ok
+test atlas_session::tests::v3_cannot_negotiate_with_v2_receiver ... ok
+test atlas_session::tests::unprepared_batch_retires_owner_before_gpu_submission ... ok
+test atlas_session::tests::v3_alpha_reference_reuses_confirmed_bytes_and_recovers_changed_expiry ... ok
+test atlas_session::tests::v3_expired_manifest_preserves_input_owner_and_recovers_keyframe ... ok
+test atlas_session::tests::v3_expiry_after_pair_admission_preserves_input_and_recovers_keyframe ... ok
+test atlas_session::tests::warmed_acceptance_waits_for_native_completion ... ok
+test atlas_session::tests::v3_feedback_blocks_sender_and_requires_idr_after_expiry ... ok
+test atlas_socket_trace::tests::exhausted_cooperative_budget_is_distinct_from_socket_would_block ... ok
+test atlas_session::tests::pump_preserves_half_control_across_timeout_cancellation_and_frame_delivery ... ok
+test atlas_source::tests::real_capture_warmup_releases_and_stops_producer ... ignored, requires explicit owned Wayland test-window address and compositor PID
+test atlas_source_input::tests::active_drag_keeps_base_after_history_eviction_without_retaining_capture_buffers ... ok
+test atlas_source_input::tests::desktop_admission_uses_retained_frame_and_tile_epoch_not_atlas_epoch ... ok
+test atlas_session::tests::wifi_loss_capability_interoperates_with_legacy_v3_both_directions ... ok
+test atlas_source_input::tests::desktop_cleanup_uses_remaining_token_lifetime_without_extending_it ... ok
+test atlas_source_input::tests::desktop_enrollment_lifetime_is_thirty_seconds ... ok
+test atlas_source_input::tests::desktop_return_preserves_partial_overlap_on_each_adjoining_edge ... ok
+test atlas_socket_trace::tests::wrapper_preserves_udp_payload_metadata_and_receive_wakeup ... ok
+test atlas_source_input::tests::desktop_cleanup_expired_window_does_not_skip_live_window_or_uncertain_sequence ... ok
+test atlas_session::tests::wifi_loss_supersession_is_lane_local_for_data_and_manifests ... ok
+test audio_wire::tests::whole_frames_fit_default_quic_datagram ... ok
+test atlas_source_input::tests::input_disconnect_does_not_erase_media_error_during_cleanup ... ok
+test clipboard_sync::tests::baseline_echo_repeated_copy_and_more_than_64_updates ... ok
+test atlas_session::tests::shared_pump_preserves_order_and_media_across_control_backpressure ... ok
+test clipboard_sync::tests::reject_oversized_record_before_allocating_payload ... ok
+test clipboard_sync::tests::simultaneous_copies_converge_and_failed_install_is_retriable ... ok
+test clipboard_sync::tests::wire_round_trip_unicode_empty_and_png ... ok
+test atlas_source_input::tests::input_service_runs_before_media_completes_and_failures_propagate ... ok
+test clock_retention::tests::clock_retention_effective_uncertainty_and_missing_evidence_fail_closed ... ok
+test clock_retention::tests::clock_retention_noisy_probe_does_not_hide_rollback_or_interval_conflict ... ok
+test clock_retention::tests::clock_retention_preserves_original_evidence_through_high_rtt ... ok
+test clock_retention::tests::clock_retention_rejects_conflicting_offsets_and_cross_probe_rollback ... ok
+test clock_retention::tests::clock_retention_uses_wide_checked_interval_arithmetic ... ok
+test coded_peer::tests::absolute_session_and_frame_deadlines_fail_closed ... ok
+test coded_peer::tests::alpha_reference_metadata_is_one_strict_complete_slot ... ok
+test coded_peer::tests::alpha_reuse_is_default_off_and_requires_an_exact_mutual_plan ... ok
+test clipboard_sync::tests::clipboard_stream_failure_keeps_peer_and_other_streams_alive ... ok
+test coded_peer::tests::cancelled_source_stop_retains_the_abort_on_drop_owner ... ok
+test coded_peer::tests::cancelled_media_attempt_fences_owner_without_consuming_another_attempt ... ok
+test coded_peer::tests::capture_gpu_cli_is_an_opt_in_flag_and_cpu_remains_default ... ok
+test atlas_preview_input::tests::keyboard_without_local_opt_in_closes_before_selection_or_input ... ok
+test coded_peer::tests::changed_alpha_remains_the_normal_two_datagram_path ... ok
+test coded_peer::tests::cleanup_failure_is_preserved_even_when_the_attempt_also_failed ... ok
+test coded_peer::tests::cold_start_allowance_does_not_change_live_deadline ... ok
+test coded_peer::tests::combined_retry_requires_both_typed_causes_to_be_transport_failures ... ok
+test coded_peer::tests::completed_attempt_does_not_close_endpoint_for_a_simultaneous_stop ... ok
+test coded_peer::tests::completion_diagnostics_never_fabricate_missing_or_reversed_intervals ... ok
+test coded_peer::tests::deadline_is_not_relaxed ... ok
+test coded_peer::tests::delayed_p_frames_stay_gated_until_requested_idr ... ok
+test coded_peer::tests::dispatch_budget_uses_original_capture_deadline_and_expires_blocked_send ... ok
+test atlas_preview_input::tests::native_events_select_two_windows_and_keep_source_identities ... ok
+test coded_peer::tests::coded_runtime_keeps_block_on_on_caller_while_workers_progress ... ok
+test coded_peer::tests::dispatch_helper_does_not_poll_expired_send_and_polls_ready_send_once ... ok
+test atlas_preview_input::tests::keyboard_events_select_two_windows_with_separate_authority ... ok
+test atlas_session::tests::warmup_retains_original_deadline_through_native_work ... ok
+test coded_peer::tests::explicit_geometry_and_ack_are_exact ... ok
+test coded_peer::tests::fixed_plane_fragment_layout_is_dropped_on_midplane_budget_shrink ... ok
+test coded_peer::tests::drain_polling_rejects_ready_completion_after_absolute_deadline ... ok
+test coded_peer::tests::incomplete_dispatch_is_never_counted_as_a_complete_send ... ok
+test coded_peer::tests::input_task_error_survives_accompanying_media_close ... ok
+test coded_peer::tests::drain_polling_propagates_timeout_read_and_drain_failures ... ok
+test coded_peer::tests::idle_worker_shutdown_wakes_the_queue_wait ... ok
+test coded_peer::tests::expired_disposition_is_bounded_exact_and_never_a_warmup_completion ... ok
+test coded_peer::tests::input_task_retirement_reports_success_and_panic_separately ... ok
+test coded_peer::tests::late_frame_rejects_but_fresh_idr_ignores_old_datagram_tails ... ok
+test coded_peer::tests::input_task_timeout_awaits_drop_and_remains_cleanup_failure ... ok
+test atlas_preview_input::tests::old_exact_grant_cannot_forward_a_selection_that_is_rejected ... ok
+test atlas_preview_input::tests::wheel_without_local_opt_in_closes_before_selection_or_input ... ok
+test coded_peer::tests::late_ack_is_rejected_and_no_response_wait_is_bounded ... ok
+test coded_peer::tests::late_presented_completion_is_a_missed_target_not_a_presenter_failure ... ok
+test coded_peer::tests::late_reject_and_late_ack_both_keep_the_session ... ok
+test coded_peer::tests::native_ack_requires_a_complete_exact_identity_token ... ok
+test coded_peer::tests::liveness_retry_requires_checked_input_retirement_and_no_independent_failure ... ok
+test coded_peer::tests::native_deadline_cli_is_explicit_receive_only ... ok
+test coded_peer::tests::native_pointer_history_preserves_verified_frame_without_retagging ... ok
+test coded_peer::tests::native_pointer_buttons_and_motion_share_bounded_fifo ... ok
+test coded_peer::tests::native_pointer_button_parser_requires_canonical_context_and_transition ... ok
+test coded_peer::tests::native_pointer_watch_uses_validated_video_identity_and_original_deadline ... ok
+test coded_peer::tests::pending_publication_defers_ordered_events_with_original_deadlines ... ok
+test coded_peer::tests::pending_publication_is_bounded_and_replacement_retires_route ... ok
+test coded_peer::tests::persistent_lifetime_keeps_operation_and_frame_limits_without_a_total_cap ... ok
+test coded_peer::tests::persistent_cli_is_explicit_and_rejects_zero_wait_or_one_shot_artifacts ... ok
+test coded_peer::tests::pointer_motion_cli_is_explicit_receive_deadline_opt_in ... ok
+test coded_peer::tests::pointer_motion_is_exact_typed_bounded_and_requires_latest_presented_frame ... ok
+test coded_peer::tests::persistent_startup_requires_timely_confirmation_but_not_timely_live_exit ... ok
+test coded_peer::tests::pointer_forwarding_requires_explicit_identity_and_native_opt_in ... ok
+test coded_peer::tests::presenter_child_fixture ... ok
+test coded_peer::tests::presentation_reserve_is_canonical_opt_in_and_only_shrinks_qpc_budget ... ok
+test coded_peer::tests::receiver_inverts_nonzero_sender_clock_offsets_for_freshness ... ok
+test coded_peer::tests::receiver_stats_counts_rejects_and_limits_detail_logging ... ok
+test coded_peer::tests::presenter_shutdown_wakes_the_bounded_ack_wait ... ok
+test coded_peer::tests::referenced_alpha_uses_current_color_identity_timestamp_and_rejects_alpha_packets ... ok
+test atlas_preview_input::tests::deferred_source_sends_no_initial_grant_but_selection_bootstraps_input ... ok
+test coded_peer::tests::retry_policy_never_promotes_native_cleanup_or_local_policy_failures ... ok
+test coded_peer::tests::scoped_timer_resolution_pairs_only_successful_begin_requests ... ok
+test atlas_source_input::tests::desktop_worker_completes_and_cleans_up_while_media_owner_is_blocked ... ok
+test coded_peer::tests::scoped_timer_resolution_releases_on_early_return ... ok
+test coded_peer::tests::sender_stats_preserve_total_and_split_successful_plane_bytes ... ok
+test coded_peer::tests::shutdown_awaits_retirement_and_preserves_its_failure ... ok
+test coded_peer::tests::source_pointer_authorization_requires_gpu_native_peer_and_explicit_policy ... ok
+test coded_peer::tests::source_pointer_metadata_revokes_exact_removed_window ... ok
+test coded_peer::tests::stream_retry_uses_typed_connection_loss_not_io_kind_or_stream_reset ... ok
+test coded_peer::tests::three_frame_warmup_requires_exact_plan_and_unbroken_idr_reference_chain ... ok
+test coded_peer::tests::warmup_alpha_export_is_exact_private_and_never_overwrites_or_follows_symlinks ... ok
+test coded_peer::tests::warmup_alpha_output_is_send_only ... ok
+test coded_peer::tests::warmup_and_live_capture_use_one_session_clock_lineage ... ok
+test coded_peer::tests::warmup_frames_are_explicitly_bounded_and_default_to_legacy_one ... ok
+test coded_peer::tests::warmup_metadata_tail_uses_the_exact_serialized_offsets ... ok
+test coded_peer::tests::source_pointer_native_wait_cleans_only_its_new_socket ... ok
+test compatible_encoder::tests::descriptors_are_lossless_alpha_and_required ... ok
+test compatible_encoder::tests::direct_alpha_vfar_preserves_rgb_and_alpha_exactly ... ok
+test compatible_encoder::tests::disabled_transparency_caches_opaque_alpha_and_requires_omission_negotiation ... ok
+test compatible_encoder::tests::gpu_nonopaque_gradient_omits_native_alpha_but_delivers_exact_lossless_alpha ... ignored, requires an NVENC GPU with the color High/NV12 profile
+test compatible_encoder::tests::gpu_profile_compatible_submit_1936x1732 ... ignored, synthetic NVENC timing diagnostic; no capture source is opened
+test coded_peer::tests::worker_retirement_reports_panic_and_consumes_its_handle ... ok
+test compatible_encoder::tests::lossless_alpha_descriptor_pair_is_accepted_by_codec_session ... ok
+test cursor_feedback::tests::telemetry_rejects_wrong_version_nonfinite_and_missing_anchor ... ok
+test cursor_native_drag::tests::only_position_change_preserving_extent_claims_a_drag ... ok
+test cursor_source::topology_tests::native_origin_accepts_secondary_screens_and_rejects_invalid_values ... ok
+test desktop_config::tests::fractional_logical_size_uses_same_integer_ratio_as_presenter ... ok
+test desktop_config::tests::monitor_scale_and_negative_origin_define_logical_bounds ... ok
+test desktop_config::tests::old_edge_or_inverse_scale_fields_are_not_display_configuration ... ok
+test desktop_config::tests::seam_residency_expands_only_adjacent_edge_and_never_the_visible_viewport ... ok
+test desktop_config::tests::topology_uses_rectangles_in_every_direction_and_allows_gaps ... ok
+test desktop_pointer::tests::desktop_move_is_exact_typed_deadline_bound_intent ... ok
+test atlas_preview_input::tests::wheel_events_select_two_windows_and_keep_source_identities ... ok
+test desktop_pointer::tests::native_wm_operation_budget_clamps_instead_of_failing ... ok
+test desktop_probe::tests::address_is_bounded_and_canonicalized ... ok
+test desktop_probe::tests::exact_window_requires_hcgi_address_pid_and_stable_id ... ok
+test desktop_receiver_state::tests::begin_requires_the_exact_movable_desktop_frame ... ok
+test desktop_receiver_state::tests::begin_update_end_requires_exact_acknowledgements ... ok
+test desktop_receiver_state::tests::begin_waits_for_committed_notice_without_consuming_updates ... ok
+test desktop_receiver_state::tests::coalescing_preserves_cancel_and_separate_gestures ... ok
+test desktop_receiver_state::tests::evicted_begin_rebases_same_window_and_keeps_drag_anchor ... ok
+test desktop_receiver_state::tests::pending_begin_retains_late_ack_and_rejects_mismatched_lineage ... ok
+test desktop_receiver_state::tests::rejected_begin_drains_its_tail_then_allows_a_new_drag ... ok
+test desktop_receiver_state::tests::queued_positions_coalesce_but_end_and_wire_order_are_preserved ... ok
+test desktop_receiver_state::tests::source_handoff_on_update_drains_tail_and_allows_next_drag ... ok
+test desktop_receiver_state::tests::source_rejection_of_update_or_end_does_not_retire_receiver ... ok
+test desktop_receiver_state::tests::unavailable_begin_is_local_and_next_drag_still_works ... ok
+test desktop_source::tests::capacity_return_keeps_oversized_window_inside_local_display ... ok
+test desktop_source::tests::capacity_return_stays_at_crossed_edge_and_preserves_parallel_position ... ok
+test desktop_source::tests::capacity_return_uses_nearest_edge_when_origin_is_already_inside ... ok
+test desktop_source::tests::closure_inventory_uses_native_identity_not_viewport_eligibility ... ok
+test desktop_source::tests::discovery_id_matches_launcher_seed_and_avoids_stream_collision ... ok
+test desktop_source::tests::exact_hcgf_bounds_intersection_treats_touch_as_outside ... ok
+test desktop_source::tests::empty_desktop_can_start_and_reserve_later_windows ... ok
+test doctor::tests::busy_port_is_explained ... ok
+test doctor::tests::clock_behind_is_explained ... ok
+test desktop_source::tests::capacity_return_does_not_mutate_a_retiled_window ... ok
+test doctor::tests::options_require_complete_groups ... ok
+test doctor::tests::swapped_or_missing_files_are_explained ... ok
+test desktop_source::tests::local_discovery_adds_only_visible_crossing_windows_with_pinned_identity ... ok
+test encoded_media::tests::bad_native_profile_is_rejected_before_transport_admission ... ok
+test encoded_media::tests::epoch_mismatch_is_rejected ... ok
+test doctor::tests::valid_identity_is_ok_and_near_expiry_warns ... ok
+test encoded_media::tests::native_pair_is_admitted_by_transport_codec_session ... ok
+test encoded_media::tests::opaque_omission_is_explicit_and_keeps_alpha_out_of_wire_frames ... ok
+test encoded_media::tests::per_plane_access_units_are_bounded ... ok
+test encoded_media::tests::required_alpha_cannot_be_dropped ... ok
+test file_transfer::tests::global_quota_bounds_concurrent_connections ... ok
+test coded_peer::tests::media_owner_reuses_endpoint_after_connection_close_without_capture ... ok
+test file_transfer::tests::owner_only_tree_dacl_is_protected_and_inherited ... ok
+test coded_peer::tests::requested_shutdown_wakes_handshake_and_permanently_retires_owner ... ok
+test atlas_preview_input::tests::missing_keyboard_authority_expires_with_exact_event_diagnostic ... ok
+test coded_peer::tests::cancelling_reconnect_during_backoff_fences_owner ... ok
+test file_transfer::tests::rejects_incorrect_final_flag_and_cleans_partial_tree_on_drop ... ok
+test file_transfer::tests::rejects_traversal_and_noncontiguous_chunks ... ok
+test file_transfer::tests::rejects_altered_or_overlapping_chunk_replays ... ok
+test gpu_atlas_capture::empty_desktop_tests::empty_pool_returns_transparent_batches_and_keeps_enrollment_capacity ... ok
+test gpu_atlas_capture::lost_source_tests::one_disconnected_source_leaves_activity_lanes_streaming ... ok
+test gpu_atlas_capture::lost_source_tests::one_disconnected_source_leaves_batch_peers_streaming ... ok
+test gpu_atlas_device::capacity_tests::activity_subset_revisions_keep_background_slots_and_static_snapshots ... ok
+test gpu_atlas_device::capacity_tests::all_paused_is_empty_publication_and_bad_lineage_is_still_rejected ... ok
+test gpu_atlas_warmup::tests::empty_startup_layout_reconciles_without_inventing_a_window ... ok
+test gpu_atlas_device::capacity_tests::oversized_resize_withdraws_only_that_tile_and_recovers_fresh ... ok
+test file_transfer::tests::temporary_root_is_owner_only ... ok
+test gpu_compatible_encoder::sparse_viewport_tests::fractional_boundary_rounds_outward_without_losing_visible_pixels ... ok
+test gpu_compatible_encoder::sparse_viewport_tests::scroll_out_partial_and_back_preserves_source_coordinates ... ok
+test gpu_atlas_warmup::tests::real_startup_capture_replaces_probe_dimensions_but_later_epochs_remain_strict ... ok
+test gpu_compatible_encoder::sparse_viewport_tests::seam_residency_contains_pixels_revealed_before_the_next_source_frame ... ok
+test gpu_compatible_encoder::tests::atlas_batch_consumes_each_source_and_fences_layout_generations ... ok
+test gpu_compatible_encoder::tests::atlas_continues_warmup_identity_without_resetting_source_floors ... ok
+test gpu_compatible_encoder::tests::atlas_batch_requires_exact_membership_geometry_and_nonoverlap ... ok
+test gpu_compatible_encoder::tests::atlas_stream_identity_and_timestamp_cannot_disguise_window_freshness ... ok
+test gpu_compatible_encoder::tests::clean_expiry_consumes_lineage_without_changing_pending_idr_or_alpha ... ok
+test gpu_compatible_encoder::tests::descriptor_changes_require_new_generation ... ok
+test gpu_compatible_encoder::tests::atlas_wire_manifest_binds_planes_and_maps_each_source_clock ... ok
+test gpu_compatible_encoder::tests::drained_late_packet_consumes_lineage_and_repairs_both_reference_chains ... ok
+test gpu_compatible_encoder::tests::gpu_transport_keeps_alpha_and_session_lineage ... ok
+test gpu_compatible_encoder::tests::invalid_atlas_batch_retires_adapter_before_gpu_initialization ... ok
+test gpu_compatible_encoder::tests::lossless_alpha_cache_invalidates_generation_dimensions_and_config ... ok
+test gpu_compatible_encoder::tests::lossless_alpha_cache_reencodes_changed_samples_exactly ... ok
+test gpu_compatible_encoder::tests::owned_atlas_grows_to_8192_by_4096 ... ignored, requires NVIDIA GPU; owned empty canvases only, no desktop input
+test gpu_compatible_encoder::tests::lossless_alpha_cache_reuses_bytes_but_preserves_new_frame_metadata ... ok
+test gpu_compatible_encoder::tests::native_geometry_epoch_change_requires_a_new_atlas_placement ... ok
+test gpu_nvenc_runtime::tests::clean_expiry_requires_opt_in_exact_status_and_no_output ... ok
+test gpu_nvenc_runtime::tests::owned_bitrate_cabi_reconfiguration ... ignored, owned empty GPU canvas, C ABI bitrate changes and IDR; no capture
+test gpu_nvenc_runtime::tests::completed_output_expiry_is_recoverable_only_with_explicit_opt_in ... ok
+test gpu_nvenc_runtime::tests::owned_empty_atlas_crosses_rust_native_boundary ... ignored, manual owned-buffer CUDA/NVENC hardware test; no desktop capture
+test gpu_nvenc_runtime::tests::owned_synthetic_bitrate_reconfiguration ... ignored, owned 4K EGL texture bitrate/IDR oracle, H264 and AV1; no screen or input
+test gpu_nvenc_runtime::tests::ffi_layout_matches_fixed_linux_abi ... ok
+test gpu_nvenc_runtime::tests::resident_crop_preserves_flip_and_shadow_coordinates ... ok
+test gpu_nvenc_runtime::tests::resident_crop_without_shadow_preserves_disabled_abi_fields ... ok
+test gpu_nvenc_runtime::tests::resource_rejection_precedes_gpu_initialization ... ok
+test gpu_presenter_pipe::tests::compressed_v2_forwards_exact_vfar_and_bounds_decoded_size ... ok
+test gpu_presenter_pipe::tests::deadline_v4_has_exact_layout_and_cannot_omit_budget ... ok
+test gpu_presenter_pipe::tests::atlas_record_preserves_identity_tiles_and_deadline ... ok
+test gpu_presenter_pipe::tests::decode_only_v3_is_distinct_from_live_v2 ... ok
+test gpu_presenter_pipe::tests::exact_header_and_plane_order ... ok
+test gpu_presenter_pipe::tests::desktop_layout_selects_v7_and_keeps_v5_byte_exact_when_absent ... ok
+test gpu_presenter_pipe::tests::native_qpc_budget_matches_conservative_cpp_conversion ... ok
+test gpu_presenter_pipe::tests::lossless_plane_reaches_pipe_unchanged_and_mismatch_is_rejected ... ok
+test gpu_presenter_pipe::tests::rejects_invalid_geometry_and_exact_resource_overrun ... ok
+test hyprcapture_control::tests::gpu_request_requires_window_gpu_mode_echo ... ok
+test hyprcapture_control::tests::preserves_decorations_and_allows_rates_above_60 ... ok
+test hyprcapture_control::tests::rejects_wrong_duplicate_unknown_and_unbounded_response ... ok
+test hyprcapture_encoder::tests::gpu_requested_keyframe_preserves_generation_and_timestamp ... ignored, requires paired NVENC hardware
+test hyprcapture_encoder::tests::gpu_resize_rebuilds_and_forces_idr ... ignored, requires paired NVENC hardware
+test hyprcapture_encoder::tests::oversized_geometry_returns_error_without_overflow ... ok
+test hyprcapture_encoder::tests::geometry_and_rgba_input_are_checked_without_gpu ... ok
+test hyprcapture_gpu_release::tests::exact_release_identity_and_header ... ok
+test hyprcapture_gpu_release::tests::invalid_release_cannot_authorize_reuse ... ok
+test hyprcapture_gpu_socket::tests::activity_available_batch_skips_slow_peer_and_withdraws_after_reads ... ok
+test hyprcapture_gpu_socket::tests::activity_capture_lanes_do_not_wait_for_other_windows_or_steal_inflight_leases ... ok
+test hyprcapture_gpu_socket::tests::atlas_pool_disconnect_retires_only_that_source ... ok
+test hyprcapture_gpu_socket::tests::atlas_pool_holds_one_slot_and_expires_without_renewal ... ok
+test hyprcapture_gpu_socket::tests::capture_readiness_survives_cancelled_wait_and_reports_disconnect ... ok
+test hyprcapture_gpu_socket::tests::native_encode_failure_retires_without_ack ... ok
+test hyprcapture_gpu_socket::tests::capture_readiness_collects_partial_sources_and_survives_restore ... ok
+test hyprcapture_gpu_socket::tests::receives_exact_two_fds_and_explicitly_releases ... ok
+test hyprcapture_gpu_socket::tests::receives_frozen_input_geometry_with_the_same_frame_and_fds ... ok
+test hyprcapture_gpu_socket::tests::rejects_missing_or_extra_rights ... ok
+test hyprcapture_gpu_socket::tests::rejects_old_sequence_after_a_released_slot ... ok
+test hyprcapture_gpu_socket::tests::rejects_release_from_another_receiver_session ... ok
+test hyprcapture_gpu_socket::tests::rejects_wrong_compositor_pid ... ok
+test hyprcapture_gpu_wire::tests::disabled_shadow_zeroes_entire_shadow_region ... ok
+test hyprcapture_gpu_socket::tests::removing_idle_source_keeps_other_lease_and_never_sends_unproved_release ... ok
+test hyprcapture_gpu_socket::tests::capture_readiness_rearms_without_consuming_or_releasing ... ok
+test coded_peer::tests::late_disposition_is_awaited_for_its_own_frame_until_the_watchdog ... ok
+test hyprcapture_gpu_wire::tests::exact_roundtrip_and_offsets ... ok
+test hyprcapture_gpu_wire::tests::native_input_geometry_golden_and_strict_boundaries ... ok
+test hyprcapture_gpu_wire::tests::rejects_invalid_frame_fields ... ok
+test hyprcapture_gpu_wire::tests::rejects_length_reserved_flags_nan_and_overflow ... ok
+test hyprcapture_runtime::tests::converts_straight_rgba_to_premultiplied_vfbg ... ok
+test hyprcapture_runtime::tests::accepts_asymmetric_decoration_around_visible_content ... ok
+test hyprcapture_runtime::tests::atlas_shutdown_preserves_controls_on_invalid_timeout ... ok
+test hyprcapture_runtime::tests::independent_provider_only_changes_the_lua_namespace ... ok
+test hyprcapture_runtime::tests::atlas_shutdown_resumes_same_worker_and_attempts_remaining_streams ... ok
+test hyprcapture_runtime::tests::isolated_stop_failure_cannot_be_erased_by_later_shutdown ... ok
+test hyprcapture_runtime::tests::isolated_stop_retains_worker_and_leaves_other_producer_running ... ok
+test file_transfer::tests::replays_accepted_chunks_without_rewriting_or_advancing_completion ... ok
+test hyprcapture_runtime::tests::performance_mode_selects_capture_start_without_changing_cleanup ... ok
+test hyprcapture_runtime::tests::rejects_metadata_identity_mismatch ... ok
+test hyprcapture_runtime::tests::rejects_metadata_that_exceeds_the_caller_limit ... ok
+test hyprcapture_runtime::tests::rejects_pixel_data_that_disagrees_with_metadata ... ok
+test hyprcapture_runtime::tests::rejects_visible_content_outside_full_geometry ... ok
+test hyprcapture_runtime::tests::split_session_keeps_receiver_independent_of_control_lifetime ... ok
+test coded_peer::tests::process_retirement_waits_for_owned_running_and_already_exited_children ... ok
+test file_transfer::tests::zero_length_offer_completes_without_a_blob_chunk ... ok
+test file_transfer::tests::writes_contiguous_chunk_and_completes ... ok
+test hyprcapture_socket::tests::distinguishes_would_block_and_disconnect ... ok
+test hyprcapture_socket::tests::imports_valid_sealed_memfd ... ok
+test hyprcapture_socket::tests::latest_mapped_receive_imports_only_the_newest_validated_frame ... ok
+test hyprcapture_socket::tests::latest_receive_bounds_each_queue_drain ... ok
+test hyprcapture_socket::tests::latest_mapped_receive_rejects_invalid_intermediate_packet ... ok
+test hyprcapture_socket::tests::latest_receive_records_skipped_sequences_against_replay ... ok
+test hyprcapture_socket::tests::latest_receive_imports_only_the_newest_queued_frame ... ok
+test hyprcapture_socket::tests::latest_receive_rejects_invalid_intermediate_and_closes_its_fd ... ok
+test hyprcapture_socket::tests::listener_accepts_private_shared_memory_runtime_directory ... ok
+test hyprcapture_socket::tests::rejects_missing_and_extra_descriptors ... ok
+test hyprcapture_socket::tests::listener_accepts_authenticated_seqpacket_peer ... ok
+test hyprcapture_socket::tests::rejects_replayed_time_reversed_and_unversioned_geometry_changes ... ok
+test hyprcapture_socket::tests::rejects_truncated_payload_and_control ... ok
+test hyprcapture_socket::tests::rejects_wrong_peer ... ok
+test hyprcapture_stream::tests::clock_origin_translation_preserves_capture_age ... ok
+test hyprcapture_socket::tests::listener_refuses_existing_path_and_unsafe_parent ... ok
+test hyprcapture_runtime::tests::gpu_failed_start_retains_unconfirmed_cleanup_type ... ok
+test hyprcapture_runtime::tests::gpu_start_timeout_stops_only_its_window_gpu_request ... ok
+test hyprcapture_socket::tests::rejects_zero_byte_packet_with_descriptor ... ok
+test hyprcapture_stream::tests::decodes_cpp_producer_golden ... ok
+test hyprcapture_stream::tests::lineage_rejects_old_frames_and_unversioned_resize_without_mutation ... ok
+test hyprcapture_stream::tests::preserves_source_time_and_logical_geometry ... ok
+test input_runtime::tests::desktop_operation_uses_its_own_budget_with_clock_mapping ... ok
+test hyprcapture_stream::tests::rejects_bounds_versions_reserved_and_truncation ... ok
+test input_runtime::tests::absolute_desktop_motion_requires_fresh_clock_and_consumes_stale_identity ... ok
+test input_runtime::tests::exact_lease_revoke_releases_then_publishes_revoked_state_and_ack ... ok
+test input_runtime::tests::failure_diagnostics_include_position_but_never_key_usage_or_state ... ok
+test input_runtime::tests::freshness_gate_maps_both_clock_offset_directions_and_is_fail_closed ... ok
+test input_runtime::tests::freshness_gate_subtracts_uncertainty_and_drift_at_the_expiry_boundary ... ok
+test input_runtime::tests::input_receiver_enforces_lease_target_generation_and_sequence ... ok
+test input_runtime::tests::input_receiver_requires_native_identity_and_rejects_wrong_lease_route ... ok
+test input_runtime::tests::lease_clock_mapping_and_ordered_operation_horizon_are_separate ... ok
+test input_runtime::tests::lease_revoke_rejects_non_active_generation_jump_and_wrong_identity_without_mutation ... ok
+test input_runtime::tests::ordered_cursor_preserves_delayed_transitions_but_rejects_replay_and_wrong_target ... ok
+test input_runtime::tests::parses_balanced_script_and_builds_lease_then_events ... ok
+test input_runtime::tests::rejected_timing_consumes_sequence_without_calling_backend ... ok
+test hyprcapture_stream::tests::mapped_import_requires_full_seals_and_unmaps_on_drop ... ok
+test input_runtime::tests::windows_backend_errors_map_to_stable_input_results ... ok
+test input_runtime::tests::rejects_unbalanced_duplicate_and_malformed_input ... ok
+test input_runtime::tests::zero_deadline_release_all_bypasses_clock_sync ... ok
+test input_runtime::touchpad_tests::touchpad_round_trip_and_ordered_lease_release ... ok
+test local_peer::tests::connected_socket_identity_comes_from_kernel ... ok
+test managed_owner::tests::owner_fixture ... ok
+test media_runtime::tests::enforces_window_and_completed_byte_limits ... ok
+test media_runtime::tests::epoch_change_discards_partial_reassembly ... ok
+test media_runtime::tests::opaque_frame_does_not_require_alpha ... ok
+test media_runtime::tests::alpha_from_another_frame_never_delivers_color ... ok
+test media_runtime::tests::rejects_stale_and_future_epochs_and_cleans_on_epoch_change ... ok
+test media_runtime::tests::retains_actual_encoded_color_and_alpha_until_atomic_delivery ... ok
+test media_runtime::tests::unregister_releases_completed_and_partial_state_then_allows_reregistration ... ok
+test native_quality::tests::sample_uses_deltas_feedback_and_resets_drops ... ok
+test native_quality::tests::parsing_and_gating ... ok
+test native_window_blur::tests::sei_uses_registered_unregistered_payload_and_escaped_zeroes ... ok
+test hyprcapture_stream::tests::sealed_import_ignores_shared_offset_and_rejects_mutable_or_wrong_length ... ok
+test native_window_wire::tests::alpha_matches_cpp_raw_and_rle_contract ... ok
+test native_window_wire::tests::frame_header_is_little_endian_reverse_v1 ... ok
+test native_window_wire::tests::cropped_tile_keeps_full_geometry_and_appends_resident_fields ... ok
+test native_window_wire::tests::fullscreen_route_preserves_epoch_and_fixed_size ... ok
+test native_window_wire::tests::input_preserves_negative_coordinates_and_sequence ... ok
+test native_window_wire::tests::visibility_and_geometry_control_roundtrip ... ok
+test nvenc_runtime::tests::lost_output_poisons_gpu_session ... ignored, requires NVIDIA GPU and NVENC driver
+test nvenc_runtime::tests::persistent_gpu_pair_preserves_metadata ... ignored, requires NVIDIA GPU and NVENC driver
+test nvenc_runtime::tests::abi_layout_and_invalid_config_are_stable ... ok
+test pixel_runtime::tests::payload_reaches_presenter_only_for_matching_epoch_once ... ok
+test pixel_runtime::tests::raw_pixels_flow_through_fragment_reassembly_and_admission ... ok
+test pixel_runtime::tests::rejects_unknown_codec_and_separate_alpha_before_native_submission ... ok
+test quality::application_tests::mock_encoder_applies_changes_once_and_retains_setting_on_failure ... ok
+test quality::tests::config_modes_are_strict_and_default_auto ... ok
+test quality::tests::deltas_do_not_repeat_loss_and_counter_reset_is_safe ... ok
+test quality::tests::high_quality_ignores_congestion_and_retains_nominal_fps ... ok
+test quality::tests::recovery_wait_is_not_send_backlog ... ok
+test raw_session::tests::close_releases_the_presenter_and_registration ... ok
+test raw_session::tests::duplicate_and_invalid_epoch_leave_the_existing_window_unchanged ... ok
+test raw_session::tests::event_pump_borrow_retains_registration_and_identity ... ok
+test raw_session::tests::resize_discards_an_incomplete_old_frame ... ok
+test raw_session::tests::presenter_survives_fresh_late_fresh_frames ... ok
+test raw_session::tests::separate_alpha_queue_is_rejected_before_registration ... ok
+test readiness_runtime::tests::commit_linearization_rejects_revoked_guard_or_disconnect ... ok
+test readiness_runtime::tests::bootstrap_bindings_require_exact_fields_lower_hex_and_no_substitution ... ok
+test readiness_runtime::tests::commit_request_hash_binds_exact_bootstrap_field_assignment ... ok
+test readiness_runtime::tests::daemon_install_success_receipt_has_exact_schema_five_bootstrap_bindings ... ok
+test readiness_runtime::tests::current_or_future_generation_cannot_be_reclaimed ... ok
+test readiness_runtime::tests::different_process_identity_cannot_be_reclaimed ... ok
+test readiness_runtime::tests::install_commit_request_must_bind_the_live_guard_identity ... ok
+test readiness_runtime::tests::malformed_or_extended_json_cannot_be_reclaimed ... ok
+test readiness_runtime::tests::install_commit_request_has_exact_strict_schema_and_mode_semantics ... ok
+test readiness_runtime::tests::non_qualifying_receipt_cannot_be_reclaimed ... ok
+test readiness_runtime::tests::mismatched_or_modified_artifacts_cannot_be_reclaimed ... ok
+test readiness_runtime::tests::readiness_lock_payload_has_exact_identity_binding ... ok
+test readiness_runtime::tests::previous_generation_from_same_process_can_be_reclaimed ... ok
+test readiness_runtime::tests::readiness_receipt_has_exact_strict_schema ... ok
+test reverse_bridge::tests::backdrops_preserve_order_with_input_in_both_relay_directions ... ok
+test reverse_bridge::tests::fast_start_end_retains_the_native_grab_point_without_forwarding_local_controls ... ok
+test reverse_bridge::tests::local_proxy_binding_is_consumed_and_cannot_reclaim_a_transferred_drag ... ok
+test reverse_bridge::tests::preserves_consecutive_ordered_input_records_exactly ... ok
+test reverse_bridge::tests::rejects_wrong_direction_and_oversize_before_forwarding ... ok
+test sidecar_runtime::tests::activated_cleanup_rejects_overflow_and_invalid_bound_peer_identity ... ok
+test sidecar_runtime::tests::activated_cleanup_requires_exact_local_route_identity ... ok
+test sidecar_runtime::tests::active_unbound_cleanup_is_fail_closed_and_writes_no_receipt ... ok
+test sidecar_runtime::tests::capture_deadline_is_fail_closed_when_expired_or_over_budget ... ok
+test sidecar_runtime::tests::capture_deadline_maps_one_remaining_budget_to_transport_and_receiver ... ok
+test native_window_blur::tests::reads_effective_runtime_values_again_after_configuration_changes ... ok
+test sidecar_runtime::tests::daemon_allocates_monotonic_generations_independent_of_sidecar ... ok
+test hyprcapture_runtime::tests::malformed_start_response_still_attempts_explicit_stop ... ok
+test atlas_session::tests::pmtu_shrink_during_frame_recovers_without_poisoning_sender ... ok
+test sidecar_runtime::tests::expired_capture_deadline_never_reaches_quic_and_preserves_cleanup ... ok
+test atlas_preview_input::tests::late_exact_rejection_keeps_expired_event_correlated_and_unforwarded ... ok
+test atlas_preview_input::tests::late_exact_acceptance_discards_expired_motion_and_allows_only_new_input ... ok
+test hyprcapture_runtime::tests::split_control_requires_its_exact_positive_stop_receipt ... ok
+test sidecar_runtime::tests::maps_modern_sidecar_input_without_reusing_request_sequence ... ok
+test sidecar_runtime::tests::newer_registry_epoch_does_not_replace_a_live_bound_peer ... ok
+test sidecar_runtime::tests::never_activated_route_is_the_only_no_active_receipt_shape ... ok
+test sidecar_runtime::tests::failed_remote_cleanup_suppresses_return_to_local_commands ... ok
+test sidecar_runtime::tests::fresh_daemon_kind12_is_fail_closed_and_replay_is_consumed ... ok
+test sidecar_runtime::tests::lost_normal_cleanup_ack_never_emits_ordinary_deskflow_fallback ... ok
+test sidecar_runtime::tests::reconnect_rebuilds_lease_before_confirming_pending_event ... ok
+test sidecar_runtime::tests::normal_cleanup_complete_is_acked_before_any_local_fallback ... ok
+test sidecar_runtime::tests::rejects_control_and_legacy_sidecar_messages_as_peer_input ... ok
+test sidecar_runtime::tests::release_all_is_the_only_unexpired_sidecar_input ... ok
+test sidecar_runtime::tests::release_all_sequence_overflow_aborts_before_cleanup_send ... ok
+test sidecar_runtime::tests::release_all_applied_but_revoke_failure_aborts_bound_peer ... ok
+test sidecar_runtime::tests::same_daemon_recovery_requires_exact_marker_credentials_and_unexpired_receipt ... ok
+test hyprcapture_runtime::tests::uncertain_start_attempts_stop_with_fresh_budget_and_preserves_cause ... ok
+test sidecar_runtime::tests::sidecar_peer_credentials_require_owner_and_positive_pid ... ok
+test sidecar_runtime::tests::open_file_hash_stays_pinned_across_symlink_replacement ... ok
+test sidecar_runtime::tests::owner_only_mode_is_present_when_create_returns ... ok
+test sidecar_runtime::tests::same_daemon_exact_recovery_sends_kind13_and_retains_receipt ... ok
+test sidecar_runtime::tests::sidecar_origin_cleanup_complete_is_rejected_by_direction_gate ... ok
+test sidecar_runtime::tests::forced_abort_stays_pinned_to_old_peer_when_new_epoch_is_registered ... ok
+test sidecar_runtime::tests::release_all_transport_success_without_applied_ack_aborts_bound_peer ... ok
+test sidecar_runtime::tests::verified_active_cleanup_remains_sticky_after_route_is_gone ... ok
+test tests::abort_peer_disconnects_registry_before_connection_close ... ok
+test sync_ext::tests::poisoned_lock_keeps_last_value ... ok
+test tests::ack_at_an_expired_deadline_is_late_and_never_applied ... ok
+test tests::ack_linearized_before_deadline_still_succeeds_after_waiter_delay ... ok
+test tests::clock_reply_snapshot_maps_both_offset_directions_and_checks_identity_boundaries ... ok
+test sidecar_runtime::tests::stale_registration_cannot_unregister_a_concurrent_replacement ... ok
+test sidecar_runtime::tests::superseded_live_peer_blocks_receipt_until_registration_closes ... ok
+test sidecar_runtime::tests::unavailable_peer_rejects_edge_before_ack_and_taints_daemon_lifetime ... ok
+test tests::expired_writer_deadline_beats_a_simultaneously_ready_send ... ok
+test sidecar_runtime::tests::uncertain_input_responds_before_absolute_cleanup_deadline ... ok
+test tests::applied_ack_wins_the_deadline_boundary_before_writer_confirmation ... ok
+test tests::expired_queue_deadline_wins_when_capacity_becomes_ready_same_turn ... ok
+test tests::failure_after_queueing_is_unknown_and_same_identity_cannot_be_resent ... ok
+test sidecar_runtime::tests::timed_out_input_cleanup_advances_sequence_and_still_revokes ... ok
+test shared_control::tests::delayed_or_cancelled_waiter_does_not_abort_queued_control_or_peer ... ok
+test tests::connection_loss_wakes_pending_input_and_timeout_is_bounded ... ok
+test atlas_cursor_handoff::tests::delayed_cleanup_retains_connection_until_receipt_or_actual_failure ... ok
+test tests::input_script_claim_is_sticky_for_the_daemon_lifetime ... ok
+test tests::force_release_input_is_explicitly_rejected_off_windows ... ok
+test tests::lease_revoke_disconnect_wakes_waiter_and_retains_tombstone ... ok
+test tests::lower_sha256_requires_exact_lowercase_ascii_hex ... ok
+test tests::lease_revoke_registry_rejects_ack_after_deadline_as_late ... ok
+test tests::lease_revoke_registry_requires_exact_identity_and_preserves_replay_tombstone ... ok
+test tests::lease_revoke_registry_dropped_ack_times_out_and_stays_failed_closed ... ok
+test tests::lease_revoke_transport_success_without_remote_ack_is_not_success ... ok
+test tests::input_success_waits_for_exact_remote_event_identity ... ok
+test tests::only_releases_bypass_the_input_delivery_target ... ok
+test tests::late_release_is_still_queued_and_sent_past_its_target ... ok
+test tests::parses_and_requires_scoped_input_identity_options ... ok
+test tests::old_connection_lease_revoke_ack_cannot_satisfy_new_connection_pending ... ok
+test tests::parses_client_defaults_and_overrides ... ok
+test tests::parses_quiescence_arm_without_tls_identity ... ok
+test tests::parses_post_release_acceptance_live_control_commands ... ok
+test tests::parses_server_options ... ok
+test tests::quiescence_output_requires_arm_and_sidecar ... ok
+test tests::readiness_options_are_atomic_and_require_native_input_identity ... ok
+test tests::readiness_commit_paths_are_atomic_and_bound_to_readiness ... ok
+test tests::reconnect_backoff_is_exponential_and_capped ... ok
+test tests::rejects_unknown_duplicate_and_invalid_timing_options ... ok
+test tests::reliable_input_accepts_delayed_cursor_and_still_rejects_replay ... ok
+test tests::remote_injection_failure_is_stable_and_not_transport_success ... ok
+test tests::unapplied_lease_revoke_never_queues_an_ack ... ok
+test tests::control_writer_survives_a_missed_input_deadline ... ok
+test tests::tombstone_capacity_evicts_oldest_completed_input_identity ... ok
+test window_icon::tests::png_icon_becomes_a_lossless_ico_with_an_application_group ... ok
+test tests::reader_skips_one_undecodable_control_and_keeps_the_connection ... ok
+test tests::writer_rechecks_deadline_after_send_future_completes ... ok
+test window_icon::tests::resolves_desktop_startup_class_to_installed_application_icon ... ok
+test window_input_runtime::tests::activity_lane_membership_survives_partial_and_out_of_order_commits ... ok
+test tests::server_receiver_publishes_clock_snapshot_before_following_input ... ok
+test tests::writer_queue_congestion_spends_the_total_budget_without_sending ... ok
+test tests::timed_out_input_keeps_a_bounded_late_ack_tombstone ... ok
+test tests::writer_confirmation_deadline_cancels_the_queued_send_gate ... ok
+test window_input_runtime::tests::captured_binding_requires_exact_presented_frame_and_epoch ... ok
+test window_input_runtime::tests::empty_atlas_starts_without_native_window_and_accepts_first_real_selection ... ok
+test window_input_runtime::tests::expired_lease_suspends_reauthorizable_route ... ok
+test window_input_runtime::tests::authorized_motion_roundtrip_and_revocation_over_real_socket ... ok
+test window_input_runtime::tests::explicit_button_mode_survives_renewal_over_real_socket ... ok
+test window_input_runtime::tests::explicit_wheel_mode_survives_renewal_and_old_grants_reject_it ... ok
+test window_input_runtime::tests::late_buttons_are_delivered_in_order ... ok
+test window_input_runtime::tests::listener_rejects_wrong_process_and_deadlines_fail_closed ... ok
+test window_input_runtime::tests::membership_watch_retains_withdrawal_even_when_intermediate_layout_is_skipped ... ok
+test window_input_runtime::tests::local_button_during_motion_drains_result_then_recovers_on_same_socket ... ok
+test window_input_runtime::tests::focus_revocation_suspends_route_and_resumes_on_newer_decision ... ok
+test window_input_runtime::tests::cursor_release_cancellation_requires_ready_or_confirmed_paused_binding ... ok
+test tests::persistent_client_reconnects_and_restarts_control_sequence ... ok
+test window_input_runtime::tests::atlas_pump_and_forwarded_preview_complete_native_motion_on_one_connection ... ok
+test window_input_runtime::tests::mtls_disconnect_during_native_begin_preserves_cause_and_closes_route ... ok
+test window_input_runtime::tests::cancelling_shared_dispatch_closes_native_and_network_routes ... ok
+test window_input_runtime::tests::atlas_and_selected_input_share_the_same_live_writer ... ok
+test window_input_runtime::tests::mtls_button_requires_native_confirmation_and_stale_release_closes ... ok
+test window_input_runtime::tests::mtls_disconnect_after_confirmed_press_closes_native_route ... ok
+test window_input_runtime::tests::mtls_keyboard_wrong_native_ack_never_publishes_success ... ok
+test window_input_runtime::tests::mtls_keyboard_requires_native_confirmation_and_replay_closes ... ok
+test atlas_session::tests::wifi_loss_repair_and_burst_recovery_both_modes ... ok
+test window_input_runtime::tests::native_wheel_conversion_preserves_ticks_and_rejects_lossy_values ... ok
+test window_input_runtime::tests::mtls_motion_only_session_cannot_gain_wheel_authority ... ok
+test window_input_runtime::tests::mtls_pointer_permission_cannot_grant_keyboard_authority ... ok
+test window_input_runtime::tests::mtls_motion_only_session_does_not_accept_peer_button_authority ... ok
+test window_input_runtime::tests::mtls_motion_is_acknowledged_only_after_native_confirmation ... ok
+test window_input_runtime::tests::rejected_motion_keeps_native_route_for_next_motion ... ok
+test window_input_runtime::tests::mtls_wheel_requires_native_confirmation_and_replay_closes ... ok
+test window_input_runtime::tests::queued_native_metadata_does_not_delay_an_already_available_ack ... ok
+test window_input_runtime::tests::rejected_press_keeps_route_and_rejected_release_suspends_it ... ok
+test window_input_runtime::tests::revocation_without_reauthorization_source_still_retires_route ... ok
+test window_input_runtime::tests::revocation_during_button_finishes_command_then_ends_route ... ok
+test window_input_runtime::tests::preview_producer_and_source_dispatchers_forward_confirmed_motion ... ok
+test window_input_runtime::tests::atlas_forwarded_receiver_and_source_complete_keyboard_over_mtls ... ok
+test window_input_runtime::tests::native_revocation_closes_idle_shared_route_without_another_motion ... ok
+test window_input_runtime::tests::ordered_preview_and_source_confirm_down_motion_up ... ok
+test native_quality::tests::fragmented_record_survives_quality_timer_ticks ... ok
+test window_input_runtime::tests::resized_geometry_is_announced_only_after_explicit_native_rebind ... ok
+test window_input_runtime::tests::selected_geometry_is_announced_after_end_begin_and_rejects_old_input ... ok
+test window_input_runtime::window_keyboard::tests::keyboard_wrong_ack_and_expired_ack_keep_cleanup_fence ... ok
+test window_input_runtime::window_keyboard::tests::keyboard_native_fifo_renewal_preserves_held_usage_and_confirmation ... ok
+test window_input_runtime::window_keyboard::tests::late_key_without_clock_sample_is_still_delivered_in_order ... ok
+test window_input_runtime::tests::selected_window_is_announced_only_after_native_end_and_begin ... ok
+test window_input_runtime::window_keyboard::tests::pointer_authority_cannot_enable_keys_and_pending_key_cannot_be_overwritten ... ok
+test window_input_runtime::window_switch::tests::atlas_startup_does_not_take_local_seat_before_explicit_selection ... ok
+test window_input_runtime::window_switch::tests::capacity_withdrawal_after_resize_requires_explicit_native_end ... ok
+test window_input_runtime::window_switch::tests::atlas_hover_activation_and_cross_window_hover_use_explicit_native_modes ... ok
+test window_input_runtime::tests::slow_native_metadata_callback_cannot_extend_ack_deadline ... ok
+test window_input_runtime::window_switch::tests::desktop_pause_waits_for_ended_and_resumes_noop_or_new_window ... ok
+test window_input_runtime::window_switch::tests::native_resize_suspension_requires_explicit_rebind_and_fresh_geometry ... ok
+test window_input_runtime::tests::receiver_mixed_fifo_and_source_dispatch_complete_keyboard_over_mtls ... ok
+test window_preview_input::tests::actual_visual_clock_and_expiry_gate_each_sample_without_replay ... ok
+test window_preview_input::tests::ambiguous_or_invalid_wheel_retires_ordered_queue ... ok
+test window_input_runtime::window_switch::tests::same_window_geometry_rebind_requires_end_and_preserves_native_identity ... ok
+test window_preview_input::tests::authorization_cannot_retarget_silently_extend_or_regress ... ok
+test window_preview_input::tests::deferred_button_expires_or_rejects_renewal_without_sending ... ok
+test window_preview_input::tests::delayed_exact_receipt_preserves_order_and_original_button_deadline ... ok
+test window_preview_input::tests::desktop_pause_refuses_unresolved_native_input ... ok
+test window_preview_input::tests::desktop_pause_drops_authority_and_requires_a_newer_source_generation ... ok
+test window_preview_input::tests::exact_activation_receipt_allows_new_generation_on_same_frame_only_explicitly ... ok
+test window_preview_input::tests::keyboard_and_motion_share_fifo_but_not_ack_types ... ok
+test window_preview_input::tests::keyboard_late_ack_preserves_pending_and_switch_clears_old_authority ... ok
+test window_preview_input::tests::late_motion_rejection_finishes_pending_and_allows_new_motion ... ok
+test window_preview_input::tests::keyboard_requires_both_local_and_exact_separate_source_authority ... ok
+test window_preview_input::tests::locally_selected_geometry_clears_both_authorities_and_rejects_late_grants ... ok
+test window_preview_input::tests::local_switch_preserves_sequences_and_requires_resolved_input ... ok
+test window_preview_input::tests::newer_visual_does_not_invalidate_a_verified_queued_sample ... ok
+test window_preview_input::tests::ordered_down_motion_up_requires_matching_confirmation ... ok
+test window_preview_input::tests::ordered_overflow_retires_even_while_waiting_for_ack ... ok
+test window_preview_input::tests::original_deadline_and_one_exact_pending_ack_are_preserved ... ok
+test window_preview_input::tests::publication_wait_rejects_expiry_geometry_renewal_and_closed_owner ... ok
+test window_preview_input::tests::queued_button_release_keeps_old_verified_frame_after_visual_advance ... ok
+test window_input_runtime::window_switch::tests::closed_atlas_target_ends_exact_native_route_before_switching ... ok
+test window_preview_input::tests::receipt_eviction_and_renewal_do_not_reauthorize_old_samples ... ok
+test window_preview_input::tests::repeated_wheels_preserve_order_deadline_and_distinct_receipts ... ok
+test window_preview_input::tests::retained_authorization_preserves_event_frame_and_rejects_missing_receipt ... ok
+test window_preview_input::tests::verified_button_waits_for_publication_without_retagging_or_extending_deadline ... ok
+test window_preview_input::tests::stale_ordered_release_is_not_silently_discarded ... ok
+test window_preview_input::tests::wheel_opt_in_expiry_and_publication_gates_are_explicit ... ok
+test window_preview_input::tests::wheel_pump_uses_distinct_payload_and_waits_for_native_receipt ... ok
+test window_input_runtime::window_switch::tests::resize_recovery_never_survives_pending_work_terminal_revocation_or_expiry ... ok
+test window_input_runtime::window_switch::tests::switch_requires_end_confirmation_and_preserves_connection_sequence ... ok
+test window_input_runtime::window_switch::tests::cursor_local_revocation_retires_old_grant_and_requires_fresh_begin ... ok
+test window_input_runtime::tests::selection_rejection_419ms_requires_confirmed_end_or_never_begun ... ok
+test window_input_runtime::tests::selection_acceptance_waits_for_native_begin_and_replies_to_unchanged_grant ... ok
+test window_input_runtime::tests::source_authorization_watch_drives_shared_dispatch_and_revokes_on_drop ... ok
+test coded_peer::tests::real_quic_idle_timeout_preserves_stream_and_control_retry_causes ... ok
+test coded_peer::tests::drain_polling_keeps_one_pending_operation_through_a_long_control_wait ... ok
+test doctor::tests::silent_peer_reports_firewall_hint_and_live_peer_passes ... ok
+test window_input_runtime::tests::refreshed_clock_reply_precedes_next_window_motion ... ok
+test coded_peer::tests::automatic_retry_replaces_established_connection_but_stops_on_policy_close ... ok
+test atlas_session::tests::lost_atlas_chunk_does_not_silently_wait ... ok
+test clipboard_sync::tests::automatic_session_syncs_both_directions_without_control_reader ... ok
+test native_quality::tests::old_native_and_high_quality_receive_only_original_records ... ok
+test window_input_runtime::tests::missing_periodic_clock_reply_resynchronizes_without_closing_window_route ... ok
+test coded_peer::tests::reconnect_reuses_endpoint_and_shutdown_interrupts_backoff ... ok
+test sidecar_runtime::tests::owner_only_arm_binds_and_is_consumed_once ... ok
+
+test result: ok. 723 passed; 0 failed; 12 ignored; 0 measured; 0 filtered out; finished in 13.78s
+
+     Running unittests src/bin/vf-audio-peer.rs (target/debug/deps/vf_audio_peer-85cc2d29efd45a54)
+
+running 1 test
+test tests::paired_pcm_transport_and_capture_eof_cleanup ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src/bin/vf-clipboard-peer.rs (target/debug/deps/vf_clipboard_peer-5d4e1f09897572f1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/vf-cursor-peer.rs (target/debug/deps/vf_cursor_peer-49b998852a6dfd74)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/vf-hyprland-windows.rs (target/debug/deps/vf_hyprland_windows-88bfc831f0384399)
+
+running 1 test
+test native::tests::scaled_negative_origin_and_decorations_route_to_content ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/vf-input-service.rs (target/debug/deps/vf_input_service-e81408ecfc9a5273)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/vf-media-peer.rs (target/debug/deps/vf_media_peer-dd769bfbe0600819)
+
+running 1 test
+test source_runtime_tests::background_work_progresses_while_native_owner_keeps_its_thread ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/vf-window-peer.rs (target/debug/deps/vf_window_peer-5b1d47680ce5b616)
+
+running 4 tests
+test tests::transparency_can_be_disabled ... ok
+test tests::quality_mode_defaults_and_parses ... ok
+test tests::role_does_not_depend_on_listener_or_operating_system ... ok
+test tests::unchanged_desktop_survives_transport_idle_periods ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+
+     Running unittests src/bin/vf-window-perf-peer.rs (target/debug/deps/vf_window_perf_peer-8d93ba609a7d5449)
+
+running 1 test
+test tests::role_does_not_depend_on_listener_or_operating_system ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/viewflowd-0f4856bd9f6c11ec)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/atlas_peer_process.rs (target/debug/deps/atlas_peer_process-defc7e9f51e98e88)
+
+running 2 tests
+test source_rejects_invalid_configuration_before_backend_startup ... ok
+test peer_help_and_invalid_arguments_do_not_require_a_native_backend ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+     Running tests/clipboard_linux_adapter.rs (target/debug/deps/clipboard_linux_adapter-7808e677c835fe8c)
+
+running 2 tests
+test verified_callback_writes_before_completed_receipt ... ok
+test denied_native_consent_writes_nothing_and_emits_failed_completion ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/clipboard_runtime.rs (target/debug/deps/clipboard_runtime-cb6f9fe8edcd6fe4)
+
+running 7 tests
+test clipboard_payload_limit_stays_below_transport_control_limit ... ok
+test cancellation_after_accept_retires_the_dedicated_connection ... ok
+test receiver_suppresses_echo_and_rejects_replayed_delivery_before_install ... ok
+test receiver_fails_closed_on_hash_mismatch_without_native_install ... ok
+test authenticated_clipboard_transfer_requires_consent_and_reports_native_install_only ... ok
+test dedicated_clipboard_control_rejects_a_second_same_process_reader ... ok
+test bounded_echo_ledger_never_forgets_old_payload_sequences ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/force_release_receipt_contract.rs (target/debug/deps/force_release_receipt_contract-42d05f07f1672a17)
+
+running 2 tests
+test emit_force_release_receipt_fixture ... ignored, called by the PS5.1 contract harness to emit a fresh Rust fixture
+test producer_schema_matches_cross_language_contract ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/media_receiver_quic.rs (target/debug/deps/media_receiver_quic-b2ccb530d68df0eb)
+
+running 2 tests
+test authenticated_datagrams_deliver_actual_atomic_plane_bytes ... ok
+test decorated_capture_survives_quic_and_pixel_submission ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/nvenc_media_gpu.rs (target/debug/deps/nvenc_media_gpu-ac4eccb297eabf74)
+
+running 1 test
+test real_encoded_pairs_enter_codec_session ... ignored, requires NVIDIA GPU and NVENC driver
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/nvenc_quic_gpu.rs (target/debug/deps/nvenc_quic_gpu-f3ed5ed31417a33a)
+
+running 2 tests
+test lossless_alpha_pair_survives_quic_to_presenter_pipe ... ignored, requires NVIDIA GPU and NVENC driver
+test real_nvenc_color_and_alpha_survive_mtls_quic ... ignored, requires NVIDIA GPU and NVENC driver
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/window_bridge_quic.rs (target/debug/deps/window_bridge_quic-ddef9a4821e975d0)
+
+running 6 tests
+test listener_presents_two_sources_without_waiting_for_first_to_close ... ok
+test activity_off_retains_legacy_native_records ... ok
+test source_can_be_either_tls_endpoint_and_delayed_input_stays_ordered ... ok
+test native_failure_recovers_on_same_paired_connection ... ok
+test quality_capability_updates_and_cleans_up_with_and_without_activity ... ok
+test negotiated_two_lanes_keep_ordered_input_and_restart ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.09s
+
+   Doc-tests viewflowd
+warning: unnecessary parentheses around method argument
+    --> crates/viewflowd/src/atlas_preview_input.rs:1830:25
+     |
+1830 |                         (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+     |                         ^
+1831 |                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS),
+     |                                                                                    ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+1830 ~                         crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+1831 ~                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS,
+     |
+
+warning: 1 warning emitted
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+EXIT 0

@@ -502,6 +502,96 @@ admission/重排与多个精确反馈槽，定义 generation 内颜色/alpha/pat
 并在丢帧后正确处理所有后续参考帧。旧端继续停止等待。必须单独验证双 lane、
 alpha 引用、稀疏 patch、恢复围栏和原生呈现；本次不以单 lane 合成成功替代这些验证。
 
+### 可协商流水线：关闭状态的基础实现（2026-10-29 UTC）
+
+本轮执行任务允许的保守分支：**流水线未启用**。CPU harness 和 GPU source
+继续每 lane 一帧在途；没有以编码提前、两帧重传缓存或元数据测试冒充网络流水线。
+本节补充上节的历史决定，保留早期测量表格。
+
+协议增加 `AtlasSession.pipeline_version = 21`。源端固定发送 0，接收端固定返回 0；
+protobuf 不编码默认零值，旧端保持原 wire 行为。V3 接收端遇到非零或未知的
+可选流水线 offer 时，接受其余匹配计划并返回 0，不因该能力缺失拒绝启动。
+源端不接受未经 offer 的非零 acceptance，沿用原启动计划一致性检查。
+没有增加活动会话终止条件，也没有新超时、输入许可或焦点限制。
+
+`viewflow_core::atlas_pipeline` 提供独立的、**尚未接入媒体路径**的固定槽元数据窗口。
+容量支持 1–3；3 只是实验上限，没有用测量选择正式 N。每个 lane 单独持有窗口，
+每个槽绑定 stream、lane、frame、geometry_epoch、config_generation 和恢复序号。
+模块不分配堆内存、不加锁、不保存媒体或解码表面；生产热路径没有调用该模块。
+完成回调可以乱序，窗口仅按提交顺序退出最早槽；满窗口返回本地结果。
+这不是原生呈现或精确网络反馈槽的完整实现。
+
+依赖约定与单元测试：
+
+- 颜色 P 帧显式依赖前一份同 lane 帧。画布只有真正的时间增量才声明前帧依赖。
+  现有 `AtlasPatch` 描述空间映射，不自动产生时间增量依赖；映射变化要求成对关键帧。
+  未来适配层必须为各帧保存精确 patch/placement 映射和表面身份。
+- alpha 引用绑定完整 alpha 基线的精确帧号，不引用另一份引用。
+  媒体所有者必须为所有在途引用保留对应基线字节；此模块只保存身份。
+  新完整 alpha 仅在按序退出时成为后续提交的默认基线。
+- 中间帧丢失会标记所有传递依赖，包括媒体先完成的后续帧；完整独立快照保留。
+  未来适配层必须转为现有 `ExpiredUnbound` 和关键帧/完整画布恢复。
+- 代次、几何或恢复围栏重置返回所有在途精确身份。所有者必须先释放媒体/表面并
+  完成或取消反馈。已绑定的原生工作必须先取得真实回执，不能改报 `ExpiredUnbound`。
+  返回身份不表示资源排空。递增本地恢复序号拒绝旧回调，支持相同 wire 帧号重新开始。
+- 双 lane 的容量、丢失传播和完成身份互相独立。8 项单元测试覆盖上述状态转换。
+  真实 TLS/QUIC 暖启动测试覆盖 0、1、未知版本 offer 降级、旧端零响应和
+  非零未协商 acceptance 拒绝；现有新/旧 V3 双向兼容测试继续执行。
+
+未启用的原因是实际所有者契约尚未改造，不是新增产品限制：接收端 `staged`、
+`AtlasReceiver.pending`、alpha cache、`feedback_pending` 每 lane 都只有一份；
+活动反馈注册总共只容纳两个 ticket；GPU pending task 独占整个 sender；
+恢复围栏只保留每 lane 一份 manifest。Windows 原生 `Stage` 允许 8 份绑定，但
+`DiscardUnbound` 要求仅有 1 份待处理绑定。只放开 sender 等待会替代旧媒体、覆盖
+alpha 基线，并使原生丢帧恢复不满足现有条件。原生 presenter 本轮保持关闭
+流水线；Linux 上的元数据证明不代替 Windows/macOS 解码、表面与回执证明。
+
+启用前必须完成以下工作：
+
+1. 把固定窗口接入有界媒体重组、逐槽 NACK/过期和精确反馈，并按序解码与提交。
+2. 拆分 CPU/GPU enqueue 与 completion 所有权，保留可靠流的部分读取进度。
+3. 为每个在途 alpha 引用保留基线，为各帧保留精确 patch 映射，联动丢帧和已编码 P 帧恢复。
+4. 排空代次、几何与围栏前的全部槽；更新 publication/input receipt 的精确身份。
+5. 依据测量选择 N。若 N=3，扩展目前两帧/lane 的重传缓存；并核对真实积压计费。
+6. 验证双 lane、原生有序呈现和启用后的 clean/wifi1/cap20，再双向 advertise 非零版本。
+
+本轮测量仅复测关闭状态的真实 CPU-owned NVENC/QUIC 路径。接收端仍模拟
+`Committed`，没有解码、原生呈现或物理显示。每次启动前检查
+`pgrep -af "weak-network-test|netem_session"`；有其他测量时按 60 秒间隔等待。
+脚本分别识别启动进程与实际测量子进程；多个启动进程按 PID 仲裁，防止场景间互等。
+任何实际测量子进程都触发等待。本轮保留一次主动中止的等待记录，未终止其他工作树进程。
+本轮每组不少于 30 秒。历史列来自上方「ABR 修复后：30 秒结果」，仅作参考。
+两列都未启用流水线；它们不是匹配 seed 的 A/B 测量，差值不归因为本轮代码收益。
+
+| 场景/模式 | 历史 fps / p95 ms | 本轮 fps / p95 ms | 完整/丢失帧 | 会话 |
+|---|---|---|---|---|
+| clean/auto | 59.7 / 12.9 | 59.8 / 11.6 | 1795/0 | 保持 |
+| wifi1/auto | 17.4 / 97.1 | 17.0 / 100.1 | 509/3 | 保持 |
+| cap20/auto | 22.3 / 46.0 | 22.7 / 36.4 | 680/0 | 保持 |
+| cap20/high_quality | 22.3 / 35.7 | 22.2 / 36.0 | 666/0 | 保持 |
+| cap20/save_bandwidth | 24.0 / 46.9 | 24.5 / 46.7 | 735/0 | 保持 |
+
+原始证据：[clean](evidence/pipeline-netem-clean.txt)、
+[wifi1](evidence/pipeline-netem-wifi1.txt)、[cap20 三模式](evidence/pipeline-netem-cap20.txt)、
+[等待与恢复记录](evidence/pipeline-netem-isolation.txt)、
+[机器可读比较](evidence/pipeline-comparison.json)。正式测量的媒体/协议/core 源文件
+与测试可执行文件 SHA256 一致；测量启动脚本在 wifi1 后修正了等待仲裁。
+注释冻结前的 clean 与仲裁修复前的两组 cap20 另存，未纳入本表。
+测量后仅给 core 第 32 行注释中的 `AtlasPatch` 补反引号，以消除 Clippy 格式警告。
+该差异不改变可执行语句；最终源码哈希与测量源码哈希分别保留。
+系统其他负载没有清空；这些数字不证明统计意义上的零回退。
+
+已验证：`cargo test --workspace` 990 通过、4 忽略；
+`cargo test -p viewflowd --features native-gpu-nvenc` 751 通过、16 忽略；
+`cargo clippy --workspace --all-targets -- -D clippy::unwrap_used` 通过，保留既有 warning。
+启动仲裁的模拟检查、Python 语法检查与 `git diff --check` 通过。
+命令、退出码与原始日志见[检查汇总](evidence/pipeline-checks-summary.md)。
+
+未验证：任何非零流水线能力的实际 CPU/GPU 传输、逐槽真实媒体重组、真实 alpha/patch
+依赖恢复、在途媒体的 generation/geometry/fence 重置、双 lane netem、原生有序呈现、
+Windows/macOS 构建、实机 Wi-Fi、主观画质和物理显示。本轮不宣称流水线的吞吐提升，
+也不以模型测试证明这些边界。完整实施缺项见[流水线准备记录](evidence/pipeline-readiness.md)。
+
 ### 固定源码补测与检查
 
 完整八场景之后，clean、wifi1、cap8 与 75 秒 burst 使用相同 13 项源文件 SHA256

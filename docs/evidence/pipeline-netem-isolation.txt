@@ -1,0 +1,111 @@
+2026-10-29T04:11:19.983539+00:00 before clean: pgrep -af "weak-network-test|netem_session" exit=0
+1044540 python3 tools/weak-network-test.py --controller cubic --output docs/evidence/weak-network-bbr-cubic.txt
+1102837 sh -c ip link set lo up && "$@"; result=$?; tc -s qdisc show dev lo; exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1102839 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:12:20.059686+00:00 before clean: pgrep -af "weak-network-test|netem_session" exit=0
+1110985 python3 tools/weak-network-test.py --controller cubic --output docs/evidence/weak-network-bbr-cubic.txt
+1121308 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1121310 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1121311 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:13:20.132970+00:00 before clean: pgrep -af "weak-network-test|netem_session" exit=0
+1110985 python3 tools/weak-network-test.py --controller cubic --output docs/evidence/weak-network-bbr-cubic.txt
+1131153 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1131155 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1131156 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:14:20.199365+00:00 before clean: pgrep -af "weak-network-test|netem_session" exit=0
+1110985 python3 tools/weak-network-test.py --controller cubic --output docs/evidence/weak-network-bbr-cubic.txt
+1136000 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1136002 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1136003 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:15:20.289518+00:00 before clean: pgrep -af "weak-network-test|netem_session" exit=0
+1110985 python3 tools/weak-network-test.py --controller cubic --output docs/evidence/weak-network-bbr-cubic.txt
+1142367 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1142369 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1142370 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:16:20.355317+00:00 before clean: pgrep -af "weak-network-test|netem_session" exit=1
+(no matching processes)
+active measurement processes=0
+RUN tools/weak-network-test.py --scenario clean --output docs/evidence/pipeline-netem-clean.txt
+PASS clean
+2026-10-29T04:16:51.329524+00:00 before wifi1: pgrep -af "weak-network-test|netem_session" exit=0
+1149620 python3 tools/weak-network-test.py --controller bbr --output docs/evidence/weak-network-bbr-stock.txt
+active measurement processes=1
+2026-10-29T04:17:51.405166+00:00 before wifi1: pgrep -af "weak-network-test|netem_session" exit=0
+1149620 python3 tools/weak-network-test.py --controller bbr --output docs/evidence/weak-network-bbr-stock.txt
+1154500 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1154502 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1154503 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:18:51.469497+00:00 before wifi1: pgrep -af "weak-network-test|netem_session" exit=0
+1149620 python3 tools/weak-network-test.py --controller bbr --output docs/evidence/weak-network-bbr-stock.txt
+1161112 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1161114 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1161115 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:19:51.580138+00:00 before wifi1: pgrep -af "weak-network-test|netem_session" exit=0
+1149620 python3 tools/weak-network-test.py --controller bbr --output docs/evidence/weak-network-bbr-stock.txt
+1171776 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1171778 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1171779 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:20:51.662482+00:00 before wifi1: pgrep -af "weak-network-test|netem_session" exit=0
+1149620 python3 tools/weak-network-test.py --controller bbr --output docs/evidence/weak-network-bbr-stock.txt
+1178528 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1178530 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1178531 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:21:51.737653+00:00 before wifi1: pgrep -af "weak-network-test|netem_session" exit=0
+1149620 python3 tools/weak-network-test.py --controller bbr --output docs/evidence/weak-network-bbr-stock.txt
+1181443 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1181447 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1181448 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-0feda313f2895333 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:22:51.845234+00:00 before wifi1: pgrep -af "weak-network-test|netem_session" exit=1
+(no matching processes)
+active measurement processes=0
+RUN tools/weak-network-test.py --scenario wifi1 --output docs/evidence/pipeline-netem-wifi1.txt
+PASS wifi1
+2026-10-29T04:23:31.393621+00:00 before cap20: pgrep -af "weak-network-test|netem_session" exit=0
+1194342 python3 tools/weak-network-test.py --controller delay_cubic --output docs/evidence/weak-network-bbr-delay-cubic.txt
+1194352 /home/wilf/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test -p viewflowd --features native-gpu-nvenc --lib atlas_session::netem_test::owned_netem_session --no-run --message-format=json
+active measurement processes=1
+2026-10-29T04:24:31.777950+00:00 before cap20: pgrep -af "weak-network-test|netem_session" exit=0
+1194342 python3 tools/weak-network-test.py --controller delay_cubic --output docs/evidence/weak-network-bbr-delay-cubic.txt
+1200963 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1200965 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1200966 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:25:31.886794+00:00 before cap20: pgrep -af "weak-network-test|netem_session" exit=0
+1194342 python3 tools/weak-network-test.py --controller delay_cubic --output docs/evidence/weak-network-bbr-delay-cubic.txt
+1207540 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1207543 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1207544 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:26:31.982881+00:00 before cap20: pgrep -af "weak-network-test|netem_session" exit=0
+1194342 python3 tools/weak-network-test.py --controller delay_cubic --output docs/evidence/weak-network-bbr-delay-cubic.txt
+1214584 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1214586 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1214587 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:27:32.182312+00:00 before cap20: pgrep -af "weak-network-test|netem_session" exit=0
+1194342 python3 tools/weak-network-test.py --controller delay_cubic --output docs/evidence/weak-network-bbr-delay-cubic.txt
+1220133 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1220137 sh -c ip link set lo up || exit 1 (while true; do tc -s qdisc show dev lo; sleep 0.5; done) & sampler=$! "$@" result=$? kill "$sampler" wait "$sampler" 2>/dev/null tc -s qdisc show dev lo exit "$result" netem /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+1220138 /home/wilf/data/viewflow-wt/bbr/target/debug/deps/viewflowd-5841e8745de9cb76 atlas_session::netem_test::owned_netem_session --exact --ignored --nocapture
+active measurement processes=2
+2026-10-29T04:28:32.384167+00:00 before cap20: pgrep -af "weak-network-test|netem_session" exit=1
+(no matching processes)
+active measurement processes=0
+RUN tools/weak-network-test.py --scenario cap20 --output docs/evidence/pipeline-netem-cap20.txt
+COORDINATION: stopped only own waiting launcher PID 1227653 after two cap20 modes; no own measurement child was active. Preserved partial evidence in pipeline-netem-cap20-before-guard-fix.txt. Peer launcher was untouched. Fixed launcher PID priority to avoid mutual wait; actual test executables always block. Resume all cap20 modes with the final guard.
+PASS cap20
+2026-10-29T04:39:12.616586+00:00 final clean: pgrep -af "weak-network-test|netem_session"
+1284980 python3 tools/weak-network-test.py --controller delay_cubic --scenario cap20 --mode high_quality --output docs/evidence/weak-network-bbr-delay-hq-repeat.txt
+active measurement processes=1
+2026-10-29T04:40:12.687254+00:00 final clean: pgrep -af "weak-network-test|netem_session"
+active measurement processes=0

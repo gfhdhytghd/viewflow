@@ -152,6 +152,9 @@ impl AtlasSessionPlan {
             activity_priority_version: self.activity_priority_version,
             alpha_reference: false,
             nack_version: 0,
+            // Native handoff, alpha cache and media admission still have one
+            // slot per lane. Do not advertise the experimental core window.
+            pipeline_version: 0,
             selection_rejection_version: 1,
             sparse_patch_version: 1,
             version: 1,
@@ -725,6 +728,10 @@ where
         expected.alpha_reference = offer.alpha_reference;
         ensure!(offer.nack_version <= 1, "unsupported atlas NACK version");
         expected.nack_version = offer.nack_version;
+        // Optional capability: accept the remaining plan and explicitly
+        // decline even unknown future pipeline versions. Both CPU and GPU
+        // sources therefore retain the existing stop-and-wait contract.
+        expected.pipeline_version = offer.pipeline_version;
         ensure!(offer.activity_priority_version <= 1, "unsupported atlas activity offer");
         expected.activity_priority_version = offer.activity_priority_version;
         plan.activity_priority_version = plan.activity_priority_version.min(offer.activity_priority_version);
@@ -2438,6 +2445,83 @@ pub(crate) mod tests {
         fg.unwrap();
         assert_eq!(background.last_disposition(), Some(AtlasFrameDisposition::Superseded));
         assert_eq!(priority.last_disposition(), Some(AtlasFrameDisposition::Committed));
+    }
+
+    // Exercise the real TLS/warmup handshake, not just protobuf field defaults.
+    // A future sender can offer a pipeline but this receiver must decline it.
+    #[tokio::test]
+    async fn pipeline_offer_is_declined_without_disrupting_v3_startup() {
+        for version in [0, 1, u32::MAX] {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let policy = plan();
+            let frames = warmup_frames();
+            let offering = async {
+                let (mut tx, mut rx) = outbound.open_bi().await.unwrap();
+                let mut offer = policy.message(&outbound, false).unwrap();
+                offer.version = 3;
+                offer.pipeline_version = version;
+                let bytes = offer.encode_to_vec();
+                tx.write_all(b"VFAW").await.unwrap();
+                tx.write_all(&u32::try_from(bytes.len()).unwrap().to_be_bytes()).await.unwrap();
+                tx.write_all(&bytes).await.unwrap();
+                for frame in &frames {
+                    tx.write_all(&u32::try_from(frame.color.len()).unwrap().to_be_bytes()).await.unwrap();
+                    tx.write_all(&u32::try_from(frame.alpha.len()).unwrap().to_be_bytes()).await.unwrap();
+                    tx.write_all(&frame.color).await.unwrap();
+                    tx.write_all(&frame.alpha).await.unwrap();
+                }
+                tx.finish().unwrap();
+                let accepted = read_message(&mut rx).await.unwrap();
+                assert!(accepted.accepted);
+                assert_eq!(accepted.pipeline_version, 0);
+                assert_eq!(accepted.version, 3);
+            };
+            let ((), receiver) = tokio::join!(offering,
+                accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) }));
+            assert!(receiver.unwrap().feedback.is_some());
+            assert!(outbound.close_reason().is_none());
+            assert!(inbound.close_reason().is_none());
+        }
+    }
+
+    #[tokio::test]
+    async fn pipeline_sender_advertises_zero_and_requires_zero_acceptance() {
+        // Zero response also represents a legacy receiver which ignores field 21.
+        for version in [0, 1] {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let policy = plan();
+            let frames = warmup_frames();
+            let accepting = async {
+                let (mut tx, mut rx) = inbound.accept_bi().await.unwrap();
+                let mut header = [0; 8];
+                rx.read_exact(&mut header).await.unwrap();
+                let mut bytes = vec![0; u32::from_be_bytes(header[4..].try_into().unwrap()) as usize];
+                rx.read_exact(&mut bytes).await.unwrap();
+                let mut offer = wire::AtlasSession::decode(bytes.as_slice()).unwrap();
+                assert_eq!(offer.pipeline_version, 0);
+                read_warmup_frames(&mut rx, policy).await.unwrap();
+                offer.pipeline_version = version;
+                offer.nack_version = 0;
+                offer.alpha_reference = false;
+                offer.accepted = true;
+                write_message(&mut tx, offer).await.unwrap();
+                if version == 0 {
+                    let mut feedback = inbound.open_uni().await.unwrap();
+                    feedback.write_all(b"VFA3").await.unwrap();
+                    Some(feedback)
+                } else { None }
+            };
+            let (sender, _feedback) = tokio::join!(
+                offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline), accepting);
+            if version == 0 {
+                assert!(sender.unwrap().feedback.is_some());
+                assert!(outbound.close_reason().is_none());
+            } else {
+                assert!(format!("{:#}", sender.err().unwrap()).contains("atlas warmup acceptance mismatch"));
+            }
+        }
     }
 
     #[tokio::test]
