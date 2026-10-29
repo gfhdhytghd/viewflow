@@ -1,0 +1,14 @@
+2026-10-29T03:52:53.402065+00:00 waiting foreign_cargo_pids=['960255']
+2026-10-29T03:53:03.534276+00:00 waiting foreign_cargo_pids=['960255']
+2026-10-29T03:53:13.673964+00:00 waiting foreign_cargo_pids=['960255']
+2026-10-29T03:53:23.810038+00:00 waiting foreign_cargo_pids=['960255']
+2026-10-29T03:53:33.943320+00:00 waiting foreign_cargo_pids=['960255']
+2026-10-29T03:53:44.081746+00:00 waiting foreign_cargo_pids=['960255']
+$ python3 tools/weak-network-test.py --scenario clean --seconds 30 --output docs/evidence/weak-network-abrtune-clean-repeat.txt attempt=1
+exit=0 foreign_overlap=False
+$ python3 tools/weak-network-test.py --scenario wifi1 --seconds 30 --output docs/evidence/weak-network-abrtune-wifi-repeat.txt attempt=1
+exit=0 foreign_overlap=False
+$ python3 tools/weak-network-test.py --scenario cap8 --seconds 30 --output docs/evidence/weak-network-abrtune-cap8-repeat.txt attempt=1
+exit=0 foreign_overlap=False
+$ python3 tools/weak-network-test.py --scenario burst --seconds 75 --output docs/evidence/weak-network-netem-recovery.txt attempt=1
+exit=0 foreign_overlap=False

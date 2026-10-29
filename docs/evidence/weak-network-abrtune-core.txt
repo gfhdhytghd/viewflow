@@ -1,0 +1,34 @@
+   Compiling viewflow-core v0.1.0 (/home/wilf/data/viewflow-wt/abrtune/crates/viewflow-core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.70s
+     Running unittests src/lib.rs (target/debug/deps/viewflow_core-076560b65d3b658f)
+
+running 21 tests
+test rate_control::tests::application_limited_backpressure_uses_a_nominal_frame_budget ... ok
+test rate_control::tests::baseline_expires_after_path_change ... ok
+test rate_control::tests::application_limited_rate_and_recovery_drops_do_not_cut_target_or_fps ... ok
+test rate_control::tests::clean_network_keeps_full_quality ... ok
+test rate_control::tests::decreases_are_rate_limited_by_rtt ... ok
+test rate_control::tests::baseline_round_trip_does_not_freeze_recovery_at_the_floor ... ok
+test rate_control::tests::downstream_queue_can_lower_quality_but_not_clip_to_an_idle_send_rate ... ok
+test rate_control::tests::full_frame_service_does_not_cut_quality_for_a_transient_buffer_peak ... ok
+test rate_control::tests::feedback_idle_does_not_probe_above_the_proven_service_budget ... ok
+test rate_control::tests::high_quality_never_degrades_and_save_bandwidth_caps ... ok
+test rate_control::tests::low_frame_rate_streams_keep_their_own_rate ... ok
+test rate_control::tests::jitter_needs_absolute_and_relative_smoothed_inflation ... ok
+test rate_control::tests::measured_send_rate_converges_a_high_ceiling_in_one_step ... ok
+test rate_control::tests::new_backlog_after_feedback_idle_does_not_measure_link_capacity ... ok
+test rate_control::tests::old_backlog_cannot_repeatedly_cut_an_unapplied_target_or_fps ... ok
+test rate_control::tests::real_backlog_still_cuts_after_baseline_refresh ... ok
+test rate_control::tests::send_rate_meter_reports_interval_kbps ... ok
+test rate_control::tests::stable_recovery_ramps_faster_after_five_seconds ... ok
+test rate_control::tests::wifi_random_loss_with_flat_delay_does_not_lower_quality ... ok
+test rate_control::tests::wifi_cubic_backlog_with_flat_path_delay_does_not_lower_quality ... ok
+test rate_control::tests::congestion_lowers_bitrate_then_ladder_then_recovers_in_reverse ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 76 filtered out; finished in 0.00s
+
+     Running tests/clipboard_runtime_boundary.rs (target/debug/deps/clipboard_runtime_boundary-480e7cda922f7304)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s

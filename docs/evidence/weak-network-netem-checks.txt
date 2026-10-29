@@ -1,92 +1,90 @@
-Viewflow netem final checks; all exit codes 0.
+Viewflow ABR tuning final checks, 2026-10-29 UTC.
+All required build/test commands exited 0. Desktop/input/focus operations were not run.
 
 $ cargo test --workspace
-exit=0
-test result: ok. 85 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 28 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 69 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
-test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 51 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.42s
-test result: ok. 59 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.95s
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
-test result: ok. 571 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.84s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
-test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-TOTAL passed/failed/ignored: [965, 0, 4]
+exit=0 full_log=weak-network-abrtune-workspace.txt
+TOTAL passed/failed/ignored: (980, 0, 4)
 
 $ cargo test -p viewflowd --features native-gpu-nvenc
-exit=0
-test result: ok. 718 passed; 0 failed; 12 ignored; 0 measured; 0 filtered out; finished in 9.79s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
-test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
-test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
-test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
-test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
-test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-TOTAL passed/failed/ignored: [746, 0, 16]
+exit=0 full_log=weak-network-abrtune-native.txt
+TOTAL passed/failed/ignored: (749, 0, 16)
 
 $ cargo clippy --workspace --all-targets -- -D clippy::unwrap_used
-exit=0
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 16.40s
-Warnings are retained; the requested unwrap_used denial passed.
+exit=0 full_log=weak-network-abrtune-clippy.txt
+warning: `viewflow-protocol` (lib) generated 9 warnings (run `cargo clippy --fix --lib -p viewflow-protocol -- -D clippy::unwrap_used` to apply 1 suggestion)
+warning: `viewflow-core` (lib) generated 6 warnings (run `cargo clippy --fix --lib -p viewflow-core -- -D clippy::unwrap_used` to apply 2 suggestions)
+warning: `viewflow-platform` (lib) generated 5 warnings
+warning: `viewflow-transport` (lib) generated 4 warnings
+warning: `viewflow-transport` (example "macos_input_live") generated 6 warnings (run `cargo clippy --fix --example "macos_input_live" -p viewflow-transport -- -D clippy::unwrap_used` to apply 1 suggestion)
+warning: `viewflow-platform` (lib test) generated 25 warnings (4 duplicates) (run `cargo clippy --fix --lib -p viewflow-platform --tests -- -D clippy::unwrap_used` to apply 2 suggestions)
+warning: `viewflow-transport` (example "reassembly_profile") generated 2 warnings
+warning: `viewflow-core` (lib test) generated 11 warnings (6 duplicates)
+warning: `viewflow-transport` (lib test) generated 5 warnings (4 duplicates)
+warning: `viewflow-protocol` (lib test) generated 15 warnings (9 duplicates)
+warning: `viewflowd` (lib) generated 300 warnings (run `cargo clippy --fix --lib -p viewflowd -- -D clippy::unwrap_used` to apply 41 suggestions)
+warning: `viewflowd` (test "window_bridge_quic") generated 5 warnings (run `cargo clippy --fix --test "window_bridge_quic" -p viewflowd -- -D clippy::unwrap_used` to apply 2 suggestions)
+warning: `viewflowd` (example "raw_window_peer") generated 5 warnings (run `cargo clippy --fix --example "raw_window_peer" -p viewflowd -- -D clippy::unwrap_used` to apply 2 suggestions)
+warning: `viewflowd` (lib test) generated 510 warnings (251 duplicates) (run `cargo clippy --fix --lib -p viewflowd --tests -- -D clippy::unwrap_used` to apply 45 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.42s
 
-New regression tests:
-test atlas_session::tests::queued_repair_datagrams_preserve_quinn_send_accounting ... ok
-test atlas_session::tests::progressing_frame_outlives_initial_loss_wait_without_expiry ... ok
-test atlas_session::tests::duplicate_completed_plane_does_not_abandon_other_plane_repair ... ok
-test atlas_session::tests::nack_repairs_current_frame_after_latency_target ... ok
-test atlas_session::tests::pmtu_shrink_during_frame_recovers_without_poisoning_sender ... ok
-test atlas_loss::tests::missing_repairs_retry_with_control_grace_but_stop_after_three_rounds ... ok
+$ cargo test -p viewflow-core rate_control
+exit=0 full_log=weak-network-abrtune-core.txt
+TOTAL passed/failed/ignored: (21, 0, 0)
+test rate_control::tests::application_limited_backpressure_uses_a_nominal_frame_budget ... ok
+test rate_control::tests::baseline_expires_after_path_change ... ok
+test rate_control::tests::application_limited_rate_and_recovery_drops_do_not_cut_target_or_fps ... ok
+test rate_control::tests::clean_network_keeps_full_quality ... ok
+test rate_control::tests::decreases_are_rate_limited_by_rtt ... ok
+test rate_control::tests::baseline_round_trip_does_not_freeze_recovery_at_the_floor ... ok
+test rate_control::tests::downstream_queue_can_lower_quality_but_not_clip_to_an_idle_send_rate ... ok
+test rate_control::tests::full_frame_service_does_not_cut_quality_for_a_transient_buffer_peak ... ok
+test rate_control::tests::feedback_idle_does_not_probe_above_the_proven_service_budget ... ok
+test rate_control::tests::high_quality_never_degrades_and_save_bandwidth_caps ... ok
+test rate_control::tests::low_frame_rate_streams_keep_their_own_rate ... ok
+test rate_control::tests::jitter_needs_absolute_and_relative_smoothed_inflation ... ok
+test rate_control::tests::measured_send_rate_converges_a_high_ceiling_in_one_step ... ok
+test rate_control::tests::new_backlog_after_feedback_idle_does_not_measure_link_capacity ... ok
+test rate_control::tests::old_backlog_cannot_repeatedly_cut_an_unapplied_target_or_fps ... ok
+test rate_control::tests::real_backlog_still_cuts_after_baseline_refresh ... ok
+test rate_control::tests::send_rate_meter_reports_interval_kbps ... ok
+test rate_control::tests::stable_recovery_ramps_faster_after_five_seconds ... ok
+test rate_control::tests::wifi_random_loss_with_flat_delay_does_not_lower_quality ... ok
+test rate_control::tests::wifi_cubic_backlog_with_flat_path_delay_does_not_lower_quality ... ok
+test rate_control::tests::congestion_lowers_bitrate_then_ladder_then_recovers_in_reverse ... ok
 
-weak-network-netem.txt: scenario counts, survival, completions, minimum durations, frame accounting and source SHA256 verified.
+$ cargo test -p viewflowd --features native-gpu-nvenc --lib feedback_warning -- --nocapture
+exit=0 full_log=weak-network-abrtune-feedback-tests.txt
+TOTAL passed/failed/ignored: (2, 0, 0)
+test atlas_session::tests::feedback_warning_still_propagates_real_stream_failure ... ok
+test atlas_session::tests::feedback_warning_preserves_the_same_partial_reliable_read ... ok
 
-weak-network-netem-recovery.txt: scenario counts, survival, completions, minimum durations, frame accounting and source SHA256 verified.
+$ cargo test -p viewflowd --features native-gpu-nvenc --lib owned_bitrate_cabi_reconfiguration -- --ignored --nocapture
+exit=0 full_log=weak-network-abrtune-cabi.txt
+TOTAL passed/failed/ignored: (1, 0, 0)
+
+$ cargo test -p viewflowd --features native-gpu-nvenc --lib owned_synthetic_bitrate_reconfiguration -- --ignored --nocapture
+exit=0 full_log=weak-network-abrtune-texture.txt
+TOTAL passed/failed/ignored: (1, 0, 0)
+bitrate codec=h264 mode=vbr-cq7 segment=0 target_kbps=900000 measured_kbps=133202.1 frames=90
+bitrate codec=h264 mode=vbr-cq7 segment=1 target_kbps=8000 measured_kbps=11247.8 frames=90
+bitrate codec=h264 mode=vbr-cq7 segment=2 target_kbps=32000 measured_kbps=28754.4 frames=90
+bitrate codec=av1 mode=vbr-cq7 segment=0 target_kbps=900000 measured_kbps=293121.1 frames=90
+bitrate codec=av1 mode=vbr-cq7 segment=1 target_kbps=8000 measured_kbps=11119.7 frames=90
+bitrate codec=av1 mode=vbr-cq7 segment=2 target_kbps=32000 measured_kbps=29583.4 frames=90
+
+weak-network-netem.txt: PASS (8 scenarios, 13 source SHA256, duration, survival, complete frames, frame conservation)
+weak-network-abrtune-clean-repeat.txt: PASS (1 scenarios, 13 source SHA256, duration, survival, complete frames, frame conservation)
+weak-network-abrtune-wifi-repeat.txt: PASS (1 scenarios, 13 source SHA256, duration, survival, complete frames, frame conservation)
+weak-network-abrtune-cap8-repeat.txt: PASS (1 scenarios, 13 source SHA256, duration, survival, complete frames, frame conservation)
+weak-network-netem-recovery.txt: PASS (1 scenarios, 13 source SHA256, duration, survival, complete frames, frame conservation)
+common test executable SHA256 dd65780b467d6fd001a7f199e277dc173c4eb48dd67d6705d2c12776353f03b1
+
+Monitored repeats: foreign Cargo checked every 5s; all four accepted attempts exit=0, foreign_overlap=False.
+Isolation record: weak-network-abrtune-isolation.txt
+Earlier clean/recovery overlap observations and development failures are retained separately.
+Evidence whitespace normalization removes tc trailing spaces only; values unchanged.
 
 $ tc qdisc show dev lo
 qdisc noqueue 0: root refcnt 2
-No netem harness/test child processes remain after the runs.
-Only explicitly selected owned-content ignored tests ran; desktop/input ignored tests did not run.
+
+Final document links, primary acceptance invariants and absence of owned netem processes: PASS.

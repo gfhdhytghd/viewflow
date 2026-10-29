@@ -1,0 +1,6 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+Running burst/auto (75s)
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| burst/auto | True | 3698/3693/5 | 5/63/2288 | 90.80/97.83 | 9.2/12.6/16.5 | 2 | 900000/900000; 28.801 |
+Evidence: docs/evidence/weak-network-netem-recovery.txt

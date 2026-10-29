@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.22s
+Running clean/auto (30s)
+Running wifi1/auto (30s)
+Running wifi5/auto (30s)
+Running cap20/auto (30s)
+Running cap8/auto (30s)
+Running burst/auto (30s)
+Running cap20/high_quality (30s)
+Running cap20/save_bandwidth (30s)
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| clean/auto | True | 1791/1791/0 | 0/41/913 | 151.85/158.32 | 10.0/12.9/16.7 | 0 | 900000/900000; 0.001 |
+| wifi1/auto | True | 523/522/1 | 1/377/3536 | 7.47/10.30 | 42.3/97.1/139.4 | 38 | 900000/5924; 2.401 |
+| wifi5/auto | True | 125/124/1 | 1/141/1862 | 2.41/2.50 | 170.2/549.0/682.7 | 109 | 900000/2000; 3.801 |
+| cap20/auto | True | 669/668/1 | 1/3/672 | 7.70/12.70 | 32.2/46.0/52.5 | 3 | 900000/4752; 23.202 |
+| cap8/auto | True | 454/454/0 | 0/260/2797 | 6.56/9.12 | 50.7/80.5/141.5 | 22 | 900000/3306; 3.402 |
+| burst/auto | True | 960/958/2 | 2/28/758 | 54.43/59.19 | 8.5/11.3/16.9 | 7 | 900000/62388; 4.849 |
+| cap20/high_quality | True | 669/669/0 | 0/2/47 | 7.81/13.08 | 32.9/35.7/37.0 | 0 | 900000/900000; 0.001 |
+| cap20/save_bandwidth | True | 720/720/0 | 0/2/51 | 6.82/12.59 | 31.3/46.9/53.8 | 1 | 20000/20000; 23.401 |
+Evidence: /home/wilf/data/viewflow-wt/abrtune/docs/evidence/weak-network-netem.txt

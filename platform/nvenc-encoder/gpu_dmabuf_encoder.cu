@@ -407,7 +407,8 @@ struct CudaDmabufEncoder::Impl {
     if (config.bitrateKbps) {
       encoder->bit_rate = int64_t(config.bitrateKbps) * 1000;
       encoder->rc_max_rate = encoder->bit_rate;
-      encoder->rc_buffer_size = int(config.bitrateKbps) * 1000;
+      // Match the one-frame VBV used by the CPU-input NVENC path.
+      encoder->rc_buffer_size = std::max(1, int(config.bitrateKbps) * 1000 / 60);
     }
     // Keep the stream decodable after a dropped AU without making every frame
     // an IDR.  With no B frames, this is a persistent low-latency P-frame GOP.
@@ -511,7 +512,7 @@ bool CudaDmabufEncoder::setBitrateKbps(std::uint32_t kbps, std::string* error) {
   // FFmpeg reconfig_encoder applies these fields on the next submitted frame.
   impl_->encoder->bit_rate = int64_t(kbps) * 1000;
   impl_->encoder->rc_max_rate = int64_t(kbps) * 1000;
-  impl_->encoder->rc_buffer_size = int(kbps) * 1000;
+  impl_->encoder->rc_buffer_size = std::max(1, int(kbps) * 1000 / 60);
   impl_->config.bitrateKbps = kbps;
   return true;
 }

@@ -69,6 +69,11 @@ def main():
         import hashlib
         for p in ['tools/weak-network-test.py', 'crates/viewflowd/src/atlas_netem_test.rs',
                   'crates/viewflowd/src/atlas_session.rs', 'crates/viewflowd/src/atlas_loss.rs',
+                  'crates/viewflow-core/src/rate_control.rs', 'crates/viewflowd/src/quality.rs',
+                  'crates/viewflowd/src/coded_peer.rs', 'crates/viewflowd/src/gpu_atlas_sender.rs',
+                  'crates/viewflowd/src/native_quality.rs',
+                  'platform/nvenc-encoder/nvenc_encoder.cpp',
+                  'platform/nvenc-encoder/gpu_dmabuf_encoder.cu',
                   'crates/viewflow-transport/src/reassembly.rs', 'Cargo.lock']:
             record(hashlib.sha256((ROOT / p).read_bytes()).hexdigest() + '  ' + p)
         record(hashlib.sha256(Path(binary).read_bytes()).hexdigest() + '  test executable')

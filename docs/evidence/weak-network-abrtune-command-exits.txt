@@ -1,0 +1,34 @@
+$ cargo test -p viewflow-core rate_control
+exit=0 log=weak-network-abrtune-core.txt
+$ cargo test -p viewflowd --features native-gpu-nvenc --lib feedback_warning -- --nocapture
+exit=0 log=weak-network-abrtune-feedback-tests.txt
+$ pgrep -a cargo before measurement build
+(none)
+$ python3 tools/weak-network-test.py
+exit=0 log=weak-network-abrtune-final-run.txt
+$ pgrep -a cargo before measurement build
+(none)
+$ python3 tools/weak-network-test.py --scenario wifi1 --output docs/evidence/weak-network-abrtune-wifi-repeat.txt
+exit=0 log=weak-network-abrtune-wifi-repeat-run.txt
+$ pgrep -a cargo before measurement build
+(none)
+$ python3 tools/weak-network-test.py --scenario cap8 --output docs/evidence/weak-network-abrtune-cap8-repeat.txt
+exit=0 log=weak-network-abrtune-cap8-repeat-run.txt
+$ pgrep -a cargo before measurement build
+919135 /home/wilf/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo run --quiet --manifest-path /home/wilf/data/OPPO_Develop/.codex-tmp/cloud-v2/evidence/restore1169-retained-20261029/framework/Cargo.toml -p podjs-runtime --example compile-bytecode -- /home/wilf/data/OPPO_Develop/.codex-tmp/cloud-v2/evidence/restore1169-retained-20261029/framework/dist/projects/com.lightningstudio.watchrss/android-watch/main.js /home/wilf/data/OPPO_Develop/.codex-tmp/cloud-v2/evidence/restore1169-retained-20261029/framework/dist/projects/com.lightningstudio.watchrss/android-watch/main.qbc --strip-source
+$ python3 tools/weak-network-test.py --scenario clean --output docs/evidence/weak-network-abrtune-clean-repeat.txt
+exit=0 log=weak-network-abrtune-clean-repeat-run.txt
+$ pgrep -a cargo before measurement build
+919135 /home/wilf/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo run --quiet --manifest-path /home/wilf/data/OPPO_Develop/.codex-tmp/cloud-v2/evidence/restore1169-retained-20261029/framework/Cargo.toml -p podjs-runtime --example compile-bytecode -- /home/wilf/data/OPPO_Develop/.codex-tmp/cloud-v2/evidence/restore1169-retained-20261029/framework/dist/projects/com.lightningstudio.watchrss/android-watch/main.js /home/wilf/data/OPPO_Develop/.codex-tmp/cloud-v2/evidence/restore1169-retained-20261029/framework/dist/projects/com.lightningstudio.watchrss/android-watch/main.qbc --strip-source
+$ python3 tools/weak-network-test.py --scenario burst --seconds 75 --output docs/evidence/weak-network-netem-recovery.txt
+exit=0 log=weak-network-abrtune-recovery-run.txt
+$ cargo test --workspace
+exit=0 log=weak-network-abrtune-workspace.txt
+$ cargo test -p viewflowd --features native-gpu-nvenc
+exit=0 log=weak-network-abrtune-native.txt
+$ cargo clippy --workspace --all-targets -- -D clippy::unwrap_used
+exit=0 log=weak-network-abrtune-clippy.txt
+$ cargo test -p viewflowd --features native-gpu-nvenc --lib owned_bitrate_cabi_reconfiguration -- --ignored --nocapture
+exit=0 log=weak-network-abrtune-cabi.txt
+$ cargo test -p viewflowd --features native-gpu-nvenc --lib owned_synthetic_bitrate_reconfiguration -- --ignored --nocapture
+exit=0 log=weak-network-abrtune-texture.txt

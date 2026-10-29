@@ -1,13 +1,20 @@
 Viewflow owned RGBA -> NVENC -> atlas QUIC -> reassembly (no decode/display)
-UTC 2026-10-29T02:52:34.483398+00:00
-git d9c4d8b2f4bee712d534b331213a3128a16b8507 + working tree changes; source SHA256 below
-74b37d713c54d97571c929a094c8aa49aab55592fb85595ffa6e954579033de1  tools/weak-network-test.py
+UTC 2026-10-29T03:55:41.059359+00:00
+git 93144462f03b093ab1a2ff32a2e5f7c542a796b5 + working tree changes; source SHA256 below
+1d11da616fc8bbf0d63f6076f4ba5a0439c3a8d31c2db23034583f8b73fb6721  tools/weak-network-test.py
 1c8b8bf1743c6f8a64cd1e3010d18b7e8acf80ad973451aa09c644f697b37bdc  crates/viewflowd/src/atlas_netem_test.rs
-c32f6eebae273553a485d01774a73e4cf2439d8903eae38cf1852c5a3edfbb3e  crates/viewflowd/src/atlas_session.rs
-092edf7b2b88c154d295c5692046b1ec412a0e79c844eb9b9928196bfa6acd6c  crates/viewflowd/src/atlas_loss.rs
+af6537591592d68171be6896f5b15565fb6a1bb85bfb6f5edc3e2e5148cfd180  crates/viewflowd/src/atlas_session.rs
+e34f8190ec91f40e5b5acc79814bd70f5236afe859ee5114aaa17b6c609563e9  crates/viewflowd/src/atlas_loss.rs
+3ed7512bbc3fa70487b6fa0fb2ba62b9d8e13f12ea2506fe1527ffe303703eee  crates/viewflow-core/src/rate_control.rs
+f28c7a4900236304349560903f948a876dd0f1adf3d612e034edd86eeb8f861e  crates/viewflowd/src/quality.rs
+5e3fe38496a2e2febd0bcd50c32b7d118617b1f165f0751f0581526f5090b8a7  crates/viewflowd/src/coded_peer.rs
+fb154bd3443ed36510acdb3bd6bff708ce5421606e61750a8c6d947d074337b2  crates/viewflowd/src/gpu_atlas_sender.rs
+7a18ddde64372005bcab3bc4f9040bc440e67036c0733f6f256c9ffd448d0781  crates/viewflowd/src/native_quality.rs
+ac2b25b49771e3f07c9b76bf696a5eda535831162e36f2b76a47b2e1ce377703  platform/nvenc-encoder/nvenc_encoder.cpp
+d635ada15e834e223bffc2d1d47e55b9a594ff5c08a455301060dc6bd43f16c4  platform/nvenc-encoder/gpu_dmabuf_encoder.cu
 d01e7a1c0221c074c63390c661a33ea62e7151c1167df6e3911d8804f53d7083  crates/viewflow-transport/src/reassembly.rs
 fa7bb9e3f382b429b71675246ae9ecbc1b0a7f0496cdf6a12fae32c43bd96db8  Cargo.lock
-001e0afa5d1ae3b97812499b5e6dd9d353c60cecc3a4a7c89bab6d07a06b33b4  test executable
+dd65780b467d6fd001a7f199e277dc173c4eb48dd67d6705d2c12776353f03b1  test executable
 $ uname -a
 Linux SuperPower 7.2.11-zen1-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Fri, 16 Oct 2026 00:28:42 +0000 x86_64 GNU/Linux
 $ tc -V
@@ -20,171 +27,166 @@ NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 615.78.08
 === burst/auto exit=0 ===
 
 running 1 test
-netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=404 queue_us=0 dropped=0 changed=true
-atlas-loss chunks_lost=75 recovered=4 dropped=0 nack_round_trips=4 nack_rtt_us=3620 quic_rtt_us=292 quic_lost_packets=0
-netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=134 queue_us=1282 dropped=0 changed=false
-atlas-loss chunks_lost=93 recovered=5 dropped=0 nack_round_trips=5 nack_rtt_us=4365 quic_rtt_us=189 quic_lost_packets=4
-netem-quality mode=Auto kbps=15838 fps=60 scale=1000 rtt_us=104 queue_us=189843 dropped=0 changed=true
-netem-quality mode=Auto kbps=11087 fps=60 scale=1000 rtt_us=122 queue_us=170049 dropped=0 changed=true
-netem-quality mode=Auto kbps=2000 fps=60 scale=1000 rtt_us=122 queue_us=370450 dropped=0 changed=true
-netem-quality mode=Auto kbps=2000 fps=30 scale=1000 rtt_us=7316 queue_us=277004 dropped=2 changed=true
-atlas-loss chunks_lost=645 recovered=8 dropped=4 nack_round_trips=8 nack_rtt_us=7093 quic_rtt_us=8165 quic_lost_packets=75
-netem-quality mode=Auto kbps=2000 fps=20 scale=1000 rtt_us=256 queue_us=38498 dropped=4 changed=true
-atlas-loss chunks_lost=898 recovered=25 dropped=4 nack_round_trips=25 nack_rtt_us=893392 quic_rtt_us=4446 quic_lost_packets=129
-netem-quality mode=Auto kbps=2000 fps=20 scale=1000 rtt_us=111 queue_us=0 dropped=4 changed=false
-atlas-loss chunks_lost=898 recovered=25 dropped=4 nack_round_trips=25 nack_rtt_us=893392 quic_rtt_us=1308 quic_lost_packets=129
-netem-quality mode=Auto kbps=2000 fps=30 scale=1000 rtt_us=104 queue_us=0 dropped=4 changed=true
-atlas-loss chunks_lost=898 recovered=25 dropped=4 nack_round_trips=25 nack_rtt_us=893392 quic_rtt_us=1102 quic_lost_packets=129
-netem-quality mode=Auto kbps=2000 fps=30 scale=1000 rtt_us=92 queue_us=0 dropped=4 changed=false
-netem-quality mode=Auto kbps=2000 fps=60 scale=1000 rtt_us=111 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2032 fps=60 scale=1000 rtt_us=78 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2064 fps=60 scale=1000 rtt_us=182 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2097 fps=60 scale=1000 rtt_us=168 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2131 fps=60 scale=1000 rtt_us=212 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2165 fps=60 scale=1000 rtt_us=231 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2200 fps=60 scale=1000 rtt_us=134 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2235 fps=60 scale=1000 rtt_us=231 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2271 fps=60 scale=1000 rtt_us=202 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2307 fps=60 scale=1000 rtt_us=179 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2344 fps=60 scale=1000 rtt_us=240 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2381 fps=60 scale=1000 rtt_us=170 queue_us=0 dropped=4 changed=true
-atlas-loss chunks_lost=898 recovered=25 dropped=4 nack_round_trips=25 nack_rtt_us=893392 quic_rtt_us=202 quic_lost_packets=129
-netem-quality mode=Auto kbps=2420 fps=60 scale=1000 rtt_us=81 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2458 fps=60 scale=1000 rtt_us=191 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2498 fps=60 scale=1000 rtt_us=208 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2538 fps=60 scale=1000 rtt_us=222 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2578 fps=60 scale=1000 rtt_us=208 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2619 fps=60 scale=1000 rtt_us=235 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2661 fps=60 scale=1000 rtt_us=199 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2704 fps=60 scale=1000 rtt_us=210 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2747 fps=60 scale=1000 rtt_us=195 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2791 fps=60 scale=1000 rtt_us=212 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2836 fps=60 scale=1000 rtt_us=228 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2881 fps=60 scale=1000 rtt_us=170 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2927 fps=60 scale=1000 rtt_us=243 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=2974 fps=60 scale=1000 rtt_us=200 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=3152 fps=60 scale=1000 rtt_us=223 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=3342 fps=60 scale=1000 rtt_us=222 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=3542 fps=60 scale=1000 rtt_us=208 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=3754 fps=60 scale=1000 rtt_us=216 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=3979 fps=60 scale=1000 rtt_us=183 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=4219 fps=60 scale=1000 rtt_us=191 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=4472 fps=60 scale=1000 rtt_us=158 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=4741 fps=60 scale=1000 rtt_us=201 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=5025 fps=60 scale=1000 rtt_us=293 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=5326 fps=60 scale=1000 rtt_us=152 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=5646 fps=60 scale=1000 rtt_us=151 queue_us=0 dropped=4 changed=true
-atlas-loss chunks_lost=898 recovered=25 dropped=4 nack_round_trips=25 nack_rtt_us=893392 quic_rtt_us=184 quic_lost_packets=129
-netem-quality mode=Auto kbps=5984 fps=60 scale=1000 rtt_us=117 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=6343 fps=60 scale=1000 rtt_us=126 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=6723 fps=60 scale=1000 rtt_us=135 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=7128 fps=60 scale=1000 rtt_us=157 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=7555 fps=60 scale=1000 rtt_us=170 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=8007 fps=60 scale=1000 rtt_us=162 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=8490 fps=60 scale=1000 rtt_us=182 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=8998 fps=60 scale=1000 rtt_us=199 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=9540 fps=60 scale=1000 rtt_us=200 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=10109 fps=60 scale=1000 rtt_us=99 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=10719 fps=60 scale=1000 rtt_us=106 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=11359 fps=60 scale=1000 rtt_us=189 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=12043 fps=60 scale=1000 rtt_us=234 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=12764 fps=60 scale=1000 rtt_us=138 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=13528 fps=60 scale=1000 rtt_us=290 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=14342 fps=60 scale=1000 rtt_us=184 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=15200 fps=60 scale=1000 rtt_us=173 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=16114 fps=60 scale=1000 rtt_us=151 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=17079 fps=60 scale=1000 rtt_us=144 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=18104 fps=60 scale=1000 rtt_us=145 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=19193 fps=60 scale=1000 rtt_us=85 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=20344 fps=60 scale=1000 rtt_us=100 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=21562 fps=60 scale=1000 rtt_us=144 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=22857 fps=60 scale=1000 rtt_us=115 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=24231 fps=60 scale=1000 rtt_us=110 queue_us=0 dropped=4 changed=true
-atlas-loss chunks_lost=898 recovered=25 dropped=4 nack_round_trips=25 nack_rtt_us=893392 quic_rtt_us=267 quic_lost_packets=129
-netem-quality mode=Auto kbps=25681 fps=60 scale=1000 rtt_us=96 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=27226 fps=60 scale=1000 rtt_us=83 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=28856 fps=60 scale=1000 rtt_us=114 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=30589 fps=60 scale=1000 rtt_us=99 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=32427 fps=60 scale=1000 rtt_us=129 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=34370 fps=60 scale=1000 rtt_us=134 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=36435 fps=60 scale=1000 rtt_us=109 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=38622 fps=60 scale=1000 rtt_us=76 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=40938 fps=60 scale=1000 rtt_us=77 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=43390 fps=60 scale=1000 rtt_us=151 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=45998 fps=60 scale=1000 rtt_us=92 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=48760 fps=60 scale=1000 rtt_us=197 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=51686 fps=60 scale=1000 rtt_us=127 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=54780 fps=60 scale=1000 rtt_us=112 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=58072 fps=60 scale=1000 rtt_us=79 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=61554 fps=60 scale=1000 rtt_us=116 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=65237 fps=60 scale=1000 rtt_us=57 queue_us=2004 dropped=4 changed=true
-netem-quality mode=Auto kbps=69172 fps=60 scale=1000 rtt_us=117 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=73316 fps=60 scale=1000 rtt_us=174 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=77709 fps=60 scale=1000 rtt_us=77 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=82369 fps=60 scale=1000 rtt_us=124 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=87313 fps=60 scale=1000 rtt_us=59 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=92548 fps=60 scale=1000 rtt_us=134 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=98091 fps=60 scale=1000 rtt_us=59 queue_us=816 dropped=4 changed=true
-netem-quality mode=Auto kbps=104000 fps=60 scale=1000 rtt_us=72 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=110229 fps=60 scale=1000 rtt_us=170 queue_us=0 dropped=4 changed=true
-atlas-loss chunks_lost=929 recovered=26 dropped=4 nack_round_trips=26 nack_rtt_us=894373 quic_rtt_us=2744 quic_lost_packets=129
-netem-quality mode=Auto kbps=116845 fps=60 scale=1000 rtt_us=114 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=123850 fps=60 scale=1000 rtt_us=57 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=131285 fps=60 scale=1000 rtt_us=83 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=139153 fps=60 scale=1000 rtt_us=55 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=147535 fps=60 scale=1000 rtt_us=73 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=156349 fps=60 scale=1000 rtt_us=117 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=165770 fps=60 scale=1000 rtt_us=121 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=175709 fps=60 scale=1000 rtt_us=93 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=186251 fps=60 scale=1000 rtt_us=125 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=197383 fps=60 scale=1000 rtt_us=104 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=209234 fps=60 scale=1000 rtt_us=63 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=221830 fps=60 scale=1000 rtt_us=85 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=235121 fps=60 scale=1000 rtt_us=174 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=249191 fps=60 scale=1000 rtt_us=76 queue_us=1246 dropped=4 changed=true
-netem-quality mode=Auto kbps=264145 fps=60 scale=1000 rtt_us=124 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=279986 fps=60 scale=1000 rtt_us=101 queue_us=1815 dropped=4 changed=true
-netem-quality mode=Auto kbps=296814 fps=60 scale=1000 rtt_us=62 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=314604 fps=60 scale=1000 rtt_us=162 queue_us=2388 dropped=4 changed=true
-netem-quality mode=Auto kbps=333491 fps=60 scale=1000 rtt_us=62 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=353559 fps=60 scale=1000 rtt_us=122 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=374761 fps=60 scale=1000 rtt_us=67 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=397245 fps=60 scale=1000 rtt_us=138 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=421002 fps=60 scale=1000 rtt_us=98 queue_us=480 dropped=4 changed=true
-netem-quality mode=Auto kbps=446261 fps=60 scale=1000 rtt_us=59 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=473173 fps=60 scale=1000 rtt_us=101 queue_us=0 dropped=4 changed=true
-atlas-loss chunks_lost=959 recovered=30 dropped=4 nack_round_trips=30 nack_rtt_us=897474 quic_rtt_us=188 quic_lost_packets=129
-netem-quality mode=Auto kbps=501451 fps=60 scale=1000 rtt_us=63 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=531555 fps=60 scale=1000 rtt_us=57 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=563770 fps=60 scale=1000 rtt_us=144 queue_us=2276 dropped=4 changed=true
-netem-quality mode=Auto kbps=597227 fps=60 scale=1000 rtt_us=103 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=633174 fps=60 scale=1000 rtt_us=77 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=671035 fps=60 scale=1000 rtt_us=70 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=711378 fps=60 scale=1000 rtt_us=60 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=754058 fps=60 scale=1000 rtt_us=70 queue_us=29 dropped=4 changed=true
-netem-quality mode=Auto kbps=799187 fps=60 scale=1000 rtt_us=105 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=847542 fps=60 scale=1000 rtt_us=61 queue_us=841 dropped=4 changed=true
-netem-quality mode=Auto kbps=898104 fps=60 scale=1000 rtt_us=90 queue_us=0 dropped=4 changed=true
-netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=43 queue_us=0 dropped=4 changed=true
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=291 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=0 changed=true
+atlas-loss chunks_lost=371 recovered=9 dropped=0 nack_round_trips=9 nack_rtt_us=13645 quic_rtt_us=1848 quic_lost_packets=0
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=66 queue_us=8765 dispatch_us=1905 buffered=156154 rate_busy=false dropped=0 changed=false
+atlas-loss chunks_lost=534 recovered=12 dropped=0 nack_round_trips=12 nack_rtt_us=18489 quic_rtt_us=217 quic_lost_packets=0
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=133 queue_us=768 dispatch_us=768 buffered=0 rate_busy=false dropped=0 changed=false
+netem-quality mode=Auto kbps=47082 fps=60 scale=1000 rtt_us=107 queue_us=1150848 dispatch_us=0 buffered=897908 rate_busy=false dropped=1 changed=true
+netem-quality mode=Auto kbps=2000 fps=60 scale=1000 rtt_us=30945 queue_us=554858748 dispatch_us=0 buffered=359696 rate_busy=true dropped=3 changed=true
+atlas-loss chunks_lost=1546 recovered=13 dropped=5 nack_round_trips=13 nack_rtt_us=19345 quic_rtt_us=10868 quic_lost_packets=69
+netem-quality mode=Auto kbps=2000 fps=30 scale=1000 rtt_us=16895 queue_us=209838 dispatch_us=0 buffered=445461 rate_busy=true dropped=5 changed=true
+atlas-feedback-wait frame=605 rtt_us=12985 lost_packets=1129 connection_closed=false retaining_exact_read=true
+atlas-loss chunks_lost=1546 recovered=13 dropped=5 nack_round_trips=13 nack_rtt_us=19345 quic_rtt_us=10868 quic_lost_packets=72
+netem-quality mode=Auto kbps=2000 fps=30 scale=1000 rtt_us=12985 queue_us=209873 dispatch_us=0 buffered=399875 rate_busy=true dropped=5 changed=false
+netem-quality mode=Auto kbps=2000 fps=60 scale=1000 rtt_us=112 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+atlas-loss chunks_lost=1546 recovered=13 dropped=5 nack_round_trips=13 nack_rtt_us=19345 quic_rtt_us=553 quic_lost_packets=77
+netem-quality mode=Auto kbps=2032 fps=60 scale=1000 rtt_us=181 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2065 fps=60 scale=1000 rtt_us=155 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2099 fps=60 scale=1000 rtt_us=158 queue_us=5684 dispatch_us=0 buffered=14519 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2133 fps=60 scale=1000 rtt_us=145 queue_us=599 dispatch_us=599 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2167 fps=60 scale=1000 rtt_us=136 queue_us=15059 dispatch_us=0 buffered=40116 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2203 fps=60 scale=1000 rtt_us=150 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2240 fps=60 scale=1000 rtt_us=130 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2276 fps=60 scale=1000 rtt_us=129 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2313 fps=60 scale=1000 rtt_us=145 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2352 fps=60 scale=1000 rtt_us=180 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2389 fps=60 scale=1000 rtt_us=137 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2429 fps=60 scale=1000 rtt_us=159 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2468 fps=60 scale=1000 rtt_us=146 queue_us=3253 dispatch_us=416 buffered=8676 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2510 fps=60 scale=1000 rtt_us=186 queue_us=17294 dispatch_us=0 buffered=43507 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2550 fps=60 scale=1000 rtt_us=143 queue_us=21218 dispatch_us=182 buffered=56394 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2593 fps=60 scale=1000 rtt_us=195 queue_us=15648 dispatch_us=0 buffered=42575 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2634 fps=60 scale=1000 rtt_us=164 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2676 fps=60 scale=1000 rtt_us=157 queue_us=4023 dispatch_us=0 buffered=10671 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2719 fps=60 scale=1000 rtt_us=118 queue_us=1664 dispatch_us=645 buffered=4338 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2765 fps=60 scale=1000 rtt_us=204 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2811 fps=60 scale=1000 rtt_us=171 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2856 fps=60 scale=1000 rtt_us=106 queue_us=16463 dispatch_us=0 buffered=43507 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2904 fps=60 scale=1000 rtt_us=175 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=2951 fps=60 scale=1000 rtt_us=91 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=3137 fps=60 scale=1000 rtt_us=266 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+atlas-loss chunks_lost=1546 recovered=13 dropped=5 nack_round_trips=13 nack_rtt_us=19345 quic_rtt_us=255 quic_lost_packets=77
+netem-quality mode=Auto kbps=3334 fps=60 scale=1000 rtt_us=154 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=3534 fps=60 scale=1000 rtt_us=201 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=3757 fps=60 scale=1000 rtt_us=216 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=3993 fps=60 scale=1000 rtt_us=221 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=4233 fps=60 scale=1000 rtt_us=259 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=4487 fps=60 scale=1000 rtt_us=164 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=4756 fps=60 scale=1000 rtt_us=225 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=5056 fps=60 scale=1000 rtt_us=259 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=5359 fps=60 scale=1000 rtt_us=244 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=5681 fps=60 scale=1000 rtt_us=281 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=6022 fps=60 scale=1000 rtt_us=251 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=6401 fps=60 scale=1000 rtt_us=243 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=6803 fps=60 scale=1000 rtt_us=228 queue_us=6516 dispatch_us=0 buffered=6894 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=7213 fps=60 scale=1000 rtt_us=254 queue_us=959 dispatch_us=959 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=7667 fps=60 scale=1000 rtt_us=214 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=8149 fps=60 scale=1000 rtt_us=231 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=8662 fps=60 scale=1000 rtt_us=256 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=9184 fps=60 scale=1000 rtt_us=251 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=9761 fps=60 scale=1000 rtt_us=222 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=10375 fps=60 scale=1000 rtt_us=257 queue_us=56219 dispatch_us=0 buffered=54732 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=10998 fps=60 scale=1000 rtt_us=248 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=11659 fps=60 scale=1000 rtt_us=218 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=12359 fps=60 scale=1000 rtt_us=223 queue_us=1397 dispatch_us=1397 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=13136 fps=60 scale=1000 rtt_us=221 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+atlas-loss chunks_lost=1546 recovered=13 dropped=5 nack_round_trips=13 nack_rtt_us=19345 quic_rtt_us=435 quic_lost_packets=77
+netem-quality mode=Auto kbps=13963 fps=60 scale=1000 rtt_us=237 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=14802 fps=60 scale=1000 rtt_us=251 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=15733 fps=60 scale=1000 rtt_us=244 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=16726 fps=60 scale=1000 rtt_us=248 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=17735 fps=60 scale=1000 rtt_us=299 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=18845 fps=60 scale=1000 rtt_us=177 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=19977 fps=60 scale=1000 rtt_us=183 queue_us=1122 dispatch_us=1122 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=21233 fps=60 scale=1000 rtt_us=203 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=22513 fps=60 scale=1000 rtt_us=209 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=23929 fps=60 scale=1000 rtt_us=262 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=25366 fps=60 scale=1000 rtt_us=190 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=26961 fps=60 scale=1000 rtt_us=204 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=28661 fps=60 scale=1000 rtt_us=189 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=30381 fps=60 scale=1000 rtt_us=232 queue_us=11052 dispatch_us=900 buffered=18558 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=32205 fps=60 scale=1000 rtt_us=216 queue_us=13181 dispatch_us=1151 buffered=22668 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=34234 fps=60 scale=1000 rtt_us=219 queue_us=65 dispatch_us=65 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=36290 fps=60 scale=1000 rtt_us=174 queue_us=3121 dispatch_us=0 buffered=5852 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=38576 fps=60 scale=1000 rtt_us=153 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=41000 fps=60 scale=1000 rtt_us=203 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=43467 fps=60 scale=1000 rtt_us=169 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=46198 fps=60 scale=1000 rtt_us=171 queue_us=10086 dispatch_us=0 buffered=22988 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=49107 fps=60 scale=1000 rtt_us=163 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=52059 fps=60 scale=1000 rtt_us=130 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=55343 fps=60 scale=1000 rtt_us=196 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+atlas-loss chunks_lost=1546 recovered=13 dropped=5 nack_round_trips=13 nack_rtt_us=19345 quic_rtt_us=211 quic_lost_packets=77
+netem-quality mode=Auto kbps=58817 fps=60 scale=1000 rtt_us=159 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=62525 fps=60 scale=1000 rtt_us=131 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=66281 fps=60 scale=1000 rtt_us=190 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=70466 fps=60 scale=1000 rtt_us=123 queue_us=12580 dispatch_us=0 buffered=38640 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=74905 fps=60 scale=1000 rtt_us=145 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=79615 fps=60 scale=1000 rtt_us=176 queue_us=1320 dispatch_us=739 buffered=4338 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=84396 fps=60 scale=1000 rtt_us=145 queue_us=2037 dispatch_us=2037 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=89464 fps=60 scale=1000 rtt_us=112 queue_us=1371 dispatch_us=1371 buffered=2892 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=95086 fps=60 scale=1000 rtt_us=129 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=100795 fps=60 scale=1000 rtt_us=151 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=107138 fps=60 scale=1000 rtt_us=131 queue_us=811 dispatch_us=811 buffered=1446 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=113581 fps=60 scale=1000 rtt_us=136 queue_us=14009 dispatch_us=0 buffered=66118 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=120733 fps=60 scale=1000 rtt_us=126 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=128340 fps=60 scale=1000 rtt_us=170 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=136046 fps=60 scale=1000 rtt_us=77 queue_us=558 dispatch_us=558 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=144593 fps=60 scale=1000 rtt_us=96 queue_us=10006 dispatch_us=1461 buffered=61382 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=153706 fps=60 scale=1000 rtt_us=84 queue_us=6448 dispatch_us=516 buffered=43380 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=162941 fps=60 scale=1000 rtt_us=117 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=173188 fps=60 scale=1000 rtt_us=85 queue_us=7855 dispatch_us=1066 buffered=54575 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=183616 fps=60 scale=1000 rtt_us=219 queue_us=11846 dispatch_us=206 buffered=89652 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=195137 fps=60 scale=1000 rtt_us=89 queue_us=1096 dispatch_us=1096 buffered=1446 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=206864 fps=60 scale=1000 rtt_us=110 queue_us=1629 dispatch_us=1629 buffered=2473 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=219301 fps=60 scale=1000 rtt_us=91 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=233105 fps=60 scale=1000 rtt_us=155 queue_us=6525 dispatch_us=564 buffered=62178 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=247790 fps=60 scale=1000 rtt_us=119 queue_us=2401 dispatch_us=2401 buffered=14460 rate_busy=false dropped=5 changed=true
+atlas-loss chunks_lost=1586 recovered=14 dropped=5 nack_round_trips=14 nack_rtt_us=20649 quic_rtt_us=212 quic_lost_packets=77
+netem-quality mode=Auto kbps=262687 fps=60 scale=1000 rtt_us=94 queue_us=1360 dispatch_us=1326 buffered=14460 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=279196 fps=60 scale=1000 rtt_us=84 queue_us=2142 dispatch_us=466 buffered=23136 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=295970 fps=60 scale=1000 rtt_us=170 queue_us=17705 dispatch_us=1811 buffered=216266 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=314638 fps=60 scale=1000 rtt_us=175 queue_us=25019 dispatch_us=179 buffered=340503 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=334373 fps=60 scale=1000 rtt_us=135 queue_us=2088 dispatch_us=2088 buffered=5784 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=355529 fps=60 scale=1000 rtt_us=83 queue_us=3619 dispatch_us=3619 buffered=0 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=377845 fps=60 scale=1000 rtt_us=49 queue_us=2490 dispatch_us=1412 buffered=41934 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=400593 fps=60 scale=1000 rtt_us=74 queue_us=5763 dispatch_us=5763 buffered=41934 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=424643 fps=60 scale=1000 rtt_us=65 queue_us=4191 dispatch_us=4191 buffered=49164 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=451313 fps=60 scale=1000 rtt_us=130 queue_us=4704 dispatch_us=4704 buffered=5784 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=479751 fps=60 scale=1000 rtt_us=63 queue_us=9071 dispatch_us=9071 buffered=46272 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=508538 fps=60 scale=1000 rtt_us=57 queue_us=4984 dispatch_us=4984 buffered=2892 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=539133 fps=60 scale=1000 rtt_us=77 queue_us=6560 dispatch_us=6560 buffered=49164 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=571482 fps=60 scale=1000 rtt_us=60 queue_us=5619 dispatch_us=5619 buffered=2892 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=607410 fps=60 scale=1000 rtt_us=124 queue_us=4559 dispatch_us=3067 buffered=99774 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=645655 fps=60 scale=1000 rtt_us=110 queue_us=4180 dispatch_us=2514 buffered=98328 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=684437 fps=60 scale=1000 rtt_us=56 queue_us=7233 dispatch_us=7233 buffered=43380 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=725549 fps=60 scale=1000 rtt_us=63 queue_us=9756 dispatch_us=9756 buffered=28920 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=771184 fps=60 scale=1000 rtt_us=143 queue_us=4821 dispatch_us=4821 buffered=13014 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=817460 fps=60 scale=1000 rtt_us=150 queue_us=9172 dispatch_us=9172 buffered=33258 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=868936 fps=60 scale=1000 rtt_us=69 queue_us=10601 dispatch_us=10601 buffered=15906 rate_busy=false dropped=5 changed=true
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=73 queue_us=6912 dispatch_us=6912 buffered=39042 rate_busy=false dropped=5 changed=true
+atlas-loss chunks_lost=1673 recovered=18 dropped=5 nack_round_trips=18 nack_rtt_us=24911 quic_rtt_us=233 quic_lost_packets=77
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=69 queue_us=3478 dispatch_us=3478 buffered=67962 rate_busy=false dropped=5 changed=false
+atlas-loss chunks_lost=1921 recovered=24 dropped=5 nack_round_trips=24 nack_rtt_us=34236 quic_rtt_us=849 quic_lost_packets=77
 test atlas_session::netem_test::owned_netem_session has been running for over 60 seconds
-atlas-loss chunks_lost=976 recovered=31 dropped=4 nack_round_trips=31 nack_rtt_us=898247 quic_rtt_us=200 quic_lost_packets=129
-netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=120 queue_us=3583 dropped=4 changed=false
-atlas-loss chunks_lost=976 recovered=31 dropped=4 nack_round_trips=31 nack_rtt_us=898247 quic_rtt_us=198 quic_lost_packets=129
-netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=133 queue_us=0 dropped=4 changed=false
-atlas-loss chunks_lost=1018 recovered=32 dropped=4 nack_round_trips=32 nack_rtt_us=899609 quic_rtt_us=221 quic_lost_packets=129
-netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=81 queue_us=0 dropped=4 changed=false
-NETEM_RESULT {"chunks_lost_lower_bound":1020,"complete":3439,"complete_by_10s_phase":[598,19,2822],"complete_mbps":80.38926641489782,"encoder_mbps":80.4255625467292,"first_complete_after_20s_ms":82.59528300000001,"frames_lost":4,"keyframe_requests":4,"latency_ms":[7.846,11.878,23.984],"mode":"auto","nack_completed":33,"nacks":81,"receive_error":null,"repair_datagrams_enqueued":1202,"scenario":"burst","seconds":75.003694957,"send_error":null,"sent":3443,"stall_ms":[225.237,504.55,322.88,4534.527,777.21,699.7,124.748,116.77,277.765,223.15,220.545,937.768,243.576,484.113],"survived":true,"target_trace_s_kbps_fps":[[0.001060611,900000,60],[0.203217499,900000,60],[0.402978496,900000,60],[0.603306168,900000,60],[0.805490273,900000,60],[1.003085348,900000,60],[1.203632453,900000,60],[1.4035839239999999,900000,60],[1.6012976380000001,900000,60],[1.805465573,900000,60],[2.006183325,900000,60],[2.210377869,900000,60],[2.409826251,900000,60],[2.607273036,900000,60],[2.8080717379999998,900000,60],[3.009789665,900000,60],[3.208585897,900000,60],[3.409117257,900000,60],[3.611138015,900000,60],[3.8094641559999998,900000,60],[4.007237376,900000,60],[4.202057966,900000,60],[4.401413218,900000,60],[4.604093397,900000,60],[4.803184971,900000,60],[5.003924936,900000,60],[5.202515586,900000,60],[5.401481806,900000,60],[5.601338495,900000,60],[5.802242956,900000,60],[6.002359288,900000,60],[6.2039185,900000,60],[6.40431551,900000,60],[6.602102592,900000,60],[6.802270606,900000,60],[7.003184018,900000,60],[7.204593436,900000,60],[7.404812099,900000,60],[7.604364061,900000,60],[7.8010002400000005,900000,60],[8.004705983,900000,60],[8.201266864,900000,60],[8.402105423,900000,60],[8.6016463,900000,60],[8.801529377,900000,60],[9.0016046,900000,60],[9.201669676,900000,60],[9.40132267,900000,60],[9.601557507999999,900000,60],[9.801522607,900000,60],[10.001531824,900000,60],[10.201552278,15838,60],[10.401642769,11087,60],[10.601961591,2000,60],[10.801340282,2000,60],[11.001626184,2000,60],[11.201805973,2000,60],[11.401757117,2000,60],[11.601637875,2000,60],[11.802093771,2000,60],[12.001693438,2000,60],[12.201258989,2000,60],[12.401653068,2000,60],[12.601593756,2000,60],[12.801690954,2000,30],[13.001852649,2000,30],[13.2015264,2000,30],[13.401626296,2000,30],[13.601542967,2000,30],[13.801533352,2000,30],[14.001557765,2000,30],[14.201466273,2000,30],[14.401930409,2000,30],[14.601039217,2000,30],[14.801151421,2000,30],[15.001797335,2000,30],[15.202486961,2000,30],[15.402089425,2000,30],[15.601848768,2000,30],[15.801668255,2000,30],[16.001782916,2000,30],[16.202052271,2000,30],[16.401431309,2000,30],[16.601424382,2000,30],[16.801173082,2000,30],[17.001499935,2000,30],[17.201525418,2000,20],[17.40137208,2000,20],[17.601231397,2000,20],[17.801173271,2000,20],[18.001636282,2000,20],[18.201543156,2000,20],[18.401724062,2000,20],[18.601090935,2000,20],[18.801595957,2000,20],[19.001459394,2000,20],[19.201395072,2000,20],[19.401094898,2000,20],[19.605361529,2000,20],[19.801351347,2000,20],[20.001357066,2000,20],[20.202035575,2000,20],[20.401187831,2000,20],[20.601947806,2000,20],[20.801545952,2000,20],[21.001342539,2000,20],[21.201533281,2000,20],[21.401523978,2000,20],[21.60143251,2000,20],[21.801922972,2000,20],[22.001554012,2000,20],[22.201535709,2000,20],[22.401969925,2000,20],[22.601842099,2000,20],[22.801189601,2000,20],[23.001231434,2000,20],[23.201153148,2000,20],[23.401781946,2000,20],[23.602029397,2000,20],[23.801880551,2000,20],[24.001616272,2000,20],[24.201184661,2000,20],[24.401624596,2000,20],[24.601795685,2000,20],[24.801556879,2000,20],[25.001956982,2000,20],[25.201782418,2000,20],[25.401802544,2000,20],[25.601854327,2000,20],[25.801965131,2000,20],[26.001658345,2000,20],[26.201301965,2000,20],[26.401162301,2000,20],[26.601438094,2000,30],[26.805619727,2000,30],[27.007403081,2000,30],[27.207019001,2000,30],[27.405890279,2000,30],[27.604951262,2000,30],[27.805480947,2000,30],[28.005781739,2000,30],[28.204411315,2000,30],[28.404831346,2000,30],[28.605650766,2000,30],[28.805066588,2000,30],[29.003919636,2000,30],[29.204458278,2000,30],[29.404702042,2000,30],[29.606134267,2000,30],[29.806144906,2000,30],[30.004797318,2000,30],[30.20106761,2000,30],[30.405387306,2000,30],[30.605594282,2000,30],[30.804888803,2000,30],[31.005457014,2000,30],[31.205313847,2000,30],[31.404939378,2000,30],[31.605498884,2000,30],[31.80389693,2000,30],[32.008727937,2000,30],[32.207237227,2000,30],[32.404689984,2000,30],[32.605832494,2000,30],[32.806391126,2000,60],[33.00728192,2032,60],[33.206181733,2064,60],[33.40667614,2097,60],[33.607148699,2131,60],[33.806389712,2165,60],[34.008852513,2200,60],[34.203450432,2235,60],[34.407888702,2271,60],[34.607047585,2307,60],[34.80778854,2344,60],[35.000986639,2381,60],[35.204100243,2420,60],[35.406646437,2458,60],[35.607794166,2498,60],[35.80590275,2538,60],[36.005502216,2578,60],[36.20746429,2619,60],[36.408067544,2661,60],[36.607996516,2704,60],[36.800985048,2747,60],[37.007709356,2791,60],[37.206409766,2836,60],[37.407374289,2881,60],[37.605306149,2927,60],[37.805932224,2974,60],[38.006801927,3152,60],[38.204806907,3342,60],[38.407402979,3542,60],[38.608431126,3754,60],[38.808795779,3979,60],[39.008358434,4219,60],[39.208446868,4472,60],[39.407189255,4741,60],[39.609977097,5025,60],[39.809769966,5326,60],[40.007959672,5646,60],[40.210292059,5984,60],[40.410062959,6343,60],[40.609443524,6723,60],[40.810330037,7128,60],[41.010752341,7555,60],[41.211777456,8007,60],[41.41065502,8490,60],[41.600992149,8998,60],[41.807579608,9540,60],[42.011518385,10109,60],[42.205440918,10719,60],[42.412589629,11359,60],[42.609460185,12043,60],[42.810877734,12764,60],[43.011986189,13528,60],[43.215551905,14342,60],[43.41292421,15200,60],[43.612479373,16114,60],[43.808314525,17079,60],[44.013898969,18104,60],[44.215120288,19193,60],[44.415325724,20344,60],[44.613793511,21562,60],[44.81403966,22857,60],[45.015145109,24231,60],[45.201246604,25681,60],[45.401780413,27226,60],[45.601417117,28856,60],[45.801584112,30589,60],[46.001805875,32427,60],[46.201916129,34370,60],[46.401840739,36435,60],[46.601965196,38622,60],[46.801902862,40938,60],[47.002521975,43390,60],[47.202175379,45998,60],[47.406247445,48760,60],[47.601987633,51686,60],[47.801647301,54780,60],[48.004081144,58072,60],[48.201732737,61554,60],[48.401132904,65237,60],[48.601209666,69172,60],[48.802057261,73316,60],[49.004320344,77709,60],[49.201513292,82369,60],[49.403485114,87313,60],[49.621937204,92548,60],[49.801279835,98091,60],[50.003811293,104000,60],[50.222800422,110229,60],[50.40160923,116845,60],[50.622051968,123850,60],[50.80155899,131285,60],[51.004274831,139153,60],[51.207852665,147535,60],[51.404213316,156349,60],[51.601176256,165770,60],[51.803227396,175709,60],[52.002059965,186251,60],[52.206438827,197383,60],[52.401321622,209234,60],[52.604482621,221830,60],[52.801707036,235121,60],[53.001571716,249191,60],[53.201229118,264145,60],[53.40168605,279986,60],[53.605775122,296814,60],[53.801238342,314604,60],[54.002694927,333491,60],[54.201951421,353559,60],[54.404634186,374761,60],[54.601837179,397245,60],[54.801656592,421002,60],[55.001154192,446261,60],[55.203364157,473173,60],[55.406635456,501451,60],[55.601507715,531555,60],[55.801955073,563770,60],[56.002752972,597227,60],[56.201971491,633174,60],[56.401936733,671035,60],[56.601690106,711378,60],[56.803310662,754058,60],[57.001196788,799187,60],[57.202575635,847542,60],[57.404189905,898104,60],[57.601363438999996,900000,60],[57.801371786,900000,60],[58.003362963,900000,60],[58.202102591,900000,60],[58.402410901,900000,60],[58.602077446,900000,60],[58.801280188,900000,60],[59.002242734,900000,60],[59.203868227,900000,60],[59.40375443,900000,60],[59.601681001,900000,60],[59.813160416,900000,60],[60.008161818,900000,60],[60.211266943,900000,60],[60.410325895,900000,60],[60.608658796,900000,60],[60.809466344,900000,60],[61.012122185,900000,60],[61.21161427,900000,60],[61.413321418,900000,60],[61.610526536,900000,60],[61.801134728,900000,60],[62.001469672,900000,60],[62.201713778,900000,60],[62.401376214,900000,60],[62.601659949,900000,60],[62.801114902,900000,60],[63.00195154,900000,60],[63.201624121,900000,60],[63.401517691,900000,60],[63.601290712,900000,60],[63.80798841,900000,60],[64.007686693,900000,60],[64.207257087,900000,60],[64.409663801,900000,60],[64.606084278,900000,60],[64.805389011,900000,60],[65.008978534,900000,60],[65.20767235,900000,60],[65.408532293,900000,60],[65.604568613,900000,60],[65.802112295,900000,60],[66.001228611,900000,60],[66.201476364,900000,60],[66.401926343,900000,60],[66.601541233,900000,60],[66.801710896,900000,60],[67.001704892,900000,60],[67.201590608,900000,60],[67.401822374,900000,60],[67.601063206,900000,60],[67.806562679,900000,60],[68.005857116,900000,60],[68.206956807,900000,60],[68.405250492,900000,60],[68.604697144,900000,60],[68.804646103,900000,60],[69.004539481,900000,60],[69.204504343,900000,60],[69.404321608,900000,60],[69.604407635,900000,60],[69.801920812,900000,60],[70.001132664,900000,60],[70.20154192,900000,60],[70.401072187,900000,60],[70.601454157,900000,60],[70.801331995,900000,60],[71.001224372,900000,60],[71.201485384,900000,60],[71.401968659,900000,60],[71.601295528,900000,60],[71.801713895,900000,60],[72.002869645,900000,60],[72.206361433,900000,60],[72.404907181,900000,60],[72.60646079200001,900000,60],[72.805896726,900000,60],[73.004968014,900000,60],[73.204567874,900000,60],[73.405225887,900000,60],[73.605360625,900000,60],[73.801553369,900000,60],[74.001059754,900000,60],[74.20138651,900000,60],[74.401616148,900000,60],[74.601454104,900000,60],[74.801945845,900000,60],[75.00164977,900000,60]],"udp_tx_mbps":72.92087414007534}
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=49 queue_us=11079 dispatch_us=9527 buffered=274740 rate_busy=false dropped=5 changed=false
+atlas-loss chunks_lost=2021 recovered=27 dropped=5 nack_round_trips=27 nack_rtt_us=37625 quic_rtt_us=216 quic_lost_packets=77
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=70 queue_us=3420 dispatch_us=1078 buffered=69408 rate_busy=false dropped=5 changed=false
+atlas-loss chunks_lost=2021 recovered=27 dropped=5 nack_round_trips=27 nack_rtt_us=37625 quic_rtt_us=224 quic_lost_packets=77
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=66 queue_us=4108 dispatch_us=4108 buffered=7230 rate_busy=false dropped=5 changed=false
+atlas-loss chunks_lost=2340 recovered=36 dropped=5 nack_round_trips=36 nack_rtt_us=48371 quic_rtt_us=177 quic_lost_packets=77
+NETEM_RESULT {"chunks_lost_lower_bound":2385,"complete":3693,"complete_by_10s_phase":[598,1,3094],"complete_mbps":97.83330261600005,"encoder_mbps":98.01566677171911,"first_complete_after_20s_ms":1624.4731649999999,"frames_lost":5,"keyframe_requests":5,"latency_ms":[9.175,12.557,16.508],"mode":"auto","nack_completed":38,"nacks":63,"receive_error":null,"repair_datagrams_enqueued":2288,"scenario":"burst","seconds":75.000879126,"send_error":null,"sent":3698,"stall_ms":[233.36,11391.88],"survived":true,"target_trace_s_kbps_fps":[[0.001104181,900000,60],[0.200223359,900000,60],[0.4017586,900000,60],[0.602222066,900000,60],[0.805591026,900000,60],[1.00127084,900000,60],[1.204182683,900000,60],[1.40314245,900000,60],[1.602261194,900000,60],[1.802208745,900000,60],[2.002362079,900000,60],[2.20019593,900000,60],[2.408208337,900000,60],[2.6099467499999998,900000,60],[2.809650678,900000,60],[3.006071081,900000,60],[3.206982731,900000,60],[3.406856554,900000,60],[3.601155946,900000,60],[3.801305692,900000,60],[4.000548994,900000,60],[4.202255848,900000,60],[4.401564221,900000,60],[4.602118928,900000,60],[4.801728221,900000,60],[5.001008235,900000,60],[5.20160846,900000,60],[5.40181904,900000,60],[5.600949712,900000,60],[5.800858145,900000,60],[6.000457498,900000,60],[6.200560312,900000,60],[6.401065872,900000,60],[6.600619793,900000,60],[6.8006811240000005,900000,60],[7.000529603,900000,60],[7.200389253,900000,60],[7.400726897,900000,60],[7.600726413,900000,60],[7.800624094,900000,60],[8.008910348,900000,60],[8.200272559,900000,60],[8.400361247,900000,60],[8.60075545,900000,60],[8.800483745,900000,60],[9.00084015,900000,60],[9.20054037,900000,60],[9.400978535,900000,60],[9.60205872,900000,60],[9.803311487,900000,60],[10.000503098,900000,60],[10.201005792,900000,60],[10.400483514,900000,60],[10.600334257,900000,60],[10.800910943,900000,60],[11.000236102,47082,60],[11.20050111,47082,60],[11.400498483,47082,60],[11.60065462,47082,60],[11.80107583,47082,60],[12.001251567,47082,60],[12.201109219,47082,60],[12.400739226,47082,60],[12.600600745,47082,60],[12.80108437,47082,60],[13.000958205,47082,60],[13.200869323,47082,60],[13.400623525,47082,60],[13.600191419,47082,60],[13.800705176,47082,60],[14.000853465,2000,60],[14.200641565,2000,60],[14.401058302,2000,60],[14.600347405,2000,60],[14.800213920000001,2000,60],[15.001082756,2000,60],[15.201109624,2000,60],[15.400759871,2000,60],[15.601676761,2000,60],[15.801118219,2000,60],[16.000239041,2000,60],[16.201224503,2000,30],[16.400662651,2000,30],[16.60039821,2000,30],[16.801123089,2000,30],[17.00102245,2000,30],[17.200266546,2000,30],[17.401157058,2000,30],[17.600277598,2000,30],[17.801207629,2000,30],[18.000997192,2000,30],[18.200630077,2000,30],[18.400849463,2000,30],[18.600323682,2000,30],[18.800890063,2000,30],[19.000643823,2000,30],[19.200208969,2000,30],[19.400500649,2000,30],[19.60111836,2000,30],[19.800564843,2000,30],[20.00110894,2000,30],[20.200862586,2000,30],[20.400671152,2000,30],[20.600241729,2000,30],[20.801015579,2000,30],[21.001094799,2000,30],[21.200733084,2000,30],[21.400646485,2000,30],[21.600177495,2000,30],[21.800764904,2000,30],[22.001186364,2000,30],[22.200969378,2000,30],[22.401690411,2000,30],[22.600235699,2000,30],[22.800680205,2000,30],[23.000832274,2000,30],[23.201194655,2000,30],[23.400160998,2000,30],[23.601086714,2000,30],[23.800813789,2000,30],[24.000989503,2000,30],[24.2009955,2000,30],[24.400826165,2000,30],[24.600709501,2000,30],[24.800613784,2000,30],[25.000705131,2000,60],[25.201054178,2032,60],[25.4001559,2065,60],[25.600169322,2099,60],[25.801913031,2133,60],[26.001106028,2167,60],[26.201092941,2203,60],[26.400503046,2240,60],[26.600488281,2276,60],[26.801188145,2313,60],[27.000693153,2352,60],[27.200406037,2389,60],[27.400645094,2429,60],[27.600250461,2468,60],[27.800589016,2510,60],[28.001141489,2550,60],[28.200600022,2593,60],[28.400609067,2634,60],[28.601076365,2676,60],[28.801151265,2719,60],[29.000873766,2765,60],[29.20073644,2765,60],[29.400711947,2811,60],[29.600463001,2856,60],[29.800349109,2904,60],[30.000302873,2951,60],[30.200595204,3137,60],[30.400919624,3334,60],[30.600982808,3534,60],[30.800576604,3757,60],[31.000599516,3993,60],[31.201116048,4233,60],[31.400524243,4487,60],[31.601108222,4756,60],[31.801086987,5056,60],[32.000852883,5359,60],[32.200742873,5681,60],[32.400280828,6022,60],[32.600526118,6401,60],[32.800856278,6803,60],[33.000793426,7213,60],[33.200979554,7667,60],[33.400280093,8149,60],[33.60118607,8662,60],[33.800775131,9184,60],[34.000955768,9761,60],[34.200811113,10375,60],[34.400970747,10998,60],[34.600586503,11659,60],[34.800975021,12359,60],[35.000953535,13136,60],[35.200491785,13963,60],[35.400985718,14802,60],[35.601119602,15733,60],[35.800779286,16726,60],[36.001133806,17735,60],[36.20040462,18845,60],[36.400500792,19977,60],[36.600527068,21233,60],[36.800293519,22513,60],[37.00062467,22513,60],[37.200941534,23929,60],[37.40015431,25366,60],[37.600465585,26961,60],[37.800453901,28661,60],[38.000777421,30381,60],[38.20070627,32205,60],[38.400341191,34234,60],[38.600170397,36290,60],[38.801038057,38576,60],[39.000273087,41000,60],[39.200752436,43467,60],[39.400268083,46198,60],[39.600461529,49107,60],[39.800895903,52059,60],[40.000315669,55343,60],[40.200712971,58817,60],[40.401124657,62525,60],[40.600341825,66281,60],[40.800844482,70466,60],[41.000155324,74905,60],[41.201231421,79615,60],[41.400372412,84396,60],[41.600231423,89464,60],[41.800638325,95086,60],[42.000607299,100795,60],[42.200719861,107138,60],[42.400978296,113581,60],[42.600352212,120733,60],[42.803186395,128340,60],[43.000936647,136046,60],[43.203699169,144593,60],[43.400602735,153706,60],[43.600890098,162941,60],[43.800315665,162941,60],[44.000916641,173188,60],[44.20123637,183616,60],[44.400834879,195137,60],[44.600822284,206864,60],[44.80180602,219301,60],[45.003213022,233105,60],[45.202875579,247790,60],[45.403979039,262687,60],[45.60576079,279196,60],[45.803731152,295970,60],[46.00497051,314638,60],[46.203223201,334373,60],[46.405319971,355529,60],[46.605518764,377845,60],[46.800213044,400593,60],[47.000680306,424643,60],[47.201859238,451313,60],[47.400195375,479751,60],[47.606997564,508538,60],[47.800261114,539133,60],[48.004951006,571482,60],[48.200854393,607410,60],[48.400991079,645655,60],[48.606222614,684437,60],[48.800858707,725549,60],[49.000545009,771184,60],[49.207950062,817460,60],[49.401143397,868936,60],[49.603091068,900000,60],[49.807573897,900000,60],[50.006490306,900000,60],[50.207143105,900000,60],[50.409149287,900000,60],[50.61129585,900000,60],[50.810900543,900000,60],[51.008679587,900000,60],[51.208143404,900000,60],[51.409850959,900000,60],[51.604486572,900000,60],[51.800858222,900000,60],[52.000974404,900000,60],[52.200560843,900000,60],[52.400624974,900000,60],[52.600224947,900000,60],[52.801024294,900000,60],[53.000199815,900000,60],[53.201093093,900000,60],[53.400667219,900000,60],[53.608152591,900000,60],[53.802130511,900000,60],[54.002174433,900000,60],[54.203863141,900000,60],[54.407066342,900000,60],[54.604693446,900000,60],[54.806579566,900000,60],[55.006193398,900000,60],[55.206488277,900000,60],[55.4055772,900000,60],[55.613389846,900000,60],[55.801208761,900000,60],[56.000386668,900000,60],[56.200530358,900000,60],[56.401086691,900000,60],[56.601036026,900000,60],[56.800326111,900000,60],[57.00108812,900000,60],[57.200423122,900000,60],[57.400312177,900000,60],[57.600460815,900000,60],[57.805194316,900000,60],[58.005070645,900000,60],[58.204251396,900000,60],[58.405038082,900000,60],[58.606399976,900000,60],[58.805876976,900000,60],[59.003640306,900000,60],[59.202723332,900000,60],[59.405839696,900000,60],[59.602468582,900000,60],[59.800179678,900000,60],[60.000363963,900000,60],[60.201270754,900000,60],[60.400386121,900000,60],[60.60077521,900000,60],[60.800910442,900000,60],[61.000417395,900000,60],[61.200357135,900000,60],[61.400422522,900000,60],[61.600550195,900000,60],[61.801850216,900000,60],[62.001563475,900000,60],[62.202155431,900000,60],[62.403654977,900000,60],[62.606160093,900000,60],[62.802613163,900000,60],[63.002210648,900000,60],[63.205568838,900000,60],[63.404859046,900000,60],[63.602809933,900000,60],[63.800867601,900000,60],[64.000231617,900000,60],[64.200688217,900000,60],[64.400704757,900000,60],[64.600448779,900000,60],[64.801016451,900000,60],[65.000650176,900000,60],[65.201056421,900000,60],[65.400769693,900000,60],[65.600724347,900000,60],[65.802511695,900000,60],[66.003973395,900000,60],[66.205464286,900000,60],[66.4031598,900000,60],[66.60703705,900000,60],[66.801758469,900000,60],[67.007802929,900000,60],[67.204722337,900000,60],[67.404327273,900000,60],[67.607147089,900000,60],[67.800990066,900000,60],[68.0009018,900000,60],[68.20104289,900000,60],[68.400442145,900000,60],[68.600632376,900000,60],[68.800161059,900000,60],[69.00057879,900000,60],[69.200811724,900000,60],[69.400175256,900000,60],[69.600562319,900000,60],[69.803788986,900000,60],[70.005190946,900000,60],[70.203227487,900000,60],[70.403082645,900000,60],[70.60403124,900000,60],[70.804761721,900000,60],[71.003196005,900000,60],[71.206199706,900000,60],[71.402644724,900000,60],[71.603667419,900000,60],[71.812032155,900000,60],[72.013178254,900000,60],[72.210197909,900000,60],[72.409174581,900000,60],[72.605083754,900000,60],[72.809594599,900000,60],[73.008920853,900000,60],[73.2085778,900000,60],[73.405011637,900000,60],[73.600187568,900000,60],[73.800765536,900000,60],[74.00051633,900000,60],[74.201289909,900000,60],[74.40028548,900000,60],[74.600166355,900000,60],[74.800981577,900000,60],[75.000821567,900000,60]],"udp_tx_mbps":90.79915541468928}
 test atlas_session::netem_test::owned_netem_session ... ok
 
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 729 filtered out; finished in 75.47s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 732 filtered out; finished in 75.85s
 
-qdisc netem 8024: root refcnt 2 limit 1000 seed 14476344370150592018
- Sent 709571199 bytes 561415 pkt (dropped 311, overlimits 0 requeues 0) 
+qdisc netem 8065: root refcnt 2 limit 1000 seed 6430214442849364837
+ Sent 882016011 bytes 674027 pkt (dropped 228, overlimits 0 requeues 0)
  backlog 0b 0p requeues 0
-  delayed 0 dropped 311 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+  delayed 0 dropped 228 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
 
-NETEM_ANALYSIS {"scenario": "burst", "mode": "auto", "stable_target_s": 36.803}
+NETEM_ANALYSIS {"scenario": "burst", "mode": "auto", "stable_target_s": 28.801}
 
 | scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
 |---|---|---|---|---|---|---|---|
-| burst/auto | True | 3443/3439/4 | 4/81/1202 | 72.92/80.39 | 7.8/11.9/24.0 | 14 | 900000/900000; 36.803 |
+| burst/auto | True | 3698/3693/5 | 5/63/2288 | 90.80/97.83 | 9.2/12.6/16.5 | 2 | 900000/900000; 28.801 |

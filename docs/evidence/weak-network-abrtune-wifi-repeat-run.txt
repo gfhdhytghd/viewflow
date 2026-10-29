@@ -1,0 +1,7 @@
+   Compiling viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/abrtune/crates/viewflowd)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.42s
+Running wifi1/auto (30s)
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| wifi1/auto | True | 461/460/1 | 1/368/4601 | 7.03/8.97 | 49.1/116.7/151.3 | 50 | 900000/4928; 2.601 |
+Evidence: docs/evidence/weak-network-abrtune-wifi-repeat.txt

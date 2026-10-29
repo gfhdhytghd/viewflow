@@ -1,0 +1,60 @@
+Viewflow owned RGBA -> NVENC -> atlas QUIC -> reassembly (no decode/display)
+UTC 2026-10-29T03:54:29.971976+00:00
+git 93144462f03b093ab1a2ff32a2e5f7c542a796b5 + working tree changes; source SHA256 below
+1d11da616fc8bbf0d63f6076f4ba5a0439c3a8d31c2db23034583f8b73fb6721  tools/weak-network-test.py
+1c8b8bf1743c6f8a64cd1e3010d18b7e8acf80ad973451aa09c644f697b37bdc  crates/viewflowd/src/atlas_netem_test.rs
+af6537591592d68171be6896f5b15565fb6a1bb85bfb6f5edc3e2e5148cfd180  crates/viewflowd/src/atlas_session.rs
+e34f8190ec91f40e5b5acc79814bd70f5236afe859ee5114aaa17b6c609563e9  crates/viewflowd/src/atlas_loss.rs
+3ed7512bbc3fa70487b6fa0fb2ba62b9d8e13f12ea2506fe1527ffe303703eee  crates/viewflow-core/src/rate_control.rs
+f28c7a4900236304349560903f948a876dd0f1adf3d612e034edd86eeb8f861e  crates/viewflowd/src/quality.rs
+5e3fe38496a2e2febd0bcd50c32b7d118617b1f165f0751f0581526f5090b8a7  crates/viewflowd/src/coded_peer.rs
+fb154bd3443ed36510acdb3bd6bff708ce5421606e61750a8c6d947d074337b2  crates/viewflowd/src/gpu_atlas_sender.rs
+7a18ddde64372005bcab3bc4f9040bc440e67036c0733f6f256c9ffd448d0781  crates/viewflowd/src/native_quality.rs
+ac2b25b49771e3f07c9b76bf696a5eda535831162e36f2b76a47b2e1ce377703  platform/nvenc-encoder/nvenc_encoder.cpp
+d635ada15e834e223bffc2d1d47e55b9a594ff5c08a455301060dc6bd43f16c4  platform/nvenc-encoder/gpu_dmabuf_encoder.cu
+d01e7a1c0221c074c63390c661a33ea62e7151c1167df6e3911d8804f53d7083  crates/viewflow-transport/src/reassembly.rs
+fa7bb9e3f382b429b71675246ae9ecbc1b0a7f0496cdf6a12fae32c43bd96db8  Cargo.lock
+dd65780b467d6fd001a7f199e277dc173c4eb48dd67d6705d2c12776353f03b1  test executable
+$ uname -a
+Linux SuperPower 7.2.11-zen1-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Fri, 16 Oct 2026 00:28:42 +0000 x86_64 GNU/Linux
+$ tc -V
+tc utility, iproute2-7.2.0, libbpf 1.7.0
+$ rustc --version
+rustc 1.95.0 (59807616e 2026-04-14)
+$ nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
+NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 615.78.08
+
+=== wifi1/auto exit=0 ===
+
+running 1 test
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=227 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=0 changed=true
+netem-quality mode=Auto kbps=55939 fps=60 scale=1000 rtt_us=8193 queue_us=132744 dispatch_us=0 buffered=257352 rate_busy=false dropped=0 changed=true
+netem-quality mode=Auto kbps=52631 fps=60 scale=1000 rtt_us=10248 queue_us=373867 dispatch_us=0 buffered=340614 rate_busy=true dropped=0 changed=true
+netem-quality mode=Auto kbps=18756 fps=60 scale=1000 rtt_us=9064 queue_us=105136 dispatch_us=0 buffered=130719 rate_busy=false dropped=0 changed=true
+netem-quality mode=Auto kbps=11417 fps=60 scale=1000 rtt_us=8738 queue_us=91612 dispatch_us=0 buffered=90517 rate_busy=false dropped=0 changed=true
+netem-quality mode=Auto kbps=4246 fps=60 scale=1000 rtt_us=9405 queue_us=17246 dispatch_us=0 buffered=10932 rate_busy=false dropped=0 changed=true
+atlas-loss chunks_lost=1244 recovered=19 dropped=0 nack_round_trips=19 nack_rtt_us=578575 quic_rtt_us=9715 quic_lost_packets=74
+netem-quality mode=Auto kbps=4246 fps=60 scale=1000 rtt_us=9261 queue_us=44840 dispatch_us=0 buffered=40771 rate_busy=false dropped=0 changed=false
+atlas-loss chunks_lost=1822 recovered=54 dropped=0 nack_round_trips=54 nack_rtt_us=1270186 quic_rtt_us=11621 quic_lost_packets=106
+netem-quality mode=Auto kbps=4246 fps=60 scale=1000 rtt_us=9710 queue_us=69524 dispatch_us=0 buffered=62244 rate_busy=false dropped=0 changed=false
+atlas-loss chunks_lost=2431 recovered=92 dropped=0 nack_round_trips=92 nack_rtt_us=2300760 quic_rtt_us=9452 quic_lost_packets=145
+netem-quality mode=Auto kbps=4246 fps=60 scale=1000 rtt_us=9554 queue_us=58062 dispatch_us=0 buffered=37874 rate_busy=false dropped=0 changed=false
+atlas-loss chunks_lost=3023 recovered=132 dropped=0 nack_round_trips=132 nack_rtt_us=3065242 quic_rtt_us=9540 quic_lost_packets=191
+netem-quality mode=Auto kbps=4246 fps=60 scale=1000 rtt_us=9892 queue_us=55599 dispatch_us=0 buffered=48110 rate_busy=false dropped=0 changed=false
+atlas-loss chunks_lost=3528 recovered=169 dropped=0 nack_round_trips=169 nack_rtt_us=3722641 quic_rtt_us=10206 quic_lost_packets=236
+netem-quality mode=Auto kbps=4246 fps=60 scale=1000 rtt_us=9509 queue_us=99417 dispatch_us=0 buffered=49848 rate_busy=false dropped=0 changed=false
+NETEM_RESULT {"chunks_lost_lower_bound":4010,"complete":542,"complete_by_10s_phase":[192,164,186],"complete_mbps":10.690089191126294,"encoder_mbps":10.690089191126294,"first_complete_after_20s_ms":35.867142,"frames_lost":0,"keyframe_requests":0,"latency_ms":[41.714,93.92,143.605],"mode":"auto","nack_completed":201,"nacks":391,"receive_error":null,"repair_datagrams_enqueued":4010,"scenario":"wifi1","seconds":30.007712215,"send_error":null,"sent":542,"stall_ms":[485.135,146.999,310.536,216.328,109.19,354.085,130.124,125.043,103.704,105.581,102.187,190.734,138.06,107.515,132.915,114.694,124.428,103.782,125.565,146.986,161.704,106.277,125.298,118.178,108.698,101.425,104.703,135.914,130.101,115.132],"survived":true,"target_trace_s_kbps_fps":[[0.00186859,900000,60],[0.201849356,900000,60],[0.401989519,900000,60],[0.600957011,900000,60],[0.801045997,900000,60],[1.00123255,55939,60],[1.201895077,52631,60],[1.400951358,52631,60],[1.604698717,18756,60],[1.8015609769999998,11417,60],[2.003365546,11417,60],[2.201226227,11417,60],[2.401780863,4246,60],[2.601259382,4246,60],[2.801846951,4246,60],[3.001599061,4246,60],[3.20161638,4246,60],[3.402955365,4246,60],[3.601114063,4246,60],[3.801454264,4246,60],[4.000993122,4246,60],[4.2017110540000004,4246,60],[4.401839862,4246,60],[4.601755778,4246,60],[4.801117606,4246,60],[5.001094875,4246,60],[5.201546249,4246,60],[5.401976594,4246,60],[5.601478045,4246,60],[5.801023332,4246,60],[6.001813261,4246,60],[6.205264567,4246,60],[6.401571313,4246,60],[6.601759982,4246,60],[6.80166541,4246,60],[7.001626633,4246,60],[7.201676976,4246,60],[7.401683711,4246,60],[7.60155594,4246,60],[7.8012251710000005,4246,60],[8.002102659,4246,60],[8.201316699,4246,60],[8.401076631,4246,60],[8.604750508,4246,60],[8.801105889,4246,60],[9.001203266,4246,60],[9.201093254,4246,60],[9.401732828,4246,60],[9.601671485,4246,60],[9.801651704,4246,60],[10.001406356,4246,60],[10.201810761,4246,60],[10.401096967,4246,60],[10.601840675,4246,60],[10.801507136,4246,60],[11.006438689,4246,60],[11.201972926,4246,60],[11.401484237,4246,60],[11.601119315,4246,60],[11.80101799,4246,60],[12.001963851,4246,60],[12.201502049,4246,60],[12.401739978,4246,60],[12.601955819,4246,60],[12.801588883,4246,60],[13.00132215,4246,60],[13.201472852,4246,60],[13.401286352,4246,60],[13.601945526,4246,60],[13.803677128,4246,60],[14.001239487,4246,60],[14.201735466,4246,60],[14.401033173,4246,60],[14.60136307,4246,60],[14.801966353,4246,60],[15.001093555,4246,60],[15.204656482,4246,60],[15.401029324,4246,60],[15.601657762,4246,60],[15.801312346,4246,60],[16.00192998,4246,60],[16.201964108,4246,60],[16.401462819,4246,60],[16.601290636999998,4246,60],[16.801193267,4246,60],[17.001954048,4246,60],[17.201742078,4246,60],[17.403620359,4246,60],[17.601591131,4246,60],[17.801278702,4246,60],[18.001593334,4246,60],[18.200988574,4246,60],[18.402263807,4246,60],[18.601921493,4246,60],[18.801178948,4246,60],[19.001206868,4246,60],[19.201869076,4246,60],[19.402101368,4246,60],[19.601487247,4246,60],[19.802991532,4246,60],[20.002005797,4246,60],[20.201133749,4246,60],[20.40098328,4246,60],[20.6009728,4246,60],[20.8018562,4246,60],[21.001818747,4246,60],[21.201835258,4246,60],[21.401208816,4246,60],[21.601188581,4246,60],[21.801351369,4246,60],[22.001061977,4246,60],[22.201538378,4246,60],[22.401572807,4246,60],[22.601733072000002,4246,60],[22.801399107,4246,60],[23.00130753,4246,60],[23.200991271,4246,60],[23.401896671,4246,60],[23.601466135,4246,60],[23.801031989,4246,60],[24.001283368,4246,60],[24.202066977,4246,60],[24.401964807,4246,60],[24.601265798,4246,60],[24.801330188,4246,60],[25.001440031,4246,60],[25.201313052,4246,60],[25.401923074,4246,60],[25.601968132,4246,60],[25.800946412000002,4246,60],[26.002945481,4246,60],[26.201941632,4246,60],[26.401191964,4246,60],[26.601043278,4246,60],[26.801611918,4246,60],[27.001449349,4246,60],[27.20102688,4246,60],[27.401359643,4246,60],[27.601483691,4246,60],[27.80106106,4246,60],[28.001854342,4246,60],[28.201460331,4246,60],[28.401532765,4246,60],[28.601926564,4246,60],[28.801730907,4246,60],[29.00147729,4246,60],[29.201323014,4246,60],[29.401364739,4246,60],[29.601936017,4246,60],[29.801160292,4246,60],[30.001417184,4246,60]],"udp_tx_mbps":7.852400286690766}
+test atlas_session::netem_test::owned_netem_session ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 732 filtered out; finished in 30.54s
+
+qdisc netem 8063: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 11908576488703788042
+ Sent 30529108 bytes 26208 pkt (dropped 96, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 9647 dropped 96 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+
+NETEM_ANALYSIS {"scenario": "wifi1", "mode": "auto", "stable_target_s": 2.402}
+
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| wifi1/auto | True | 542/542/0 | 0/391/4010 | 7.85/10.69 | 41.7/93.9/143.6 | 30 | 900000/4246; 2.402 |

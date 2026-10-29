@@ -2419,6 +2419,7 @@ async fn send_cpu(o: Options, ep: &Endpoint) -> Result<()> {
                         }
                     }
                 }
+                quality_telemetry.enqueued(0);
                 if complete_datagram_dispatch(datagram_too_large, expired_dispatch) {
                     stats.sent = stats.sent.saturating_add(1);
                     stats.observe_send(
