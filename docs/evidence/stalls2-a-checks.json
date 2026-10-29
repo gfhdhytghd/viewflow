@@ -1,0 +1,19 @@
+[
+  {
+    "variant": "a",
+    "workspace": {
+      "command": "cargo test --workspace -- --test-threads=1",
+      "exit": 0,
+      "passed": 1022,
+      "failed": 0,
+      "ignored": 5
+    },
+    "clippy": {
+      "command": "cargo clippy --workspace --all-targets -- -D clippy::unwrap_used",
+      "exit": 0,
+      "other_warnings": "retained"
+    },
+    "measurements": 30,
+    "zero_frame_runs": 0
+  }
+]

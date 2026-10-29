@@ -1,0 +1,514 @@
+Viewflow owned RGBA -> NVENC -> atlas QUIC -> reassembly (no decode/display)
+controller default fec off profile release gso off
+UTC 2026-10-29T11:53:12.418092+00:00
+git 4813aadadcf488cb3ff4f9b9395d4b3657995475 + working tree changes; source SHA256 below
+b37a6d31d95a17731e2ceee324173fd864559a7c3e19f15c161b577aca86266e  Cargo.toml
+f18ee2957cede68487a9e15706c6c8915713181c7e5aad487216023d4e65a2cc  tools/netem-order-probe.py
+4ab98dcbd70f541c92e25e90eecc01c905ce4e7934652a0d466d72673e83bce8  crates/viewflowd/Cargo.toml
+40d831be3d0a7be7ed8d4ff1a3639b2ddb40363b8b6380a307c8e26fe66001de  tools/weak-network-test.py
+99a035d9352b6ceb6e791c1d4ce5904578ea0cc2fd2d9cf35db4cac6da7414a3  protocol/viewflow/v1/control.proto
+59cb726e0ca70468f4742cc4248d1cd4ac2652d92c18aae219b581b1a4fcf87a  crates/viewflow-core/src/atlas_pipeline.rs
+b945d473b192138fb1c9cc0a046687ed6eeb6b2f5350209f72b457c24a773875  crates/viewflowd/src/atlas_netem_test.rs
+d9b23d33b6ca7950fff26c77b01c1c5b71612fb55e8de76eda49241bd935445d  crates/viewflowd/src/atlas_session.rs
+1b099a1141c537dc246b6a11d08976edb6cbfe2f55e498805e311534f859ad7e  crates/viewflowd/src/atlas_loss.rs
+7c1493fb546a9f49a1ce7f3ab29bf9259de21d1e10b8e7fd3c941906e2952093  crates/viewflowd/src/atlas_fec.rs
+182d4bcc8187c46c813975ab4886212ccbf3eed89e62934a3b13dd07dc9a71df  crates/viewflow-core/src/rate_control.rs
+542cf673b9bbd74efba0aca0d6635a5703018412633e5553fa560c5adcdd421f  crates/viewflowd/src/quality.rs
+c93a5f2cb10ce1d65c9542ec451a21abdac1dcb09c27b2def44415c63abe7cad  crates/viewflowd/src/coded_peer.rs
+fb154bd3443ed36510acdb3bd6bff708ce5421606e61750a8c6d947d074337b2  crates/viewflowd/src/gpu_atlas_sender.rs
+6bcdc7323950cec62af56a880dfffad94700ec7f59e6160bff5fa9e44abf4dcd  crates/viewflowd/src/native_quality.rs
+ac2b25b49771e3f07c9b76bf696a5eda535831162e36f2b76a47b2e1ce377703  platform/nvenc-encoder/nvenc_encoder.cpp
+d635ada15e834e223bffc2d1d47e55b9a594ff5c08a455301060dc6bd43f16c4  platform/nvenc-encoder/gpu_dmabuf_encoder.cu
+d01e7a1c0221c074c63390c661a33ea62e7151c1167df6e3911d8804f53d7083  crates/viewflow-transport/src/reassembly.rs
+9caeb37094cf6c94021a5d61acbff333aa5261d60165b3ba66a74d24f5b3ba53  crates/viewflow-transport/src/config.rs
+21151e95ab1a8badd5690cf647c9484b36780afc601585489dd274aa53e169a4  crates/viewflow-transport/src/delay_cubic.rs
+9cdb56053ed179d8d1e271adbc574f2ff5354a72276779c59b5763b3ba9608cd  crates/viewflow-transport/src/tls.rs
+344278438c4d44f6356f7e002030d54fd389f138def8c09ab464b6ad3d4dca46  Cargo.lock
+fc43075d69c99fb141583fa29144fa908c616407e13f1f1f9369132fcd6409e3  test executable
+$ cargo tree --locked -i quinn-proto --prefix none
+quinn-proto v0.11.19
+quinn v0.11.11
+viewflow-transport v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflow-transport)
+viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflowd)
+viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflowd)
+viewflow-transport v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflow-transport) (*)
+$ uname -a
+Linux SuperPower 7.2.11-zen1-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Fri, 16 Oct 2026 00:28:42 +0000 x86_64 GNU/Linux
+$ tc -V
+tc utility, iproute2-7.2.0, libbpf 1.7.0
+$ rustc --version
+rustc 1.95.0 (59807616e 2026-04-14)
+$ nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
+NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 615.78.08
+UTC 2026-10-29T11:53:12.587043+00:00 $ pgrep -af "weak-network-test|netem_session"; other measurement processes=0
+
+=== wifi1/auto exit=0 ===
+qdisc noqueue 0: root refcnt 2
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+
+running 1 test
+NETEM_SOCKET recv_before=212992 recv_actual=8388608
+NETEM_SOCKET recv_before=212992 recv_actual=8388608
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=30 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=0 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 629694 bytes 507 pkt (dropped 5, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 507 dropped 5 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 3142260 bytes 2530 pkt (dropped 30, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 2530 dropped 30 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_ORDER_PROBE {"scenario": "wifi1", "rows": [{"profile": "paced", "sent": 512, "received": 507, "unique": 507, "missing": 5, "reordered": 372, "distance_ge_129": 0, "max_sequence_displacement": 21, "delay_p50_p95_ms": [5.166971008293331, 7.695715059526265]}, {"profile": "burst", "sent": 2048, "received": 2023, "unique": 2023, "missing": 25, "reordered": 1961, "distance_ge_129": 1388, "max_sequence_displacement": 511, "delay_p50_p95_ms": [5.074650980532169, 7.732052938081324]}]}
+NETEM_ENQUEUE frame=1 budget=1414 packets=728 too_large=0 current_max=Some(1414)
+NETEM_REPAIR frame=1 plane=Color requested=512 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Color requested=30 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Alpha requested=1 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Color requested=512 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Color requested=30 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Alpha requested=1 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Color requested=512 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Color requested=30 enqueued=0 budget=1414 max=Some(1162)
+NETEM_REPAIR frame=1 plane=Alpha requested=1 enqueued=0 budget=1414 max=Some(1162)
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 4242597 bytes 3412 pkt (dropped 41, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 3412 dropped 41 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=1 keyframe=true missing=543 color_done=false alpha_done=false wait=Some(LossWait { request_at: Instant { tv_sec: 913159, tv_nsec: 713456335 }, expires: Instant { tv_sec: 913159, tv_nsec: 920917503 }, retry_at: Instant { tv_sec: 913159, tv_nsec: 717943391 }, requested: true, attempted: true, rtt: 2.487056ms, budget: 21.641112ms, frame_period: 16.667ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=249 frame=1 keyframe=true color_bytes=958552 send_ms=241 disposition=Some(ExpiredUnbound) rtt_us=4673 cwnd=3028196
+NETEM_ENQUEUE frame=2 budget=1162 packets=892 too_large=0 current_max=Some(1162)
+NETEM_REPAIR frame=2 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=2 plane=Color requested=165 enqueued=165 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=2 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=2 plane=Color requested=165 enqueued=165 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=2 plane=Color requested=454 enqueued=454 budget=1162 max=Some(1162)
+NETEM_EXPIRE frame=2 keyframe=true missing=310 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913159, tv_nsec: 978452317 }, expires: Instant { tv_sec: 913160, tv_nsec: 208568041 }, retry_at: Instant { tv_sec: 913160, tv_nsec: 1300143 }, requested: true, attempted: true, rtt: 4.633949ms, budget: 42.601231ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=538 frame=2 keyframe=true color_bytes=956227 send_ms=280 disposition=Some(ExpiredUnbound) rtt_us=6035 cwnd=3030580
+NETEM_ENQUEUE frame=3 budget=1162 packets=889 too_large=0 current_max=Some(1162)
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 8770763 bytes 7758 pkt (dropped 89, overlimits 0 requeues 0)
+ backlog 1573b 2p requeues 0
+  delayed 7760 dropped 89 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_REPAIR frame=3 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=3 plane=Color requested=178 enqueued=178 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=3 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=3 plane=Color requested=178 enqueued=178 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=3 plane=Color requested=432 enqueued=432 budget=1162 max=Some(1162)
+NETEM_EXPIRE frame=3 keyframe=true missing=274 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913160, tv_nsec: 274118789 }, expires: Instant { tv_sec: 913160, tv_nsec: 503474790 }, retry_at: Instant { tv_sec: 913160, tv_nsec: 294337474 }, requested: true, attempted: true, rtt: 5.568658ms, budget: 44.470649ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=834 frame=3 keyframe=true color_bytes=953296 send_ms=287 disposition=Some(ExpiredUnbound) rtt_us=5779 cwnd=3031772
+NETEM_ENQUEUE frame=4 budget=1162 packets=892 too_large=0 current_max=Some(1162)
+NETEM_REPAIR frame=4 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=4 plane=Color requested=198 enqueued=198 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=4 plane=Alpha requested=1 enqueued=1 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=4 plane=Color requested=506 enqueued=506 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=4 plane=Color requested=344 enqueued=344 budget=1162 max=Some(1162)
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 14184434 bytes 13045 pkt (dropped 137, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 13045 dropped 137 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=4 keyframe=true missing=202 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913160, tv_nsec: 582629247 }, expires: Instant { tv_sec: 913160, tv_nsec: 817318843 }, retry_at: Instant { tv_sec: 913160, tv_nsec: 605776497 }, requested: true, attempted: true, rtt: 6.771173ms, budget: 46.875679ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=1143 frame=4 keyframe=true color_bytes=956041 send_ms=301 disposition=Some(ExpiredUnbound) rtt_us=5857 cwnd=3031772
+NETEM_ENQUEUE frame=5 budget=1162 packets=897 too_large=0 current_max=Some(1162)
+NETEM_REPAIR frame=5 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=5 plane=Color requested=200 enqueued=200 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=5 plane=Alpha requested=2 enqueued=2 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=5 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=5 plane=Color requested=22 enqueued=22 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=5 plane=Color requested=367 enqueued=367 budget=1162 max=Some(1162)
+NETEM_EXPIRE frame=5 keyframe=true missing=223 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913160, tv_nsec: 897762936 }, expires: Instant { tv_sec: 913161, tv_nsec: 131012257 }, retry_at: Instant { tv_sec: 913160, tv_nsec: 919088729 }, requested: true, attempted: true, rtt: 6.961764ms, budget: 47.256861ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=1460 frame=5 keyframe=true color_bytes=961321 send_ms=308 disposition=Some(ExpiredUnbound) rtt_us=5364 cwnd=3031772
+NETEM_ENQUEUE frame=6 budget=1162 packets=895 too_large=0 current_max=Some(1162)
+NETEM_REPAIR frame=6 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=6 plane=Color requested=190 enqueued=190 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=6 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=6 plane=Color requested=7 enqueued=7 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=6 plane=Color requested=348 enqueued=348 budget=1162 max=Some(1162)
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 20476247 bytes 19156 pkt (dropped 201, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 19156 dropped 201 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=6 keyframe=true missing=201 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913161, tv_nsec: 219638470 }, expires: Instant { tv_sec: 913161, tv_nsec: 454676297 }, retry_at: Instant { tv_sec: 913161, tv_nsec: 241823711 }, requested: true, attempted: true, rtt: 7.426293ms, budget: 48.185919ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=1786 frame=6 keyframe=true color_bytes=959520 send_ms=317 disposition=Some(ExpiredUnbound) rtt_us=5230 cwnd=3031772
+NETEM_ENQUEUE frame=7 budget=1162 packets=887 too_large=0 current_max=Some(1162)
+NETEM_REPAIR frame=7 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=7 plane=Color requested=164 enqueued=164 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=7 plane=Color requested=508 enqueued=508 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=7 plane=Color requested=359 enqueued=359 budget=1162 max=Some(1162)
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 23536653 bytes 22135 pkt (dropped 243, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 22135 dropped 243 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=7 keyframe=true missing=217 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913161, tv_nsec: 542288681 }, expires: Instant { tv_sec: 913161, tv_nsec: 776995863 }, retry_at: Instant { tv_sec: 913161, tv_nsec: 564143277 }, requested: true, attempted: true, rtt: 7.426293ms, budget: 48.185919ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=2109 frame=7 keyframe=true color_bytes=950676 send_ms=314 disposition=Some(ExpiredUnbound) rtt_us=4916 cwnd=3031772
+NETEM_ENQUEUE frame=8 budget=1162 packets=891 too_large=0 current_max=Some(1162)
+NETEM_REPAIR frame=8 plane=Color requested=512 enqueued=512 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=8 plane=Color requested=165 enqueued=165 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=8 plane=Alpha requested=1 enqueued=1 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=8 plane=Color requested=500 enqueued=500 budget=1162 max=Some(1162)
+NETEM_REPAIR frame=8 plane=Color requested=355 enqueued=355 budget=1162 max=Some(1162)
+NETEM_EXPIRE frame=8 keyframe=true missing=203 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913161, tv_nsec: 866943199 }, expires: Instant { tv_sec: 913162, tv_nsec: 106885129 }, retry_at: Instant { tv_sec: 913161, tv_nsec: 893172371 }, requested: true, attempted: true, rtt: 7.856379ms, budget: 49.046091ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=2433 frame=8 keyframe=true color_bytes=955477 send_ms=316 disposition=Some(ExpiredUnbound) rtt_us=5481 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 29745932 bytes 28180 pkt (dropped 305, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 28180 dropped 305 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=9 keyframe=true missing=215 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913162, tv_nsec: 191408856 }, expires: Instant { tv_sec: 913162, tv_nsec: 425412879 }, retry_at: Instant { tv_sec: 913162, tv_nsec: 212287567 }, requested: true, attempted: true, rtt: 7.562656ms, budget: 48.458645ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=2752 frame=9 keyframe=true color_bytes=960426 send_ms=310 disposition=Some(ExpiredUnbound) rtt_us=5632 cwnd=3031772
+NETEM_EXPIRE frame=10 keyframe=true missing=205 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913162, tv_nsec: 507829555 }, expires: Instant { tv_sec: 913162, tv_nsec: 744329621 }, retry_at: Instant { tv_sec: 913162, tv_nsec: 530852129 }, requested: true, attempted: true, rtt: 7.738746ms, budget: 48.810825ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=3074 frame=10 keyframe=true color_bytes=950858 send_ms=314 disposition=Some(ExpiredUnbound) rtt_us=5821 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 32840952 bytes 31196 pkt (dropped 329, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 31196 dropped 329 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=11 keyframe=true missing=215 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913162, tv_nsec: 837358373 }, expires: Instant { tv_sec: 913163, tv_nsec: 72678782 }, retry_at: Instant { tv_sec: 913162, tv_nsec: 858688490 }, requested: true, attempted: true, rtt: 7.995146ms, budget: 49.323625ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=3399 frame=11 keyframe=true color_bytes=949715 send_ms=316 disposition=Some(ExpiredUnbound) rtt_us=6198 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 39137455 bytes 37322 pkt (dropped 383, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 37322 dropped 383 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=12 keyframe=true missing=217 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913163, tv_nsec: 163233061 }, expires: Instant { tv_sec: 913163, tv_nsec: 404653617 }, retry_at: Instant { tv_sec: 913163, tv_nsec: 190135381 }, requested: true, attempted: true, rtt: 8.259118ms, budget: 49.851569ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=3733 frame=12 keyframe=true color_bytes=957280 send_ms=324 disposition=Some(ExpiredUnbound) rtt_us=6897 cwnd=3031772
+atlas-loss chunks_lost=20613 recovered=0 dropped=12 nack_round_trips=0 nack_rtt_us=0 quic_rtt_us=7872 quic_lost_packets=197 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=0 unrecoverable=12
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=5379 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=12 changed=false fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 42245340 bytes 40324 pkt (dropped 422, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 40324 dropped 422 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=13 keyframe=true missing=220 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913163, tv_nsec: 533761783 }, expires: Instant { tv_sec: 913163, tv_nsec: 769370115 }, retry_at: Instant { tv_sec: 913163, tv_nsec: 555624571 }, requested: true, attempted: true, rtt: 7.872772ms, budget: 49.078877ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=4097 frame=13 keyframe=true color_bytes=948876 send_ms=355 disposition=Some(ExpiredUnbound) rtt_us=5379 cwnd=3031772
+NETEM_EXPIRE frame=14 keyframe=true missing=221 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913163, tv_nsec: 855539484 }, expires: Instant { tv_sec: 913164, tv_nsec: 94634448 }, retry_at: Instant { tv_sec: 913163, tv_nsec: 878212780 }, requested: true, attempted: true, rtt: 9.210834ms, budget: 51.755001ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=4421 frame=14 keyframe=true color_bytes=955619 send_ms=315 disposition=Some(ExpiredUnbound) rtt_us=6222 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 48420297 bytes 46299 pkt (dropped 480, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 46299 dropped 480 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=15 keyframe=true missing=168 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913164, tv_nsec: 184967416 }, expires: Instant { tv_sec: 913164, tv_nsec: 426604580 }, retry_at: Instant { tv_sec: 913164, tv_nsec: 209041274 }, requested: true, attempted: true, rtt: 9.781653ms, budget: 52.896639ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=4756 frame=15 keyframe=true color_bytes=955872 send_ms=326 disposition=Some(ExpiredUnbound) rtt_us=5728 cwnd=3031772
+NETEM_EXPIRE frame=16 keyframe=true missing=193 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913164, tv_nsec: 517567794 }, expires: Instant { tv_sec: 913164, tv_nsec: 761766648 }, retry_at: Instant { tv_sec: 913164, tv_nsec: 544102888 }, requested: true, attempted: true, rtt: 9.83188ms, budget: 52.997093ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 51465392 bytes 49275 pkt (dropped 499, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 49275 dropped 499 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_SLOW at_ms=5091 frame=16 keyframe=true color_bytes=951932 send_ms=326 disposition=Some(ExpiredUnbound) rtt_us=5189 cwnd=3031772
+NETEM_EXPIRE frame=17 keyframe=true missing=204 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913164, tv_nsec: 856629364 }, expires: Instant { tv_sec: 913165, tv_nsec: 100386528 }, retry_at: Instant { tv_sec: 913164, tv_nsec: 882547758 }, requested: true, attempted: true, rtt: 9.919385ms, budget: 53.172103ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=5428 frame=17 keyframe=true color_bytes=952195 send_ms=328 disposition=Some(ExpiredUnbound) rtt_us=5908 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 57692229 bytes 55364 pkt (dropped 576, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 55364 dropped 576 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=18 keyframe=true missing=227 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913165, tv_nsec: 191777974 }, expires: Instant { tv_sec: 913165, tv_nsec: 436819075 }, retry_at: Instant { tv_sec: 913165, tv_nsec: 218980305 }, requested: true, attempted: true, rtt: 9.919385ms, budget: 53.172103ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=5763 frame=18 keyframe=true color_bytes=956857 send_ms=325 disposition=Some(ExpiredUnbound) rtt_us=6177 cwnd=3031772
+NETEM_EXPIRE frame=19 keyframe=true missing=192 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913165, tv_nsec: 525640326 }, expires: Instant { tv_sec: 913165, tv_nsec: 765346807 }, retry_at: Instant { tv_sec: 913165, tv_nsec: 548673901 }, requested: true, attempted: true, rtt: 9.336453ms, budget: 52.006239ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=6093 frame=19 keyframe=true color_bytes=957459 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=5491 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 60757940 bytes 58356 pkt (dropped 608, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 58356 dropped 608 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=20 keyframe=true missing=209 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913165, tv_nsec: 854892403 }, expires: Instant { tv_sec: 913166, tv_nsec: 95394594 }, retry_at: Instant { tv_sec: 913165, tv_nsec: 878636558 }, requested: true, attempted: true, rtt: 9.379018ms, budget: 52.091369ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=6425 frame=20 keyframe=true color_bytes=951071 send_ms=322 disposition=Some(ExpiredUnbound) rtt_us=5161 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 67009137 bytes 64331 pkt (dropped 671, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 64331 dropped 671 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=21 keyframe=true missing=217 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913166, tv_nsec: 186937672 }, expires: Instant { tv_sec: 913166, tv_nsec: 426695415 }, retry_at: Instant { tv_sec: 913166, tv_nsec: 209937379 }, requested: true, attempted: true, rtt: 9.379018ms, budget: 52.091369ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=6756 frame=21 keyframe=true color_bytes=952035 send_ms=322 disposition=Some(ExpiredUnbound) rtt_us=5728 cwnd=3031772
+NETEM_EXPIRE frame=22 keyframe=true missing=210 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913166, tv_nsec: 519135818 }, expires: Instant { tv_sec: 913166, tv_nsec: 761472700 }, retry_at: Instant { tv_sec: 913166, tv_nsec: 543605082 }, requested: true, attempted: true, rtt: 9.933809ms, budget: 53.200951ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=7093 frame=22 keyframe=true color_bytes=956385 send_ms=328 disposition=Some(ExpiredUnbound) rtt_us=5354 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 70104838 bytes 67353 pkt (dropped 691, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 67353 dropped 691 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=23 keyframe=true missing=202 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913166, tv_nsec: 853910717 }, expires: Instant { tv_sec: 913167, tv_nsec: 99045902 }, retry_at: Instant { tv_sec: 913166, tv_nsec: 881178284 }, requested: true, attempted: true, rtt: 9.933809ms, budget: 53.200951ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=7427 frame=23 keyframe=true color_bytes=954323 send_ms=326 disposition=Some(ExpiredUnbound) rtt_us=5034 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 76250467 bytes 73365 pkt (dropped 752, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 73365 dropped 752 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=24 keyframe=true missing=200 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913167, tv_nsec: 189529827 }, expires: Instant { tv_sec: 913167, tv_nsec: 435115772 }, retry_at: Instant { tv_sec: 913167, tv_nsec: 217887634 }, requested: true, attempted: true, rtt: 9.614069ms, budget: 52.561471ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=7762 frame=24 keyframe=true color_bytes=951528 send_ms=326 disposition=Some(ExpiredUnbound) rtt_us=5063 cwnd=3031772
+NETEM_EXPIRE frame=25 keyframe=true missing=204 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913167, tv_nsec: 526311039 }, expires: Instant { tv_sec: 913167, tv_nsec: 766532418 }, retry_at: Instant { tv_sec: 913167, tv_nsec: 549356216 }, requested: true, attempted: true, rtt: 9.588101ms, budget: 52.509535ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=8092 frame=25 keyframe=true color_bytes=951753 send_ms=322 disposition=Some(ExpiredUnbound) rtt_us=5471 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 79671695 bytes 76657 pkt (dropped 792, overlimits 0 requeues 0)
+ backlog 782276b 687p requeues 0
+  delayed 77344 dropped 792 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=26 keyframe=true missing=180 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913167, tv_nsec: 854939578 }, expires: Instant { tv_sec: 913168, tv_nsec: 99827909 }, retry_at: Instant { tv_sec: 913167, tv_nsec: 882651707 }, requested: true, attempted: true, rtt: 9.588101ms, budget: 52.509535ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=8430 frame=26 keyframe=true color_bytes=947463 send_ms=329 disposition=Some(ExpiredUnbound) rtt_us=5841 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 85527628 bytes 82356 pkt (dropped 842, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 82356 dropped 842 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=27 keyframe=true missing=225 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913168, tv_nsec: 195358156 }, expires: Instant { tv_sec: 913168, tv_nsec: 437760281 }, retry_at: Instant { tv_sec: 913168, tv_nsec: 220633349 }, requested: true, attempted: true, rtt: 9.563466ms, budget: 52.460265ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=8765 frame=27 keyframe=true color_bytes=954976 send_ms=327 disposition=Some(ExpiredUnbound) rtt_us=5073 cwnd=3031772
+atlas-loss chunks_lost=42693 recovered=0 dropped=27 nack_round_trips=0 nack_rtt_us=0 quic_rtt_us=9486 quic_lost_packets=390 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=0 unrecoverable=27
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=5488 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=27 changed=false fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 88628559 bytes 85388 pkt (dropped 867, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 85388 dropped 867 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=28 keyframe=true missing=199 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913168, tv_nsec: 580207764 }, expires: Instant { tv_sec: 913168, tv_nsec: 820370292 }, retry_at: Instant { tv_sec: 913168, tv_nsec: 603397478 }, requested: true, attempted: true, rtt: 9.486407ms, budget: 52.306147ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=9147 frame=28 keyframe=true color_bytes=953801 send_ms=374 disposition=Some(ExpiredUnbound) rtt_us=5488 cwnd=3031772
+NETEM_EXPIRE frame=29 keyframe=true missing=188 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913168, tv_nsec: 908541021 }, expires: Instant { tv_sec: 913169, tv_nsec: 146995673 }, retry_at: Instant { tv_sec: 913168, tv_nsec: 930994661 }, requested: true, attempted: true, rtt: 9.000506ms, budget: 51.334345ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=9477 frame=29 keyframe=true color_bytes=947875 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=5862 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 94742928 bytes 91357 pkt (dropped 926, overlimits 0 requeues 0)
+ backlog 214b 2p requeues 0
+  delayed 91359 dropped 926 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=30 keyframe=true missing=194 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913169, tv_nsec: 240934069 }, expires: Instant { tv_sec: 913169, tv_nsec: 481622347 }, retry_at: Instant { tv_sec: 913169, tv_nsec: 265621335 }, requested: true, attempted: true, rtt: 9.000506ms, budget: 51.334345ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=9807 frame=30 keyframe=true color_bytes=950160 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=5686 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 97806236 bytes 94376 pkt (dropped 969, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 94376 dropped 969 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=31 keyframe=true missing=184 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913169, tv_nsec: 569341158 }, expires: Instant { tv_sec: 913169, tv_nsec: 808226798 }, retry_at: Instant { tv_sec: 913169, tv_nsec: 592676596 }, requested: true, attempted: true, rtt: 8.775101ms, budget: 50.883535ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=10135 frame=31 keyframe=true color_bytes=954723 send_ms=320 disposition=Some(ExpiredUnbound) rtt_us=5856 cwnd=3031772
+NETEM_EXPIRE frame=32 keyframe=true missing=253 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913169, tv_nsec: 897041403 }, expires: Instant { tv_sec: 913170, tv_nsec: 137214013 }, retry_at: Instant { tv_sec: 913169, tv_nsec: 921694449 }, requested: true, attempted: true, rtt: 8.759782ms, budget: 50.852897ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=10467 frame=32 keyframe=true color_bytes=957268 send_ms=323 disposition=Some(ExpiredUnbound) rtt_us=5570 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 104039714 bytes 100350 pkt (dropped 1036, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 100350 dropped 1036 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=33 keyframe=true missing=196 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913170, tv_nsec: 228572947 }, expires: Instant { tv_sec: 913170, tv_nsec: 468137953 }, retry_at: Instant { tv_sec: 913170, tv_nsec: 252587197 }, requested: true, attempted: true, rtt: 8.775378ms, budget: 50.884089ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=10796 frame=33 keyframe=true color_bytes=946599 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=6025 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 107167027 bytes 103413 pkt (dropped 1068, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 103413 dropped 1068 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=34 keyframe=true missing=214 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913170, tv_nsec: 556702782 }, expires: Instant { tv_sec: 913170, tv_nsec: 798920885 }, retry_at: Instant { tv_sec: 913170, tv_nsec: 583451003 }, requested: true, attempted: true, rtt: 8.734941ms, budget: 50.803215ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=11125 frame=34 keyframe=true color_bytes=950595 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=5049 cwnd=3031772
+NETEM_EXPIRE frame=35 keyframe=true missing=167 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913170, tv_nsec: 887178140 }, expires: Instant { tv_sec: 913171, tv_nsec: 126138488 }, retry_at: Instant { tv_sec: 913170, tv_nsec: 910668606 }, requested: true, attempted: true, rtt: 8.734941ms, budget: 50.803215ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=11451 frame=35 keyframe=true color_bytes=959373 send_ms=317 disposition=Some(ExpiredUnbound) rtt_us=6274 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 113321483 bytes 109438 pkt (dropped 1127, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 109438 dropped 1127 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=36 keyframe=true missing=212 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913171, tv_nsec: 211961015 }, expires: Instant { tv_sec: 913171, tv_nsec: 449446944 }, retry_at: Instant { tv_sec: 913171, tv_nsec: 234707022 }, requested: true, attempted: true, rtt: 8.369961ms, budget: 50.073255ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=11780 frame=36 keyframe=true color_bytes=953508 send_ms=320 disposition=Some(ExpiredUnbound) rtt_us=4938 cwnd=3031772
+NETEM_EXPIRE frame=37 keyframe=true missing=387 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913171, tv_nsec: 530107759 }, expires: Instant { tv_sec: 913171, tv_nsec: 771319420 }, retry_at: Instant { tv_sec: 913171, tv_nsec: 556271986 }, requested: true, attempted: true, rtt: 8.523717ms, budget: 50.380767ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=12101 frame=37 keyframe=true color_bytes=951552 send_ms=312 disposition=Some(ExpiredUnbound) rtt_us=5575 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 117640705 bytes 113452 pkt (dropped 1449, overlimits 0 requeues 0)
+ backlog 4547b 24p requeues 0
+  delayed 113476 dropped 1173 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=38 keyframe=true missing=126 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913171, tv_nsec: 861305505 }, expires: Instant { tv_sec: 913172, tv_nsec: 101555266 }, retry_at: Instant { tv_sec: 913171, tv_nsec: 885139484 }, requested: true, attempted: true, rtt: 9.207891ms, budget: 51.749115ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=12428 frame=38 keyframe=true color_bytes=952567 send_ms=319 disposition=Some(ExpiredUnbound) rtt_us=6585 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 122523769 bytes 118348 pkt (dropped 1504, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 118348 dropped 1228 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=39 keyframe=true missing=213 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913172, tv_nsec: 190565279 }, expires: Instant { tv_sec: 913172, tv_nsec: 434073029 }, retry_at: Instant { tv_sec: 913172, tv_nsec: 217015543 }, requested: true, attempted: true, rtt: 9.528743ms, budget: 52.390819ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=12762 frame=39 keyframe=true color_bytes=950737 send_ms=324 disposition=Some(ExpiredUnbound) rtt_us=5954 cwnd=3031772
+NETEM_EXPIRE frame=40 keyframe=true missing=207 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913172, tv_nsec: 528906944 }, expires: Instant { tv_sec: 913172, tv_nsec: 774757898 }, retry_at: Instant { tv_sec: 913172, tv_nsec: 557308828 }, requested: true, attempted: true, rtt: 9.724535ms, budget: 52.782403ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=13101 frame=40 keyframe=true color_bytes=953113 send_ms=331 disposition=Some(ExpiredUnbound) rtt_us=6449 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 126749949 bytes 122422 pkt (dropped 1553, overlimits 0 requeues 0)
+ backlog 1139b 7p requeues 0
+  delayed 122429 dropped 1277 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=41 keyframe=true missing=205 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913172, tv_nsec: 867201268 }, expires: Instant { tv_sec: 913173, tv_nsec: 111828714 }, retry_at: Instant { tv_sec: 913172, tv_nsec: 894352446 }, requested: true, attempted: true, rtt: 9.738134ms, budget: 52.809601ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=13438 frame=41 keyframe=true color_bytes=954030 send_ms=327 disposition=Some(ExpiredUnbound) rtt_us=5345 cwnd=3031772
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 131842180 bytes 127436 pkt (dropped 1594, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 127436 dropped 1318 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=42 keyframe=true missing=208 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913173, tv_nsec: 203583800 }, expires: Instant { tv_sec: 913173, tv_nsec: 446190973 }, retry_at: Instant { tv_sec: 913173, tv_nsec: 228714705 }, requested: true, attempted: true, rtt: 9.738134ms, budget: 52.809601ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=13776 frame=42 keyframe=true color_bytes=949836 send_ms=328 disposition=Some(ExpiredUnbound) rtt_us=5631 cwnd=3031772
+atlas-loss chunks_lost=66930 recovered=0 dropped=42 nack_round_trips=0 nack_rtt_us=0 quic_rtt_us=9526 quic_lost_packets=728 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=0 unrecoverable=42
+NETEM_EXPIRE frame=43 keyframe=true missing=227 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913173, tv_nsec: 544081804 }, expires: Instant { tv_sec: 913173, tv_nsec: 784783113 }, retry_at: Instant { tv_sec: 913173, tv_nsec: 566854259 }, requested: true, attempted: true, rtt: 9.964427ms, budget: 53.262187ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=14110 frame=43 keyframe=true color_bytes=949996 send_ms=325 disposition=Some(ExpiredUnbound) rtt_us=6616 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 136122292 bytes 131505 pkt (dropped 1638, overlimits 0 requeues 0)
+ backlog 6784b 37p requeues 0
+  delayed 131542 dropped 1362 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=6182 queue_us=1459 dispatch_us=1459 buffered=0 rate_busy=false dropped=43 changed=false fec_permille=0 congested=false
+NETEM_EXPIRE frame=44 keyframe=true missing=207 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913173, tv_nsec: 875563821 }, expires: Instant { tv_sec: 913174, tv_nsec: 118234553 }, retry_at: Instant { tv_sec: 913173, tv_nsec: 900305699 }, requested: true, attempted: true, rtt: 9.964427ms, budget: 53.262187ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=14449 frame=44 keyframe=true color_bytes=955291 send_ms=329 disposition=Some(ExpiredUnbound) rtt_us=5641 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 141219069 bytes 136562 pkt (dropped 1687, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 136562 dropped 1411 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=45 keyframe=true missing=180 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913174, tv_nsec: 213874791 }, expires: Instant { tv_sec: 913174, tv_nsec: 460096744 }, retry_at: Instant { tv_sec: 913174, tv_nsec: 242632694 }, requested: true, attempted: true, rtt: 9.732025ms, budget: 52.797383ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=14786 frame=45 keyframe=true color_bytes=955144 send_ms=327 disposition=Some(ExpiredUnbound) rtt_us=6170 cwnd=3031855
+NETEM_EXPIRE frame=46 keyframe=true missing=224 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913174, tv_nsec: 552336057 }, expires: Instant { tv_sec: 913174, tv_nsec: 795697130 }, retry_at: Instant { tv_sec: 913174, tv_nsec: 578263012 }, requested: true, attempted: true, rtt: 9.717059ms, budget: 52.767451ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=15123 frame=46 keyframe=true color_bytes=948411 send_ms=328 disposition=Some(ExpiredUnbound) rtt_us=5144 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 145157244 bytes 140269 pkt (dropped 1736, overlimits 0 requeues 0)
+ backlog 278279b 306p requeues 0
+  delayed 140575 dropped 1460 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=47 keyframe=true missing=220 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913174, tv_nsec: 885719579 }, expires: Instant { tv_sec: 913175, tv_nsec: 129123301 }, retry_at: Instant { tv_sec: 913174, tv_nsec: 913466455 }, requested: true, attempted: true, rtt: 8.828423ms, budget: 50.990179ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=15456 frame=47 keyframe=true color_bytes=949762 send_ms=325 disposition=Some(ExpiredUnbound) rtt_us=5563 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 150678928 bytes 145740 pkt (dropped 1786, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 145740 dropped 1510 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=48 keyframe=true missing=214 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913175, tv_nsec: 221739719 }, expires: Instant { tv_sec: 913175, tv_nsec: 462700518 }, retry_at: Instant { tv_sec: 913175, tv_nsec: 247128946 }, requested: true, attempted: true, rtt: 8.785786ms, budget: 50.904905ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=15792 frame=48 keyframe=true color_bytes=959668 send_ms=327 disposition=Some(ExpiredUnbound) rtt_us=5138 cwnd=3031855
+NETEM_EXPIRE frame=49 keyframe=true missing=184 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913175, tv_nsec: 554693315 }, expires: Instant { tv_sec: 913175, tv_nsec: 795677673 }, retry_at: Instant { tv_sec: 913175, tv_nsec: 579831837 }, requested: true, attempted: true, rtt: 8.922918ms, budget: 51.179169ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=16122 frame=49 keyframe=true color_bytes=950728 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=6009 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 154825859 bytes 149705 pkt (dropped 1824, overlimits 0 requeues 0)
+ backlog 7721b 43p requeues 0
+  delayed 149748 dropped 1548 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=50 keyframe=true missing=169 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913175, tv_nsec: 884372510 }, expires: Instant { tv_sec: 913176, tv_nsec: 124897883 }, retry_at: Instant { tv_sec: 913175, tv_nsec: 909347631 }, requested: true, attempted: true, rtt: 8.775126ms, budget: 50.883585ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=16451 frame=50 keyframe=true color_bytes=949872 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=5569 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 159699866 bytes 154627 pkt (dropped 1878, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 154627 dropped 1602 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=51 keyframe=true missing=154 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913176, tv_nsec: 215236536 }, expires: Instant { tv_sec: 913176, tv_nsec: 454153079 }, retry_at: Instant { tv_sec: 913176, tv_nsec: 238754539 }, requested: true, attempted: true, rtt: 8.69927ms, budget: 50.731873ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=16784 frame=51 keyframe=true color_bytes=955814 send_ms=323 disposition=Some(ExpiredUnbound) rtt_us=5907 cwnd=3031855
+NETEM_EXPIRE frame=52 keyframe=true missing=225 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913176, tv_nsec: 546838739 }, expires: Instant { tv_sec: 913176, tv_nsec: 790618154 }, retry_at: Instant { tv_sec: 913176, tv_nsec: 573507940 }, requested: true, attempted: true, rtt: 9.555107ms, budget: 52.443547ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=17117 frame=52 keyframe=true color_bytes=951940 send_ms=326 disposition=Some(ExpiredUnbound) rtt_us=5916 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 163951877 bytes 158719 pkt (dropped 1924, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 158719 dropped 1648 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=53 keyframe=true missing=201 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913176, tv_nsec: 889105696 }, expires: Instant { tv_sec: 913177, tv_nsec: 132647229 }, retry_at: Instant { tv_sec: 913176, tv_nsec: 915575185 }, requested: true, attempted: true, rtt: 9.536022ms, budget: 52.405377ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=17460 frame=53 keyframe=true color_bytes=954067 send_ms=334 disposition=Some(ExpiredUnbound) rtt_us=5311 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 169043614 bytes 163681 pkt (dropped 1979, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 163681 dropped 1703 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=54 keyframe=true missing=227 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913177, tv_nsec: 229620118 }, expires: Instant { tv_sec: 913177, tv_nsec: 472259324 }, retry_at: Instant { tv_sec: 913177, tv_nsec: 256434286 }, requested: true, attempted: true, rtt: 8.912519ms, budget: 51.158371ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=17798 frame=54 keyframe=true color_bytes=953256 send_ms=329 disposition=Some(ExpiredUnbound) rtt_us=6014 cwnd=3031855
+NETEM_EXPIRE frame=55 keyframe=true missing=193 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913177, tv_nsec: 558254997 }, expires: Instant { tv_sec: 913177, tv_nsec: 799668149 }, retry_at: Instant { tv_sec: 913177, tv_nsec: 584862375 }, requested: true, attempted: true, rtt: 8.402887ms, budget: 50.139107ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=18125 frame=55 keyframe=true color_bytes=950029 send_ms=319 disposition=Some(ExpiredUnbound) rtt_us=5079 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 173228094 bytes 167740 pkt (dropped 2026, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 167740 dropped 1750 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=56 keyframe=true missing=221 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913177, tv_nsec: 886340464 }, expires: Instant { tv_sec: 913178, tv_nsec: 127874764 }, retry_at: Instant { tv_sec: 913177, tv_nsec: 913018246 }, requested: true, attempted: true, rtt: 8.428259ms, budget: 50.189851ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=18457 frame=56 keyframe=true color_bytes=945937 send_ms=324 disposition=Some(ExpiredUnbound) rtt_us=5093 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 178283470 bytes 172715 pkt (dropped 2076, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 172715 dropped 1800 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=57 keyframe=true missing=169 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913178, tv_nsec: 218267265 }, expires: Instant { tv_sec: 913178, tv_nsec: 456241434 }, retry_at: Instant { tv_sec: 913178, tv_nsec: 240346082 }, requested: true, attempted: true, rtt: 8.947676ms, budget: 51.228685ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=18783 frame=57 keyframe=true color_bytes=951747 send_ms=317 disposition=Some(ExpiredUnbound) rtt_us=5644 cwnd=3031855
+atlas-loss chunks_lost=90253 recovered=0 dropped=57 nack_round_trips=0 nack_rtt_us=0 quic_rtt_us=8569 quic_lost_packets=1099 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=0 unrecoverable=57
+NETEM_EXPIRE frame=58 keyframe=true missing=216 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913178, tv_nsec: 544768983 }, expires: Instant { tv_sec: 913178, tv_nsec: 784961505 }, retry_at: Instant { tv_sec: 913178, tv_nsec: 568696275 }, requested: true, attempted: true, rtt: 9.132615ms, budget: 51.598563ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=19111 frame=58 keyframe=true color_bytes=954855 send_ms=320 disposition=Some(ExpiredUnbound) rtt_us=6197 cwnd=3031855
+netem-quality mode=Auto kbps=302636 fps=60 scale=1000 rtt_us=5783 queue_us=46479 dispatch_us=880 buffered=232830 rate_busy=false dropped=58 changed=true fec_permille=0 congested=true
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 183414909 bytes 177595 pkt (dropped 2120, overlimits 0 requeues 0)
+ backlog 10109b 53p requeues 0
+  delayed 177648 dropped 1844 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=59 keyframe=true missing=212 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913178, tv_nsec: 877603219 }, expires: Instant { tv_sec: 913179, tv_nsec: 120409241 }, retry_at: Instant { tv_sec: 913178, tv_nsec: 904144011 }, requested: true, attempted: true, rtt: 9.132615ms, budget: 51.598563ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=19451 frame=59 keyframe=true color_bytes=945940 send_ms=331 disposition=Some(ExpiredUnbound) rtt_us=5194 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 186089968 bytes 180440 pkt (dropped 2144, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 180440 dropped 1868 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_EXPIRE frame=60 keyframe=true missing=1 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913179, tv_nsec: 210011051 }, expires: Instant { tv_sec: 913179, tv_nsec: 451833208 }, retry_at: Instant { tv_sec: 913179, tv_nsec: 235885040 }, requested: true, attempted: true, rtt: 8.974084ms, budget: 51.281501ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=19780 frame=60 keyframe=true color_bytes=549302 send_ms=321 disposition=Some(ExpiredUnbound) rtt_us=6160 cwnd=3031855
+NETEM_EXPIRE frame=61 keyframe=true missing=2 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 913179, tv_nsec: 537699271 }, expires: Instant { tv_sec: 913179, tv_nsec: 778472649 }, retry_at: Instant { tv_sec: 913179, tv_nsec: 562217971 }, requested: true, attempted: true, rtt: 9.127339ms, budget: 51.588011ms, frame_period: 33.333333ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=20110 frame=61 keyframe=true color_bytes=552166 send_ms=323 disposition=Some(ExpiredUnbound) rtt_us=6109 cwnd=3031855
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 188664833 bytes 183139 pkt (dropped 2180, overlimits 0 requeues 0)
+ backlog 2838b 16p requeues 0
+  delayed 183155 dropped 1904 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+netem-quality mode=Auto kbps=81175 fps=60 scale=1000 rtt_us=6751 queue_us=30038 dispatch_us=0 buffered=161755 rate_busy=false dropped=61 changed=true fec_permille=0 congested=true
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 191264269 bytes 186638 pkt (dropped 2205, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 186638 dropped 1929 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+netem-quality mode=Auto kbps=7192 fps=60 scale=1000 rtt_us=7632 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=61 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 191626791 bytes 187242 pkt (dropped 2211, overlimits 0 requeues 0)
+ backlog 8978b 8p requeues 0
+  delayed 187250 dropped 1935 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 192010863 bytes 187892 pkt (dropped 2218, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 187892 dropped 1942 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 192443283 bytes 188579 pkt (dropped 2232, overlimits 0 requeues 0)
+ backlog 677b 7p requeues 0
+  delayed 188586 dropped 1956 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 192993308 bytes 189477 pkt (dropped 2236, overlimits 0 requeues 0)
+ backlog 891b 9p requeues 0
+  delayed 189486 dropped 1960 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 193543861 bytes 190387 pkt (dropped 2240, overlimits 0 requeues 0)
+ backlog 16970b 16p requeues 0
+  delayed 190403 dropped 1964 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+netem-quality mode=Auto kbps=5489 fps=60 scale=1000 rtt_us=7432 queue_us=20475 dispatch_us=29 buffered=17559 rate_busy=false dropped=61 changed=true fec_permille=0 congested=true
+netem-quality mode=Auto kbps=2000 fps=60 scale=1000 rtt_us=6684 queue_us=38486 dispatch_us=0 buffered=78206 rate_busy=false dropped=61 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 194442760 bytes 191749 pkt (dropped 2256, overlimits 0 requeues 0)
+ backlog 2663b 28p requeues 0
+  delayed 191777 dropped 1980 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+atlas-loss chunks_lost=94911 recovered=32 dropped=61 nack_round_trips=32 nack_rtt_us=302336 quic_rtt_us=10835 quic_lost_packets=1667 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=32 unrecoverable=61
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 195312052 bytes 193090 pkt (dropped 2272, overlimits 0 requeues 0)
+ backlog 21338b 33p requeues 0
+  delayed 193123 dropped 1996 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 196420201 bytes 194785 pkt (dropped 2291, overlimits 0 requeues 0)
+ backlog 883b 9p requeues 0
+  delayed 194794 dropped 2015 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 197462793 bytes 196374 pkt (dropped 2307, overlimits 0 requeues 0)
+ backlog 2519b 26p requeues 0
+  delayed 196400 dropped 2031 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 198308309 bytes 197706 pkt (dropped 2327, overlimits 0 requeues 0)
+ backlog 84b 1p requeues 0
+  delayed 197707 dropped 2051 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 199300862 bytes 199241 pkt (dropped 2338, overlimits 0 requeues 0)
+ backlog 45622b 38p requeues 0
+  delayed 199279 dropped 2062 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 200288774 bytes 200740 pkt (dropped 2348, overlimits 0 requeues 0)
+ backlog 17840b 32p requeues 0
+  delayed 200772 dropped 2072 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 201343366 bytes 202383 pkt (dropped 2359, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 202383 dropped 2083 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 202511396 bytes 204154 pkt (dropped 2366, overlimits 0 requeues 0)
+ backlog 19418b 35p requeues 0
+  delayed 204189 dropped 2090 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 203447568 bytes 205609 pkt (dropped 2378, overlimits 0 requeues 0)
+ backlog 24772b 35p requeues 0
+  delayed 205644 dropped 2102 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+netem-quality mode=Auto kbps=2000 fps=60 scale=1000 rtt_us=7905 queue_us=28241 dispatch_us=153 buffered=44527 rate_busy=false dropped=61 changed=false fec_permille=0 congested=true
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 204218407 bytes 206822 pkt (dropped 2398, overlimits 0 requeues 0)
+ backlog 196b 2p requeues 0
+  delayed 206824 dropped 2122 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+atlas-loss chunks_lost=94992 recovered=89 dropped=61 nack_round_trips=89 nack_rtt_us=751955 quic_rtt_us=9634 quic_lost_packets=2628 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=89 unrecoverable=61
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 205259231 bytes 208419 pkt (dropped 2410, overlimits 0 requeues 0)
+ backlog 335b 3p requeues 0
+  delayed 208422 dropped 2134 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 206213253 bytes 209882 pkt (dropped 2426, overlimits 0 requeues 0)
+ backlog 1233b 1p requeues 0
+  delayed 209883 dropped 2150 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+NETEM_RESULT {"chunks_lost_lower_bound":95010,"complete":399,"complete_by_10s_phase":[0,0,399],"complete_mbps":7.435522984480944,"encoder_mbps":23.250930077401023,"fec":"off","fec_failed_media_frames":0,"fec_observed_media_chunks":0,"fec_observed_missing":0,"fec_parity_bytes":0,"fec_recovered_chunks":0,"fec_recovered_frames":0,"first_complete_after_20s_ms":207.823024,"frames_lost":61,"keyframe_requests":61,"latency_ms":[12.328,36.459,53.615],"mode":"auto","nack_completed":104,"nacks":421,"receive_error":null,"repair_datagrams_enqueued":93381,"scenario":"wifi1","seconds":30.003784867,"seed":"1","send_error":null,"sent":460,"stall_ms":[20207.823],"stall_ranges_s":[[0.0,20.207823024]],"survived":true,"target_trace_s_kbps_fps":[[0.001106094,900000,60],[0.201536958,900000,60],[0.401087358,900000,60],[0.600806666,900000,60],[0.801166448,900000,60],[1.000857277,900000,60],[1.2007766229999999,900000,60],[1.40118407,900000,60],[1.601274165,900000,60],[1.80078052,900000,60],[2.001117159,900000,60],[2.200771886,900000,60],[2.4008546,900000,60],[2.601809224,900000,60],[2.800786138,900000,60],[3.001675292,900000,60],[3.200951783,900000,60],[3.411382826,900000,60],[3.601639482,900000,60],[3.801521652,900000,60],[4.001301834,900000,60],[4.201320807,900000,60],[4.401158025,900000,60],[4.601077469,900000,60],[4.800777055,900000,60],[5.001497766,900000,60],[5.201757011,900000,60],[5.400923231,900000,60],[5.600904206,900000,60],[5.800777153,900000,60],[6.001716376,900000,60],[6.201398797,900000,60],[6.40094704,900000,60],[6.601030965,900000,60],[6.80078154,900000,60],[7.001514366,900000,60],[7.201160559,900000,60],[7.401676935,900000,60],[7.600995724,900000,60],[7.800777,900000,60],[8.00177766,900000,60],[8.201913377,900000,60],[8.401105431,900000,60],[8.601226813,900000,60],[8.801234878,900000,60],[9.00141732,900000,60],[9.201886382,900000,60],[9.401657069,900000,60],[9.601802535000001,900000,60],[9.801048884,900000,60],[10.001927488,900000,60],[10.200779079,900000,60],[10.401426979,900000,60],[10.601114453,900000,60],[10.807431088,900000,60],[11.001768512,900000,60],[11.200847708,900000,60],[11.401800703,900000,60],[11.601336172,900000,60],[11.800790286,900000,60],[12.000880474,900000,60],[12.200827417,900000,60],[12.401294622,900000,60],[12.601555112,900000,60],[12.800774292,900000,60],[13.000991701,900000,60],[13.200774525,900000,60],[13.401082368,900000,60],[13.601350984,900000,60],[13.800865964,900000,60],[14.001780184,900000,60],[14.20105974,900000,60],[14.401905294,900000,60],[14.601336111,900000,60],[14.800778954,900000,60],[15.00167105,900000,60],[15.20093575,900000,60],[15.401764696,900000,60],[15.60098294,900000,60],[15.802902438,900000,60],[16.001548726,900000,60],[16.200936684,900000,60],[16.40119512,900000,60],[16.60151751,900000,60],[16.800812512,900000,60],[17.000857592,900000,60],[17.200876157,900000,60],[17.400956362,900000,60],[17.601280806,900000,60],[17.808494313,900000,60],[18.000979478,900000,60],[18.200855133,900000,60],[18.400904485,900000,60],[18.600921147,900000,60],[18.800784259,900000,60],[19.0009494,900000,60],[19.201220037,302636,60],[19.401345496,302636,60],[19.601313931,302636,60],[19.800797772,302636,60],[20.001419487,302636,60],[20.20101437,302636,60],[20.403671571,302636,60],[20.601505541999998,17627,60],[20.800778611,7192,60],[21.00096541,7192,60],[21.201328128,7192,60],[21.404823674,7192,60],[21.600847499,7192,60],[21.801297019,7192,60],[22.001421447,7192,60],[22.20155507,7192,60],[22.401391855,7192,60],[22.600907493,7192,60],[22.801274033,7192,60],[23.00161578,7192,60],[23.20107844,7192,60],[23.400918157,2000,60],[23.601269694,2000,60],[23.800798323,2000,60],[24.003440754,2000,60],[24.201281288,2000,60],[24.401204922,2000,60],[24.601425636,2000,60],[24.800869844,2000,60],[25.000864471,2000,60],[25.200831773,2000,60],[25.40094973,2000,60],[25.600922476,2000,60],[25.80165434,2000,60],[26.001737218,2000,60],[26.201024396,2000,60],[26.401259645,2000,60],[26.601398334,2000,60],[26.800961609,2000,60],[27.003485404,2000,60],[27.201130363,2000,60],[27.40105987,2000,60],[27.601054132,2000,60],[27.80123586,2000,60],[28.001417403,2000,60],[28.200850951,2000,60],[28.400817265,2000,60],[28.601369162,2000,60],[28.800839572,2000,60],[29.001252899,2000,60],[29.200959988,2000,60],[29.401285272,2000,60],[29.601105302,2000,60],[29.801105649,2000,60],[30.001011687,2000,60]],"udp_tx_mbps":50.9819413377545}
+test atlas_session::netem_test::owned_netem_session ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 761 filtered out; finished in 31.59s
+
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms  3ms loss 1% seed 1
+ Sent 206811331 bytes 210819 pkt (dropped 2436, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 210819 dropped 2160 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+Ip: Forwarding DefaultTTL InReceives InHdrErrors InAddrErrors ForwDatagrams InUnknownProtos InDiscards InDelivers OutRequests OutDiscards OutNoRoutes ReasmTimeout ReasmReqds ReasmOKs ReasmFails FragOKs FragFails FragCreates OutTransmits
+Ip: 1 64 213672 0 0 0 0 0 213672 216108 276 0 0 0 0 0 0 0 0 216108
+Icmp: InMsgs InErrors InCsumErrors InDestUnreachs InTimeExcds InParmProbs InSrcQuenchs InRedirects InEchos InEchoReps InTimestamps InTimestampReps InAddrMasks InAddrMaskReps OutMsgs OutErrors OutRateLimitGlobal OutRateLimitHost OutDestUnreachs OutTimeExcds OutParmProbs OutSrcQuenchs OutRedirects OutEchos OutEchoReps OutTimestamps OutTimestampReps OutAddrMasks OutAddrMaskReps
+Icmp: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets CurrEstab InSegs OutSegs RetransSegs InErrs OutRsts InCsumErrors
+Tcp: 1 200 120000 -1 0 0 0 0 0 0 0 0 0 0 0
+Udp: InDatagrams NoPorts InErrors OutDatagrams RcvbufErrors SndbufErrors InCsumErrors IgnoredMulti MemErrors
+Udp: 213672 0 0 215832 0 276 0 0 0
+
+NETEM_ANALYSIS {"scenario": "wifi1", "mode": "auto", "stable_target_s": 23.401}
+
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| wifi1/auto | True | 460/399/61 | 61/421/93381 | 50.98/7.44 | 12.3/36.5/53.6 | 1 | 900000/2000; 23.401 |

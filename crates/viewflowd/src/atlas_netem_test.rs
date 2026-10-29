@@ -8,14 +8,34 @@ use std::time::Duration;
 use viewflow_protocol::Id128;
 
 fn shape(args: &[&str]) {
+    let seed = std::env::var("VF_NETEM_SEED").unwrap_or_else(|_| "1".into());
     let status = std::process::Command::new("tc")
         .args([
-            "qdisc", "replace", "dev", "lo", "root", "netem", "limit", "1000",
+            "qdisc", "replace", "dev", "lo", "root", "handle", "1:", "netem", "limit", "1000",
         ])
         .args(args)
+        .args(["seed", &seed])
         .status()
         .expect("tc installed");
     assert!(status.success(), "tc netem failed");
+}
+
+fn shape_scenario(scenario: &str) {
+    match scenario {
+        "clean" | "burst" => shape(&[]),
+        "wifi1" => shape(&["delay", "5ms", "3ms", "loss", "1%"]),
+        "wifi1o" => shape(&["delay", "5ms", "3ms", "loss", "1%", "rate", "1gbit"]),
+        "wifi5" => shape(&["delay", "15ms", "10ms", "loss", "5%"]),
+        "wifi5o" => shape(&["delay", "15ms", "10ms", "loss", "5%", "rate", "1gbit"]),
+        "reorder" => shape(&["delay", "5ms", "reorder", "1%"]),
+        "cap20" => shape(&["delay", "10ms", "rate", "20mbit"]),
+        "cap8" => shape(&["rate", "8mbit", "loss", "2%"]),
+        _ => panic!("unknown netem scenario"),
+    }
+    // netem's rate scheduler clamps each send time after the queued tail.
+    // A 1Gbit rate preserves order with jitter without a practical bottleneck
+    // for this workload; the owned sequence probe verifies the actual kernel.
+
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -108,13 +128,15 @@ async fn owned_netem_session() -> Result<()> {
         60,
         "netem",
     );
-    match scenario.as_str() {
-        "clean" | "burst" => shape(&[]),
-        "wifi1" => shape(&["delay", "5ms", "3ms", "loss", "1%"]),
-        "wifi5" => shape(&["delay", "15ms", "10ms", "loss", "5%"]),
-        "cap20" => shape(&["delay", "10ms", "rate", "20mbit"]),
-        "cap8" => shape(&["rate", "8mbit", "loss", "2%"]),
-        _ => anyhow::bail!("unknown scenario"),
+    shape_scenario(&scenario);
+    // Independent owned UDP sequence probe, before the timed media run. Reset
+    // the qdisc afterwards so the probe does not consume its loss PRNG state.
+    if matches!(scenario.as_str(), "wifi1o" | "wifi5o" | "reorder" | "wifi1" | "wifi5") {
+    let probe = std::process::Command::new("python3")
+        .args(["tools/netem-order-probe.py", "--scenario", &scenario])
+        .status()?;
+    ensure!(probe.success(), "order probe failed");
+    shape_scenario(&scenario);
     }
     let origin = Instant::now();
     let clock = || origin.elapsed().as_nanos() as u64 + 1;
@@ -148,6 +170,7 @@ async fn owned_netem_session() -> Result<()> {
     let receiving = async {
         let mut latencies = Vec::new();
         let mut gaps = Vec::new();
+        let mut gap_ranges = Vec::new();
         let mut completed_at = origin;
         let mut phases = [0_u64; 3];
         let mut bytes = 0_u64;
@@ -172,6 +195,7 @@ async fn owned_netem_session() -> Result<()> {
                     let gap = now.duration_since(completed_at).as_micros() as u64;
                     if gap > 100_000 {
                         gaps.push(gap);
+                        gap_ranges.push(((completed_at - origin).as_secs_f64(), (now - origin).as_secs_f64()));
                     }
                     completed_at = now;
                     bytes += frame.media.color.len() as u64
@@ -195,13 +219,16 @@ async fn owned_netem_session() -> Result<()> {
                 }
             }
         }
-        let tail = completed_at.elapsed().as_micros() as u64;
+        let tail_end = Instant::now();
+        let tail = tail_end.duration_since(completed_at).as_micros() as u64;
         if tail > 100_000 {
             gaps.push(tail);
+            gap_ranges.push(((completed_at - origin).as_secs_f64(), (tail_end - origin).as_secs_f64()));
         }
         (
             latencies,
             gaps,
+            gap_ranges,
             phases,
             bytes,
             recovery_ms,
@@ -266,7 +293,9 @@ async fn owned_netem_session() -> Result<()> {
                 alpha_keyframe: true,
                 desktop: None,
             };
+            let manifest_bytes = au.color_annex_b.len();
             sent += 1;
+            let sending_started = Instant::now();
             if let Err(e) = sender
                 .send_frame(
                     manifest,
@@ -280,6 +309,11 @@ async fn owned_netem_session() -> Result<()> {
                 error = Some(format!("{e:#}"));
                 break;
             }
+            if sending_started.elapsed() > Duration::from_millis(100) {
+                eprintln!("NETEM_SLOW at_ms={} frame={id} keyframe={force} color_bytes={} send_ms={} disposition={:?} rtt_us={} cwnd={}",
+                    origin.elapsed().as_millis(), manifest_bytes, sending_started.elapsed().as_millis(),
+                    sender.last_disposition(), outbound.stats().path.rtt.as_micros(), outbound.stats().path.cwnd);
+            }
             next = (next + Duration::from_secs_f64(1.0 / f64::from(target.max_fps)))
                 .max(Instant::now());
         }
@@ -289,7 +323,7 @@ async fn owned_netem_session() -> Result<()> {
     };
     let (
         sending,
-        (mut latencies, gaps, phases, received_bytes, recovery_ms, receive_error, loss),
+        (mut latencies, gaps, gap_ranges, phases, received_bytes, recovery_ms, receive_error, loss),
         trace,
     ) = tokio::join!(sending, receiving, observation);
     if let Some(shaper) = shaper {
@@ -306,6 +340,7 @@ async fn owned_netem_session() -> Result<()> {
     };
     let result = json!({
         "scenario": scenario, "mode": mode, "seconds": elapsed,
+        "seed": std::env::var("VF_NETEM_SEED").unwrap_or_else(|_| "1".into()),
         "survived": send_error.is_none() && receive_error.is_none() && outbound.close_reason().is_none(),
         "send_error": send_error, "receive_error": receive_error,
         "sent": sent, "complete": latencies.len(), "complete_by_10s_phase": phases,
@@ -322,6 +357,7 @@ async fn owned_netem_session() -> Result<()> {
         "udp_tx_mbps": (outbound.stats().udp_tx.bytes - initial_bytes) as f64 * 8.0 / elapsed / 1e6,
         "complete_mbps": received_bytes as f64 * 8.0 / elapsed / 1e6,
         "latency_ms": [quantile(50), quantile(95), quantile(99)],
+        "stall_ranges_s": gap_ranges,
         "stall_ms": gaps.iter().map(|v| *v as f64 / 1000.0).collect::<Vec<_>>(),
         "target_trace_s_kbps_fps": trace,
     });

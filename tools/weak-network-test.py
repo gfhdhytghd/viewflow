@@ -40,6 +40,7 @@ def stable_target_time(row):
 TEST = 'atlas_session::netem_test::owned_netem_session'
 SCENARIOS = [('clean', 'auto'), ('wifi1', 'auto'), ('wifi5', 'auto'),
              ('cap20', 'auto'), ('cap8', 'auto'), ('burst', 'auto'),
+             ('wifi1o', 'auto'), ('wifi5o', 'auto'), ('reorder', 'auto'),
              ('cap20', 'high_quality'), ('cap20', 'save_bandwidth'), ('wifi1', 'high_quality')]
 
 
@@ -87,12 +88,15 @@ def main():
     parser.add_argument('--gso', choices=['off', 'on'], default='off', help='off models independent UDP packet loss in netem; on also loses GSO batches')
     parser.add_argument('--profile', choices=['release', 'debug'], default='release')
     parser.add_argument('--fec', choices=['auto', 'off'], default='auto')
+    parser.add_argument('--seed', type=int, default=1, help='netem PRNG seed (repeat with 1, 2, 3; QUIC scheduling still varies)')
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--output', type=Path, default=ROOT / 'docs/evidence/weak-network-netem.txt')
-    parser.add_argument('--scenario', choices=[s for s, _ in SCENARIOS[:6]])
+    parser.add_argument('--scenario', choices=sorted({s for s, _ in SCENARIOS}))
     parser.add_argument('--controller', choices=['default', 'cubic', 'bbr', 'delay_cubic'], default='default')
     parser.add_argument('--mode', choices=['auto', 'high_quality', 'save_bandwidth'])
     args = parser.parse_args()
+    if not 1 <= args.seed <= 0xffffffff:
+        parser.error('seed must be a nonzero u32')
     if args.seconds < 30:
         parser.error('each scenario must last at least 30 seconds')
     build = subprocess.run(['cargo', 'test'] + (['--release'] if args.profile == 'release' else []) + ['-p', 'viewflowd', '--features', 'native-gpu-nvenc',
@@ -113,7 +117,7 @@ def main():
         record('git ' + subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
                + ' + working tree changes; source SHA256 below')
         import hashlib
-        for p in ['Cargo.toml', 'crates/viewflowd/Cargo.toml', 'tools/weak-network-test.py', 'protocol/viewflow/v1/control.proto',
+        for p in ['vendor/quinn-proto/src/connection/mod.rs', 'vendor/quinn-proto/src/connection/packet_builder.rs', 'vendor/quinn-proto/src/packet.rs', 'vendor/quinn-proto/src/connection/spaces.rs', 'vendor/quinn-proto/Cargo.toml', 'Cargo.toml', 'tools/netem-order-probe.py', 'crates/viewflowd/Cargo.toml', 'tools/weak-network-test.py', 'protocol/viewflow/v1/control.proto',
                   'crates/viewflow-core/src/atlas_pipeline.rs',
                   'crates/viewflowd/src/atlas_netem_test.rs',
                   'crates/viewflowd/src/atlas_session.rs', 'crates/viewflowd/src/atlas_loss.rs',
@@ -125,8 +129,11 @@ def main():
                   'platform/nvenc-encoder/gpu_dmabuf_encoder.cu',
                   'crates/viewflow-transport/src/reassembly.rs',
                   'crates/viewflow-transport/src/config.rs', 'crates/viewflow-transport/src/delay_cubic.rs', 'crates/viewflow-transport/src/tls.rs', 'Cargo.lock']:
-            record(hashlib.sha256((ROOT / p).read_bytes()).hexdigest() + '  ' + p)
+            if (ROOT / p).exists():
+                record(hashlib.sha256((ROOT / p).read_bytes()).hexdigest() + '  ' + p)
         record(hashlib.sha256(Path(binary).read_bytes()).hexdigest() + '  test executable')
+        dependency = subprocess.check_output(['cargo', 'tree', '--locked', '-i', 'quinn-proto', '--prefix', 'none'], cwd=ROOT, text=True)
+        record('$ cargo tree --locked -i quinn-proto --prefix none\n' + dependency.strip())
         for cmd in [['uname', '-a'], ['tc', '-V'], ['rustc', '--version'],
                     ['nvidia-smi', '--query-gpu=name,driver_version', '--format=csv,noheader']]:
             output = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -145,7 +152,7 @@ def main():
                 env['VIEWFLOW_CONGESTION_CONTROL'] = args.controller
             env['VIEWFLOW_FEC'] = args.fec
             env.update(VF_NETEM_PRIVATE='1', VF_NETEM_GSO=args.gso, VF_NETEM_SCENARIO=scenario,
-                       VF_NETEM_MODE=mode, VF_NETEM_SECONDS=str(args.seconds))
+                       VF_NETEM_MODE=mode, VF_NETEM_SECONDS=str(args.seconds), VF_NETEM_SEED=str(args.seed))
             # Fresh namespace per scenario; kernel removes the qdisc on exit.
             cmd = ['unshare', '-rn', 'sh', '-c',
                    '''ip link set lo up || exit 1

@@ -1,0 +1,4870 @@
+{
+  "purpose": "Retain the first A pilot; explicit reorder 1% 50% produced zero observed reorder, so these are not final comparison samples. Final source removes correlation and requires observed reorder. All scenarios rerun on one final source/executable.",
+  "pfifo_trial": {
+    "kernel": "7.2.11-zen1-1-zen",
+    "burst_reordered": 1968,
+    "max_sequence_displacement": 511,
+    "decision": "rejected; rate1gbit instead verified zero reorder"
+  },
+  "pilot": [
+    {
+      "file": "stalls2-a-burst-auto-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-burst-auto-s1.txt",
+      "sha256": "3c6a4ae2556b96b5fd5be054fc5c3475bf0f7697c370773b817c685b3797e48e",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 4993,
+          "complete": 1238,
+          "complete_by_10s_phase": [
+            600,
+            39,
+            599
+          ],
+          "complete_mbps": 64.05507621396639,
+          "encoder_mbps": 65.49741332756057,
+          "fec": "auto",
+          "fec_failed_media_frames": 11,
+          "fec_observed_media_chunks": 157604,
+          "fec_observed_missing": 2779,
+          "fec_parity_bytes": 5951764,
+          "fec_recovered_chunks": 542,
+          "fec_recovered_frames": 39,
+          "first_complete_after_20s_ms": 26.569318000000003,
+          "frames_lost": 11,
+          "keyframe_requests": 11,
+          "latency_ms": [
+            5.477,
+            8.166,
+            49.749
+          ],
+          "mode": "auto",
+          "nack_completed": 39,
+          "nacks": 140,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 2929,
+          "scenario": "burst",
+          "seconds": 30.006172338,
+          "seed": "1",
+          "send_error": null,
+          "sent": 1249,
+          "stall_ms": [
+            1444.695,
+            244.54,
+            888.77,
+            164.756,
+            133.654,
+            262.971,
+            180.704,
+            120.281,
+            264.245,
+            617.19,
+            263.603,
+            692.551,
+            498.635,
+            119.743,
+            506.347,
+            103.126,
+            291.218,
+            211.684,
+            1699.966,
+            308.69
+          ],
+          "stall_ranges_s": [
+            [
+              9.989929373,
+              11.434625034
+            ],
+            [
+              11.434625034,
+              11.67916601
+            ],
+            [
+              11.67916601,
+              12.567936509
+            ],
+            [
+              12.567936509,
+              12.73269255
+            ],
+            [
+              12.889509111,
+              13.023163161
+            ],
+            [
+              13.023163161,
+              13.28613423
+            ],
+            [
+              13.28613423,
+              13.466838686
+            ],
+            [
+              13.649615213,
+              13.769896461
+            ],
+            [
+              13.90581466,
+              14.170060624
+            ],
+            [
+              14.170060624,
+              14.787250841
+            ],
+            [
+              15.002265125,
+              15.265869095
+            ],
+            [
+              15.265869095,
+              15.958420652000001
+            ],
+            [
+              15.958420652000001,
+              16.457056376
+            ],
+            [
+              16.639637552,
+              16.75938063
+            ],
+            [
+              16.798002722,
+              17.304349813
+            ],
+            [
+              17.304349813,
+              17.407476657
+            ],
+            [
+              17.429003657,
+              17.720222418
+            ],
+            [
+              17.720222418,
+              17.931907021
+            ],
+            [
+              17.931907021,
+              19.631873829
+            ],
+            [
+              19.631873829,
+              19.94056415
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 60.65005651171636
+        }
+      ],
+      "order_probe": []
+    },
+    {
+      "file": "stalls2-a-burst-auto-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-burst-auto-s2.txt",
+      "sha256": "466d8d45f93560f44e6e06c66c244d5a4dc064a26bfb767a95b85e72c750a2f1",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 5961,
+          "complete": 1278,
+          "complete_by_10s_phase": [
+            600,
+            78,
+            600
+          ],
+          "complete_mbps": 65.22436877206164,
+          "encoder_mbps": 66.64863638401162,
+          "fec": "auto",
+          "fec_failed_media_frames": 12,
+          "fec_observed_media_chunks": 160434,
+          "fec_observed_missing": 3178,
+          "fec_parity_bytes": 6479312,
+          "fec_recovered_chunks": 691,
+          "fec_recovered_frames": 51,
+          "first_complete_after_20s_ms": 29.438783,
+          "frames_lost": 12,
+          "keyframe_requests": 12,
+          "latency_ms": [
+            5.541,
+            37.585,
+            79.221
+          ],
+          "mode": "auto",
+          "nack_completed": 74,
+          "nacks": 224,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 3785,
+          "scenario": "burst",
+          "seconds": 30.001064155,
+          "seed": "2",
+          "send_error": null,
+          "sent": 1290,
+          "stall_ms": [
+            1334.749,
+            137.563,
+            490.17,
+            156.536,
+            569.71,
+            131.922,
+            196.368,
+            246.004,
+            316.886,
+            121.255,
+            287.544,
+            135.101,
+            409.781,
+            119.157,
+            104.253,
+            308.484,
+            129.107,
+            113.836,
+            349.831,
+            154.719,
+            105.819,
+            374.288,
+            106.883,
+            334.781,
+            291.271,
+            317.007
+          ],
+          "stall_ranges_s": [
+            [
+              9.990074357,
+              11.324823489
+            ],
+            [
+              11.324823489,
+              11.462387135
+            ],
+            [
+              11.640039988,
+              12.130210046
+            ],
+            [
+              12.130210046,
+              12.286746992
+            ],
+            [
+              12.383444181,
+              12.953154764
+            ],
+            [
+              13.050788509,
+              13.182710848
+            ],
+            [
+              13.302418441,
+              13.498787275
+            ],
+            [
+              13.701274659,
+              13.947279586
+            ],
+            [
+              13.991783284,
+              14.308670021
+            ],
+            [
+              14.795291969,
+              14.916547908
+            ],
+            [
+              15.022840683,
+              15.31038506
+            ],
+            [
+              15.31038506,
+              15.445486401
+            ],
+            [
+              15.608105735,
+              16.017886869
+            ],
+            [
+              16.017886869,
+              16.137043984
+            ],
+            [
+              16.21726477,
+              16.321518708
+            ],
+            [
+              16.321518708,
+              16.630003603
+            ],
+            [
+              16.868478799000002,
+              16.997586456
+            ],
+            [
+              17.259440776,
+              17.373276965
+            ],
+            [
+              17.495589059,
+              17.845420209
+            ],
+            [
+              17.92259206,
+              18.077311468
+            ],
+            [
+              18.11585599,
+              18.221675209
+            ],
+            [
+              18.221675209,
+              18.595963393
+            ],
+            [
+              18.661785323,
+              18.768669107
+            ],
+            [
+              18.893189326,
+              19.227970521
+            ],
+            [
+              19.227970521,
+              19.519242172
+            ],
+            [
+              19.59758804,
+              19.914595541
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 61.94829298047611
+        }
+      ],
+      "order_probe": []
+    },
+    {
+      "file": "stalls2-a-burst-off-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-burst-off-s1.txt",
+      "sha256": "020f2d5060fc63e3a65d908d4e5c94e1a5b6b83a8b2f94b635b5df4c66173ab9",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 16441,
+          "complete": 1190,
+          "complete_by_10s_phase": [
+            600,
+            0,
+            590
+          ],
+          "complete_mbps": 111.21380940150475,
+          "encoder_mbps": 119.21870945573257,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 185.03528699999998,
+          "frames_lost": 34,
+          "keyframe_requests": 34,
+          "latency_ms": [
+            6.017,
+            8.405,
+            10.949
+          ],
+          "mode": "auto",
+          "nack_completed": 0,
+          "nacks": 194,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 13583,
+          "scenario": "burst",
+          "seconds": 30.007444237,
+          "seed": "1",
+          "send_error": null,
+          "sent": 1224,
+          "stall_ms": [
+            10192.55
+          ],
+          "stall_ranges_s": [
+            [
+              9.992484329,
+              20.185035287
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 120.4498887493842
+        }
+      ],
+      "order_probe": []
+    },
+    {
+      "file": "stalls2-a-burst-off-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-burst-off-s2.txt",
+      "sha256": "45a3519da546afa988fe8531c5fe964759d0efbb17956d4f58ed2f6216d50faa",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 12025,
+          "complete": 1201,
+          "complete_by_10s_phase": [
+            600,
+            0,
+            601
+          ],
+          "complete_mbps": 105.6238208213345,
+          "encoder_mbps": 113.24696316673717,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 7.7439,
+          "frames_lost": 29,
+          "keyframe_requests": 29,
+          "latency_ms": [
+            5.848,
+            7.94,
+            9.296
+          ],
+          "mode": "auto",
+          "nack_completed": 1,
+          "nacks": 172,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 11236,
+          "scenario": "burst",
+          "seconds": 30.001170336,
+          "seed": "2",
+          "send_error": null,
+          "sent": 1230,
+          "stall_ms": [
+            10015.985
+          ],
+          "stall_ranges_s": [
+            [
+              9.991758392,
+              20.0077439
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 113.44154864239094
+        }
+      ],
+      "order_probe": []
+    },
+    {
+      "file": "stalls2-a-reorder-auto-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-reorder-auto-s1.txt",
+      "sha256": "933fa989a25117a0ddc6da851f3b325380a456a7fabc25a2f14ce99bde41a0b7",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 0,
+          "complete": 1737,
+          "complete_by_10s_phase": [
+            579,
+            579,
+            579
+          ],
+          "complete_mbps": 153.65751401359674,
+          "encoder_mbps": 153.65751401359674,
+          "fec": "auto",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 384375,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 10.906641,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            10.673,
+            12.932,
+            13.808
+          ],
+          "mode": "auto",
+          "nack_completed": 0,
+          "nacks": 0,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 0,
+          "scenario": "reorder",
+          "seconds": 30.002185403,
+          "seed": "1",
+          "send_error": null,
+          "sent": 1737,
+          "stall_ms": [],
+          "stall_ranges_s": [],
+          "survived": true,
+          "udp_tx_mbps": 147.0666613359039
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "reorder",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 512,
+              "unique": 512,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.007128929719329,
+                5.116898915730417
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2048,
+              "unique": 2048,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.005505052395165,
+                5.022097961045802
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-reorder-auto-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-reorder-auto-s2.txt",
+      "sha256": "63579d179acac25d8bec03185c23d260d9162f57cae55d1861b885c510a87388",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 0,
+          "complete": 1737,
+          "complete_by_10s_phase": [
+            579,
+            577,
+            581
+          ],
+          "complete_mbps": 153.65481129430475,
+          "encoder_mbps": 153.65481129430475,
+          "fec": "auto",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 384375,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 8.346508,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            10.672,
+            12.954,
+            13.671
+          ],
+          "mode": "auto",
+          "nack_completed": 0,
+          "nacks": 0,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 0,
+          "scenario": "reorder",
+          "seconds": 30.002713128,
+          "seed": "2",
+          "send_error": null,
+          "sent": 1737,
+          "stall_ms": [],
+          "stall_ranges_s": [],
+          "survived": true,
+          "udp_tx_mbps": 147.06429399153902
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "reorder",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 512,
+              "unique": 512,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.008408101275563,
+                8.056191960349679
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2048,
+              "unique": 2048,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.00711495988071,
+                5.0414950819686055
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-reorder-off-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-reorder-off-s1.txt",
+      "sha256": "f8005509c32ae94c894511b8847551fd49405d190e1a39f3aafc80e39818bf0c",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 0,
+          "complete": 1733,
+          "complete_by_10s_phase": [
+            579,
+            576,
+            578
+          ],
+          "complete_mbps": 153.31185618334973,
+          "encoder_mbps": 153.31185618334973,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 8.117725,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            10.687,
+            13.005,
+            14.024
+          ],
+          "mode": "auto",
+          "nack_completed": 0,
+          "nacks": 0,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 0,
+          "scenario": "reorder",
+          "seconds": 30.001251896,
+          "seed": "1",
+          "send_error": null,
+          "sent": 1733,
+          "stall_ms": [],
+          "stall_ranges_s": [],
+          "survived": true,
+          "udp_tx_mbps": 146.7362105841638
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "reorder",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 512,
+              "unique": 512,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.009121028706431,
+                5.027987994253635
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2048,
+              "unique": 2048,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.041360971517861,
+                5.2286399295553565
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-reorder-off-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-reorder-off-s2.txt",
+      "sha256": "b2a34278e9072be8504f1418c11e0ed88bb58982b6ecd5ec7fb4eb4e1cfc9592",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 0,
+          "complete": 1734,
+          "complete_by_10s_phase": [
+            578,
+            578,
+            578
+          ],
+          "complete_mbps": 153.37187850387932,
+          "encoder_mbps": 153.37187850387932,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 4.400158,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            10.69,
+            12.979,
+            13.826
+          ],
+          "mode": "auto",
+          "nack_completed": 0,
+          "nacks": 0,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 0,
+          "scenario": "reorder",
+          "seconds": 30.006675206,
+          "seed": "2",
+          "send_error": null,
+          "sent": 1734,
+          "stall_ms": [],
+          "stall_ranges_s": [],
+          "survived": true,
+          "udp_tx_mbps": 146.79345691452144
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "reorder",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 512,
+              "unique": 512,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.007687956094742,
+                5.052697961218655
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2048,
+              "unique": 2048,
+              "missing": 0,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                5.006239982321858,
+                5.0867010140791535
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi1o-auto-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi1o-auto-s1.txt",
+      "sha256": "6dbd64ea06dac9dc2ef3cacda467b1086e7d41b833a83a491aca1abed06a1026",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 123,
+          "complete": 1207,
+          "complete_by_10s_phase": [
+            348,
+            390,
+            469
+          ],
+          "complete_mbps": 21.36003978330946,
+          "encoder_mbps": 21.36003978330946,
+          "fec": "auto",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 32269,
+          "fec_observed_missing": 323,
+          "fec_parity_bytes": 5236042,
+          "fec_recovered_chunks": 220,
+          "fec_recovered_frames": 186,
+          "first_complete_after_20s_ms": 8.641108,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            14.688,
+            37.163,
+            43.297
+          ],
+          "mode": "auto",
+          "nack_completed": 84,
+          "nacks": 97,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 123,
+          "scenario": "wifi1o",
+          "seconds": 30.015091662,
+          "seed": "1",
+          "send_error": null,
+          "sent": 1207,
+          "stall_ms": [
+            104.653
+          ],
+          "stall_ranges_s": [
+            [
+              3.170680578,
+              3.275334141
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 13.176680732936553
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi1o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 507,
+              "unique": 507,
+              "missing": 5,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                6.812707986682653,
+                7.782028988003731
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2023,
+              "unique": 2023,
+              "missing": 25,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                9.662257973104715,
+                11.472718906588852
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi1o-auto-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi1o-auto-s2.txt",
+      "sha256": "2713e2fd489b0d152540bd85765fd36ddf2a494e8fa7c44d083a5ed09593cf53",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 144,
+          "complete": 1239,
+          "complete_by_10s_phase": [
+            353,
+            414,
+            472
+          ],
+          "complete_mbps": 20.85823415083082,
+          "encoder_mbps": 20.85823415083082,
+          "fec": "auto",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 30142,
+          "fec_observed_missing": 331,
+          "fec_parity_bytes": 7823662,
+          "fec_recovered_chunks": 232,
+          "fec_recovered_frames": 192,
+          "first_complete_after_20s_ms": 15.564015000000001,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            14.144,
+            34.703,
+            44.577
+          ],
+          "mode": "auto",
+          "nack_completed": 70,
+          "nacks": 88,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 144,
+          "scenario": "wifi1o",
+          "seconds": 30.00370537,
+          "seed": "2",
+          "send_error": null,
+          "sent": 1239,
+          "stall_ms": [],
+          "stall_ranges_s": [],
+          "survived": true,
+          "udp_tx_mbps": 13.066486661077356
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi1o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 503,
+              "unique": 503,
+              "missing": 9,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                6.722053978592157,
+                7.838236982934177
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2023,
+              "unique": 2023,
+              "missing": 25,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                9.746587020345032,
+                11.564458021894097
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi1o-off-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi1o-off-s1.txt",
+      "sha256": "ea201165e92dc690efe89e243b111638979ddb23b2b31db7c9ce17a8ec706561",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 344,
+          "complete": 952,
+          "complete_by_10s_phase": [
+            319,
+            320,
+            313
+          ],
+          "complete_mbps": 19.108786370705104,
+          "encoder_mbps": 19.108786370705104,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 49.88953,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            17.569,
+            44.29,
+            60.041
+          ],
+          "mode": "auto",
+          "nack_completed": 247,
+          "nacks": 287,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 342,
+          "scenario": "wifi1o",
+          "seconds": 30.012257444,
+          "seed": "1",
+          "send_error": null,
+          "sent": 952,
+          "stall_ms": [
+            107.433,
+            102.165,
+            102.367,
+            113.711
+          ],
+          "stall_ranges_s": [
+            [
+              12.263873176,
+              12.37130662
+            ],
+            [
+              22.747845767,
+              22.850010774
+            ],
+            [
+              23.580680529,
+              23.683047788
+            ],
+            [
+              25.70597248,
+              25.81968445
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 11.73705112510363
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi1o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 506,
+              "unique": 506,
+              "missing": 6,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                6.801674026064575,
+                7.786632049828768
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2024,
+              "unique": 2024,
+              "missing": 24,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                9.810001007281244,
+                11.74803206231445
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi1o-off-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi1o-off-s2.txt",
+      "sha256": "aac4d94e4b93a6e121c1be44f4eabfa6f4b2257e63fdab93ae269b01d47a6f08",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 345,
+          "complete": 948,
+          "complete_by_10s_phase": [
+            314,
+            314,
+            320
+          ],
+          "complete_mbps": 18.89116558795382,
+          "encoder_mbps": 18.89116558795382,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 5.541549,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            17.786,
+            43.973,
+            55.51
+          ],
+          "mode": "auto",
+          "nack_completed": 249,
+          "nacks": 281,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 345,
+          "scenario": "wifi1o",
+          "seconds": 30.005768218,
+          "seed": "2",
+          "send_error": null,
+          "sent": 948,
+          "stall_ms": [
+            104.681,
+            108.577
+          ],
+          "stall_ranges_s": [
+            [
+              11.514562894,
+              11.619244642
+            ],
+            [
+              28.662221308,
+              28.770799283
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 11.54169816562968
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi1o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 503,
+              "unique": 503,
+              "missing": 9,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                6.7145099164918065,
+                7.817734964191914
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 2023,
+              "unique": 2023,
+              "missing": 25,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                9.905283921398222,
+                11.909693013876677
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi5o-auto-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi5o-auto-s1.txt",
+      "sha256": "cd90b47c8723765c867b1a5553f61636b127d7ffb711eeecef1b8e6ecb5a6234",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 639,
+          "complete": 215,
+          "complete_by_10s_phase": [
+            60,
+            76,
+            79
+          ],
+          "complete_mbps": 4.597978689301047,
+          "encoder_mbps": 4.597978689301047,
+          "fec": "auto",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 7928,
+          "fec_observed_missing": 395,
+          "fec_parity_bytes": 124432,
+          "fec_recovered_chunks": 21,
+          "fec_recovered_frames": 10,
+          "first_complete_after_20s_ms": 3.678197,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            115.17,
+            185.684,
+            223.494
+          ],
+          "mode": "auto",
+          "nack_completed": 165,
+          "nacks": 267,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 634,
+          "scenario": "wifi5o",
+          "seconds": 30.05619672,
+          "seed": "1",
+          "send_error": null,
+          "sent": 215,
+          "stall_ms": [
+            118.709,
+            118.096,
+            146.695,
+            267.59,
+            202.096,
+            204.374,
+            1086.504,
+            140.557,
+            141.106,
+            145.923,
+            169.025,
+            153.86,
+            175.296,
+            160.293,
+            128.365,
+            143.276,
+            224.131,
+            129.951,
+            156.574,
+            134.42,
+            139.863,
+            142.099,
+            139.06,
+            138.356,
+            147.652,
+            140.515,
+            229.198,
+            177.904,
+            133.668,
+            107.06,
+            124.855,
+            255.988,
+            144.64,
+            132.02,
+            122.068,
+            403.543,
+            114.872,
+            136.33,
+            156.853,
+            135.621,
+            152.171,
+            144.829,
+            146.324,
+            122.174,
+            179.19,
+            120.81,
+            121.768,
+            137.227,
+            141.916,
+            150.539,
+            130.803,
+            118.727,
+            161.951,
+            147.875,
+            237.338,
+            108.657,
+            164.187,
+            137.57,
+            171.202,
+            185.199,
+            119.015,
+            136.183,
+            218.538,
+            129.435,
+            144.379,
+            144.765,
+            183.989,
+            151.155,
+            155.177,
+            136.963,
+            171.246,
+            124.997,
+            182.777,
+            196.676,
+            130.258,
+            185.329,
+            125.615,
+            139.08,
+            125.596,
+            138.65,
+            122.412,
+            180.712,
+            177.613,
+            148.398,
+            141.096,
+            130.231,
+            143.933,
+            159.278,
+            150.438,
+            114.009,
+            176.967,
+            145.516,
+            110.68,
+            139.286,
+            129.554,
+            126.462,
+            145.4,
+            145.035,
+            147.752,
+            115.165,
+            223.322,
+            127.976,
+            177.995,
+            244.927,
+            140.329,
+            128.226,
+            142.829,
+            271.693,
+            109.517,
+            133.851,
+            134.046,
+            111.939,
+            114.27,
+            181.64,
+            136.775,
+            151.283,
+            142.348,
+            140.351,
+            260.357,
+            260.208,
+            129.072,
+            145.341,
+            129.578,
+            149.843,
+            108.141,
+            158.809,
+            136.23,
+            123.375,
+            122.972,
+            128.841,
+            206.652,
+            243.017,
+            121.475,
+            221.182,
+            103.148,
+            306.969,
+            136.508,
+            146.778,
+            121.758,
+            127.427,
+            184.208,
+            154.287,
+            203.881,
+            125.161,
+            109.958,
+            209.4,
+            148.388,
+            117.921,
+            250.396,
+            121.075,
+            123.716,
+            216.63,
+            149.864,
+            131.574,
+            188.881,
+            327.154,
+            136.838,
+            150.942,
+            202.363,
+            120.516,
+            155.585,
+            141.277,
+            149.177,
+            139.919,
+            126.939,
+            117.11,
+            140.288,
+            131.844
+          ],
+          "stall_ranges_s": [
+            [
+              0.0,
+              0.118709269
+            ],
+            [
+              0.118709269,
+              0.236805337
+            ],
+            [
+              0.236805337,
+              0.383500652
+            ],
+            [
+              0.383500652,
+              0.651091544
+            ],
+            [
+              0.651091544,
+              0.85318784
+            ],
+            [
+              0.85318784,
+              1.057562482
+            ],
+            [
+              1.057562482,
+              2.144067126
+            ],
+            [
+              2.2371314,
+              2.3776888720000002
+            ],
+            [
+              2.3776888720000002,
+              2.518795764
+            ],
+            [
+              2.518795764,
+              2.664719454
+            ],
+            [
+              2.664719454,
+              2.833744819
+            ],
+            [
+              2.833744819,
+              2.987605203
+            ],
+            [
+              2.987605203,
+              3.162901319
+            ],
+            [
+              3.162901319,
+              3.3231943250000002
+            ],
+            [
+              3.3231943250000002,
+              3.451559863
+            ],
+            [
+              3.451559863,
+              3.594836817
+            ],
+            [
+              3.666115784,
+              3.890246882
+            ],
+            [
+              3.890246882,
+              4.020198799
+            ],
+            [
+              4.020198799,
+              4.176773231
+            ],
+            [
+              4.176773231,
+              4.311194017
+            ],
+            [
+              4.311194017,
+              4.451057983
+            ],
+            [
+              4.451057983,
+              4.593157902
+            ],
+            [
+              4.593157902,
+              4.732218677
+            ],
+            [
+              4.732218677,
+              4.870575069
+            ],
+            [
+              4.870575069,
+              5.01822794
+            ],
+            [
+              5.01822794,
+              5.15874371
+            ],
+            [
+              5.15874371,
+              5.387942603
+            ],
+            [
+              5.387942603,
+              5.565846635
+            ],
+            [
+              5.628516779,
+              5.762185757
+            ],
+            [
+              5.762185757,
+              5.869246219
+            ],
+            [
+              5.869246219,
+              5.994101754
+            ],
+            [
+              5.994101754,
+              6.250089828
+            ],
+            [
+              6.311717647,
+              6.4563576529999995
+            ],
+            [
+              6.4563576529999995,
+              6.588378249
+            ],
+            [
+              6.588378249,
+              6.71044699
+            ],
+            [
+              6.71044699,
+              7.113990216
+            ],
+            [
+              7.113990216,
+              7.228862755
+            ],
+            [
+              7.228862755,
+              7.365192831
+            ],
+            [
+              7.365192831,
+              7.52204675
+            ],
+            [
+              7.52204675,
+              7.657668548
+            ],
+            [
+              7.657668548,
+              7.809840019
+            ],
+            [
+              7.875162659,
+              8.019992247
+            ],
+            [
+              8.019992247,
+              8.166316841
+            ],
+            [
+              8.166316841,
+              8.288491268
+            ],
+            [
+              8.288491268,
+              8.467681639
+            ],
+            [
+              8.467681639,
+              8.588492542000001
+            ],
+            [
+              8.588492542000001,
+              8.710261354
+            ],
+            [
+              8.710261354,
+              8.847489143
+            ],
+            [
+              8.847489143,
+              8.98940563
+            ],
+            [
+              8.98940563,
+              9.139945464
+            ],
+            [
+              9.139945464,
+              9.270749208
+            ],
+            [
+              9.270749208,
+              9.389476462
+            ],
+            [
+              9.389476462,
+              9.551427743
+            ],
+            [
+              9.551427743,
+              9.699303159
+            ],
+            [
+              9.699303159,
+              9.936642027
+            ],
+            [
+              9.936642027,
+              10.04529913
+            ],
+            [
+              10.04529913,
+              10.209486673
+            ],
+            [
+              10.209486673,
+              10.34705705
+            ],
+            [
+              10.34705705,
+              10.518259678
+            ],
+            [
+              10.518259678,
+              10.70345966
+            ],
+            [
+              10.70345966,
+              10.822475268
+            ],
+            [
+              10.892744599,
+              11.028928509
+            ],
+            [
+              11.028928509,
+              11.247467449
+            ],
+            [
+              11.247467449,
+              11.376902799
+            ],
+            [
+              11.435845622,
+              11.580224815
+            ],
+            [
+              11.580224815,
+              11.724990521
+            ],
+            [
+              11.724990521,
+              11.908979688
+            ],
+            [
+              11.908979688,
+              12.060135379
+            ],
+            [
+              12.129459606,
+              12.284636938
+            ],
+            [
+              12.284636938,
+              12.421600685
+            ],
+            [
+              12.421600685,
+              12.592847038
+            ],
+            [
+              12.592847038,
+              12.717844743
+            ],
+            [
+              12.717844743,
+              12.900622572
+            ],
+            [
+              12.900622572,
+              13.097298976
+            ],
+            [
+              13.097298976,
+              13.227557762
+            ],
+            [
+              13.227557762,
+              13.412887663
+            ],
+            [
+              13.412887663,
+              13.538503206
+            ],
+            [
+              13.663616143,
+              13.802696621
+            ],
+            [
+              13.802696621,
+              13.928293596
+            ],
+            [
+              13.990268738,
+              14.128919384
+            ],
+            [
+              14.185567956,
+              14.307980347
+            ],
+            [
+              14.307980347,
+              14.488693312
+            ],
+            [
+              14.488693312,
+              14.666306393
+            ],
+            [
+              14.666306393,
+              14.814704791
+            ],
+            [
+              14.814704791,
+              14.955801238
+            ],
+            [
+              14.955801238,
+              15.086033232
+            ],
+            [
+              15.142165069,
+              15.286098269
+            ],
+            [
+              15.286098269,
+              15.44537708
+            ],
+            [
+              15.568767635,
+              15.719206463999999
+            ],
+            [
+              15.719206463999999,
+              15.833215797
+            ],
+            [
+              15.833215797,
+              16.010182964
+            ],
+            [
+              16.010182964,
+              16.155699662
+            ],
+            [
+              16.155699662,
+              16.266380462
+            ],
+            [
+              16.266380462,
+              16.405666772
+            ],
+            [
+              16.405666772,
+              16.535220957
+            ],
+            [
+              16.535220957,
+              16.661683092
+            ],
+            [
+              16.661683092,
+              16.807083291
+            ],
+            [
+              16.807083291,
+              16.952119125
+            ],
+            [
+              17.007595342,
+              17.155347642
+            ],
+            [
+              17.224019418,
+              17.339184636
+            ],
+            [
+              17.339184636,
+              17.562506864
+            ],
+            [
+              17.562506864,
+              17.690482889
+            ],
+            [
+              17.690482889,
+              17.868478288
+            ],
+            [
+              17.987055541,
+              18.231983231
+            ],
+            [
+              18.231983231,
+              18.372312331
+            ],
+            [
+              18.372312331,
+              18.500538817
+            ],
+            [
+              18.500538817,
+              18.643368099
+            ],
+            [
+              18.643368099,
+              18.915061518
+            ],
+            [
+              18.915061518,
+              19.024578724
+            ],
+            [
+              19.024578724,
+              19.158430507
+            ],
+            [
+              19.158430507,
+              19.292476629
+            ],
+            [
+              19.292476629,
+              19.404416416
+            ],
+            [
+              19.451400245,
+              19.565670962
+            ],
+            [
+              19.565670962,
+              19.747311058
+            ],
+            [
+              19.804197804,
+              19.940973454
+            ],
+            [
+              20.003678197,
+              20.154961717
+            ],
+            [
+              20.154961717,
+              20.297309902
+            ],
+            [
+              20.297309902,
+              20.43766121
+            ],
+            [
+              20.43766121,
+              20.698018981
+            ],
+            [
+              20.698018981,
+              20.958227349
+            ],
+            [
+              21.019452735,
+              21.148525178
+            ],
+            [
+              21.148525178,
+              21.293867174
+            ],
+            [
+              21.355778686,
+              21.4853575
+            ],
+            [
+              21.4853575,
+              21.635200644
+            ],
+            [
+              21.635200644,
+              21.743342592
+            ],
+            [
+              21.743342592,
+              21.90215172
+            ],
+            [
+              21.90215172,
+              22.038381911
+            ],
+            [
+              22.038381911,
+              22.161757901
+            ],
+            [
+              22.161757901,
+              22.28473073
+            ],
+            [
+              22.28473073,
+              22.413572384
+            ],
+            [
+              22.413572384,
+              22.620224897
+            ],
+            [
+              22.620224897,
+              22.863241941
+            ],
+            [
+              22.930766838,
+              23.052242593
+            ],
+            [
+              23.052242593,
+              23.273424975
+            ],
+            [
+              23.273424975,
+              23.376573517
+            ],
+            [
+              23.441346416000002,
+              23.748315527
+            ],
+            [
+              23.748315527,
+              23.884823934
+            ],
+            [
+              23.941412718,
+              24.088191672
+            ],
+            [
+              24.088191672,
+              24.209950149
+            ],
+            [
+              24.209950149,
+              24.337377714
+            ],
+            [
+              24.337377714,
+              24.521586685
+            ],
+            [
+              24.720958702,
+              24.87524592
+            ],
+            [
+              24.87524592,
+              25.079127763
+            ],
+            [
+              25.079127763,
+              25.204288909
+            ],
+            [
+              25.204288909,
+              25.314247578
+            ],
+            [
+              25.641568517,
+              25.850969441
+            ],
+            [
+              25.850969441,
+              25.999357891
+            ],
+            [
+              25.999357891,
+              26.117279148
+            ],
+            [
+              26.181500568,
+              26.43189716
+            ],
+            [
+              26.43189716,
+              26.552973122
+            ],
+            [
+              26.552973122,
+              26.676689665
+            ],
+            [
+              26.731084359,
+              26.947714454
+            ],
+            [
+              26.947714454,
+              27.097578531
+            ],
+            [
+              27.097578531,
+              27.229152846
+            ],
+            [
+              27.229152846,
+              27.418034606
+            ],
+            [
+              27.418034606,
+              27.745189419
+            ],
+            [
+              27.811793497,
+              27.948631621
+            ],
+            [
+              27.948631621,
+              28.099573911
+            ],
+            [
+              28.099573911,
+              28.301937693
+            ],
+            [
+              28.529984849,
+              28.650501693
+            ],
+            [
+              28.650501693,
+              28.80608734
+            ],
+            [
+              28.972312449,
+              29.113590063
+            ],
+            [
+              29.113590063,
+              29.262768044
+            ],
+            [
+              29.262768044,
+              29.402687475
+            ],
+            [
+              29.461808325,
+              29.588747517
+            ],
+            [
+              29.588747517,
+              29.705857716
+            ],
+            [
+              29.766103912,
+              29.906392578
+            ],
+            [
+              29.906392578,
+              30.038237295
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 3.2060093596566004
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi5o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 489,
+              "unique": 489,
+              "missing": 23,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                22.785754990763962,
+                24.576887022703886
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 1932,
+              "unique": 1932,
+              "missing": 116,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                26.672585983760655,
+                28.599960962310433
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi5o-auto-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi5o-auto-s2.txt",
+      "sha256": "9c9e32ca1f1546c4873de8fec8afce563204a9f26e4128749349f186186fcf38",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 740,
+          "complete": 241,
+          "complete_by_10s_phase": [
+            69,
+            87,
+            85
+          ],
+          "complete_mbps": 5.230538557175584,
+          "encoder_mbps": 5.230538557175584,
+          "fec": "auto",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 9103,
+          "fec_observed_missing": 437,
+          "fec_parity_bytes": 589638,
+          "fec_recovered_chunks": 81,
+          "fec_recovered_frames": 37,
+          "first_complete_after_20s_ms": 113.511957,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            101.985,
+            194.764,
+            248.657
+          ],
+          "mode": "auto",
+          "nack_completed": 147,
+          "nacks": 240,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 735,
+          "scenario": "wifi5o",
+          "seconds": 30.068614595,
+          "seed": "2",
+          "send_error": null,
+          "sent": 241,
+          "stall_ms": [
+            110.283,
+            126.828,
+            120.445,
+            178.305,
+            130.521,
+            164.635,
+            296.556,
+            1000.436,
+            201.97,
+            105.172,
+            111.134,
+            187.508,
+            258.863,
+            151.424,
+            373.26,
+            125.776,
+            120.527,
+            139.304,
+            218.627,
+            123.311,
+            125.562,
+            128.122,
+            134.513,
+            202.416,
+            128.199,
+            136.156,
+            177.0,
+            167.23,
+            118.914,
+            117.182,
+            246.199,
+            239.507,
+            170.671,
+            114.239,
+            159.139,
+            119.609,
+            114.643,
+            183.465,
+            194.318,
+            224.998,
+            122.445,
+            226.599,
+            124.627,
+            121.866,
+            132.064,
+            253.304,
+            131.439,
+            130.788,
+            108.633,
+            127.932,
+            223.76,
+            138.537,
+            117.153,
+            141.502,
+            122.261,
+            122.211,
+            145.382,
+            123.833,
+            140.193,
+            119.375,
+            140.622,
+            211.243,
+            122.349,
+            119.144,
+            129.486,
+            143.695,
+            178.415,
+            141.874,
+            123.054,
+            234.382,
+            111.748,
+            304.019,
+            142.132,
+            124.199,
+            143.481,
+            127.979,
+            176.744,
+            243.963,
+            292.826,
+            133.977,
+            131.07,
+            175.071,
+            199.912,
+            137.539,
+            105.167,
+            129.829,
+            130.314,
+            125.14,
+            114.967,
+            126.425,
+            242.402,
+            141.67,
+            139.587,
+            110.493,
+            160.373,
+            141.555,
+            270.121,
+            133.745,
+            126.212,
+            145.432,
+            135.48,
+            117.114,
+            122.129,
+            120.496,
+            143.414,
+            132.65,
+            217.629,
+            309.668,
+            121.547,
+            177.107,
+            241.945,
+            135.006,
+            133.358,
+            105.937,
+            126.616,
+            256.983,
+            124.086,
+            170.379,
+            116.951,
+            126.635,
+            146.538,
+            160.169,
+            198.703,
+            172.986,
+            255.877,
+            171.22,
+            133.138,
+            112.992,
+            138.152,
+            120.416,
+            119.127,
+            133.149,
+            136.402,
+            280.98,
+            179.199,
+            116.841,
+            127.842,
+            140.136,
+            115.8,
+            140.177,
+            124.256,
+            139.872,
+            118.67,
+            287.439,
+            174.284,
+            127.658,
+            135.709,
+            143.033,
+            117.145,
+            111.379,
+            122.92,
+            213.599,
+            136.17
+          ],
+          "stall_ranges_s": [
+            [
+              0.0,
+              0.110283733
+            ],
+            [
+              0.110283733,
+              0.237112014
+            ],
+            [
+              0.237112014,
+              0.357557558
+            ],
+            [
+              0.357557558,
+              0.535863361
+            ],
+            [
+              0.535863361,
+              0.666384394
+            ],
+            [
+              0.666384394,
+              0.831020011
+            ],
+            [
+              0.831020011,
+              1.127576528
+            ],
+            [
+              1.127576528,
+              2.128012656
+            ],
+            [
+              2.128012656,
+              2.329983548
+            ],
+            [
+              2.329983548,
+              2.435156541
+            ],
+            [
+              2.435156541,
+              2.546291129
+            ],
+            [
+              2.609120743,
+              2.796628969
+            ],
+            [
+              2.8497211890000003,
+              3.108584489
+            ],
+            [
+              3.108584489,
+              3.260008557
+            ],
+            [
+              3.3838590809999998,
+              3.757119218
+            ],
+            [
+              3.757119218,
+              3.882895757
+            ],
+            [
+              3.882895757,
+              4.003423574
+            ],
+            [
+              4.003423574,
+              4.142728485
+            ],
+            [
+              4.142728485,
+              4.361356423
+            ],
+            [
+              4.41291221,
+              4.536223224
+            ],
+            [
+              4.536223224,
+              4.661785807
+            ],
+            [
+              4.661785807,
+              4.789908684
+            ],
+            [
+              4.789908684,
+              4.9244219000000005
+            ],
+            [
+              4.9244219000000005,
+              5.126838701
+            ],
+            [
+              5.179055606,
+              5.307255217
+            ],
+            [
+              5.41264635,
+              5.548803037
+            ],
+            [
+              5.548803037,
+              5.725803977
+            ],
+            [
+              5.725803977,
+              5.893034317
+            ],
+            [
+              6.035079818,
+              6.153994711
+            ],
+            [
+              6.153994711,
+              6.271177356
+            ],
+            [
+              6.271177356,
+              6.517377121
+            ],
+            [
+              6.565168418,
+              6.804675804
+            ],
+            [
+              6.910077198,
+              7.080748935
+            ],
+            [
+              7.149157207,
+              7.263397067
+            ],
+            [
+              7.263397067,
+              7.422536383
+            ],
+            [
+              7.584685323,
+              7.704294958
+            ],
+            [
+              7.704294958,
+              7.818938347
+            ],
+            [
+              7.818938347,
+              8.002403403
+            ],
+            [
+              8.057299261,
+              8.251617784
+            ],
+            [
+              8.251617784,
+              8.476616438
+            ],
+            [
+              8.587004703,
+              8.709450138
+            ],
+            [
+              8.709450138,
+              8.936049997
+            ],
+            [
+              8.936049997,
+              9.060677909
+            ],
+            [
+              9.060677909,
+              9.182544057
+            ],
+            [
+              9.182544057,
+              9.314608241
+            ],
+            [
+              9.314608241,
+              9.567912434
+            ],
+            [
+              9.567912434,
+              9.69935169
+            ],
+            [
+              9.69935169,
+              9.830140010000001
+            ],
+            [
+              9.830140010000001,
+              9.938773685
+            ],
+            [
+              9.938773685,
+              10.066706452
+            ],
+            [
+              10.066706452,
+              10.290466522
+            ],
+            [
+              10.711663099999999,
+              10.850200114
+            ],
+            [
+              10.850200114,
+              10.967353742
+            ],
+            [
+              10.967353742,
+              11.108856089
+            ],
+            [
+              11.157698137,
+              11.279959558
+            ],
+            [
+              11.279959558,
+              11.402171307
+            ],
+            [
+              11.527846659,
+              11.673228984
+            ],
+            [
+              11.673228984,
+              11.797062205
+            ],
+            [
+              11.797062205,
+              11.937256045
+            ],
+            [
+              11.937256045,
+              12.056631307
+            ],
+            [
+              12.056631307,
+              12.197253493
+            ],
+            [
+              12.197253493,
+              12.408496514
+            ],
+            [
+              12.408496514,
+              12.530846049
+            ],
+            [
+              12.530846049,
+              12.649990492
+            ],
+            [
+              12.649990492,
+              12.779476504
+            ],
+            [
+              12.984397765,
+              13.128092948
+            ],
+            [
+              13.128092948,
+              13.306508787
+            ],
+            [
+              13.306508787,
+              13.44838339
+            ],
+            [
+              13.44838339,
+              13.57143786
+            ],
+            [
+              13.57143786,
+              13.805820681
+            ],
+            [
+              13.805820681,
+              13.917569011
+            ],
+            [
+              13.917569011,
+              14.221588583
+            ],
+            [
+              14.221588583,
+              14.36372124
+            ],
+            [
+              14.36372124,
+              14.487920805
+            ],
+            [
+              14.487920805,
+              14.631402692
+            ],
+            [
+              14.687031954,
+              14.815010967
+            ],
+            [
+              14.815010967,
+              14.991755708
+            ],
+            [
+              15.04288385,
+              15.286846968
+            ],
+            [
+              15.463635139,
+              15.75646183
+            ],
+            [
+              15.75646183,
+              15.890439219
+            ],
+            [
+              15.890439219,
+              16.021509868
+            ],
+            [
+              16.021509868,
+              16.1965817
+            ],
+            [
+              16.250578178,
+              16.450490726
+            ],
+            [
+              16.511290995,
+              16.64883098
+            ],
+            [
+              16.64883098,
+              16.753998021
+            ],
+            [
+              16.824425115,
+              16.954254425
+            ],
+            [
+              17.054288464,
+              17.184603041
+            ],
+            [
+              17.240289726,
+              17.365429936
+            ],
+            [
+              17.365429936,
+              17.480397183
+            ],
+            [
+              17.480397183,
+              17.606822834
+            ],
+            [
+              17.606822834,
+              17.849225614
+            ],
+            [
+              17.909824299,
+              18.051495122
+            ],
+            [
+              18.108265854,
+              18.247853266
+            ],
+            [
+              18.247853266,
+              18.35834636
+            ],
+            [
+              18.719633569,
+              18.880006733
+            ],
+            [
+              18.880006733,
+              19.021562552
+            ],
+            [
+              19.021562552,
+              19.291684016
+            ],
+            [
+              19.291684016,
+              19.42542922
+            ],
+            [
+              19.664435101,
+              19.79064775
+            ],
+            [
+              19.832599537,
+              19.978031823
+            ],
+            [
+              19.978031823,
+              20.113511957
+            ],
+            [
+              20.165596417,
+              20.282710476
+            ],
+            [
+              20.282710476,
+              20.404839503
+            ],
+            [
+              20.404839503,
+              20.525336292
+            ],
+            [
+              20.582170591,
+              20.725584963
+            ],
+            [
+              20.773733001,
+              20.906383876
+            ],
+            [
+              21.043295842,
+              21.260925628
+            ],
+            [
+              21.260925628,
+              21.570594054
+            ],
+            [
+              21.570594054,
+              21.692141079
+            ],
+            [
+              21.692141079,
+              21.869248845
+            ],
+            [
+              21.869248845,
+              22.111194678
+            ],
+            [
+              22.173606957,
+              22.308613127
+            ],
+            [
+              22.308613127,
+              22.441972066
+            ],
+            [
+              22.441972066,
+              22.54790931
+            ],
+            [
+              22.54790931,
+              22.674525595
+            ],
+            [
+              22.863367316,
+              23.120350793
+            ],
+            [
+              23.120350793,
+              23.244437151
+            ],
+            [
+              23.244437151,
+              23.414816757
+            ],
+            [
+              23.414816757,
+              23.531767947
+            ],
+            [
+              23.694223696999998,
+              23.820859521
+            ],
+            [
+              23.820859521,
+              23.967397778
+            ],
+            [
+              23.967397778,
+              24.127567648
+            ],
+            [
+              24.127567648,
+              24.326271159
+            ],
+            [
+              24.326271159,
+              24.499257281
+            ],
+            [
+              24.499257281,
+              24.755134997
+            ],
+            [
+              24.755134997,
+              24.92635534
+            ],
+            [
+              24.984143033,
+              25.11728124
+            ],
+            [
+              25.11728124,
+              25.230274053
+            ],
+            [
+              25.230274053,
+              25.368426437
+            ],
+            [
+              25.368426437,
+              25.488842446
+            ],
+            [
+              25.488842446,
+              25.607970319
+            ],
+            [
+              25.820234518,
+              25.953384467
+            ],
+            [
+              26.010016447,
+              26.146419315
+            ],
+            [
+              26.193870372,
+              26.474850493
+            ],
+            [
+              26.474850493,
+              26.654049622
+            ],
+            [
+              26.654049622,
+              26.770890797
+            ],
+            [
+              26.770890797,
+              26.898732967
+            ],
+            [
+              26.955791269,
+              27.095928057
+            ],
+            [
+              27.206963441,
+              27.322764095
+            ],
+            [
+              27.322764095,
+              27.462941887
+            ],
+            [
+              27.882188384,
+              28.006444898
+            ],
+            [
+              28.006444898,
+              28.146317042
+            ],
+            [
+              28.146317042,
+              28.264987932
+            ],
+            [
+              28.264987932,
+              28.552427415
+            ],
+            [
+              28.552427415,
+              28.726711672
+            ],
+            [
+              28.726711672,
+              28.854370595
+            ],
+            [
+              28.905955189,
+              29.041664796
+            ],
+            [
+              29.088520365,
+              29.231553813
+            ],
+            [
+              29.231553813,
+              29.348699804
+            ],
+            [
+              29.348699804,
+              29.460079011
+            ],
+            [
+              29.460079011,
+              29.582999141
+            ],
+            [
+              29.705426541,
+              29.919026523
+            ],
+            [
+              29.919026523,
+              30.055196674
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 3.8125920180926114
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi5o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 489,
+              "unique": 489,
+              "missing": 23,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                22.507941001094878,
+                24.46581597905606
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 1928,
+              "unique": 1928,
+              "missing": 120,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                26.690938975661993,
+                28.3477739430964
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi5o-off-s1.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi5o-off-s1.txt",
+      "sha256": "b76b035fc2b9278f30a8576b907820895efbe722a46d4c38cd6e8de263a270c0",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 590,
+          "complete": 220,
+          "complete_by_10s_phase": [
+            67,
+            71,
+            82
+          ],
+          "complete_mbps": 4.5360356955672705,
+          "encoder_mbps": 4.5360356955672705,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 120.690324,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            110.073,
+            183.181,
+            258.63
+          ],
+          "mode": "auto",
+          "nack_completed": 176,
+          "nacks": 267,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 585,
+          "scenario": "wifi5o",
+          "seconds": 30.055964536,
+          "seed": "1",
+          "send_error": null,
+          "sent": 220,
+          "stall_ms": [
+            109.89,
+            116.858,
+            107.668,
+            129.828,
+            176.527,
+            151.607,
+            504.705,
+            586.223,
+            211.944,
+            143.118,
+            129.895,
+            144.462,
+            143.497,
+            132.467,
+            133.624,
+            166.446,
+            132.403,
+            124.123,
+            134.873,
+            263.134,
+            121.992,
+            186.549,
+            147.121,
+            119.198,
+            130.641,
+            140.793,
+            280.105,
+            133.308,
+            127.985,
+            137.036,
+            197.005,
+            135.192,
+            124.842,
+            131.609,
+            130.92,
+            140.872,
+            129.114,
+            128.759,
+            222.805,
+            128.055,
+            298.501,
+            145.018,
+            138.599,
+            182.135,
+            135.288,
+            126.463,
+            152.362,
+            139.539,
+            139.87,
+            142.385,
+            147.604,
+            146.158,
+            428.976,
+            227.281,
+            119.91,
+            118.706,
+            143.495,
+            151.697,
+            135.962,
+            128.673,
+            168.23,
+            147.008,
+            131.101,
+            388.753,
+            184.342,
+            256.835,
+            148.158,
+            124.629,
+            122.588,
+            128.862,
+            129.773,
+            133.538,
+            125.462,
+            129.623,
+            252.461,
+            128.334,
+            135.088,
+            132.256,
+            247.455,
+            138.499,
+            140.328,
+            143.397,
+            174.393,
+            149.057,
+            120.645,
+            193.645,
+            140.225,
+            119.426,
+            113.431,
+            201.799,
+            119.384,
+            127.245,
+            127.427,
+            136.679,
+            138.447,
+            138.252,
+            145.523,
+            207.945,
+            140.917,
+            138.469,
+            136.138,
+            122.548,
+            150.326,
+            129.443,
+            166.259,
+            130.315,
+            173.483,
+            129.021,
+            112.553,
+            124.533,
+            133.932,
+            243.277,
+            208.809,
+            185.3,
+            213.129,
+            128.058,
+            145.913,
+            117.52,
+            199.56,
+            136.842,
+            139.845,
+            214.417,
+            150.426,
+            140.781,
+            233.907,
+            115.066,
+            126.291,
+            135.969,
+            141.712,
+            120.052,
+            129.877,
+            134.91,
+            147.343,
+            200.19,
+            126.445,
+            184.753,
+            118.925,
+            133.461,
+            129.408,
+            126.026,
+            137.308,
+            130.553,
+            115.61,
+            132.114,
+            122.732,
+            271.688,
+            112.689,
+            116.547,
+            119.73,
+            109.808,
+            128.9,
+            123.554,
+            116.809,
+            118.566,
+            132.945,
+            128.902,
+            139.936,
+            131.268,
+            125.443,
+            119.633,
+            111.183,
+            138.373,
+            128.582,
+            134.055,
+            112.623,
+            136.891,
+            114.565,
+            123.379,
+            132.135,
+            137.913,
+            141.47,
+            144.137,
+            103.482,
+            169.086,
+            100.466,
+            118.686,
+            134.114,
+            133.663
+          ],
+          "stall_ranges_s": [
+            [
+              0.0,
+              0.10989091
+            ],
+            [
+              0.10989091,
+              0.226749231
+            ],
+            [
+              0.28151532,
+              0.389183423
+            ],
+            [
+              0.54104566,
+              0.670873929
+            ],
+            [
+              0.670873929,
+              0.847401029
+            ],
+            [
+              0.847401029,
+              0.999008827
+            ],
+            [
+              0.999008827,
+              1.5037145
+            ],
+            [
+              1.5037145,
+              2.089938128
+            ],
+            [
+              2.089938128,
+              2.30188261
+            ],
+            [
+              2.30188261,
+              2.445001204
+            ],
+            [
+              2.445001204,
+              2.574897151
+            ],
+            [
+              2.574897151,
+              2.7193599649999998
+            ],
+            [
+              2.7193599649999998,
+              2.862857323
+            ],
+            [
+              2.862857323,
+              2.99532487
+            ],
+            [
+              2.99532487,
+              3.128949569
+            ],
+            [
+              3.128949569,
+              3.295395811
+            ],
+            [
+              3.369182584,
+              3.501586448
+            ],
+            [
+              3.501586448,
+              3.625709838
+            ],
+            [
+              3.625709838,
+              3.760583655
+            ],
+            [
+              3.760583655,
+              4.02371835
+            ],
+            [
+              4.02371835,
+              4.145710801
+            ],
+            [
+              4.145710801,
+              4.332259879
+            ],
+            [
+              4.332259879,
+              4.479381753
+            ],
+            [
+              4.542987162,
+              4.662185218
+            ],
+            [
+              4.730979207,
+              4.861620884
+            ],
+            [
+              4.861620884,
+              5.002414245
+            ],
+            [
+              5.002414245,
+              5.282519901
+            ],
+            [
+              5.347331774,
+              5.4806399599999995
+            ],
+            [
+              5.4806399599999995,
+              5.608625241
+            ],
+            [
+              5.665454136,
+              5.802490742
+            ],
+            [
+              5.875666933,
+              6.072672727
+            ],
+            [
+              6.072672727,
+              6.207865652
+            ],
+            [
+              6.207865652,
+              6.332707688
+            ],
+            [
+              6.332707688,
+              6.464317052
+            ],
+            [
+              6.464317052,
+              6.595237228
+            ],
+            [
+              6.6654796229999995,
+              6.806352468
+            ],
+            [
+              6.806352468,
+              6.935466707
+            ],
+            [
+              6.935466707,
+              7.064226212
+            ],
+            [
+              7.13553917,
+              7.358344829
+            ],
+            [
+              7.358344829,
+              7.486399833
+            ],
+            [
+              7.486399833,
+              7.784900892
+            ],
+            [
+              7.784900892,
+              7.929919286
+            ],
+            [
+              7.929919286,
+              8.068518388
+            ],
+            [
+              8.068518388,
+              8.250653548
+            ],
+            [
+              8.250653548,
+              8.385941609
+            ],
+            [
+              8.385941609,
+              8.512405172
+            ],
+            [
+              8.512405172,
+              8.664767666
+            ],
+            [
+              8.803137124,
+              8.942676937
+            ],
+            [
+              8.942676937,
+              9.08254719
+            ],
+            [
+              9.08254719,
+              9.224932599
+            ],
+            [
+              9.271368123,
+              9.418972224000001
+            ],
+            [
+              9.418972224000001,
+              9.565130399
+            ],
+            [
+              9.565130399,
+              9.994106565
+            ],
+            [
+              10.052699034,
+              10.27998102
+            ],
+            [
+              10.27998102,
+              10.399891036
+            ],
+            [
+              10.399891036,
+              10.518597616
+            ],
+            [
+              10.518597616,
+              10.662093452
+            ],
+            [
+              10.725751975,
+              10.877449005999999
+            ],
+            [
+              10.877449005999999,
+              11.01341183
+            ],
+            [
+              11.01341183,
+              11.142085659
+            ],
+            [
+              11.142085659,
+              11.310315846
+            ],
+            [
+              11.310315846,
+              11.457324226
+            ],
+            [
+              11.593846655,
+              11.724947778
+            ],
+            [
+              11.724947778,
+              12.113700834
+            ],
+            [
+              12.113700834,
+              12.298043437
+            ],
+            [
+              12.298043437,
+              12.554878767
+            ],
+            [
+              12.554878767,
+              12.703036785
+            ],
+            [
+              12.703036785,
+              12.827666589
+            ],
+            [
+              12.827666589,
+              12.95025523
+            ],
+            [
+              12.95025523,
+              13.079117627
+            ],
+            [
+              13.143780147,
+              13.273553382
+            ],
+            [
+              13.273553382,
+              13.407092322
+            ],
+            [
+              13.407092322,
+              13.532554793
+            ],
+            [
+              13.532554793,
+              13.662178273
+            ],
+            [
+              13.662178273,
+              13.91464005
+            ],
+            [
+              13.91464005,
+              14.042974549
+            ],
+            [
+              14.042974549,
+              14.178062618
+            ],
+            [
+              14.178062618,
+              14.310318766
+            ],
+            [
+              14.310318766,
+              14.55777379
+            ],
+            [
+              14.621364961,
+              14.759864467
+            ],
+            [
+              14.759864467,
+              14.900192672
+            ],
+            [
+              14.900192672,
+              15.043590022
+            ],
+            [
+              15.043590022,
+              15.217983281
+            ],
+            [
+              15.217983281,
+              15.367041092000001
+            ],
+            [
+              15.487570721,
+              15.608216132
+            ],
+            [
+              15.608216132,
+              15.801861424
+            ],
+            [
+              15.801861424,
+              15.942087008
+            ],
+            [
+              15.942087008,
+              16.06151378
+            ],
+            [
+              16.06151378,
+              16.174945476
+            ],
+            [
+              16.224967608,
+              16.426767001
+            ],
+            [
+              16.426767001,
+              16.54615172
+            ],
+            [
+              16.54615172,
+              16.67339765
+            ],
+            [
+              16.67339765,
+              16.80082553
+            ],
+            [
+              16.80082553,
+              16.937505186
+            ],
+            [
+              16.937505186,
+              17.075952818
+            ],
+            [
+              17.075952818,
+              17.21420554
+            ],
+            [
+              17.21420554,
+              17.359728583
+            ],
+            [
+              17.359728583,
+              17.567674463
+            ],
+            [
+              17.567674463,
+              17.708591964
+            ],
+            [
+              17.708591964,
+              17.847061661
+            ],
+            [
+              17.847061661,
+              17.983200499
+            ],
+            [
+              17.983200499,
+              18.105749424
+            ],
+            [
+              18.105749424,
+              18.256076102
+            ],
+            [
+              18.256076102,
+              18.385520084
+            ],
+            [
+              18.385520084,
+              18.55177996
+            ],
+            [
+              18.55177996,
+              18.68209559
+            ],
+            [
+              18.68209559,
+              18.855579048
+            ],
+            [
+              18.855579048,
+              18.984600255
+            ],
+            [
+              18.984600255,
+              19.097153306
+            ],
+            [
+              19.097153306,
+              19.221687159
+            ],
+            [
+              19.349370721,
+              19.483303216
+            ],
+            [
+              19.483303216,
+              19.726580356
+            ],
+            [
+              19.726580356,
+              19.935389408
+            ],
+            [
+              19.935389408,
+              20.120690324
+            ],
+            [
+              20.181460448,
+              20.394590389
+            ],
+            [
+              20.462699787,
+              20.590758222
+            ],
+            [
+              20.590758222,
+              20.736671832
+            ],
+            [
+              20.736671832,
+              20.854192783
+            ],
+            [
+              20.854192783,
+              21.053753512
+            ],
+            [
+              21.053753512,
+              21.190595879
+            ],
+            [
+              21.255588782,
+              21.395434285
+            ],
+            [
+              21.460683849,
+              21.675101218000002
+            ],
+            [
+              21.675101218000002,
+              21.8255279
+            ],
+            [
+              21.8255279,
+              21.966309182
+            ],
+            [
+              21.966309182,
+              22.200216406
+            ],
+            [
+              22.200216406,
+              22.315282982
+            ],
+            [
+              22.363367137,
+              22.489658357
+            ],
+            [
+              22.489658357,
+              22.62562747
+            ],
+            [
+              22.62562747,
+              22.767339607
+            ],
+            [
+              22.767339607,
+              22.887392369
+            ],
+            [
+              22.887392369,
+              23.017270191
+            ],
+            [
+              23.017270191,
+              23.152180846
+            ],
+            [
+              23.152180846,
+              23.299524569
+            ],
+            [
+              23.299524569,
+              23.499715492
+            ],
+            [
+              23.548289247,
+              23.674735069
+            ],
+            [
+              23.674735069,
+              23.859488869
+            ],
+            [
+              23.859488869,
+              23.978413991
+            ],
+            [
+              23.978413991,
+              24.111875259
+            ],
+            [
+              24.172295685,
+              24.301703751
+            ],
+            [
+              24.301703751,
+              24.42772986
+            ],
+            [
+              24.42772986,
+              24.565038503
+            ],
+            [
+              24.6181581,
+              24.748711136
+            ],
+            [
+              24.748711136,
+              24.864321685
+            ],
+            [
+              24.864321685,
+              24.996435933
+            ],
+            [
+              24.996435933,
+              25.119168246
+            ],
+            [
+              25.119168246,
+              25.390857085
+            ],
+            [
+              25.488593553,
+              25.601282827
+            ],
+            [
+              25.601282827,
+              25.717830341
+            ],
+            [
+              25.717830341,
+              25.837560421
+            ],
+            [
+              25.837560421,
+              25.947369369
+            ],
+            [
+              25.947369369,
+              26.076269522
+            ],
+            [
+              26.076269522,
+              26.199823905
+            ],
+            [
+              26.199823905,
+              26.316633106
+            ],
+            [
+              26.316633106,
+              26.435199702
+            ],
+            [
+              26.435199702,
+              26.568145654
+            ],
+            [
+              26.568145654,
+              26.697047876
+            ],
+            [
+              26.749675878,
+              26.889612478
+            ],
+            [
+              26.953118192,
+              27.084386928
+            ],
+            [
+              27.084386928,
+              27.209830074
+            ],
+            [
+              27.275240214,
+              27.394873827
+            ],
+            [
+              27.394873827,
+              27.506057663
+            ],
+            [
+              27.506057663,
+              27.6444313
+            ],
+            [
+              27.707827012,
+              27.836409692
+            ],
+            [
+              27.836409692,
+              27.970465615
+            ],
+            [
+              27.970465615,
+              28.083088982
+            ],
+            [
+              28.133686477,
+              28.270577566
+            ],
+            [
+              28.270577566,
+              28.38514274
+            ],
+            [
+              28.38514274,
+              28.508522333
+            ],
+            [
+              28.508522333,
+              28.640657848
+            ],
+            [
+              28.640657848,
+              28.778571227
+            ],
+            [
+              28.778571227,
+              28.920041758
+            ],
+            [
+              28.920041758,
+              29.064178979
+            ],
+            [
+              29.064178979,
+              29.167661024
+            ],
+            [
+              29.167661024,
+              29.336747702
+            ],
+            [
+              29.336747702,
+              29.437214478
+            ],
+            [
+              29.536605943,
+              29.655292396
+            ],
+            [
+              29.655292396,
+              29.789406763
+            ],
+            [
+              29.909167598,
+              30.042830908
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 3.0410392549712584
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi5o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 490,
+              "unique": 490,
+              "missing": 22,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                22.7162919472903,
+                24.588753934949636
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 1932,
+              "unique": 1932,
+              "missing": 116,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                26.57738304696977,
+                28.478068998083472
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "file": "stalls2-a-wifi5o-off-s2.txt",
+      "archive": "target/stalls2-backup/pilot-A/stalls2-a-wifi5o-off-s2.txt",
+      "sha256": "65d84a24862412baee3b1a4da41284481933673cdced416f63f0f1dfaa8f80e0",
+      "results": [
+        {
+          "chunks_lost_lower_bound": 735,
+          "complete": 224,
+          "complete_by_10s_phase": [
+            72,
+            80,
+            72
+          ],
+          "complete_mbps": 4.714956680053027,
+          "encoder_mbps": 4.714956680053027,
+          "fec": "off",
+          "fec_failed_media_frames": 0,
+          "fec_observed_media_chunks": 0,
+          "fec_observed_missing": 0,
+          "fec_parity_bytes": 0,
+          "fec_recovered_chunks": 0,
+          "fec_recovered_frames": 0,
+          "first_complete_after_20s_ms": 56.193788000000005,
+          "frames_lost": 0,
+          "keyframe_requests": 0,
+          "latency_ms": [
+            105.181,
+            186.154,
+            297.188
+          ],
+          "mode": "auto",
+          "nack_completed": 178,
+          "nacks": 292,
+          "receive_error": null,
+          "repair_datagrams_enqueued": 795,
+          "scenario": "wifi5o",
+          "seconds": 30.048951372,
+          "seed": "2",
+          "send_error": null,
+          "sent": 224,
+          "stall_ms": [
+            113.057,
+            115.098,
+            118.94,
+            119.91,
+            155.363,
+            244.69,
+            129.997,
+            646.337,
+            484.98,
+            158.235,
+            136.337,
+            143.69,
+            146.954,
+            112.561,
+            192.634,
+            141.6,
+            138.324,
+            130.581,
+            121.572,
+            232.057,
+            132.342,
+            126.443,
+            129.865,
+            103.491,
+            114.422,
+            168.976,
+            124.706,
+            128.199,
+            361.369,
+            261.616,
+            113.717,
+            129.61,
+            238.762,
+            118.7,
+            119.109,
+            183.139,
+            201.684,
+            128.922,
+            134.519,
+            110.882,
+            102.934,
+            245.615,
+            116.28,
+            145.766,
+            270.261,
+            123.2,
+            128.157,
+            135.276,
+            126.033,
+            114.945,
+            182.553,
+            249.409,
+            129.442,
+            111.248,
+            109.471,
+            132.363,
+            121.865,
+            153.502,
+            117.881,
+            142.338,
+            136.23,
+            206.235,
+            136.24,
+            122.337,
+            131.739,
+            128.181,
+            138.17,
+            135.548,
+            111.536,
+            123.335,
+            125.642,
+            140.153,
+            117.875,
+            137.734,
+            115.056,
+            126.32,
+            169.587,
+            131.467,
+            144.921,
+            252.664,
+            135.056,
+            121.38,
+            133.158,
+            127.2,
+            124.35,
+            204.47,
+            134.869,
+            130.488,
+            137.897,
+            107.414,
+            132.344,
+            183.367,
+            135.605,
+            214.796,
+            127.476,
+            131.315,
+            126.372,
+            141.625,
+            127.942,
+            127.412,
+            153.915,
+            139.363,
+            125.705,
+            261.747,
+            143.487,
+            211.874,
+            119.57,
+            115.95,
+            126.823,
+            133.779,
+            123.403,
+            117.452,
+            117.435,
+            127.916,
+            100.052,
+            154.823,
+            128.497,
+            112.02,
+            142.229,
+            116.78,
+            206.824,
+            123.641,
+            210.515,
+            194.602,
+            202.836,
+            135.22,
+            192.685,
+            115.903,
+            165.758,
+            117.457,
+            120.396,
+            103.424,
+            126.357,
+            211.977,
+            177.505,
+            132.283,
+            120.686,
+            126.373,
+            114.378,
+            140.078,
+            182.875,
+            111.379,
+            101.037,
+            128.795,
+            259.806,
+            140.977,
+            117.9,
+            276.208,
+            151.196,
+            298.491,
+            116.21,
+            137.753,
+            118.799,
+            138.208,
+            127.652,
+            138.72,
+            143.524,
+            136.545,
+            124.29,
+            120.446,
+            138.007,
+            142.68,
+            235.699,
+            297.084,
+            221.539,
+            137.572,
+            156.47,
+            128.826,
+            317.511,
+            121.873,
+            115.403,
+            122.16,
+            124.236,
+            324.377,
+            135.836,
+            114.046,
+            128.26,
+            126.454
+          ],
+          "stall_ranges_s": [
+            [
+              0.092610327,
+              0.205667479
+            ],
+            [
+              0.205667479,
+              0.320766214
+            ],
+            [
+              0.320766214,
+              0.439706588
+            ],
+            [
+              0.439706588,
+              0.559617027
+            ],
+            [
+              0.559617027,
+              0.714980712
+            ],
+            [
+              0.714980712,
+              0.959670956
+            ],
+            [
+              0.959670956,
+              1.089668955
+            ],
+            [
+              1.089668955,
+              1.736006319
+            ],
+            [
+              1.736006319,
+              2.220987283
+            ],
+            [
+              2.220987283,
+              2.379222802
+            ],
+            [
+              2.379222802,
+              2.515559865
+            ],
+            [
+              2.515559865,
+              2.659250111
+            ],
+            [
+              2.720697176,
+              2.867651697
+            ],
+            [
+              2.867651697,
+              2.980213176
+            ],
+            [
+              2.980213176,
+              3.172847181
+            ],
+            [
+              3.172847181,
+              3.314447866
+            ],
+            [
+              3.371311013,
+              3.5096351820000002
+            ],
+            [
+              3.5096351820000002,
+              3.640216864
+            ],
+            [
+              3.640216864,
+              3.761788885
+            ],
+            [
+              3.761788885,
+              3.993846801
+            ],
+            [
+              3.993846801,
+              4.12618906
+            ],
+            [
+              4.188258758,
+              4.314702018
+            ],
+            [
+              4.314702018,
+              4.444568014
+            ],
+            [
+              4.444568014,
+              4.548059143
+            ],
+            [
+              4.548059143,
+              4.662481454
+            ],
+            [
+              4.662481454,
+              4.831458097
+            ],
+            [
+              4.831458097,
+              4.956165068
+            ],
+            [
+              4.956165068,
+              5.084364809
+            ],
+            [
+              5.138760076,
+              5.500130052
+            ],
+            [
+              5.60326445,
+              5.864881432
+            ],
+            [
+              5.864881432,
+              5.978598536
+            ],
+            [
+              6.027789351,
+              6.157400175
+            ],
+            [
+              6.157400175,
+              6.396163002
+            ],
+            [
+              6.568917974,
+              6.687618418
+            ],
+            [
+              6.687618418,
+              6.806727641
+            ],
+            [
+              6.864062717,
+              7.047202157
+            ],
+            [
+              7.098191247,
+              7.299875983
+            ],
+            [
+              7.299875983,
+              7.428798479
+            ],
+            [
+              7.533232594,
+              7.667752009
+            ],
+            [
+              7.667752009,
+              7.778634233
+            ],
+            [
+              7.778634233,
+              7.881568622
+            ],
+            [
+              7.998717756,
+              8.244333106
+            ],
+            [
+              8.244333106,
+              8.360613898
+            ],
+            [
+              8.360613898,
+              8.506380388
+            ],
+            [
+              8.62361686,
+              8.893878047
+            ],
+            [
+              8.893878047,
+              9.017079031
+            ],
+            [
+              9.017079031,
+              9.145236303
+            ],
+            [
+              9.259487002,
+              9.394763755
+            ],
+            [
+              9.394763755,
+              9.520797009
+            ],
+            [
+              9.520797009,
+              9.635742119
+            ],
+            [
+              9.635742119,
+              9.818295611
+            ],
+            [
+              9.818295611,
+              10.067705493
+            ],
+            [
+              10.067705493,
+              10.197148364
+            ],
+            [
+              10.197148364,
+              10.308396446
+            ],
+            [
+              10.308396446,
+              10.417868052
+            ],
+            [
+              10.417868052,
+              10.550231244999999
+            ],
+            [
+              10.550231244999999,
+              10.672096888
+            ],
+            [
+              10.672096888,
+              10.825599308
+            ],
+            [
+              10.825599308,
+              10.943481237
+            ],
+            [
+              10.988440214,
+              11.130778435
+            ],
+            [
+              11.130778435,
+              11.267009056
+            ],
+            [
+              11.327968098,
+              11.53420365
+            ],
+            [
+              11.53420365,
+              11.670443704
+            ],
+            [
+              11.670443704,
+              11.792781373
+            ],
+            [
+              11.792781373,
+              11.924521239
+            ],
+            [
+              11.924521239,
+              12.052703071
+            ],
+            [
+              12.052703071,
+              12.190873867
+            ],
+            [
+              12.306167428,
+              12.441715898
+            ],
+            [
+              12.441715898,
+              12.553252264
+            ],
+            [
+              12.553252264,
+              12.676587761
+            ],
+            [
+              12.676587761,
+              12.802229906
+            ],
+            [
+              12.802229906,
+              12.942383475
+            ],
+            [
+              12.988605328,
+              13.106481259
+            ],
+            [
+              13.106481259,
+              13.244216026
+            ],
+            [
+              13.244216026,
+              13.35927204
+            ],
+            [
+              13.35927204,
+              13.485592975
+            ],
+            [
+              13.485592975,
+              13.65518031
+            ],
+            [
+              13.65518031,
+              13.786647878
+            ],
+            [
+              13.832300629,
+              13.977221877
+            ],
+            [
+              13.977221877,
+              14.229886155
+            ],
+            [
+              14.229886155,
+              14.364942594
+            ],
+            [
+              14.364942594,
+              14.48632282
+            ],
+            [
+              14.48632282,
+              14.619481059
+            ],
+            [
+              14.619481059,
+              14.746681848
+            ],
+            [
+              14.746681848,
+              14.871031879
+            ],
+            [
+              14.871031879,
+              15.075502174
+            ],
+            [
+              15.075502174,
+              15.210371692
+            ],
+            [
+              15.210371692,
+              15.340860614
+            ],
+            [
+              15.340860614,
+              15.478757619
+            ],
+            [
+              15.478757619,
+              15.586171746
+            ],
+            [
+              15.586171746,
+              15.718516301
+            ],
+            [
+              15.718516301,
+              15.901883387
+            ],
+            [
+              15.901883387,
+              16.037488713
+            ],
+            [
+              16.097997309,
+              16.312793723
+            ],
+            [
+              16.312793723,
+              16.440270405
+            ],
+            [
+              16.440270405,
+              16.571585762
+            ],
+            [
+              16.571585762,
+              16.697958508
+            ],
+            [
+              16.697958508,
+              16.839583778
+            ],
+            [
+              16.839583778,
+              16.96752623
+            ],
+            [
+              16.96752623,
+              17.094938757
+            ],
+            [
+              17.094938757,
+              17.24885469
+            ],
+            [
+              17.24885469,
+              17.388218561
+            ],
+            [
+              17.388218561,
+              17.51392404
+            ],
+            [
+              17.51392404,
+              17.775671745
+            ],
+            [
+              17.775671745,
+              17.919159586
+            ],
+            [
+              17.968642594,
+              18.180516706
+            ],
+            [
+              18.180516706,
+              18.300087618
+            ],
+            [
+              18.300087618,
+              18.416038547
+            ],
+            [
+              18.479266576,
+              18.606089857
+            ],
+            [
+              18.663268109,
+              18.797047504
+            ],
+            [
+              18.84093675,
+              18.964340088
+            ],
+            [
+              19.010568307,
+              19.128020489
+            ],
+            [
+              19.173219919,
+              19.290655058
+            ],
+            [
+              19.290655058,
+              19.418571127
+            ],
+            [
+              19.418571127,
+              19.518623474
+            ],
+            [
+              19.518623474,
+              19.67344686
+            ],
+            [
+              19.67344686,
+              19.801944496
+            ],
+            [
+              19.801944496,
+              19.913964528
+            ],
+            [
+              19.913964528,
+              20.056193788
+            ],
+            [
+              20.056193788,
+              20.172973962
+            ],
+            [
+              20.172973962,
+              20.379798681
+            ],
+            [
+              20.379798681,
+              20.503440404
+            ],
+            [
+              20.503440404,
+              20.713955641
+            ],
+            [
+              20.713955641,
+              20.908558026
+            ],
+            [
+              20.96209294,
+              21.164929697
+            ],
+            [
+              21.164929697,
+              21.300150311
+            ],
+            [
+              21.300150311,
+              21.492836171
+            ],
+            [
+              21.492836171,
+              21.60873943
+            ],
+            [
+              21.656728664,
+              21.822487213
+            ],
+            [
+              21.822487213,
+              21.939944437
+            ],
+            [
+              21.939944437,
+              22.06034131
+            ],
+            [
+              22.06034131,
+              22.163765715
+            ],
+            [
+              22.269896787,
+              22.396254168
+            ],
+            [
+              22.44115222,
+              22.653129687
+            ],
+            [
+              22.653129687,
+              22.830635101
+            ],
+            [
+              22.830635101,
+              22.962918553
+            ],
+            [
+              22.962918553,
+              23.083604895
+            ],
+            [
+              23.083604895,
+              23.209978013
+            ],
+            [
+              23.209978013,
+              23.324356201
+            ],
+            [
+              23.490596676,
+              23.630674837
+            ],
+            [
+              23.630674837,
+              23.813550162
+            ],
+            [
+              23.813550162,
+              23.924929686
+            ],
+            [
+              23.924929686,
+              24.025967124
+            ],
+            [
+              24.025967124,
+              24.154762971
+            ],
+            [
+              24.154762971,
+              24.414569265
+            ],
+            [
+              24.414569265,
+              24.555546346
+            ],
+            [
+              24.555546346,
+              24.673446857
+            ],
+            [
+              24.673446857,
+              24.949655031
+            ],
+            [
+              24.949655031,
+              25.10085122
+            ],
+            [
+              25.10085122,
+              25.399342427
+            ],
+            [
+              25.399342427,
+              25.515552817
+            ],
+            [
+              25.515552817,
+              25.653306747
+            ],
+            [
+              25.711380102,
+              25.83017994
+            ],
+            [
+              25.83017994,
+              25.968388677
+            ],
+            [
+              25.968388677,
+              26.096041379
+            ],
+            [
+              26.096041379,
+              26.234761766
+            ],
+            [
+              26.234761766,
+              26.378286059
+            ],
+            [
+              26.378286059,
+              26.514831128
+            ],
+            [
+              26.514831128,
+              26.639121417
+            ],
+            [
+              26.639121417,
+              26.759568112
+            ],
+            [
+              26.881490399,
+              27.01949751
+            ],
+            [
+              27.01949751,
+              27.162177623
+            ],
+            [
+              27.162177623,
+              27.397876892
+            ],
+            [
+              27.397876892,
+              27.694961489
+            ],
+            [
+              27.694961489,
+              27.916501262
+            ],
+            [
+              27.916501262,
+              28.054074042
+            ],
+            [
+              28.054074042,
+              28.210545035
+            ],
+            [
+              28.210545035,
+              28.339371069
+            ],
+            [
+              28.339371069,
+              28.656882409
+            ],
+            [
+              28.656882409,
+              28.778756267
+            ],
+            [
+              28.778756267,
+              28.894159912
+            ],
+            [
+              28.894159912,
+              29.01632074
+            ],
+            [
+              29.01632074,
+              29.140557272
+            ],
+            [
+              29.140557272,
+              29.464934514
+            ],
+            [
+              29.527392936,
+              29.66322953
+            ],
+            [
+              29.66322953,
+              29.777275731
+            ],
+            [
+              29.777275731,
+              29.905535769
+            ],
+            [
+              29.905535769,
+              30.031990546
+            ]
+          ],
+          "survived": true,
+          "udp_tx_mbps": 3.273287203348202
+        }
+      ],
+      "order_probe": [
+        {
+          "scenario": "wifi5o",
+          "rows": [
+            {
+              "profile": "paced",
+              "sent": 512,
+              "received": 489,
+              "unique": 489,
+              "missing": 23,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                22.511383052915335,
+                24.41351697780192
+              ]
+            },
+            {
+              "profile": "burst",
+              "sent": 2048,
+              "received": 1928,
+              "unique": 1928,
+              "missing": 120,
+              "reordered": 0,
+              "distance_ge_129": 0,
+              "max_sequence_displacement": 0,
+              "delay_p50_p95_ms": [
+                26.537087047472596,
+                28.30481401178986
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "overlap_note": "After stopping the pilot orchestrator, its last child was allowed to finish. Separate private-netns probes tested replacement configuration during that development child; none of these are final measurements."
+}
