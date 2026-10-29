@@ -1,0 +1,9055 @@
+{
+  "a_revision": null,
+  "source_sha256": {
+    "a": {
+      "Cargo.toml": "b37a6d31d95a17731e2ceee324173fd864559a7c3e19f15c161b577aca86266e",
+      "tools/netem-order-probe.py": "f18ee2957cede68487a9e15706c6c8915713181c7e5aad487216023d4e65a2cc",
+      "crates/viewflowd/Cargo.toml": "4ab98dcbd70f541c92e25e90eecc01c905ce4e7934652a0d466d72673e83bce8",
+      "tools/weak-network-test.py": "40d831be3d0a7be7ed8d4ff1a3639b2ddb40363b8b6380a307c8e26fe66001de",
+      "protocol/viewflow/v1/control.proto": "99a035d9352b6ceb6e791c1d4ce5904578ea0cc2fd2d9cf35db4cac6da7414a3",
+      "crates/viewflow-core/src/atlas_pipeline.rs": "59cb726e0ca70468f4742cc4248d1cd4ac2652d92c18aae219b581b1a4fcf87a",
+      "crates/viewflowd/src/atlas_netem_test.rs": "b945d473b192138fb1c9cc0a046687ed6eeb6b2f5350209f72b457c24a773875",
+      "crates/viewflowd/src/atlas_session.rs": "d9b23d33b6ca7950fff26c77b01c1c5b71612fb55e8de76eda49241bd935445d",
+      "crates/viewflowd/src/atlas_loss.rs": "1b099a1141c537dc246b6a11d08976edb6cbfe2f55e498805e311534f859ad7e",
+      "crates/viewflowd/src/atlas_fec.rs": "7c1493fb546a9f49a1ce7f3ab29bf9259de21d1e10b8e7fd3c941906e2952093",
+      "crates/viewflow-core/src/rate_control.rs": "182d4bcc8187c46c813975ab4886212ccbf3eed89e62934a3b13dd07dc9a71df",
+      "crates/viewflowd/src/quality.rs": "542cf673b9bbd74efba0aca0d6635a5703018412633e5553fa560c5adcdd421f",
+      "crates/viewflowd/src/coded_peer.rs": "c93a5f2cb10ce1d65c9542ec451a21abdac1dcb09c27b2def44415c63abe7cad",
+      "crates/viewflowd/src/gpu_atlas_sender.rs": "fb154bd3443ed36510acdb3bd6bff708ce5421606e61750a8c6d947d074337b2",
+      "crates/viewflowd/src/native_quality.rs": "6bcdc7323950cec62af56a880dfffad94700ec7f59e6160bff5fa9e44abf4dcd",
+      "platform/nvenc-encoder/nvenc_encoder.cpp": "ac2b25b49771e3f07c9b76bf696a5eda535831162e36f2b76a47b2e1ce377703",
+      "platform/nvenc-encoder/gpu_dmabuf_encoder.cu": "d635ada15e834e223bffc2d1d47e55b9a594ff5c08a455301060dc6bd43f16c4",
+      "crates/viewflow-transport/src/reassembly.rs": "d01e7a1c0221c074c63390c661a33ea62e7151c1167df6e3911d8804f53d7083",
+      "crates/viewflow-transport/src/config.rs": "9caeb37094cf6c94021a5d61acbff333aa5261d60165b3ba66a74d24f5b3ba53",
+      "crates/viewflow-transport/src/delay_cubic.rs": "21151e95ab1a8badd5690cf647c9484b36780afc601585489dd274aa53e169a4",
+      "crates/viewflow-transport/src/tls.rs": "9cdb56053ed179d8d1e271adbc574f2ff5354a72276779c59b5763b3ba9608cd",
+      "Cargo.lock": "344278438c4d44f6356f7e002030d54fd389f138def8c09ab464b6ad3d4dca46"
+    }
+  },
+  "executable_sha256": {
+    "a": "fc43075d69c99fb141583fa29144fa908c616407e13f1f1f9369132fcd6409e3"
+  },
+  "rows": [
+    {
+      "chunks_lost_lower_bound": 6026,
+      "complete": 1275,
+      "complete_by_10s_phase": [
+        600,
+        76,
+        599
+      ],
+      "complete_mbps": 63.933153896942656,
+      "encoder_mbps": 65.28031483140593,
+      "fec": "auto",
+      "fec_failed_media_frames": 8,
+      "fec_observed_media_chunks": 155792,
+      "fec_observed_missing": 3109,
+      "fec_parity_bytes": 5373088,
+      "fec_recovered_chunks": 731,
+      "fec_recovered_frames": 29,
+      "first_complete_after_20s_ms": 33.678085,
+      "frames_lost": 8,
+      "keyframe_requests": 8,
+      "latency_ms": [
+        5.525,
+        37.3,
+        78.572
+      ],
+      "mode": "auto",
+      "nack_completed": 73,
+      "nacks": 203,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 4013,
+      "scenario": "burst",
+      "seconds": 30.001707269,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1283,
+      "stall_ms": [
+        1633.945,
+        577.203,
+        371.345,
+        240.244,
+        106.726,
+        529.028,
+        437.302,
+        264.09,
+        432.535,
+        353.585,
+        122.106,
+        177.126,
+        230.513,
+        121.905,
+        104.364,
+        144.635,
+        186.11,
+        856.565,
+        118.259,
+        101.548
+      ],
+      "stall_ranges_s": [
+        [
+          9.990023469,
+          11.623969242
+        ],
+        [
+          11.623969242,
+          12.201172523
+        ],
+        [
+          12.347125379,
+          12.7184704
+        ],
+        [
+          12.763054435,
+          13.00329866
+        ],
+        [
+          13.00329866,
+          13.110024976
+        ],
+        [
+          13.110024976,
+          13.639053974
+        ],
+        [
+          13.717023752,
+          14.154326251
+        ],
+        [
+          14.154326251,
+          14.418417008
+        ],
+        [
+          14.988233479,
+          15.42076869
+        ],
+        [
+          15.532703565,
+          15.886288694
+        ],
+        [
+          16.587576282,
+          16.709682709
+        ],
+        [
+          16.845094289,
+          17.022220671
+        ],
+        [
+          17.267445192,
+          17.497958269
+        ],
+        [
+          17.497958269,
+          17.619863732
+        ],
+        [
+          17.791058405,
+          17.895422515
+        ],
+        [
+          18.208295693,
+          18.352931508
+        ],
+        [
+          18.474682311,
+          18.66079269
+        ],
+        [
+          18.700182728,
+          19.556748308
+        ],
+        [
+          19.556748308,
+          19.675008297
+        ],
+        [
+          19.793620435,
+          19.895169402
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 60.28002899250606,
+      "udp_snmp": {
+        "InDatagrams": 198167,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 203187,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-burst-auto-s1.txt",
+      "fps": 42.49758150655063,
+      "p95_ms": 37.3,
+      "longest_stall_ms": 1633.945,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 6136,
+      "complete": 1268,
+      "complete_by_10s_phase": [
+        600,
+        68,
+        600
+      ],
+      "complete_mbps": 65.21525789728562,
+      "encoder_mbps": 66.66484317299583,
+      "fec": "auto",
+      "fec_failed_media_frames": 12,
+      "fec_observed_media_chunks": 160766,
+      "fec_observed_missing": 3356,
+      "fec_parity_bytes": 6310822,
+      "fec_recovered_chunks": 759,
+      "fec_recovered_frames": 38,
+      "first_complete_after_20s_ms": 20.343705,
+      "frames_lost": 12,
+      "keyframe_requests": 12,
+      "latency_ms": [
+        5.521,
+        36.392,
+        83.919
+      ],
+      "mode": "auto",
+      "nack_completed": 66,
+      "nacks": 203,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 4066,
+      "scenario": "burst",
+      "seconds": 30.002407398,
+      "seed": "2",
+      "send_error": null,
+      "sent": 1280,
+      "stall_ms": [
+        1505.33,
+        159.579,
+        553.994,
+        189.247,
+        294.436,
+        316.663,
+        107.234,
+        110.99,
+        835.092,
+        229.01,
+        330.653,
+        188.668,
+        305.967,
+        121.284,
+        917.747,
+        133.646,
+        108.455,
+        101.261,
+        236.989,
+        358.848,
+        346.229,
+        127.082
+      ],
+      "stall_ranges_s": [
+        [
+          9.991423808,
+          11.496754581
+        ],
+        [
+          11.632169481,
+          11.791749274
+        ],
+        [
+          12.115852301,
+          12.669847052
+        ],
+        [
+          12.769723825,
+          12.958971205
+        ],
+        [
+          12.958971205,
+          13.253408174
+        ],
+        [
+          13.258454215,
+          13.575117321
+        ],
+        [
+          13.627958181,
+          13.735192492
+        ],
+        [
+          13.776804766,
+          13.887795102
+        ],
+        [
+          14.023739154,
+          14.85883168
+        ],
+        [
+          15.178987957,
+          15.40799805
+        ],
+        [
+          15.40799805,
+          15.738651349
+        ],
+        [
+          15.779615837,
+          15.968284048
+        ],
+        [
+          16.203141282,
+          16.509109241
+        ],
+        [
+          16.621405223,
+          16.742690144
+        ],
+        [
+          16.742690144,
+          17.660437393
+        ],
+        [
+          17.883573047,
+          18.017219064
+        ],
+        [
+          18.017219064,
+          18.125674664
+        ],
+        [
+          18.125674664,
+          18.226936654
+        ],
+        [
+          18.226936654,
+          18.463926174
+        ],
+        [
+          18.733068007,
+          19.091916409
+        ],
+        [
+          19.131389441,
+          19.477618472
+        ],
+        [
+          19.544343113,
+          19.671425738
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 62.111589089488305,
+      "udp_snmp": {
+        "InDatagrams": 204481,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 209666,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-burst-auto-s2.txt",
+      "fps": 42.2632751825284,
+      "p95_ms": 36.392,
+      "longest_stall_ms": 1505.33,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 16088,
+      "complete": 1113,
+      "complete_by_10s_phase": [
+        600,
+        0,
+        513
+      ],
+      "complete_mbps": 104.647361041532,
+      "encoder_mbps": 112.5493158957479,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 1469.304862,
+      "frames_lost": 30,
+      "keyframe_requests": 30,
+      "latency_ms": [
+        6.044,
+        8.316,
+        11.254
+      ],
+      "mode": "auto",
+      "nack_completed": 0,
+      "nacks": 168,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 14000,
+      "scenario": "burst",
+      "seconds": 30.00998669,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1143,
+      "stall_ms": [
+        11479.107
+      ],
+      "stall_ranges_s": [
+        [
+          9.990197774,
+          21.469304862
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 114.12065414681462,
+      "udp_snmp": {
+        "InDatagrams": 396783,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 411677,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-burst-off-s1.txt",
+      "fps": 37.0876539032547,
+      "p95_ms": 8.316,
+      "longest_stall_ms": 11479.107,
+      "post_loss_longest_stall_ms": 1469.3048620000013
+    },
+    {
+      "chunks_lost_lower_bound": 16109,
+      "complete": 1197,
+      "complete_by_10s_phase": [
+        600,
+        2,
+        595
+      ],
+      "complete_mbps": 62.77943247645628,
+      "encoder_mbps": 70.80707289707323,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 89.32504,
+      "frames_lost": 37,
+      "keyframe_requests": 37,
+      "latency_ms": [
+        5.488,
+        7.39,
+        8.453
+      ],
+      "mode": "auto",
+      "nack_completed": 2,
+      "nacks": 221,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 13955,
+      "scenario": "burst",
+      "seconds": 30.001626802,
+      "seed": "2",
+      "send_error": null,
+      "sent": 1234,
+      "stall_ms": [
+        9135.29,
+        773.541,
+        190.802
+      ],
+      "stall_ranges_s": [
+        [
+          9.989690552999999,
+          19.124980612
+        ],
+        [
+          19.124980612,
+          19.898522366999998
+        ],
+        [
+          19.898522366999998,
+          20.08932504
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 68.52567740969795,
+      "udp_snmp": {
+        "InDatagrams": 217348,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 232343,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-burst-off-s2.txt",
+      "fps": 39.897836470661126,
+      "p95_ms": 7.39,
+      "longest_stall_ms": 9135.29,
+      "post_loss_longest_stall_ms": 89.32503999999852
+    },
+    {
+      "chunks_lost_lower_bound": 73,
+      "complete": 659,
+      "complete_by_10s_phase": [
+        200,
+        230,
+        229
+      ],
+      "complete_mbps": 13.15065051031691,
+      "encoder_mbps": 13.15065051031691,
+      "fec": "auto",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 21584,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 38.209649,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        31.996,
+        34.804,
+        52.015
+      ],
+      "mode": "auto",
+      "nack_completed": 1,
+      "nacks": 6,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 73,
+      "scenario": "cap20",
+      "seconds": 30.002035237,
+      "seed": "1",
+      "send_error": null,
+      "sent": 659,
+      "stall_ms": [
+        450.953,
+        773.846,
+        104.939
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.450953593
+        ],
+        [
+          1.2250839789999999,
+          1.998930168
+        ],
+        [
+          1.998930168,
+          2.103869809
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 7.981741975446903,
+      "udp_snmp": {
+        "InDatagrams": 35904,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 35904,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-cap20-auto-s1.txt",
+      "fps": 21.96517652200103,
+      "p95_ms": 34.804,
+      "longest_stall_ms": 773.846,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 60,
+      "complete": 659,
+      "complete_by_10s_phase": [
+        200,
+        229,
+        230
+      ],
+      "complete_mbps": 13.186656242548139,
+      "encoder_mbps": 13.186656242548139,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 38.488135,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        31.968,
+        34.616,
+        45.383
+      ],
+      "mode": "auto",
+      "nack_completed": 1,
+      "nacks": 6,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 60,
+      "scenario": "cap20",
+      "seconds": 30.031995429,
+      "seed": "1",
+      "send_error": null,
+      "sent": 659,
+      "stall_ms": [
+        450.867,
+        271.64,
+        130.579,
+        703.356
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.450867726
+        ],
+        [
+          0.450867726,
+          0.722508105
+        ],
+        [
+          1.1597978740000001,
+          1.290377503
+        ],
+        [
+          1.290377503,
+          1.993734109
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 8.021298770157056,
+      "udp_snmp": {
+        "InDatagrams": 35889,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 35889,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-cap20-off-s1.txt",
+      "fps": 21.943263861969204,
+      "p95_ms": 34.616,
+      "longest_stall_ms": 703.356,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 355,
+      "complete": 463,
+      "complete_by_10s_phase": [
+        113,
+        178,
+        172
+      ],
+      "complete_mbps": 9.420116203468416,
+      "encoder_mbps": 9.420116203468416,
+      "fec": "auto",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 15722,
+      "fec_observed_missing": 316,
+      "fec_parity_bytes": 35350,
+      "fec_recovered_chunks": 6,
+      "fec_recovered_frames": 2,
+      "first_complete_after_20s_ms": 43.496127,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        52.487,
+        66.603,
+        137.963
+      ],
+      "mode": "auto",
+      "nack_completed": 218,
+      "nacks": 237,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 355,
+      "scenario": "cap8",
+      "seconds": 30.047323609,
+      "seed": "1",
+      "send_error": null,
+      "sent": 463,
+      "stall_ms": [
+        1130.405,
+        463.495,
+        423.531,
+        360.936,
+        143.976,
+        948.928,
+        140.969,
+        126.424,
+        112.425,
+        169.625,
+        132.605,
+        121.529,
+        104.137,
+        100.048,
+        114.762,
+        142.07,
+        110.001,
+        150.502,
+        136.232
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          1.130405772
+        ],
+        [
+          1.130405772,
+          1.5939015749999998
+        ],
+        [
+          1.5939015749999998,
+          2.017432704
+        ],
+        [
+          2.017432704,
+          2.378368762
+        ],
+        [
+          2.378368762,
+          2.522345048
+        ],
+        [
+          2.693369252,
+          3.642297741
+        ],
+        [
+          3.737677611,
+          3.878647391
+        ],
+        [
+          3.878647391,
+          4.005072077
+        ],
+        [
+          4.128240627,
+          4.240666176
+        ],
+        [
+          5.534340064,
+          5.703965581
+        ],
+        [
+          9.072227444,
+          9.204833404
+        ],
+        [
+          10.598762491,
+          10.720291644
+        ],
+        [
+          12.431420692,
+          12.535558657
+        ],
+        [
+          18.181691066,
+          18.281739596
+        ],
+        [
+          18.652446629,
+          18.767209077
+        ],
+        [
+          19.004817811,
+          19.146887843
+        ],
+        [
+          20.450916892,
+          20.560918352
+        ],
+        [
+          21.005359183,
+          21.155861687
+        ],
+        [
+          22.141439962,
+          22.277672124
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 5.933993533673464,
+      "udp_snmp": {
+        "InDatagrams": 27047,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 27563,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-cap8-auto-s1.txt",
+      "fps": 15.409026308796394,
+      "p95_ms": 66.603,
+      "longest_stall_ms": 1130.405,
+      "post_loss_longest_stall_ms": 150.5025040000021
+    },
+    {
+      "chunks_lost_lower_bound": 1004,
+      "complete": 453,
+      "complete_by_10s_phase": [
+        108,
+        174,
+        171
+      ],
+      "complete_mbps": 9.198434698294625,
+      "encoder_mbps": 9.198434698294625,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 53.15164,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        53.995,
+        74.534,
+        140.565
+      ],
+      "mode": "auto",
+      "nack_completed": 229,
+      "nacks": 252,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 1027,
+      "scenario": "cap8",
+      "seconds": 30.040081499,
+      "seed": "1",
+      "send_error": null,
+      "sent": 453,
+      "stall_ms": [
+        2031.323,
+        524.796,
+        646.594,
+        339.187,
+        125.96,
+        208.202,
+        112.668,
+        141.957,
+        131.404,
+        132.916,
+        157.61,
+        101.331,
+        111.046
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          2.031323315
+        ],
+        [
+          2.031323315,
+          2.556120008
+        ],
+        [
+          2.556120008,
+          3.202714206
+        ],
+        [
+          3.202714206,
+          3.54190177
+        ],
+        [
+          3.54190177,
+          3.66786183
+        ],
+        [
+          3.720037096,
+          3.928239435
+        ],
+        [
+          4.009038259,
+          4.121706342
+        ],
+        [
+          4.121706342,
+          4.263664026
+        ],
+        [
+          13.188165309,
+          13.319569977
+        ],
+        [
+          16.475117994,
+          16.608034818
+        ],
+        [
+          20.339966733,
+          20.497576863
+        ],
+        [
+          22.797844159,
+          22.899176082
+        ],
+        [
+          23.934383404,
+          24.045430313
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 6.040779350283747,
+      "udp_snmp": {
+        "InDatagrams": 27556,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 28076,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-cap8-off-s1.txt",
+      "fps": 15.079852563485218,
+      "p95_ms": 74.534,
+      "longest_stall_ms": 2031.323,
+      "post_loss_longest_stall_ms": 157.61012999999835
+    },
+    {
+      "chunks_lost_lower_bound": 0,
+      "complete": 1800,
+      "complete_by_10s_phase": [
+        600,
+        600,
+        600
+      ],
+      "complete_mbps": 159.14393419194468,
+      "encoder_mbps": 159.14393419194468,
+      "fec": "auto",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 398063,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 10.776002,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        5.769,
+        7.952,
+        8.77
+      ],
+      "mode": "auto",
+      "nack_completed": 0,
+      "nacks": 0,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 0,
+      "scenario": "clean",
+      "seconds": 30.001345689,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1800,
+      "stall_ms": [],
+      "stall_ranges_s": [],
+      "survived": true,
+      "udp_tx_mbps": 152.3216684802088,
+      "udp_snmp": {
+        "InDatagrams": 491291,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 491291,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-clean-auto-s1.txt",
+      "fps": 59.997308742719845,
+      "p95_ms": 7.952,
+      "longest_stall_ms": 0,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 0,
+      "complete": 1800,
+      "complete_by_10s_phase": [
+        600,
+        600,
+        600
+      ],
+      "complete_mbps": 159.14498595519802,
+      "encoder_mbps": 159.14498595519802,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 11.011523,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        5.725,
+        7.913,
+        8.717
+      ],
+      "mode": "auto",
+      "nack_completed": 0,
+      "nacks": 0,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 0,
+      "scenario": "clean",
+      "seconds": 30.001147415,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1800,
+      "stall_ms": [],
+      "stall_ranges_s": [],
+      "survived": true,
+      "udp_tx_mbps": 152.3226572899395,
+      "udp_snmp": {
+        "InDatagrams": 491348,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 491348,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [],
+      "variant": "a",
+      "evidence": "stalls2-a-clean-off-s1.txt",
+      "fps": 59.99770525776739,
+      "p95_ms": 7.913,
+      "longest_stall_ms": 0,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 6890,
+      "complete": 1617,
+      "complete_by_10s_phase": [
+        556,
+        515,
+        546
+      ],
+      "complete_mbps": 43.126395697758156,
+      "encoder_mbps": 43.510892538333,
+      "fec": "auto",
+      "fec_failed_media_frames": 2,
+      "fec_observed_media_chunks": 91011,
+      "fec_observed_missing": 5142,
+      "fec_parity_bytes": 16245614,
+      "fec_recovered_chunks": 283,
+      "fec_recovered_frames": 99,
+      "first_complete_after_20s_ms": 7.7646310000000005,
+      "frames_lost": 2,
+      "keyframe_requests": 2,
+      "latency_ms": [
+        9.289,
+        12.151,
+        51.996
+      ],
+      "mode": "auto",
+      "nack_completed": 59,
+      "nacks": 71,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 6302,
+      "scenario": "reorder",
+      "seconds": 30.007799239,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1619,
+      "stall_ms": [
+        322.513,
+        393.045
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.322513825
+        ],
+        [
+          15.315183562,
+          15.708228758
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 38.55893618803612,
+      "udp_snmp": {
+        "InDatagrams": 128991,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 128991,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 512,
+          "unique": 512,
+          "missing": 0,
+          "reordered": 113,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 19,
+          "delay_p50_p95_ms": [
+            5.007951986044645,
+            5.025392048992217
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2048,
+          "unique": 2048,
+          "missing": 0,
+          "reordered": 1671,
+          "distance_ge_129": 1166,
+          "max_sequence_displacement": 504,
+          "delay_p50_p95_ms": [
+            5.007187952287495,
+            5.149175995029509
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-reorder-auto-s1.txt",
+      "fps": 53.885991009245565,
+      "p95_ms": 12.151,
+      "longest_stall_ms": 393.045,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 7877,
+      "complete": 1596,
+      "complete_by_10s_phase": [
+        554,
+        504,
+        538
+      ],
+      "complete_mbps": 40.144509599723186,
+      "encoder_mbps": 40.67216978328007,
+      "fec": "auto",
+      "fec_failed_media_frames": 2,
+      "fec_observed_media_chunks": 92421,
+      "fec_observed_missing": 6073,
+      "fec_parity_bytes": 19518772,
+      "fec_recovered_chunks": 355,
+      "fec_recovered_frames": 131,
+      "first_complete_after_20s_ms": 41.714296999999995,
+      "frames_lost": 2,
+      "keyframe_requests": 2,
+      "latency_ms": [
+        9.301,
+        12.375,
+        52.751
+      ],
+      "mode": "auto",
+      "nack_completed": 60,
+      "nacks": 73,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 7877,
+      "scenario": "reorder",
+      "seconds": 30.013665032,
+      "seed": "2",
+      "send_error": null,
+      "sent": 1598,
+      "stall_ms": [
+        628.667,
+        100.584
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.628667677
+        ],
+        [
+          12.003292948,
+          12.103877396
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 37.27321294507876,
+      "udp_snmp": {
+        "InDatagrams": 136566,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 136566,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 512,
+          "unique": 512,
+          "missing": 0,
+          "reordered": 118,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 20,
+          "delay_p50_p95_ms": [
+            5.007380968891084,
+            5.094927968457341
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2048,
+          "unique": 2048,
+          "missing": 0,
+          "reordered": 1642,
+          "distance_ge_129": 1137,
+          "max_sequence_displacement": 499,
+          "delay_p50_p95_ms": [
+            5.005605984479189,
+            5.2834199741482735
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-reorder-auto-s2.txt",
+      "fps": 53.1757783762288,
+      "p95_ms": 12.375,
+      "longest_stall_ms": 628.667,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 19515,
+      "complete": 1458,
+      "complete_by_10s_phase": [
+        528,
+        473,
+        457
+      ],
+      "complete_mbps": 53.00961678568841,
+      "encoder_mbps": 53.89148165727693,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 11.228055000000001,
+      "frames_lost": 4,
+      "keyframe_requests": 4,
+      "latency_ms": [
+        9.513,
+        36.982,
+        38.667
+      ],
+      "mode": "auto",
+      "nack_completed": 164,
+      "nacks": 192,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 19254,
+      "scenario": "reorder",
+      "seconds": 30.018023002,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1462,
+      "stall_ms": [
+        922.284,
+        309.802
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.9222845
+        ],
+        [
+          11.767142965,
+          12.076945196
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 50.757783212388254,
+      "udp_snmp": {
+        "InDatagrams": 170749,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 170749,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 512,
+          "unique": 512,
+          "missing": 0,
+          "reordered": 116,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 20,
+          "delay_p50_p95_ms": [
+            5.007226951420307,
+            5.071256076917052
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2048,
+          "unique": 2048,
+          "missing": 0,
+          "reordered": 1691,
+          "distance_ge_129": 1186,
+          "max_sequence_displacement": 509,
+          "delay_p50_p95_ms": [
+            5.1748789846897125,
+            5.355707020498812
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-reorder-off-s1.txt",
+      "fps": 48.57082026697289,
+      "p95_ms": 36.982,
+      "longest_stall_ms": 922.284,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 15699,
+      "complete": 1494,
+      "complete_by_10s_phase": [
+        465,
+        521,
+        508
+      ],
+      "complete_mbps": 57.29808285038587,
+      "encoder_mbps": 57.621177616566804,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 7.600898,
+      "frames_lost": 2,
+      "keyframe_requests": 2,
+      "latency_ms": [
+        9.535,
+        36.964,
+        38.774
+      ],
+      "mode": "auto",
+      "nack_completed": 167,
+      "nacks": 181,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 15666,
+      "scenario": "reorder",
+      "seconds": 30.010687312,
+      "seed": "2",
+      "send_error": null,
+      "sent": 1496,
+      "stall_ms": [
+        311.284,
+        305.466
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.311284741
+        ],
+        [
+          2.805198757,
+          3.110664823
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 53.22076177046937,
+      "udp_snmp": {
+        "InDatagrams": 184437,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 184437,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 512,
+          "unique": 512,
+          "missing": 0,
+          "reordered": 116,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 19,
+          "delay_p50_p95_ms": [
+            5.006627063266933,
+            5.051936954259872
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2048,
+          "unique": 2048,
+          "missing": 0,
+          "reordered": 1662,
+          "distance_ge_129": 1157,
+          "max_sequence_displacement": 504,
+          "delay_p50_p95_ms": [
+            5.190073978155851,
+            5.282582947984338
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-reorder-off-s2.txt",
+      "fps": 49.78226537992726,
+      "p95_ms": 36.964,
+      "longest_stall_ms": 311.284,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 3497,
+      "complete": 1531,
+      "complete_by_10s_phase": [
+        467,
+        514,
+        550
+      ],
+      "complete_mbps": 28.799846147299498,
+      "encoder_mbps": 29.32771998890318,
+      "fec": "auto",
+      "fec_failed_media_frames": 2,
+      "fec_observed_media_chunks": 57473,
+      "fec_observed_missing": 11827,
+      "fec_parity_bytes": 15771826,
+      "fec_recovered_chunks": 10530,
+      "fec_recovered_frames": 1390,
+      "first_complete_after_20s_ms": 2.208589,
+      "frames_lost": 2,
+      "keyframe_requests": 2,
+      "latency_ms": [
+        11.513,
+        14.456,
+        35.108
+      ],
+      "mode": "auto",
+      "nack_completed": 45,
+      "nacks": 68,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 1868,
+      "scenario": "wifi1",
+      "seconds": 30.001516938,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1533,
+      "stall_ms": [
+        584.94
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.584940947
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 22.405726796720145,
+      "udp_snmp": {
+        "InDatagrams": 146505,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 147997,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 11,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 506,
+          "unique": 506,
+          "missing": 6,
+          "reordered": 374,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 21,
+          "delay_p50_p95_ms": [
+            5.164531990885735,
+            7.7182999812066555
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2024,
+          "unique": 2024,
+          "missing": 24,
+          "reordered": 1958,
+          "distance_ge_129": 1383,
+          "max_sequence_displacement": 511,
+          "delay_p50_p95_ms": [
+            5.081353010609746,
+            7.731035933829844
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1-auto-s1.txt",
+      "fps": 51.03075298372101,
+      "p95_ms": 14.456,
+      "longest_stall_ms": 584.94,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 8475,
+      "complete": 1495,
+      "complete_by_10s_phase": [
+        430,
+        541,
+        524
+      ],
+      "complete_mbps": 24.383109276151075,
+      "encoder_mbps": 25.410393349387988,
+      "fec": "auto",
+      "fec_failed_media_frames": 4,
+      "fec_observed_media_chunks": 45080,
+      "fec_observed_missing": 12070,
+      "fec_parity_bytes": 12124308,
+      "fec_recovered_chunks": 8000,
+      "fec_recovered_frames": 1447,
+      "first_complete_after_20s_ms": 14.94909,
+      "frames_lost": 4,
+      "keyframe_requests": 4,
+      "latency_ms": [
+        11.225,
+        14.072,
+        35.432
+      ],
+      "mode": "auto",
+      "nack_completed": 25,
+      "nacks": 65,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 6884,
+      "scenario": "wifi1",
+      "seconds": 30.01384408,
+      "seed": "2",
+      "send_error": null,
+      "sent": 1499,
+      "stall_ms": [
+        1311.155,
+        125.484,
+        116.103,
+        115.335
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          1.31115568
+        ],
+        [
+          1.7409696810000002,
+          1.866454167
+        ],
+        [
+          1.903235523,
+          2.019339059
+        ],
+        [
+          2.112793221,
+          2.228128556
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 19.15800450176791,
+      "udp_snmp": {
+        "InDatagrams": 121448,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 122667,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 503,
+          "unique": 503,
+          "missing": 9,
+          "reordered": 360,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 23,
+          "delay_p50_p95_ms": [
+            4.951664013788104,
+            7.8373110154643655
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2023,
+          "unique": 2023,
+          "missing": 25,
+          "reordered": 1961,
+          "distance_ge_129": 1414,
+          "max_sequence_displacement": 511,
+          "delay_p50_p95_ms": [
+            5.013630026951432,
+            7.648736005648971
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1-auto-s2.txt",
+      "fps": 49.81034738553223,
+      "p95_ms": 14.072,
+      "longest_stall_ms": 1311.155,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 95010,
+      "complete": 399,
+      "complete_by_10s_phase": [
+        0,
+        0,
+        399
+      ],
+      "complete_mbps": 7.435522984480944,
+      "encoder_mbps": 23.250930077401023,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 207.823024,
+      "frames_lost": 61,
+      "keyframe_requests": 61,
+      "latency_ms": [
+        12.328,
+        36.459,
+        53.615
+      ],
+      "mode": "auto",
+      "nack_completed": 104,
+      "nacks": 421,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 93381,
+      "scenario": "wifi1",
+      "seconds": 30.003784867,
+      "seed": "1",
+      "send_error": null,
+      "sent": 460,
+      "stall_ms": [
+        20207.823
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          20.207823024
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 50.9819413377545,
+      "udp_snmp": {
+        "InDatagrams": 213672,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 215832,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 276,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 507,
+          "unique": 507,
+          "missing": 5,
+          "reordered": 372,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 21,
+          "delay_p50_p95_ms": [
+            5.166971008293331,
+            7.695715059526265
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2023,
+          "unique": 2023,
+          "missing": 25,
+          "reordered": 1961,
+          "distance_ge_129": 1388,
+          "max_sequence_displacement": 511,
+          "delay_p50_p95_ms": [
+            5.074650980532169,
+            7.732052938081324
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1-off-s1.txt",
+      "fps": 13.298322253964853,
+      "p95_ms": 36.459,
+      "longest_stall_ms": 20207.823,
+      "post_loss_longest_stall_ms": 207.82302399999963
+    },
+    {
+      "chunks_lost_lower_bound": 104969,
+      "complete": 270,
+      "complete_by_10s_phase": [
+        0,
+        11,
+        259
+      ],
+      "complete_mbps": 11.138937554826677,
+      "encoder_mbps": 26.65335449683995,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 33.771944999999995,
+      "frames_lost": 59,
+      "keyframe_requests": 59,
+      "latency_ms": [
+        14.119,
+        68.835,
+        89.419
+      ],
+      "mode": "auto",
+      "nack_completed": 124,
+      "nacks": 509,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 104969,
+      "scenario": "wifi1",
+      "seconds": 30.02123159,
+      "seed": "2",
+      "send_error": null,
+      "sent": 329,
+      "stall_ms": [
+        19477.451,
+        126.961
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          19.477451973
+        ],
+        [
+          22.806650212,
+          22.933612084
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 59.66819218025292,
+      "udp_snmp": {
+        "InDatagrams": 253089,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 255553,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 81,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 503,
+          "unique": 503,
+          "missing": 9,
+          "reordered": 363,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 23,
+          "delay_p50_p95_ms": [
+            4.9154870212078094,
+            7.739146938547492
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2023,
+          "unique": 2023,
+          "missing": 25,
+          "reordered": 1954,
+          "distance_ge_129": 1385,
+          "max_sequence_displacement": 509,
+          "delay_p50_p95_ms": [
+            5.023802979849279,
+            7.657705107703805
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1-off-s2.txt",
+      "fps": 8.993635027616135,
+      "p95_ms": 68.835,
+      "longest_stall_ms": 19477.451,
+      "post_loss_longest_stall_ms": 126.96187199999898
+    },
+    {
+      "chunks_lost_lower_bound": 148,
+      "complete": 1165,
+      "complete_by_10s_phase": [
+        346,
+        438,
+        381
+      ],
+      "complete_mbps": 21.515336045022934,
+      "encoder_mbps": 21.515336045022934,
+      "fec": "auto",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 33647,
+      "fec_observed_missing": 336,
+      "fec_parity_bytes": 6391280,
+      "fec_recovered_chunks": 207,
+      "fec_recovered_frames": 175,
+      "first_complete_after_20s_ms": 31.055573,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        15.68,
+        38.743,
+        45.374
+      ],
+      "mode": "auto",
+      "nack_completed": 101,
+      "nacks": 116,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 147,
+      "scenario": "wifi1o",
+      "seconds": 30.015495117,
+      "seed": "1",
+      "send_error": null,
+      "sent": 1165,
+      "stall_ms": [
+        189.761,
+        101.863
+      ],
+      "stall_ranges_s": [
+        [
+          9.382123313,
+          9.57188466
+        ],
+        [
+          10.238105703,
+          10.33996944
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 14.042242327073321,
+      "udp_snmp": {
+        "InDatagrams": 61815,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 62434,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 507,
+          "unique": 507,
+          "missing": 5,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            6.81081903167069,
+            7.758417050354183
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2023,
+          "unique": 2023,
+          "missing": 25,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            9.660379961133003,
+            11.462748982012272
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1o-auto-s1.txt",
+      "fps": 38.813286119680704,
+      "p95_ms": 38.743,
+      "longest_stall_ms": 189.761,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 181,
+      "complete": 1115,
+      "complete_by_10s_phase": [
+        328,
+        399,
+        388
+      ],
+      "complete_mbps": 22.0408099246771,
+      "encoder_mbps": 22.0408099246771,
+      "fec": "auto",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 36229,
+      "fec_observed_missing": 387,
+      "fec_parity_bytes": 5028184,
+      "fec_recovered_chunks": 247,
+      "fec_recovered_frames": 205,
+      "first_complete_after_20s_ms": 9.729932,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        16.303,
+        40.186,
+        45.303
+      ],
+      "mode": "auto",
+      "nack_completed": 106,
+      "nacks": 121,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 180,
+      "scenario": "wifi1o",
+      "seconds": 30.017327052,
+      "seed": "2",
+      "send_error": null,
+      "sent": 1115,
+      "stall_ms": [
+        112.375,
+        103.243,
+        102.654,
+        101.927,
+        101.169
+      ],
+      "stall_ranges_s": [
+        [
+          0.175860393,
+          0.288236132
+        ],
+        [
+          3.9561525829999997,
+          4.059395828
+        ],
+        [
+          15.125304715,
+          15.227959443
+        ],
+        [
+          18.925133489,
+          19.027061111
+        ],
+        [
+          25.181292649,
+          25.282461896
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 14.698993792340415,
+      "udp_snmp": {
+        "InDatagrams": 64057,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 64699,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 503,
+          "unique": 503,
+          "missing": 9,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            6.707563064992428,
+            7.786198053508997
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2023,
+          "unique": 2023,
+          "missing": 25,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            9.767278912477195,
+            12.331951991654932
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1o-auto-s2.txt",
+      "fps": 37.145212765562,
+      "p95_ms": 40.186,
+      "longest_stall_ms": 112.375,
+      "post_loss_longest_stall_ms": 101.1692470000014
+    },
+    {
+      "chunks_lost_lower_bound": 343,
+      "complete": 994,
+      "complete_by_10s_phase": [
+        328,
+        338,
+        328
+      ],
+      "complete_mbps": 19.897877405098786,
+      "encoder_mbps": 19.897877405098786,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 8.659557,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        16.088,
+        42.159,
+        46.383
+      ],
+      "mode": "auto",
+      "nack_completed": 254,
+      "nacks": 283,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 343,
+      "scenario": "wifi1o",
+      "seconds": 30.015776851,
+      "seed": "1",
+      "send_error": null,
+      "sent": 994,
+      "stall_ms": [
+        106.949,
+        102.667,
+        108.711
+      ],
+      "stall_ranges_s": [
+        [
+          2.232751433,
+          2.339700738
+        ],
+        [
+          7.668897847,
+          7.771565465
+        ],
+        [
+          26.607929833,
+          26.716640905
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 12.194477384909181,
+      "udp_snmp": {
+        "InDatagrams": 53934,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 54450,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 507,
+          "unique": 507,
+          "missing": 5,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            6.8360730074346066,
+            7.786656962707639
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2023,
+          "unique": 2023,
+          "missing": 25,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            9.681808995082974,
+            11.500707012601197
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1o-off-s1.txt",
+      "fps": 33.115917836618785,
+      "p95_ms": 42.159,
+      "longest_stall_ms": 108.711,
+      "post_loss_longest_stall_ms": 108.71107199999841
+    },
+    {
+      "chunks_lost_lower_bound": 383,
+      "complete": 942,
+      "complete_by_10s_phase": [
+        306,
+        313,
+        323
+      ],
+      "complete_mbps": 19.02275688170665,
+      "encoder_mbps": 19.02275688170665,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 4.665818000000001,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        18.342,
+        44.922,
+        49.089
+      ],
+      "mode": "auto",
+      "nack_completed": 253,
+      "nacks": 287,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 383,
+      "scenario": "wifi1o",
+      "seconds": 30.019226527,
+      "seed": "2",
+      "send_error": null,
+      "sent": 942,
+      "stall_ms": [
+        112.24
+      ],
+      "stall_ranges_s": [
+        [
+          10.000384102,
+          10.112624845
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 11.751571536418753,
+      "udp_snmp": {
+        "InDatagrams": 51969,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 52480,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 504,
+          "unique": 504,
+          "missing": 8,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            6.709545035846531,
+            7.8421320067718625
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 2023,
+          "unique": 2023,
+          "missing": 25,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            9.76869894657284,
+            11.580966995097697
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi1o-off-s2.txt",
+      "fps": 31.379889123816795,
+      "p95_ms": 44.922,
+      "longest_stall_ms": 112.24,
+      "post_loss_longest_stall_ms": 0
+    },
+    {
+      "chunks_lost_lower_bound": 8558,
+      "complete": 453,
+      "complete_by_10s_phase": [
+        112,
+        179,
+        162
+      ],
+      "complete_mbps": 9.29907674975398,
+      "encoder_mbps": 10.479488395136599,
+      "fec": "auto",
+      "fec_failed_media_frames": 5,
+      "fec_observed_media_chunks": 23214,
+      "fec_observed_missing": 6568,
+      "fec_parity_bytes": 4634056,
+      "fec_recovered_chunks": 3224,
+      "fec_recovered_frames": 374,
+      "first_complete_after_20s_ms": 33.925199000000006,
+      "frames_lost": 5,
+      "keyframe_requests": 5,
+      "latency_ms": [
+        28.272,
+        102.519,
+        170.782
+      ],
+      "mode": "auto",
+      "nack_completed": 69,
+      "nacks": 150,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 6815,
+      "scenario": "wifi5",
+      "seconds": 30.152240652,
+      "seed": "1",
+      "send_error": null,
+      "sent": 458,
+      "stall_ms": [
+        2403.526,
+        134.551,
+        136.637,
+        116.051,
+        109.598,
+        116.782,
+        106.712,
+        227.269,
+        104.258,
+        104.202,
+        179.908,
+        109.038,
+        128.054,
+        120.383,
+        212.409,
+        105.642,
+        149.729,
+        117.147,
+        127.311,
+        285.978,
+        290.645,
+        104.16,
+        115.093,
+        193.333,
+        155.352,
+        123.697,
+        197.582,
+        118.114,
+        136.652,
+        201.357,
+        187.464,
+        111.481,
+        202.769,
+        110.097,
+        126.453,
+        111.058,
+        120.942,
+        113.874,
+        129.781,
+        146.838,
+        125.648,
+        198.335,
+        110.274,
+        109.358,
+        164.793,
+        249.698,
+        136.058,
+        106.627,
+        110.757,
+        135.718,
+        163.893,
+        315.825,
+        144.308,
+        153.911,
+        232.688,
+        123.006,
+        103.731,
+        145.359,
+        188.636,
+        107.826,
+        153.097,
+        158.629,
+        108.674,
+        182.927,
+        106.864,
+        118.883,
+        104.376,
+        105.861,
+        129.269,
+        124.298,
+        120.176,
+        114.658,
+        107.523,
+        101.84,
+        115.114,
+        118.074
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          2.403526976
+        ],
+        [
+          2.403526976,
+          2.538078295
+        ],
+        [
+          2.578374476,
+          2.715011866
+        ],
+        [
+          3.662994075,
+          3.779045184
+        ],
+        [
+          3.820442293,
+          3.9300406
+        ],
+        [
+          4.359058586,
+          4.475840904
+        ],
+        [
+          4.570132764,
+          4.676845631
+        ],
+        [
+          4.90532291,
+          5.132592021
+        ],
+        [
+          5.403118656,
+          5.507377581
+        ],
+        [
+          5.507377581,
+          5.611579718
+        ],
+        [
+          5.611579718,
+          5.791488013
+        ],
+        [
+          5.791488013,
+          5.900526612
+        ],
+        [
+          5.900526612,
+          6.028581415
+        ],
+        [
+          6.336994757,
+          6.457378251
+        ],
+        [
+          6.6356583,
+          6.848067326
+        ],
+        [
+          6.848067326,
+          6.953709688
+        ],
+        [
+          6.953709688,
+          7.103439427
+        ],
+        [
+          7.331570207,
+          7.448717652
+        ],
+        [
+          7.448717652,
+          7.576029074
+        ],
+        [
+          7.715867352,
+          8.001845603
+        ],
+        [
+          8.001845603,
+          8.292491504000001
+        ],
+        [
+          8.500199042,
+          8.604359618
+        ],
+        [
+          8.604359618,
+          8.719453438
+        ],
+        [
+          8.719453438,
+          8.912786898
+        ],
+        [
+          9.659357796,
+          9.814710253
+        ],
+        [
+          10.59374772,
+          10.717445289
+        ],
+        [
+          10.717445289,
+          10.915028112
+        ],
+        [
+          10.915028112,
+          11.033142467
+        ],
+        [
+          11.430774843,
+          11.567427827
+        ],
+        [
+          12.052330095,
+          12.253687557
+        ],
+        [
+          12.5535017,
+          12.740965706
+        ],
+        [
+          13.24427497,
+          13.355756045
+        ],
+        [
+          13.397776873,
+          13.600546719
+        ],
+        [
+          13.600546719,
+          13.710644322
+        ],
+        [
+          14.278009934,
+          14.404463838
+        ],
+        [
+          14.685543786,
+          14.796602417999999
+        ],
+        [
+          14.796602417999999,
+          14.917544755
+        ],
+        [
+          15.310192104,
+          15.424067072
+        ],
+        [
+          16.008851564,
+          16.138632911
+        ],
+        [
+          16.276401075,
+          16.423239468
+        ],
+        [
+          16.517862435,
+          16.643511189
+        ],
+        [
+          17.793329569,
+          17.991664973
+        ],
+        [
+          18.63335631,
+          18.743630904
+        ],
+        [
+          18.743630904,
+          18.852989609
+        ],
+        [
+          19.01820914,
+          19.183002281
+        ],
+        [
+          19.356185261,
+          19.605883882
+        ],
+        [
+          20.85059513,
+          20.986653444
+        ],
+        [
+          21.156128356,
+          21.262755783
+        ],
+        [
+          21.262755783,
+          21.373513461
+        ],
+        [
+          21.507134788,
+          21.642853636
+        ],
+        [
+          21.642853636,
+          21.806746668
+        ],
+        [
+          22.051085368,
+          22.36691117
+        ],
+        [
+          22.479605182,
+          22.62391321
+        ],
+        [
+          22.62391321,
+          22.777824451
+        ],
+        [
+          23.020521087,
+          23.253209159
+        ],
+        [
+          23.49749212,
+          23.620498573
+        ],
+        [
+          24.29492064,
+          24.39865253
+        ],
+        [
+          24.437891495,
+          24.583250888
+        ],
+        [
+          24.714070965,
+          24.902707732
+        ],
+        [
+          24.902707732,
+          25.010534715
+        ],
+        [
+          25.010534715,
+          25.163632316
+        ],
+        [
+          25.163632316,
+          25.322261803
+        ],
+        [
+          25.606243462,
+          25.714917857
+        ],
+        [
+          25.808264638,
+          25.991192081
+        ],
+        [
+          26.893239671,
+          27.000103863
+        ],
+        [
+          27.252024709,
+          27.370908554
+        ],
+        [
+          27.65641998,
+          27.760796538
+        ],
+        [
+          27.760796538,
+          27.866657893
+        ],
+        [
+          27.866657893,
+          27.995926961
+        ],
+        [
+          28.700046821,
+          28.824344826
+        ],
+        [
+          28.917751595,
+          29.037928118
+        ],
+        [
+          29.037928118,
+          29.152586822
+        ],
+        [
+          29.709698479,
+          29.817221579
+        ],
+        [
+          29.817221579,
+          29.919062538
+        ],
+        [
+          29.919062538,
+          30.034177429
+        ],
+        [
+          30.034177429,
+          30.152252082
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 10.62749570416237,
+      "udp_snmp": {
+        "InDatagrams": 62019,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 65191,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 239,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 417,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 76,
+          "delay_p50_p95_ms": [
+            15.97026502713561,
+            24.155897088348866
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1932,
+          "unique": 1932,
+          "missing": 116,
+          "reordered": 1893,
+          "distance_ge_129": 1407,
+          "max_sequence_displacement": 511,
+          "delay_p50_p95_ms": [
+            14.990622061304748,
+            24.163626949302852
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5-auto-s1.txt",
+      "fps": 15.023759103950786,
+      "p95_ms": 102.519,
+      "longest_stall_ms": 2403.526,
+      "post_loss_longest_stall_ms": 315.8258020000027
+    },
+    {
+      "chunks_lost_lower_bound": 6569,
+      "complete": 301,
+      "complete_by_10s_phase": [
+        82,
+        106,
+        113
+      ],
+      "complete_mbps": 6.25223408895389,
+      "encoder_mbps": 7.20831996657765,
+      "fec": "auto",
+      "fec_failed_media_frames": 4,
+      "fec_observed_media_chunks": 16007,
+      "fec_observed_missing": 3668,
+      "fec_parity_bytes": 1625638,
+      "fec_recovered_chunks": 1076,
+      "fec_recovered_frames": 130,
+      "first_complete_after_20s_ms": 116.870243,
+      "frames_lost": 4,
+      "keyframe_requests": 4,
+      "latency_ms": [
+        40.083,
+        161.431,
+        254.201
+      ],
+      "mode": "auto",
+      "nack_completed": 147,
+      "nacks": 258,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 4653,
+      "scenario": "wifi5",
+      "seconds": 30.027695913,
+      "seed": "2",
+      "send_error": null,
+      "sent": 305,
+      "stall_ms": [
+        1956.719,
+        155.432,
+        117.851,
+        109.003,
+        162.402,
+        120.619,
+        140.019,
+        106.841,
+        123.109,
+        249.722,
+        112.078,
+        117.001,
+        116.972,
+        172.551,
+        117.303,
+        103.095,
+        121.756,
+        143.993,
+        197.84,
+        223.473,
+        108.352,
+        151.811,
+        152.685,
+        160.003,
+        220.363,
+        195.979,
+        204.749,
+        107.403,
+        121.054,
+        109.369,
+        294.007,
+        130.54,
+        111.95,
+        116.917,
+        114.052,
+        118.496,
+        119.637,
+        103.992,
+        114.67,
+        103.895,
+        176.392,
+        158.942,
+        120.325,
+        131.643,
+        124.646,
+        129.578,
+        107.373,
+        114.303,
+        100.316,
+        101.985,
+        195.57,
+        103.479,
+        106.219,
+        178.449,
+        124.076,
+        132.645,
+        280.184,
+        147.297,
+        193.566,
+        156.888,
+        118.44,
+        122.116,
+        118.868,
+        119.03,
+        111.413,
+        125.419,
+        124.815,
+        110.119,
+        145.165,
+        109.191,
+        145.524,
+        221.765,
+        120.533,
+        109.841,
+        110.699,
+        108.187,
+        119.763,
+        113.546,
+        101.317,
+        141.66,
+        116.841,
+        119.551,
+        120.15,
+        122.089,
+        189.188,
+        126.869,
+        107.48,
+        100.894,
+        111.321,
+        178.86,
+        114.426,
+        113.988,
+        114.534,
+        138.764,
+        118.373,
+        110.22,
+        144.826,
+        243.462,
+        238.979,
+        151.244,
+        109.93,
+        103.925,
+        208.955,
+        117.201,
+        125.867,
+        173.661,
+        220.35,
+        155.791,
+        110.486,
+        119.913,
+        109.544,
+        171.078,
+        146.664,
+        174.617,
+        104.084,
+        349.476,
+        123.779,
+        123.915,
+        105.937,
+        112.598,
+        284.195,
+        118.095,
+        128.277,
+        105.547,
+        108.64,
+        110.974,
+        206.583,
+        131.426,
+        207.223,
+        141.825,
+        182.29,
+        117.173,
+        192.184,
+        229.876,
+        121.316,
+        125.614,
+        116.077
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          1.9567197200000002
+        ],
+        [
+          1.9567197200000002,
+          2.112152179
+        ],
+        [
+          2.205735111,
+          2.323586179
+        ],
+        [
+          2.417759398,
+          2.526762493
+        ],
+        [
+          2.577411163,
+          2.739813537
+        ],
+        [
+          2.739813537,
+          2.860432941
+        ],
+        [
+          2.860432941,
+          3.000452209
+        ],
+        [
+          3.000452209,
+          3.107294029
+        ],
+        [
+          3.107294029,
+          3.230403145
+        ],
+        [
+          3.230403145,
+          3.480125209
+        ],
+        [
+          3.480125209,
+          3.592203656
+        ],
+        [
+          3.592203656,
+          3.709205633
+        ],
+        [
+          3.75518121,
+          3.872153225
+        ],
+        [
+          3.966911728,
+          4.139463007
+        ],
+        [
+          4.229559087,
+          4.346862393
+        ],
+        [
+          4.346862393,
+          4.449958367
+        ],
+        [
+          4.449958367,
+          4.571714889
+        ],
+        [
+          4.704060154,
+          4.848053922
+        ],
+        [
+          4.848053922,
+          5.045894058
+        ],
+        [
+          5.045894058,
+          5.269367077
+        ],
+        [
+          5.269367077,
+          5.377719591
+        ],
+        [
+          5.422113495,
+          5.573924801
+        ],
+        [
+          5.573924801,
+          5.726610527
+        ],
+        [
+          5.726610527,
+          5.886613677
+        ],
+        [
+          5.986600643,
+          6.206964598
+        ],
+        [
+          6.206964598,
+          6.4029442979999995
+        ],
+        [
+          6.445183259,
+          6.649933142
+        ],
+        [
+          6.832270584,
+          6.939673641
+        ],
+        [
+          6.939673641,
+          7.060728163
+        ],
+        [
+          7.254479233,
+          7.363848691
+        ],
+        [
+          7.363848691,
+          7.657855755
+        ],
+        [
+          7.8565752490000005,
+          7.987115421
+        ],
+        [
+          7.987115421,
+          8.099065531
+        ],
+        [
+          8.099065531,
+          8.215982609
+        ],
+        [
+          8.215982609,
+          8.330034828
+        ],
+        [
+          8.372368237,
+          8.49086504
+        ],
+        [
+          8.664027481,
+          8.783664586
+        ],
+        [
+          8.783664586,
+          8.887656655
+        ],
+        [
+          9.066526717,
+          9.181196999
+        ],
+        [
+          9.181196999,
+          9.285092045
+        ],
+        [
+          9.334104648,
+          9.510497134
+        ],
+        [
+          9.713585476,
+          9.872528099
+        ],
+        [
+          9.872528099,
+          9.992853803
+        ],
+        [
+          10.088782628,
+          10.220426353
+        ],
+        [
+          10.220426353,
+          10.345073268
+        ],
+        [
+          10.700468732000001,
+          10.83004676
+        ],
+        [
+          10.83004676,
+          10.937419991
+        ],
+        [
+          10.937419991,
+          11.051723736
+        ],
+        [
+          11.15081332,
+          11.251129864
+        ],
+        [
+          11.251129864,
+          11.353115729
+        ],
+        [
+          11.55186092,
+          11.747431778
+        ],
+        [
+          11.941755529,
+          12.045235312
+        ],
+        [
+          12.045235312,
+          12.151454654
+        ],
+        [
+          12.245228389,
+          12.423677653
+        ],
+        [
+          12.423677653,
+          12.547753873
+        ],
+        [
+          12.547753873,
+          12.680399712
+        ],
+        [
+          12.680399712,
+          12.960584526
+        ],
+        [
+          13.264145869,
+          13.411443749
+        ],
+        [
+          13.411443749,
+          13.605010396
+        ],
+        [
+          13.605010396,
+          13.761898655
+        ],
+        [
+          13.761898655,
+          13.880339622
+        ],
+        [
+          13.880339622,
+          14.002456362
+        ],
+        [
+          14.002456362,
+          14.121324613
+        ],
+        [
+          14.192274036,
+          14.311304677
+        ],
+        [
+          14.407238332,
+          14.51865198
+        ],
+        [
+          14.669888245,
+          14.795308168
+        ],
+        [
+          14.836595919,
+          14.96141165
+        ],
+        [
+          14.96141165,
+          15.071531572
+        ],
+        [
+          15.071531572,
+          15.216696772
+        ],
+        [
+          15.2668893,
+          15.376080664
+        ],
+        [
+          15.376080664,
+          15.521604995
+        ],
+        [
+          15.521604995,
+          15.743370656
+        ],
+        [
+          15.743370656,
+          15.863904202
+        ],
+        [
+          15.863904202,
+          15.97374523
+        ],
+        [
+          16.022628262,
+          16.13332793
+        ],
+        [
+          16.41411725,
+          16.522304308
+        ],
+        [
+          16.522304308,
+          16.642068216
+        ],
+        [
+          16.740485241000002,
+          16.85403212
+        ],
+        [
+          16.952281971,
+          17.053599606
+        ],
+        [
+          17.053599606,
+          17.195259695
+        ],
+        [
+          17.195259695,
+          17.312101392
+        ],
+        [
+          17.312101392,
+          17.431652629
+        ],
+        [
+          17.540755778,
+          17.660905821
+        ],
+        [
+          17.660905821,
+          17.782995118
+        ],
+        [
+          17.782995118,
+          17.97218312
+        ],
+        [
+          18.121990793,
+          18.248860741
+        ],
+        [
+          18.248860741,
+          18.356340799
+        ],
+        [
+          18.356340799,
+          18.457235579
+        ],
+        [
+          18.457235579,
+          18.568557483
+        ],
+        [
+          18.568557483,
+          18.747418287
+        ],
+        [
+          18.893577279,
+          19.00800414
+        ],
+        [
+          19.104694473,
+          19.218682683
+        ],
+        [
+          19.218682683,
+          19.333217067
+        ],
+        [
+          19.604684983,
+          19.743449911
+        ],
+        [
+          19.743449911,
+          19.861823449
+        ],
+        [
+          19.861823449,
+          19.972044049
+        ],
+        [
+          19.972044049,
+          20.116870243
+        ],
+        [
+          20.652915489,
+          20.896377868
+        ],
+        [
+          20.896377868,
+          21.135357164
+        ],
+        [
+          21.404099384,
+          21.555344111
+        ],
+        [
+          21.686799839,
+          21.796730069
+        ],
+        [
+          21.796730069,
+          21.900655157
+        ],
+        [
+          22.091259495,
+          22.30021519
+        ],
+        [
+          22.30021519,
+          22.417417182
+        ],
+        [
+          22.417417182,
+          22.543284668
+        ],
+        [
+          22.543284668,
+          22.716946139
+        ],
+        [
+          23.023581369,
+          23.243931494
+        ],
+        [
+          23.243931494,
+          23.399722778
+        ],
+        [
+          23.491236149,
+          23.601722764
+        ],
+        [
+          23.601722764,
+          23.721636711
+        ],
+        [
+          23.721636711,
+          23.831181481
+        ],
+        [
+          23.867786181,
+          24.038865153
+        ],
+        [
+          24.132046266,
+          24.278710316
+        ],
+        [
+          24.3176725,
+          24.492290242
+        ],
+        [
+          24.730050463,
+          24.834135293
+        ],
+        [
+          24.834135293,
+          25.183611886
+        ],
+        [
+          25.712181332,
+          25.835960949
+        ],
+        [
+          25.835960949,
+          25.959876779
+        ],
+        [
+          26.051712743,
+          26.157650711
+        ],
+        [
+          26.157650711,
+          26.270249411
+        ],
+        [
+          26.270249411,
+          26.554445143
+        ],
+        [
+          26.554445143,
+          26.672540288
+        ],
+        [
+          26.672540288,
+          26.800817484
+        ],
+        [
+          26.800817484,
+          26.906364931
+        ],
+        [
+          26.906364931,
+          27.01500563
+        ],
+        [
+          27.222052791,
+          27.33302696
+        ],
+        [
+          27.33302696,
+          27.539610668999998
+        ],
+        [
+          27.636750443,
+          27.768176638
+        ],
+        [
+          27.768176638,
+          27.975399923
+        ],
+        [
+          27.975399923,
+          28.117225601
+        ],
+        [
+          28.257276307,
+          28.43956708
+        ],
+        [
+          28.536656151,
+          28.653830085
+        ],
+        [
+          28.653830085,
+          28.846014509
+        ],
+        [
+          28.846014509,
+          29.07589066
+        ],
+        [
+          29.07589066,
+          29.197206691
+        ],
+        [
+          29.2732973,
+          29.398911602
+        ],
+        [
+          29.524347437,
+          29.640424792
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 6.924818227893981,
+      "udp_snmp": {
+        "InDatagrams": 42347,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 44437,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 414,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 76,
+          "delay_p50_p95_ms": [
+            14.613072969950736,
+            23.971749003976583
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1928,
+          "unique": 1928,
+          "missing": 120,
+          "reordered": 1893,
+          "distance_ge_129": 1392,
+          "max_sequence_displacement": 511,
+          "delay_p50_p95_ms": [
+            15.171591890975833,
+            24.020313983783126
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5-auto-s2.txt",
+      "fps": 10.024079132547994,
+      "p95_ms": 161.431,
+      "longest_stall_ms": 1956.719,
+      "post_loss_longest_stall_ms": 349.47659300000214
+    },
+    {
+      "chunks_lost_lower_bound": 12115,
+      "complete": 231,
+      "complete_by_10s_phase": [
+        52,
+        91,
+        88
+      ],
+      "complete_mbps": 4.737607512405345,
+      "encoder_mbps": 6.535956547391242,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 78.001577,
+      "frames_lost": 8,
+      "keyframe_requests": 8,
+      "latency_ms": [
+        91.645,
+        162.578,
+        197.472
+      ],
+      "mode": "auto",
+      "nack_completed": 195,
+      "nacks": 341,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 9503,
+      "scenario": "wifi5",
+      "seconds": 30.01588621,
+      "seed": "1",
+      "send_error": null,
+      "sent": 239,
+      "stall_ms": [
+        3824.747,
+        107.974,
+        154.806,
+        101.288,
+        198.067,
+        250.865,
+        118.863,
+        100.708,
+        173.168,
+        174.065,
+        102.714,
+        104.251,
+        105.454,
+        144.555,
+        104.975,
+        169.264,
+        114.795,
+        117.336,
+        122.206,
+        104.709,
+        107.539,
+        115.228,
+        104.933,
+        105.513,
+        214.317,
+        105.706,
+        117.536,
+        109.133,
+        107.779,
+        195.357,
+        120.54,
+        114.142,
+        147.688,
+        123.567,
+        107.024,
+        324.418,
+        169.724,
+        125.001,
+        109.087,
+        109.869,
+        101.771,
+        125.537,
+        116.63,
+        112.01,
+        116.726,
+        159.892,
+        101.358,
+        250.838,
+        117.495,
+        207.49,
+        113.329,
+        103.558,
+        105.202,
+        103.925,
+        112.219,
+        101.187,
+        227.609,
+        109.706,
+        189.676,
+        107.225,
+        101.003,
+        116.644,
+        111.758,
+        106.448,
+        229.948,
+        118.393,
+        101.932,
+        101.813,
+        117.224,
+        147.89,
+        100.01,
+        106.163,
+        124.787,
+        112.977,
+        115.407,
+        104.516,
+        112.684,
+        198.164,
+        119.829,
+        119.086,
+        103.718,
+        203.942,
+        104.271,
+        113.85,
+        162.192,
+        113.022,
+        117.512,
+        118.179,
+        104.945,
+        215.523,
+        172.92,
+        116.908,
+        112.804,
+        123.744,
+        177.076,
+        103.923,
+        124.573,
+        123.11,
+        109.177,
+        185.204,
+        121.167,
+        118.398,
+        328.171,
+        182.83,
+        115.909,
+        129.731,
+        117.472,
+        208.395,
+        175.817,
+        112.896,
+        113.631,
+        163.685,
+        100.438,
+        131.521,
+        183.67,
+        119.136,
+        140.348,
+        101.018,
+        118.817,
+        211.481,
+        175.571,
+        126.164,
+        114.621,
+        140.357,
+        123.915,
+        162.803,
+        124.052,
+        130.38,
+        103.647,
+        108.351,
+        107.253,
+        103.701,
+        100.081,
+        105.788,
+        108.567,
+        102.62,
+        105.068,
+        181.956,
+        111.668,
+        109.867,
+        121.735,
+        219.096,
+        111.791,
+        117.123,
+        114.951,
+        226.186,
+        119.259,
+        109.774,
+        110.146,
+        120.567,
+        121.696,
+        109.846,
+        113.93,
+        119.497,
+        110.032,
+        109.573,
+        158.821,
+        114.68,
+        114.372
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          3.82474712
+        ],
+        [
+          3.912879615,
+          4.020854518
+        ],
+        [
+          4.020854518,
+          4.175660638
+        ],
+        [
+          4.175660638,
+          4.276949548
+        ],
+        [
+          4.276949548,
+          4.475016926
+        ],
+        [
+          4.475016926,
+          4.725882911
+        ],
+        [
+          4.725882911,
+          4.8447463079999995
+        ],
+        [
+          4.8447463079999995,
+          4.945454988
+        ],
+        [
+          4.945454988,
+          5.118623442
+        ],
+        [
+          5.118623442,
+          5.292688898
+        ],
+        [
+          5.292688898,
+          5.395403145
+        ],
+        [
+          5.395403145,
+          5.499654875
+        ],
+        [
+          5.499654875,
+          5.605109596
+        ],
+        [
+          5.605109596,
+          5.749664997
+        ],
+        [
+          5.785642487,
+          5.890617741
+        ],
+        [
+          5.890617741,
+          6.05988265
+        ],
+        [
+          6.05988265,
+          6.17467768
+        ],
+        [
+          6.223483425,
+          6.340819966
+        ],
+        [
+          6.340819966,
+          6.463026903
+        ],
+        [
+          6.463026903,
+          6.567736424
+        ],
+        [
+          6.567736424,
+          6.675276191
+        ],
+        [
+          6.72440961,
+          6.839638187
+        ],
+        [
+          6.936350708,
+          7.041284481
+        ],
+        [
+          7.041284481,
+          7.146797835
+        ],
+        [
+          7.146797835,
+          7.361115509
+        ],
+        [
+          7.361115509,
+          7.466821566
+        ],
+        [
+          7.613567471,
+          7.731104284
+        ],
+        [
+          7.731104284,
+          7.8402379159999995
+        ],
+        [
+          7.8402379159999995,
+          7.948017867
+        ],
+        [
+          7.948017867,
+          8.143375302
+        ],
+        [
+          8.143375302,
+          8.263915948
+        ],
+        [
+          8.336391966,
+          8.450534883
+        ],
+        [
+          8.450534883,
+          8.598223748
+        ],
+        [
+          8.598223748,
+          8.721791258
+        ],
+        [
+          8.721791258,
+          8.828815995
+        ],
+        [
+          8.828815995,
+          9.153234272
+        ],
+        [
+          9.153234272,
+          9.32295874
+        ],
+        [
+          9.418229701,
+          9.543230815
+        ],
+        [
+          9.543230815,
+          9.652318783
+        ],
+        [
+          9.652318783,
+          9.762188404
+        ],
+        [
+          9.762188404,
+          9.863959582
+        ],
+        [
+          9.863959582,
+          9.989497352
+        ],
+        [
+          9.989497352,
+          10.106127812
+        ],
+        [
+          10.106127812,
+          10.218138029
+        ],
+        [
+          10.218138029,
+          10.334864784
+        ],
+        [
+          10.456676819,
+          10.616569233
+        ],
+        [
+          10.616569233,
+          10.717927335
+        ],
+        [
+          10.717927335,
+          10.968765785
+        ],
+        [
+          10.968765785,
+          11.086261046
+        ],
+        [
+          11.086261046,
+          11.293751509
+        ],
+        [
+          11.293751509,
+          11.407080983
+        ],
+        [
+          11.49569862,
+          11.599257583
+        ],
+        [
+          11.599257583,
+          11.704460486
+        ],
+        [
+          11.704460486,
+          11.80838619
+        ],
+        [
+          11.850501146,
+          11.962720479
+        ],
+        [
+          12.058175486,
+          12.159363481
+        ],
+        [
+          12.159363481,
+          12.386973129
+        ],
+        [
+          12.386973129,
+          12.496679234
+        ],
+        [
+          12.496679234,
+          12.68635597
+        ],
+        [
+          13.007666178,
+          13.114891563
+        ],
+        [
+          13.114891563,
+          13.215895352
+        ],
+        [
+          13.215895352,
+          13.332540075
+        ],
+        [
+          13.332540075,
+          13.444299058
+        ],
+        [
+          13.444299058,
+          13.550747801
+        ],
+        [
+          13.550747801,
+          13.780695956
+        ],
+        [
+          13.88049178,
+          13.998884871
+        ],
+        [
+          14.049934972,
+          14.151867289
+        ],
+        [
+          14.23838064,
+          14.340194002
+        ],
+        [
+          14.380074114,
+          14.497298542
+        ],
+        [
+          14.497298542,
+          14.645189407
+        ],
+        [
+          14.739952883,
+          14.839962998
+        ],
+        [
+          14.932073505,
+          15.03823725
+        ],
+        [
+          15.137475557,
+          15.262262721
+        ],
+        [
+          15.262262721,
+          15.375240225
+        ],
+        [
+          15.426807374,
+          15.542214731
+        ],
+        [
+          15.542214731,
+          15.646730759
+        ],
+        [
+          15.690566312,
+          15.803250622
+        ],
+        [
+          15.803250622,
+          16.001415111
+        ],
+        [
+          16.001415111,
+          16.121244309
+        ],
+        [
+          16.121244309,
+          16.240331273
+        ],
+        [
+          16.336499264,
+          16.440217271
+        ],
+        [
+          16.440217271,
+          16.644159725
+        ],
+        [
+          16.644159725,
+          16.748431016
+        ],
+        [
+          16.748431016,
+          16.862281746
+        ],
+        [
+          16.896710362,
+          17.058902433
+        ],
+        [
+          17.15848382,
+          17.271505928
+        ],
+        [
+          17.271505928,
+          17.389018568
+        ],
+        [
+          17.423998891,
+          17.542178076
+        ],
+        [
+          17.734493314,
+          17.839438978
+        ],
+        [
+          17.839438978,
+          18.054962615
+        ],
+        [
+          18.054962615,
+          18.227882814
+        ],
+        [
+          18.227882814,
+          18.344791381
+        ],
+        [
+          18.344791381,
+          18.457596086
+        ],
+        [
+          18.457596086,
+          18.581340656
+        ],
+        [
+          18.581340656,
+          18.758417463
+        ],
+        [
+          18.758417463,
+          18.86234125
+        ],
+        [
+          18.86234125,
+          18.986914856
+        ],
+        [
+          19.038467919,
+          19.16157884
+        ],
+        [
+          19.16157884,
+          19.270756694
+        ],
+        [
+          19.362387249,
+          19.547591645
+        ],
+        [
+          19.547591645,
+          19.668758886
+        ],
+        [
+          19.821363054,
+          19.939761505
+        ],
+        [
+          20.177307922,
+          20.505478975
+        ],
+        [
+          20.505478975,
+          20.688309503
+        ],
+        [
+          20.688309503,
+          20.804219499
+        ],
+        [
+          20.804219499,
+          20.933950861
+        ],
+        [
+          20.933950861,
+          21.051423234
+        ],
+        [
+          21.051423234,
+          21.259819204
+        ],
+        [
+          21.259819204,
+          21.435636882
+        ],
+        [
+          21.435636882,
+          21.548532919
+        ],
+        [
+          21.649363739,
+          21.762995427
+        ],
+        [
+          21.814890295,
+          21.978575438
+        ],
+        [
+          22.174814976,
+          22.275253143
+        ],
+        [
+          22.275253143,
+          22.406774944
+        ],
+        [
+          22.406774944,
+          22.590445024
+        ],
+        [
+          22.590445024,
+          22.709581324
+        ],
+        [
+          22.709581324,
+          22.849930148
+        ],
+        [
+          22.903496648,
+          23.004515481
+        ],
+        [
+          23.004515481,
+          23.123332898
+        ],
+        [
+          23.365341215,
+          23.576822505
+        ],
+        [
+          23.576822505,
+          23.752393746
+        ],
+        [
+          23.886640506,
+          24.012804559
+        ],
+        [
+          24.15551297,
+          24.270134006
+        ],
+        [
+          24.270134006,
+          24.410491959
+        ],
+        [
+          24.410491959,
+          24.534407882
+        ],
+        [
+          24.634128265,
+          24.796931408
+        ],
+        [
+          24.796931408,
+          24.920983619
+        ],
+        [
+          24.920983619,
+          25.051364313
+        ],
+        [
+          25.051364313,
+          25.155012086
+        ],
+        [
+          25.247241494,
+          25.355592968
+        ],
+        [
+          25.393877709,
+          25.501131415
+        ],
+        [
+          25.501131415,
+          25.604833262
+        ],
+        [
+          25.828617259,
+          25.928698635
+        ],
+        [
+          25.928698635,
+          26.034486658
+        ],
+        [
+          26.034486658,
+          26.143054614
+        ],
+        [
+          26.143054614,
+          26.245675072
+        ],
+        [
+          26.245675072,
+          26.350743713
+        ],
+        [
+          26.529809093,
+          26.711765112
+        ],
+        [
+          26.963259558,
+          27.074927671
+        ],
+        [
+          27.074927671,
+          27.184795339
+        ],
+        [
+          27.184795339,
+          27.306530567
+        ],
+        [
+          27.306530567,
+          27.525627119
+        ],
+        [
+          27.525627119,
+          27.637419056
+        ],
+        [
+          27.637419056,
+          27.754542596
+        ],
+        [
+          27.754542596,
+          27.869493942
+        ],
+        [
+          27.869493942,
+          28.095680109
+        ],
+        [
+          28.095680109,
+          28.214939665
+        ],
+        [
+          28.214939665,
+          28.324714482
+        ],
+        [
+          28.324714482,
+          28.434860933
+        ],
+        [
+          28.434860933,
+          28.555428545
+        ],
+        [
+          28.655287703,
+          28.776984096
+        ],
+        [
+          28.776984096,
+          28.886831009
+        ],
+        [
+          28.886831009,
+          29.000761493
+        ],
+        [
+          29.000761493,
+          29.120258981
+        ],
+        [
+          29.295815139,
+          29.405847299
+        ],
+        [
+          29.504403215,
+          29.613976745
+        ],
+        [
+          29.613976745,
+          29.772798023
+        ],
+        [
+          29.772798023,
+          29.88747901
+        ],
+        [
+          29.88747901,
+          30.001851432
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 7.915020410786665,
+      "udp_snmp": {
+        "InDatagrams": 42167,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 44291,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 306,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 418,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 76,
+          "delay_p50_p95_ms": [
+            15.928991953842342,
+            24.113371036946774
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1932,
+          "unique": 1932,
+          "missing": 116,
+          "reordered": 1890,
+          "distance_ge_129": 1404,
+          "max_sequence_displacement": 511,
+          "delay_p50_p95_ms": [
+            14.991686912253499,
+            24.16521403938532
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5-off-s1.txt",
+      "fps": 7.695924697470393,
+      "p95_ms": 162.578,
+      "longest_stall_ms": 3824.747,
+      "post_loss_longest_stall_ms": 328.1710529999984
+    },
+    {
+      "chunks_lost_lower_bound": 10404,
+      "complete": 241,
+      "complete_by_10s_phase": [
+        66,
+        85,
+        90
+      ],
+      "complete_mbps": 4.806000999525767,
+      "encoder_mbps": 6.306550063145248,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 40.156251,
+      "frames_lost": 7,
+      "keyframe_requests": 7,
+      "latency_ms": [
+        92.177,
+        159.302,
+        190.026
+      ],
+      "mode": "auto",
+      "nack_completed": 204,
+      "nacks": 349,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 8633,
+      "scenario": "wifi5",
+      "seconds": 30.098049504,
+      "seed": "2",
+      "send_error": null,
+      "sent": 248,
+      "stall_ms": [
+        2798.607,
+        103.193,
+        100.889,
+        208.293,
+        103.329,
+        105.488,
+        156.552,
+        105.879,
+        107.002,
+        112.236,
+        118.626,
+        101.494,
+        206.953,
+        225.347,
+        156.316,
+        172.65,
+        185.954,
+        172.315,
+        107.266,
+        110.302,
+        119.38,
+        114.826,
+        111.859,
+        116.195,
+        114.435,
+        124.731,
+        104.015,
+        101.301,
+        113.579,
+        113.726,
+        169.259,
+        146.963,
+        107.165,
+        101.736,
+        106.125,
+        129.212,
+        109.495,
+        103.102,
+        108.108,
+        151.844,
+        119.091,
+        184.614,
+        118.801,
+        117.219,
+        109.931,
+        118.992,
+        115.042,
+        110.623,
+        104.701,
+        140.075,
+        108.073,
+        588.598,
+        112.673,
+        207.048,
+        106.363,
+        107.753,
+        169.003,
+        136.24,
+        110.892,
+        102.309,
+        108.294,
+        100.449,
+        102.26,
+        104.651,
+        100.75,
+        108.566,
+        356.299,
+        197.018,
+        181.616,
+        111.434,
+        108.411,
+        111.427,
+        100.682,
+        111.037,
+        115.287,
+        112.947,
+        107.726,
+        107.136,
+        102.487,
+        112.891,
+        101.554,
+        121.282,
+        104.473,
+        110.74,
+        110.411,
+        121.882,
+        196.379,
+        219.93,
+        154.482,
+        212.574,
+        104.662,
+        103.548,
+        120.652,
+        202.574,
+        102.805,
+        110.216,
+        108.336,
+        126.787,
+        116.015,
+        111.392,
+        120.648,
+        107.779,
+        121.024,
+        124.733,
+        103.595,
+        111.37,
+        111.811,
+        101.422,
+        133.193,
+        125.45,
+        118.253,
+        112.252,
+        158.155,
+        114.081,
+        133.521,
+        104.875,
+        186.81,
+        107.257,
+        113.641,
+        112.749,
+        130.538,
+        109.342,
+        194.107,
+        104.118,
+        157.66,
+        123.922,
+        115.899,
+        104.016,
+        109.961,
+        115.114,
+        123.182,
+        114.849,
+        101.959,
+        121.252,
+        108.029,
+        101.809,
+        278.79,
+        113.383,
+        110.349,
+        109.606,
+        125.597,
+        109.643,
+        103.423,
+        122.978,
+        169.72,
+        118.004,
+        168.02,
+        130.494,
+        233.674,
+        102.093,
+        109.958,
+        109.428,
+        155.597,
+        121.1,
+        207.92,
+        108.739,
+        257.583,
+        114.839,
+        114.258,
+        109.637,
+        104.076,
+        212.719,
+        128.417,
+        111.232,
+        107.228,
+        199.579
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          2.798607916
+        ],
+        [
+          2.798607916,
+          2.901801405
+        ],
+        [
+          3.159838702,
+          3.26072792
+        ],
+        [
+          3.299976436,
+          3.508269514
+        ],
+        [
+          3.508269514,
+          3.611598801
+        ],
+        [
+          3.611598801,
+          3.717087001
+        ],
+        [
+          3.717087001,
+          3.873639841
+        ],
+        [
+          3.873639841,
+          3.979518871
+        ],
+        [
+          3.979518871,
+          4.086520878
+        ],
+        [
+          4.139437866,
+          4.251674271
+        ],
+        [
+          4.251674271,
+          4.370300788
+        ],
+        [
+          4.501270614,
+          4.602765231
+        ],
+        [
+          4.602765231,
+          4.809718413
+        ],
+        [
+          4.809718413,
+          5.035066313
+        ],
+        [
+          5.035066313,
+          5.191383095
+        ],
+        [
+          5.191383095,
+          5.364033619
+        ],
+        [
+          5.364033619,
+          5.549988289
+        ],
+        [
+          5.549988289,
+          5.722303452
+        ],
+        [
+          5.722303452,
+          5.829569506
+        ],
+        [
+          5.829569506,
+          5.939871849
+        ],
+        [
+          5.939871849,
+          6.0592525760000004
+        ],
+        [
+          6.0592525760000004,
+          6.174078858
+        ],
+        [
+          6.174078858,
+          6.285938027
+        ],
+        [
+          6.285938027,
+          6.402133571
+        ],
+        [
+          6.402133571,
+          6.516569446
+        ],
+        [
+          6.516569446,
+          6.641301435
+        ],
+        [
+          6.641301435,
+          6.745316901
+        ],
+        [
+          6.745316901,
+          6.8466188
+        ],
+        [
+          7.042068451,
+          7.155647727
+        ],
+        [
+          7.245647402,
+          7.359374359
+        ],
+        [
+          7.446189317,
+          7.615449123
+        ],
+        [
+          7.615449123,
+          7.7624127739999995
+        ],
+        [
+          7.7624127739999995,
+          7.869578116
+        ],
+        [
+          7.869578116,
+          7.971314287
+        ],
+        [
+          7.971314287,
+          8.077439664
+        ],
+        [
+          8.077439664,
+          8.20665252
+        ],
+        [
+          8.20665252,
+          8.316147965
+        ],
+        [
+          8.316147965,
+          8.419250921
+        ],
+        [
+          8.512986124,
+          8.621094422
+        ],
+        [
+          8.621094422,
+          8.772938627
+        ],
+        [
+          8.820923444,
+          8.940014945
+        ],
+        [
+          8.940014945,
+          9.124629888
+        ],
+        [
+          9.22237302,
+          9.341174226
+        ],
+        [
+          9.39239215,
+          9.50961156
+        ],
+        [
+          9.608235384,
+          9.718166913
+        ],
+        [
+          9.86851376,
+          9.987506
+        ],
+        [
+          10.115542245,
+          10.230584568
+        ],
+        [
+          10.230584568,
+          10.341208297
+        ],
+        [
+          10.441108252,
+          10.545810215
+        ],
+        [
+          10.545810215,
+          10.68588605
+        ],
+        [
+          10.68588605,
+          10.793959494
+        ],
+        [
+          10.793959494,
+          11.382557949
+        ],
+        [
+          11.473865584,
+          11.586538661
+        ],
+        [
+          11.586538661,
+          11.793587162
+        ],
+        [
+          11.793587162,
+          11.899950996
+        ],
+        [
+          12.094648012,
+          12.202401179
+        ],
+        [
+          12.244931136,
+          12.413934669
+        ],
+        [
+          12.413934669,
+          12.550174943
+        ],
+        [
+          12.550174943,
+          12.661067587
+        ],
+        [
+          12.661067587,
+          12.763377498
+        ],
+        [
+          12.911206268,
+          13.019501187
+        ],
+        [
+          13.019501187,
+          13.119950781
+        ],
+        [
+          13.119950781,
+          13.222211073
+        ],
+        [
+          13.222211073,
+          13.326862439
+        ],
+        [
+          13.326862439,
+          13.427613279
+        ],
+        [
+          13.427613279,
+          13.536179307
+        ],
+        [
+          13.536179307,
+          13.89247859
+        ],
+        [
+          13.946101006,
+          14.143119669
+        ],
+        [
+          14.143119669,
+          14.324736098
+        ],
+        [
+          14.324736098,
+          14.436170639
+        ],
+        [
+          14.436170639,
+          14.544581704
+        ],
+        [
+          14.544581704,
+          14.6560096
+        ],
+        [
+          14.6560096,
+          14.756691778
+        ],
+        [
+          14.756691778,
+          14.867728873
+        ],
+        [
+          14.867728873,
+          14.983016387
+        ],
+        [
+          14.983016387,
+          15.095963388
+        ],
+        [
+          15.194272229,
+          15.301999128
+        ],
+        [
+          15.301999128,
+          15.409135133
+        ],
+        [
+          15.409135133,
+          15.511622924
+        ],
+        [
+          15.511622924,
+          15.624514586
+        ],
+        [
+          15.719375583,
+          15.82092985
+        ],
+        [
+          15.82092985,
+          15.94221249
+        ],
+        [
+          15.94221249,
+          16.046685647
+        ],
+        [
+          16.092316881,
+          16.203057573
+        ],
+        [
+          16.631937824,
+          16.742349136
+        ],
+        [
+          16.742349136,
+          16.864231997
+        ],
+        [
+          16.864231997,
+          17.060611099
+        ],
+        [
+          17.098599991,
+          17.318530355
+        ],
+        [
+          17.360890313,
+          17.515372338
+        ],
+        [
+          17.70842215,
+          17.920996355
+        ],
+        [
+          18.020744424,
+          18.125407183
+        ],
+        [
+          18.125407183,
+          18.228955773
+        ],
+        [
+          18.280997946,
+          18.401650276
+        ],
+        [
+          18.401650276,
+          18.604225026
+        ],
+        [
+          18.604225026,
+          18.707030162
+        ],
+        [
+          18.802272383000002,
+          18.912489036
+        ],
+        [
+          18.912489036,
+          19.020825588
+        ],
+        [
+          19.020825588,
+          19.147613446
+        ],
+        [
+          19.247268911,
+          19.363284548
+        ],
+        [
+          19.363284548,
+          19.474676954
+        ],
+        [
+          19.474676954,
+          19.595324978
+        ],
+        [
+          19.595324978,
+          19.703104195
+        ],
+        [
+          19.794398581,
+          19.915423077
+        ],
+        [
+          19.915423077,
+          20.040156251
+        ],
+        [
+          20.086321516,
+          20.189916727
+        ],
+        [
+          20.330864117,
+          20.442234759
+        ],
+        [
+          20.442234759,
+          20.554045803
+        ],
+        [
+          20.554045803,
+          20.655468588
+        ],
+        [
+          20.655468588,
+          20.788661638
+        ],
+        [
+          20.882208383,
+          21.007658822
+        ],
+        [
+          21.056111369,
+          21.174364569
+        ],
+        [
+          21.174364569,
+          21.286617322
+        ],
+        [
+          21.286617322,
+          21.44477255
+        ],
+        [
+          21.44477255,
+          21.558854333
+        ],
+        [
+          21.558854333,
+          21.692375465
+        ],
+        [
+          21.692375465,
+          21.797251453
+        ],
+        [
+          21.797251453,
+          21.984061684
+        ],
+        [
+          22.033100189,
+          22.140357254
+        ],
+        [
+          22.140357254,
+          22.253998629
+        ],
+        [
+          22.253998629,
+          22.366748066
+        ],
+        [
+          22.366748066,
+          22.497286367
+        ],
+        [
+          22.676551711,
+          22.785894419999998
+        ],
+        [
+          22.785894419999998,
+          22.980002382
+        ],
+        [
+          23.079494119,
+          23.183612749
+        ],
+        [
+          23.183612749,
+          23.341272848
+        ],
+        [
+          23.341272848,
+          23.4651952
+        ],
+        [
+          23.4651952,
+          23.581095015
+        ],
+        [
+          23.581095015,
+          23.685111767
+        ],
+        [
+          23.685111767,
+          23.795073147
+        ],
+        [
+          23.795073147,
+          23.910188124
+        ],
+        [
+          23.910188124,
+          24.033370294
+        ],
+        [
+          24.033370294,
+          24.14821976
+        ],
+        [
+          24.194162449,
+          24.296121946
+        ],
+        [
+          24.296121946,
+          24.417374747
+        ],
+        [
+          24.417374747,
+          24.52540381
+        ],
+        [
+          24.52540381,
+          24.62721323
+        ],
+        [
+          24.62721323,
+          24.906003991
+        ],
+        [
+          24.906003991,
+          25.019387077
+        ],
+        [
+          25.118373607,
+          25.22872317
+        ],
+        [
+          25.320333507,
+          25.429939846
+        ],
+        [
+          25.480056027,
+          25.605653404999998
+        ],
+        [
+          25.605653404999998,
+          25.715296614
+        ],
+        [
+          25.715296614,
+          25.818720066
+        ],
+        [
+          25.818720066,
+          25.941698797
+        ],
+        [
+          25.993548615999998,
+          26.163268735
+        ],
+        [
+          26.163268735,
+          26.281273409
+        ],
+        [
+          26.328253398,
+          26.496274196
+        ],
+        [
+          26.605909073,
+          26.736403579
+        ],
+        [
+          26.815426331,
+          27.049100396
+        ],
+        [
+          27.049100396,
+          27.151193991
+        ],
+        [
+          27.151193991,
+          27.261152512
+        ],
+        [
+          27.261152512,
+          27.370581311
+        ],
+        [
+          27.45704104,
+          27.612638632
+        ],
+        [
+          27.612638632,
+          27.733738983
+        ],
+        [
+          27.830440992,
+          28.038361124
+        ],
+        [
+          28.124083957,
+          28.232823646
+        ],
+        [
+          28.232823646,
+          28.490407504
+        ],
+        [
+          28.490407504,
+          28.605246854
+        ],
+        [
+          28.703440621,
+          28.817699341
+        ],
+        [
+          28.817699341,
+          28.927337065
+        ],
+        [
+          29.067358653,
+          29.171434983
+        ],
+        [
+          29.318912357,
+          29.531632023
+        ],
+        [
+          29.531632023,
+          29.660049836
+        ],
+        [
+          29.660049836,
+          29.771282704
+        ],
+        [
+          29.771282704,
+          29.878510827
+        ],
+        [
+          29.878510827,
+          30.07809033
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 7.300777678992019,
+      "udp_snmp": {
+        "InDatagrams": 40242,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 42234,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 223,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 414,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 74,
+          "delay_p50_p95_ms": [
+            14.66581306885928,
+            23.970009060576558
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1928,
+          "unique": 1928,
+          "missing": 120,
+          "reordered": 1896,
+          "distance_ge_129": 1398,
+          "max_sequence_displacement": 511,
+          "delay_p50_p95_ms": [
+            15.169685008004308,
+            24.019218049943447
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5-off-s2.txt",
+      "fps": 8.007163386716185,
+      "p95_ms": 159.302,
+      "longest_stall_ms": 2798.607,
+      "post_loss_longest_stall_ms": 278.79076099999975
+    },
+    {
+      "chunks_lost_lower_bound": 677,
+      "complete": 231,
+      "complete_by_10s_phase": [
+        63,
+        85,
+        83
+      ],
+      "complete_mbps": 4.9812593005593255,
+      "encoder_mbps": 4.9812593005593255,
+      "fec": "auto",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 8656,
+      "fec_observed_missing": 446,
+      "fec_parity_bytes": 424200,
+      "fec_recovered_chunks": 60,
+      "fec_recovered_frames": 34,
+      "first_complete_after_20s_ms": 15.015582,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        105.35,
+        215.835,
+        279.755
+      ],
+      "mode": "auto",
+      "nack_completed": 156,
+      "nacks": 279,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 714,
+      "scenario": "wifi5o",
+      "seconds": 30.111486062,
+      "seed": "1",
+      "send_error": null,
+      "sent": 231,
+      "stall_ms": [
+        110.376,
+        126.901,
+        155.157,
+        121.038,
+        204.047,
+        124.206,
+        197.277,
+        559.787,
+        645.653,
+        278.403,
+        186.395,
+        134.364,
+        131.273,
+        116.949,
+        136.006,
+        128.729,
+        122.38,
+        128.25,
+        140.836,
+        126.509,
+        134.767,
+        133.209,
+        126.76,
+        167.545,
+        130.307,
+        107.817,
+        108.86,
+        123.953,
+        399.264,
+        190.26,
+        140.532,
+        224.886,
+        166.762,
+        252.818,
+        110.833,
+        128.06,
+        119.574,
+        191.934,
+        254.777,
+        123.085,
+        237.528,
+        194.2,
+        124.302,
+        132.169,
+        131.323,
+        137.113,
+        127.525,
+        177.816,
+        210.92,
+        125.866,
+        248.137,
+        127.705,
+        214.371,
+        143.737,
+        121.102,
+        198.114,
+        236.644,
+        144.027,
+        265.039,
+        148.994,
+        142.231,
+        131.621,
+        214.028,
+        112.077,
+        130.694,
+        119.02,
+        260.51,
+        146.612,
+        138.958,
+        198.301,
+        199.69,
+        104.581,
+        330.869,
+        139.987,
+        123.803,
+        133.736,
+        209.673,
+        131.04,
+        143.567,
+        118.912,
+        133.055,
+        127.787,
+        129.403,
+        126.707,
+        137.417,
+        107.81,
+        139.87,
+        117.641,
+        130.602,
+        139.116,
+        129.373,
+        236.042,
+        128.044,
+        105.619,
+        120.178,
+        144.641,
+        126.651,
+        193.527,
+        178.568,
+        137.183,
+        191.182,
+        197.47,
+        133.299,
+        127.837,
+        140.062,
+        148.911,
+        119.214,
+        131.712,
+        124.926,
+        150.424,
+        137.344,
+        141.434,
+        124.109,
+        111.789,
+        190.872,
+        134.168,
+        288.029,
+        134.608,
+        111.006,
+        120.475,
+        135.925,
+        227.426,
+        124.378,
+        126.642,
+        252.104,
+        136.848,
+        122.141,
+        124.852,
+        134.462,
+        129.443,
+        125.997,
+        138.83,
+        305.826,
+        134.166,
+        130.622,
+        148.179,
+        149.99,
+        122.844,
+        133.176,
+        120.543,
+        139.378,
+        208.631,
+        177.437,
+        131.237,
+        191.612,
+        130.886,
+        288.272,
+        122.471,
+        105.956,
+        129.825,
+        271.415,
+        115.264,
+        113.936,
+        131.645,
+        115.547,
+        116.375,
+        152.978,
+        241.286,
+        215.608
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.110376656
+        ],
+        [
+          0.110376656,
+          0.237278373
+        ],
+        [
+          0.237278373,
+          0.392435414
+        ],
+        [
+          0.392435414,
+          0.51347426
+        ],
+        [
+          0.51347426,
+          0.717522235
+        ],
+        [
+          0.717522235,
+          0.841728541
+        ],
+        [
+          0.841728541,
+          1.039006289
+        ],
+        [
+          1.039006289,
+          1.598793473
+        ],
+        [
+          1.598793473,
+          2.244446741
+        ],
+        [
+          2.244446741,
+          2.522849805
+        ],
+        [
+          2.522849805,
+          2.7092455490000003
+        ],
+        [
+          2.7092455490000003,
+          2.843609989
+        ],
+        [
+          2.898063545,
+          3.02933753
+        ],
+        [
+          3.082966637,
+          3.199916107
+        ],
+        [
+          3.199916107,
+          3.33592301
+        ],
+        [
+          3.33592301,
+          3.4646528659999998
+        ],
+        [
+          3.530348727,
+          3.652729338
+        ],
+        [
+          3.652729338,
+          3.780979655
+        ],
+        [
+          3.838111301,
+          3.978947995
+        ],
+        [
+          3.978947995,
+          4.10545737
+        ],
+        [
+          4.10545737,
+          4.240224842
+        ],
+        [
+          4.240224842,
+          4.37343426
+        ],
+        [
+          4.37343426,
+          4.500195038
+        ],
+        [
+          4.500195038,
+          4.667740227
+        ],
+        [
+          4.726002586,
+          4.8563097299999995
+        ],
+        [
+          4.8563097299999995,
+          4.964127036
+        ],
+        [
+          4.964127036,
+          5.072987091
+        ],
+        [
+          5.072987091,
+          5.196940487
+        ],
+        [
+          5.2778038800000004,
+          5.677068128
+        ],
+        [
+          5.677068128,
+          5.8673287290000005
+        ],
+        [
+          5.8673287290000005,
+          6.007861408
+        ],
+        [
+          6.007861408,
+          6.232748109
+        ],
+        [
+          6.232748109,
+          6.399510805
+        ],
+        [
+          6.399510805,
+          6.652329798
+        ],
+        [
+          6.652329798,
+          6.763163306
+        ],
+        [
+          6.763163306,
+          6.891223733
+        ],
+        [
+          6.947180105,
+          7.066754416
+        ],
+        [
+          7.066754416,
+          7.258689285
+        ],
+        [
+          7.258689285,
+          7.513466775
+        ],
+        [
+          7.513466775,
+          7.636551982
+        ],
+        [
+          7.6941624730000004,
+          7.931690979
+        ],
+        [
+          7.931690979,
+          8.125891912
+        ],
+        [
+          8.125891912,
+          8.250194416
+        ],
+        [
+          8.310100027,
+          8.442269701
+        ],
+        [
+          8.442269701,
+          8.5735932
+        ],
+        [
+          8.5735932,
+          8.710707154
+        ],
+        [
+          8.710707154,
+          8.838232396
+        ],
+        [
+          8.887102874,
+          9.064919784
+        ],
+        [
+          9.064919784,
+          9.275840027
+        ],
+        [
+          9.275840027,
+          9.401706558
+        ],
+        [
+          9.401706558,
+          9.649843652
+        ],
+        [
+          9.649843652,
+          9.77754933
+        ],
+        [
+          9.841683278,
+          10.056054785
+        ],
+        [
+          10.056054785,
+          10.199792345
+        ],
+        [
+          10.199792345,
+          10.320894965
+        ],
+        [
+          10.320894965,
+          10.519009447
+        ],
+        [
+          10.519009447,
+          10.755654298
+        ],
+        [
+          10.945844747,
+          11.089871886
+        ],
+        [
+          11.089871886,
+          11.354911825
+        ],
+        [
+          11.550056059,
+          11.699050802
+        ],
+        [
+          11.748798153,
+          11.891029403
+        ],
+        [
+          12.007853009,
+          12.139474446
+        ],
+        [
+          12.139474446,
+          12.353502886
+        ],
+        [
+          12.415213934,
+          12.527291851
+        ],
+        [
+          12.57432721,
+          12.705021404
+        ],
+        [
+          12.705021404,
+          12.8240418
+        ],
+        [
+          13.151340433,
+          13.411851032
+        ],
+        [
+          13.411851032,
+          13.558463857
+        ],
+        [
+          13.558463857,
+          13.697422537
+        ],
+        [
+          13.697422537,
+          13.895723942
+        ],
+        [
+          13.895723942,
+          14.095414879
+        ],
+        [
+          14.145309033,
+          14.249890599
+        ],
+        [
+          14.249890599,
+          14.58076046
+        ],
+        [
+          14.58076046,
+          14.72074795
+        ],
+        [
+          14.72074795,
+          14.844551129
+        ],
+        [
+          14.844551129,
+          14.978288106
+        ],
+        [
+          14.978288106,
+          15.187961653
+        ],
+        [
+          15.488004159,
+          15.619045143
+        ],
+        [
+          15.656753315,
+          15.800321049
+        ],
+        [
+          15.800321049,
+          15.919233796
+        ],
+        [
+          15.919233796,
+          16.05228948
+        ],
+        [
+          16.05228948,
+          16.180076873
+        ],
+        [
+          16.180076873,
+          16.309480853
+        ],
+        [
+          16.357512618,
+          16.484219962
+        ],
+        [
+          16.682021346,
+          16.819438426
+        ],
+        [
+          16.819438426,
+          16.927248844
+        ],
+        [
+          16.927248844,
+          17.067119679
+        ],
+        [
+          17.067119679,
+          17.184761669
+        ],
+        [
+          17.184761669,
+          17.315363679
+        ],
+        [
+          17.315363679,
+          17.454480115
+        ],
+        [
+          17.454480115,
+          17.583853716
+        ],
+        [
+          17.583853716,
+          17.819896108000002
+        ],
+        [
+          17.819896108000002,
+          17.947940914
+        ],
+        [
+          17.947940914,
+          18.053560195
+        ],
+        [
+          18.112900589,
+          18.233079322
+        ],
+        [
+          18.233079322,
+          18.377721218
+        ],
+        [
+          18.427660021,
+          18.55431201
+        ],
+        [
+          18.55431201,
+          18.747839133
+        ],
+        [
+          18.996806891,
+          19.17537496
+        ],
+        [
+          19.17537496,
+          19.312558644
+        ],
+        [
+          19.312558644,
+          19.503741238
+        ],
+        [
+          19.556408411,
+          19.753878725
+        ],
+        [
+          19.753878725,
+          19.887178091
+        ],
+        [
+          19.887178091,
+          20.015015582
+        ],
+        [
+          20.076557278,
+          20.216619506
+        ],
+        [
+          20.216619506,
+          20.365531098
+        ],
+        [
+          20.365531098,
+          20.484745687
+        ],
+        [
+          20.484745687,
+          20.616458135
+        ],
+        [
+          20.616458135,
+          20.741384949
+        ],
+        [
+          20.741384949,
+          20.891809029
+        ],
+        [
+          21.036988449,
+          21.174332527
+        ],
+        [
+          21.222757279,
+          21.364191545
+        ],
+        [
+          21.364191545,
+          21.488300969
+        ],
+        [
+          21.488300969,
+          21.600090117
+        ],
+        [
+          21.600090117,
+          21.790963046
+        ],
+        [
+          21.790963046,
+          21.925131121
+        ],
+        [
+          21.925131121,
+          22.213160639
+        ],
+        [
+          22.213160639,
+          22.34776871
+        ],
+        [
+          22.34776871,
+          22.458775335
+        ],
+        [
+          22.458775335,
+          22.579250348
+        ],
+        [
+          22.638030211,
+          22.773955369
+        ],
+        [
+          22.773955369,
+          23.001382222
+        ],
+        [
+          23.001382222,
+          23.125760716
+        ],
+        [
+          23.368414024,
+          23.495056063
+        ],
+        [
+          23.495056063,
+          23.747160221
+        ],
+        [
+          23.747160221,
+          23.884008912
+        ],
+        [
+          23.884008912,
+          24.006150872
+        ],
+        [
+          24.006150872,
+          24.131002931
+        ],
+        [
+          24.131002931,
+          24.265464972
+        ],
+        [
+          24.265464972,
+          24.394908195
+        ],
+        [
+          24.394908195,
+          24.520905723
+        ],
+        [
+          24.520905723,
+          24.659735914
+        ],
+        [
+          24.659735914,
+          24.965562885
+        ],
+        [
+          25.157345229,
+          25.291511711
+        ],
+        [
+          25.291511711,
+          25.422134453
+        ],
+        [
+          25.422134453,
+          25.57031399
+        ],
+        [
+          25.68322548,
+          25.833216183
+        ],
+        [
+          25.894030279,
+          26.016874855
+        ],
+        [
+          26.078148854,
+          26.211325632
+        ],
+        [
+          26.211325632,
+          26.331868996
+        ],
+        [
+          26.383846558,
+          26.523224634
+        ],
+        [
+          26.523224634,
+          26.731856052
+        ],
+        [
+          26.731856052,
+          26.909293959
+        ],
+        [
+          27.028003403,
+          27.159241247
+        ],
+        [
+          27.159241247,
+          27.350853623
+        ],
+        [
+          27.350853623,
+          27.481739936
+        ],
+        [
+          27.481739936,
+          27.770012711
+        ],
+        [
+          27.828984912,
+          27.951456176
+        ],
+        [
+          27.951456176,
+          28.057412437
+        ],
+        [
+          28.057412437,
+          28.18723746
+        ],
+        [
+          28.18723746,
+          28.458653353
+        ],
+        [
+          28.458653353,
+          28.573917591
+        ],
+        [
+          28.573917591,
+          28.68785443
+        ],
+        [
+          28.73636377,
+          28.868008853
+        ],
+        [
+          28.868008853,
+          28.983556179
+        ],
+        [
+          28.983556179,
+          29.099932065
+        ],
+        [
+          29.2924875,
+          29.445465998
+        ],
+        [
+          29.445465998,
+          29.686752556
+        ],
+        [
+          29.8747744,
+          30.090383238
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 3.574672594317341,
+      "udp_snmp": {
+        "InDatagrams": 18763,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 19656,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            22.70137204322964,
+            24.5713529875502
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1932,
+          "unique": 1932,
+          "missing": 116,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            26.57885104417801,
+            28.379922965541482
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5o-auto-s1.txt",
+      "fps": 7.671491188590545,
+      "p95_ms": 215.835,
+      "longest_stall_ms": 645.653,
+      "post_loss_longest_stall_ms": 305.8269710000019
+    },
+    {
+      "chunks_lost_lower_bound": 729,
+      "complete": 230,
+      "complete_by_10s_phase": [
+        71,
+        76,
+        83
+      ],
+      "complete_mbps": 4.954566266700306,
+      "encoder_mbps": 4.954566266700306,
+      "fec": "auto",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 8579,
+      "fec_observed_missing": 427,
+      "fec_parity_bytes": 244622,
+      "fec_recovered_chunks": 40,
+      "fec_recovered_frames": 20,
+      "first_complete_after_20s_ms": 17.927585,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        106.737,
+        181.897,
+        286.452
+      ],
+      "mode": "auto",
+      "nack_completed": 159,
+      "nacks": 262,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 725,
+      "scenario": "wifi5o",
+      "seconds": 30.052403376,
+      "seed": "2",
+      "send_error": null,
+      "sent": 230,
+      "stall_ms": [
+        124.089,
+        121.07,
+        120.758,
+        113.553,
+        146.236,
+        147.852,
+        149.638,
+        200.461,
+        1023.449,
+        135.564,
+        135.997,
+        125.255,
+        192.515,
+        129.764,
+        122.334,
+        190.037,
+        148.27,
+        131.535,
+        159.724,
+        127.242,
+        122.254,
+        102.982,
+        149.694,
+        295.354,
+        120.529,
+        113.84,
+        116.146,
+        202.213,
+        247.287,
+        130.483,
+        148.252,
+        127.039,
+        139.686,
+        113.579,
+        125.838,
+        157.221,
+        130.718,
+        135.8,
+        136.486,
+        136.459,
+        135.89,
+        121.532,
+        252.543,
+        168.291,
+        170.024,
+        206.289,
+        185.061,
+        170.302,
+        133.104,
+        115.421,
+        126.071,
+        108.866,
+        181.638,
+        115.68,
+        105.768,
+        131.491,
+        119.849,
+        125.213,
+        128.572,
+        127.878,
+        130.773,
+        115.016,
+        105.47,
+        130.209,
+        129.186,
+        128.248,
+        129.995,
+        193.848,
+        138.687,
+        132.786,
+        136.08,
+        144.299,
+        125.141,
+        126.107,
+        200.759,
+        133.29,
+        119.714,
+        130.017,
+        139.932,
+        135.602,
+        133.495,
+        179.391,
+        253.085,
+        137.271,
+        127.419,
+        203.353,
+        124.234,
+        227.154,
+        123.308,
+        172.807,
+        132.476,
+        194.811,
+        111.264,
+        201.517,
+        124.613,
+        131.488,
+        114.898,
+        131.391,
+        284.803,
+        305.258,
+        139.123,
+        168.908,
+        147.418,
+        176.245,
+        116.402,
+        130.546,
+        136.003,
+        122.71,
+        162.741,
+        119.745,
+        159.075,
+        124.196,
+        127.732,
+        324.579,
+        213.02,
+        135.11,
+        139.615,
+        125.587,
+        128.234,
+        154.074,
+        122.068,
+        142.812,
+        207.531,
+        240.283,
+        122.138,
+        129.318,
+        187.208,
+        188.503,
+        114.434,
+        151.623,
+        139.791,
+        131.01,
+        143.884,
+        126.344,
+        139.568,
+        136.281,
+        125.468,
+        119.937,
+        130.206,
+        122.285,
+        131.953,
+        123.133,
+        148.507,
+        134.302,
+        118.724,
+        113.423,
+        136.772,
+        140.168,
+        449.26,
+        163.392,
+        206.721,
+        399.701,
+        132.511,
+        110.286,
+        144.801,
+        137.001,
+        128.056,
+        116.821,
+        258.692,
+        135.669,
+        422.923,
+        129.629,
+        123.312,
+        126.571,
+        137.983,
+        130.627
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.124089495
+        ],
+        [
+          0.124089495,
+          0.245160232
+        ],
+        [
+          0.245160232,
+          0.365918566
+        ],
+        [
+          0.365918566,
+          0.479472283
+        ],
+        [
+          0.479472283,
+          0.625708453
+        ],
+        [
+          0.625708453,
+          0.773561065
+        ],
+        [
+          0.773561065,
+          0.923200012
+        ],
+        [
+          0.923200012,
+          1.123661338
+        ],
+        [
+          1.123661338,
+          2.147110568
+        ],
+        [
+          2.147110568,
+          2.282675082
+        ],
+        [
+          2.282675082,
+          2.418673001
+        ],
+        [
+          2.4634873600000002,
+          2.5887427130000003
+        ],
+        [
+          2.5887427130000003,
+          2.781258321
+        ],
+        [
+          2.781258321,
+          2.911023014
+        ],
+        [
+          2.911023014,
+          3.033357057
+        ],
+        [
+          3.033357057,
+          3.223394472
+        ],
+        [
+          3.223394472,
+          3.371664951
+        ],
+        [
+          3.371664951,
+          3.503200839
+        ],
+        [
+          3.503200839,
+          3.6629256310000002
+        ],
+        [
+          3.783256649,
+          3.910499439
+        ],
+        [
+          3.910499439,
+          4.0327541
+        ],
+        [
+          4.0327541,
+          4.135736638
+        ],
+        [
+          4.135736638,
+          4.285430772
+        ],
+        [
+          4.285430772,
+          4.580785108
+        ],
+        [
+          4.580785108,
+          4.701314443
+        ],
+        [
+          4.701314443,
+          4.81515506
+        ],
+        [
+          4.81515506,
+          4.931301899
+        ],
+        [
+          4.984189804,
+          5.186402959
+        ],
+        [
+          5.186402959,
+          5.433689981
+        ],
+        [
+          5.433689981,
+          5.5641735180000005
+        ],
+        [
+          5.617082826,
+          5.765335445
+        ],
+        [
+          5.765335445,
+          5.892374655
+        ],
+        [
+          5.892374655,
+          6.032060777
+        ],
+        [
+          6.032060777,
+          6.14564074
+        ],
+        [
+          6.14564074,
+          6.271479408
+        ],
+        [
+          6.271479408,
+          6.428700995
+        ],
+        [
+          6.428700995,
+          6.5594191120000005
+        ],
+        [
+          6.5594191120000005,
+          6.695219505
+        ],
+        [
+          6.738161398,
+          6.874647832
+        ],
+        [
+          6.874647832,
+          7.011107724
+        ],
+        [
+          7.133144126,
+          7.2690351
+        ],
+        [
+          7.2690351,
+          7.3905672
+        ],
+        [
+          7.3905672,
+          7.643111075
+        ],
+        [
+          7.766002875,
+          7.934294044
+        ],
+        [
+          7.934294044,
+          8.104318484
+        ],
+        [
+          8.223796885,
+          8.430086235
+        ],
+        [
+          8.430086235,
+          8.615147704
+        ],
+        [
+          8.615147704,
+          8.785450059
+        ],
+        [
+          8.906990401,
+          9.040095352
+        ],
+        [
+          9.040095352,
+          9.15551713
+        ],
+        [
+          9.207997933,
+          9.334069669
+        ],
+        [
+          9.334069669,
+          9.442935688
+        ],
+        [
+          9.442935688,
+          9.624574633
+        ],
+        [
+          9.624574633,
+          9.740255469000001
+        ],
+        [
+          9.740255469000001,
+          9.846024401
+        ],
+        [
+          9.846024401,
+          9.977516169
+        ],
+        [
+          9.977516169,
+          10.097365904
+        ],
+        [
+          10.097365904,
+          10.222579071
+        ],
+        [
+          10.222579071,
+          10.351151222
+        ],
+        [
+          10.392964506,
+          10.520842981
+        ],
+        [
+          10.520842981,
+          10.651616155
+        ],
+        [
+          10.651616155,
+          10.766632483
+        ],
+        [
+          10.766632483,
+          10.872102975
+        ],
+        [
+          10.872102975,
+          11.002312119
+        ],
+        [
+          11.002312119,
+          11.131498884
+        ],
+        [
+          11.131498884,
+          11.259747739
+        ],
+        [
+          11.259747739,
+          11.389743463
+        ],
+        [
+          11.389743463,
+          11.583591626
+        ],
+        [
+          11.643404351000001,
+          11.782091802
+        ],
+        [
+          11.782091802,
+          11.914878382
+        ],
+        [
+          11.914878382,
+          12.050959228
+        ],
+        [
+          12.179787342,
+          12.324086799
+        ],
+        [
+          12.407689962,
+          12.532831662
+        ],
+        [
+          12.532831662,
+          12.658939152
+        ],
+        [
+          12.658939152,
+          12.859698691
+        ],
+        [
+          12.859698691,
+          12.99298872
+        ],
+        [
+          12.99298872,
+          13.112703134
+        ],
+        [
+          13.112703134,
+          13.242721084
+        ],
+        [
+          13.42692122,
+          13.566853236
+        ],
+        [
+          13.620961268,
+          13.756563388
+        ],
+        [
+          13.809523275,
+          13.94301842
+        ],
+        [
+          13.94301842,
+          14.122410335
+        ],
+        [
+          14.122410335,
+          14.37549583
+        ],
+        [
+          14.37549583,
+          14.512767256
+        ],
+        [
+          14.512767256,
+          14.640187134
+        ],
+        [
+          14.640187134,
+          14.843540948
+        ],
+        [
+          14.843540948,
+          14.967775877
+        ],
+        [
+          14.967775877,
+          15.194930677
+        ],
+        [
+          15.194930677,
+          15.318239188
+        ],
+        [
+          15.318239188,
+          15.491046492
+        ],
+        [
+          15.491046492,
+          15.623522767
+        ],
+        [
+          15.685435825999999,
+          15.880247009
+        ],
+        [
+          15.880247009,
+          15.991511461
+        ],
+        [
+          15.991511461,
+          16.193029189
+        ],
+        [
+          16.193029189,
+          16.317642265
+        ],
+        [
+          16.371392436,
+          16.502880866
+        ],
+        [
+          16.502880866,
+          16.617779454
+        ],
+        [
+          16.617779454,
+          16.749171144
+        ],
+        [
+          16.749171144,
+          17.033974972
+        ],
+        [
+          17.033974972,
+          17.339233277
+        ],
+        [
+          17.339233277,
+          17.478356452
+        ],
+        [
+          17.478356452,
+          17.64726476
+        ],
+        [
+          17.64726476,
+          17.794682948
+        ],
+        [
+          17.794682948,
+          17.970928355
+        ],
+        [
+          18.080795621,
+          18.197198196
+        ],
+        [
+          18.247451637,
+          18.377998191
+        ],
+        [
+          18.423188769,
+          18.559192651
+        ],
+        [
+          18.613033093,
+          18.735743289
+        ],
+        [
+          18.735743289,
+          18.898484643
+        ],
+        [
+          18.898484643,
+          19.018229851
+        ],
+        [
+          19.018229851,
+          19.177305401
+        ],
+        [
+          19.228397941,
+          19.35259432
+        ],
+        [
+          19.35259432,
+          19.480327153
+        ],
+        [
+          19.480327153,
+          19.804906957
+        ],
+        [
+          19.804906957,
+          20.017927585
+        ],
+        [
+          20.017927585,
+          20.153038458
+        ],
+        [
+          20.153038458,
+          20.292654145
+        ],
+        [
+          20.292654145,
+          20.418241991
+        ],
+        [
+          20.867103299,
+          20.995338285
+        ],
+        [
+          21.053758113,
+          21.207832835
+        ],
+        [
+          21.207832835,
+          21.329901436
+        ],
+        [
+          21.329901436,
+          21.47271352
+        ],
+        [
+          21.535556044,
+          21.743087565
+        ],
+        [
+          21.743087565,
+          21.983371519
+        ],
+        [
+          21.983371519,
+          22.105510321
+        ],
+        [
+          22.152152447,
+          22.28147113
+        ],
+        [
+          22.344063004,
+          22.531271886
+        ],
+        [
+          22.531271886,
+          22.719775341
+        ],
+        [
+          22.719775341,
+          22.834209347
+        ],
+        [
+          22.834209347,
+          22.985832861
+        ],
+        [
+          22.985832861,
+          23.125624112
+        ],
+        [
+          23.125624112,
+          23.256634862
+        ],
+        [
+          23.256634862,
+          23.400519774
+        ],
+        [
+          23.400519774,
+          23.526864683
+        ],
+        [
+          23.526864683,
+          23.666432949
+        ],
+        [
+          23.730666999,
+          23.866948041
+        ],
+        [
+          23.866948041,
+          23.992416099
+        ],
+        [
+          23.992416099,
+          24.112353447
+        ],
+        [
+          24.112353447,
+          24.242560269
+        ],
+        [
+          24.29723746,
+          24.419522987
+        ],
+        [
+          24.419522987,
+          24.551476897
+        ],
+        [
+          24.551476897,
+          24.674610262
+        ],
+        [
+          24.674610262,
+          24.823117636
+        ],
+        [
+          24.823117636,
+          24.957419916
+        ],
+        [
+          24.957419916,
+          25.076144608
+        ],
+        [
+          25.076144608,
+          25.18956788
+        ],
+        [
+          25.18956788,
+          25.326340583
+        ],
+        [
+          25.449495782,
+          25.589664525
+        ],
+        [
+          25.589664525,
+          26.038924972
+        ],
+        [
+          26.038924972,
+          26.20231777
+        ],
+        [
+          26.20231777,
+          26.409039
+        ],
+        [
+          26.409039,
+          26.808740308
+        ],
+        [
+          26.990410019,
+          27.122921185
+        ],
+        [
+          27.122921185,
+          27.23320782
+        ],
+        [
+          27.23320782,
+          27.378009688
+        ],
+        [
+          27.378009688,
+          27.51501133
+        ],
+        [
+          27.51501133,
+          27.643067656
+        ],
+        [
+          27.643067656,
+          27.759889249
+        ],
+        [
+          27.759889249,
+          28.018581894
+        ],
+        [
+          28.299786909,
+          28.435456011
+        ],
+        [
+          28.435456011,
+          28.858379036
+        ],
+        [
+          29.043165395,
+          29.172794513
+        ],
+        [
+          29.213884234,
+          29.337196646
+        ],
+        [
+          29.337196646,
+          29.463768021
+        ],
+        [
+          29.520115292,
+          29.65809842
+        ],
+        [
+          29.715499713,
+          29.846127458
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 3.5158386062520415,
+      "udp_snmp": {
+        "InDatagrams": 18545,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 19407,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            22.516375058330595,
+            24.414621060714126
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1928,
+          "unique": 1928,
+          "missing": 120,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            26.552333030849695,
+            28.37670291773975
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5o-auto-s2.txt",
+      "fps": 7.653298044830556,
+      "p95_ms": 181.897,
+      "longest_stall_ms": 1023.449,
+      "post_loss_longest_stall_ms": 449.26044700000034
+    },
+    {
+      "chunks_lost_lower_bound": 682,
+      "complete": 220,
+      "complete_by_10s_phase": [
+        69,
+        77,
+        74
+      ],
+      "complete_mbps": 4.607773514150344,
+      "encoder_mbps": 4.607773514150344,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 9.140031,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        112.0,
+        185.655,
+        224.774
+      ],
+      "mode": "auto",
+      "nack_completed": 180,
+      "nacks": 274,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 680,
+      "scenario": "wifi5o",
+      "seconds": 30.236329883,
+      "seed": "1",
+      "send_error": null,
+      "sent": 220,
+      "stall_ms": [
+        132.795,
+        120.466,
+        109.569,
+        189.36,
+        186.089,
+        172.954,
+        175.117,
+        186.565,
+        712.448,
+        180.5,
+        140.886,
+        112.804,
+        117.949,
+        140.996,
+        130.774,
+        149.519,
+        117.406,
+        138.967,
+        126.994,
+        129.162,
+        135.065,
+        178.965,
+        132.91,
+        130.804,
+        145.746,
+        139.612,
+        139.268,
+        152.07,
+        263.353,
+        144.81,
+        125.354,
+        137.053,
+        142.254,
+        153.935,
+        144.067,
+        143.742,
+        138.875,
+        125.932,
+        146.019,
+        141.358,
+        153.31,
+        123.816,
+        156.451,
+        127.082,
+        136.371,
+        238.008,
+        149.686,
+        127.826,
+        136.892,
+        153.159,
+        111.6,
+        123.02,
+        121.991,
+        429.289,
+        175.275,
+        149.177,
+        126.042,
+        135.031,
+        135.765,
+        124.724,
+        113.483,
+        128.788,
+        121.746,
+        144.117,
+        374.699,
+        128.31,
+        133.477,
+        124.5,
+        141.967,
+        128.506,
+        242.398,
+        122.597,
+        124.712,
+        119.015,
+        123.127,
+        204.194,
+        123.348,
+        142.712,
+        131.575,
+        137.69,
+        242.075,
+        128.237,
+        131.916,
+        127.7,
+        117.641,
+        144.126,
+        139.783,
+        134.673,
+        116.843,
+        125.791,
+        126.533,
+        119.945,
+        137.238,
+        133.353,
+        129.809,
+        127.653,
+        125.951,
+        256.89,
+        145.347,
+        126.116,
+        216.101,
+        124.169,
+        147.563,
+        127.978,
+        118.128,
+        130.07,
+        125.281,
+        143.417,
+        131.419,
+        405.62,
+        132.706,
+        127.859,
+        133.77,
+        142.592,
+        150.452,
+        134.802,
+        137.441,
+        121.965,
+        106.567,
+        135.841,
+        204.843,
+        130.394,
+        235.602,
+        170.271,
+        129.649,
+        122.849,
+        125.442,
+        122.28,
+        264.361,
+        136.54,
+        211.39,
+        143.232,
+        129.715,
+        135.723,
+        140.118,
+        136.128,
+        218.626,
+        110.526,
+        127.005,
+        139.981,
+        175.115,
+        117.28,
+        130.918,
+        140.084,
+        250.72,
+        136.034,
+        141.609,
+        143.457,
+        193.035,
+        123.321,
+        120.349,
+        146.433,
+        122.394,
+        132.517,
+        130.05,
+        126.083,
+        142.227,
+        120.385,
+        118.271,
+        116.866,
+        135.579,
+        141.623,
+        151.176,
+        218.602,
+        144.567,
+        153.811,
+        114.863,
+        208.227,
+        123.874,
+        354.921,
+        138.314,
+        132.887,
+        115.042,
+        135.045,
+        135.711,
+        139.475,
+        158.907,
+        152.472,
+        116.859,
+        135.045,
+        202.53,
+        133.547
+      ],
+      "stall_ranges_s": [
+        [
+          0.0,
+          0.132795907
+        ],
+        [
+          0.132795907,
+          0.253262006
+        ],
+        [
+          0.253262006,
+          0.362831228
+        ],
+        [
+          0.362831228,
+          0.552191396
+        ],
+        [
+          0.552191396,
+          0.738280917
+        ],
+        [
+          0.738280917,
+          0.91123583
+        ],
+        [
+          1.021424921,
+          1.196542409
+        ],
+        [
+          1.196542409,
+          1.383107836
+        ],
+        [
+          1.383107836,
+          2.09555665
+        ],
+        [
+          2.09555665,
+          2.276056685
+        ],
+        [
+          2.276056685,
+          2.416942916
+        ],
+        [
+          2.416942916,
+          2.529747025
+        ],
+        [
+          2.529747025,
+          2.647696512
+        ],
+        [
+          2.647696512,
+          2.788692753
+        ],
+        [
+          2.8414282650000002,
+          2.972202965
+        ],
+        [
+          3.0377274,
+          3.18724729
+        ],
+        [
+          3.18724729,
+          3.304653522
+        ],
+        [
+          3.304653522,
+          3.443621134
+        ],
+        [
+          3.514718763,
+          3.641712849
+        ],
+        [
+          3.641712849,
+          3.770875225
+        ],
+        [
+          3.839723401,
+          3.974788763
+        ],
+        [
+          3.974788763,
+          4.153754725
+        ],
+        [
+          4.153754725,
+          4.286665362
+        ],
+        [
+          4.286665362,
+          4.417469676
+        ],
+        [
+          4.417469676,
+          4.563216171
+        ],
+        [
+          4.563216171,
+          4.7028286470000005
+        ],
+        [
+          4.7028286470000005,
+          4.842097465
+        ],
+        [
+          4.907801979,
+          5.05987279
+        ],
+        [
+          5.05987279,
+          5.323226067
+        ],
+        [
+          5.323226067,
+          5.468036599
+        ],
+        [
+          5.468036599,
+          5.59339128
+        ],
+        [
+          5.59339128,
+          5.7304443670000005
+        ],
+        [
+          5.7304443670000005,
+          5.872698685
+        ],
+        [
+          5.872698685,
+          6.026634657
+        ],
+        [
+          6.026634657,
+          6.170702159
+        ],
+        [
+          6.170702159,
+          6.314444405
+        ],
+        [
+          6.314444405,
+          6.453320224
+        ],
+        [
+          6.453320224,
+          6.5792522909999995
+        ],
+        [
+          6.5792522909999995,
+          6.725272073
+        ],
+        [
+          6.791662431,
+          6.933020436
+        ],
+        [
+          6.933020436,
+          7.086330942
+        ],
+        [
+          7.086330942,
+          7.210147359
+        ],
+        [
+          7.210147359,
+          7.366598407
+        ],
+        [
+          7.366598407,
+          7.493681273
+        ],
+        [
+          7.493681273,
+          7.630052901
+        ],
+        [
+          7.630052901,
+          7.868061123
+        ],
+        [
+          7.868061123,
+          8.017747494
+        ],
+        [
+          8.017747494,
+          8.145573874
+        ],
+        [
+          8.145573874,
+          8.282466644
+        ],
+        [
+          8.282466644,
+          8.435626215
+        ],
+        [
+          8.435626215,
+          8.547226917
+        ],
+        [
+          8.603697214,
+          8.726717484
+        ],
+        [
+          8.726717484,
+          8.848708837
+        ],
+        [
+          8.848708837,
+          9.277998175
+        ],
+        [
+          9.277998175,
+          9.453273302
+        ],
+        [
+          9.514739931,
+          9.663917028
+        ],
+        [
+          9.663917028,
+          9.789959883
+        ],
+        [
+          9.853185959,
+          9.988216986
+        ],
+        [
+          9.988216986,
+          10.123982628
+        ],
+        [
+          10.123982628,
+          10.248707523
+        ],
+        [
+          10.300774245,
+          10.414257745
+        ],
+        [
+          10.414257745,
+          10.543046162
+        ],
+        [
+          10.543046162,
+          10.664792418
+        ],
+        [
+          10.795337971,
+          10.939455709
+        ],
+        [
+          10.939455709,
+          11.314155658
+        ],
+        [
+          11.314155658,
+          11.442465916
+        ],
+        [
+          11.442465916,
+          11.575943782
+        ],
+        [
+          11.575943782,
+          11.70044452
+        ],
+        [
+          11.758948793,
+          11.900916
+        ],
+        [
+          11.900916,
+          12.029422887
+        ],
+        [
+          12.029422887,
+          12.271821784
+        ],
+        [
+          12.415300543,
+          12.537898025
+        ],
+        [
+          12.537898025,
+          12.662610192
+        ],
+        [
+          12.730693867,
+          12.849709229
+        ],
+        [
+          12.903113758,
+          13.026241042
+        ],
+        [
+          13.026241042,
+          13.230436028
+        ],
+        [
+          13.230436028,
+          13.353784966
+        ],
+        [
+          13.353784966,
+          13.496497127
+        ],
+        [
+          13.561407825,
+          13.692983647
+        ],
+        [
+          13.743511363,
+          13.881202214
+        ],
+        [
+          13.881202214,
+          14.12327818
+        ],
+        [
+          14.12327818,
+          14.251516042
+        ],
+        [
+          14.251516042,
+          14.383432975
+        ],
+        [
+          14.383432975,
+          14.511133345
+        ],
+        [
+          14.511133345,
+          14.628775155
+        ],
+        [
+          14.628775155,
+          14.772901654
+        ],
+        [
+          14.772901654,
+          14.912685534
+        ],
+        [
+          14.96895171,
+          15.103625296
+        ],
+        [
+          15.168123869,
+          15.284966869
+        ],
+        [
+          15.284966869,
+          15.410758131
+        ],
+        [
+          15.410758131,
+          15.537291769
+        ],
+        [
+          15.537291769,
+          15.65723751
+        ],
+        [
+          15.65723751,
+          15.794475998
+        ],
+        [
+          15.867085588,
+          16.000438598
+        ],
+        [
+          16.000438598,
+          16.130248245
+        ],
+        [
+          16.130248245,
+          16.257902021
+        ],
+        [
+          16.257902021,
+          16.383853172
+        ],
+        [
+          16.383853172,
+          16.640743954
+        ],
+        [
+          16.703695869,
+          16.849043804
+        ],
+        [
+          16.849043804,
+          16.975160488
+        ],
+        [
+          16.975160488,
+          17.191262342
+        ],
+        [
+          17.191262342,
+          17.315432246
+        ],
+        [
+          17.315432246,
+          17.462995359
+        ],
+        [
+          17.462995359,
+          17.590973572
+        ],
+        [
+          17.590973572,
+          17.709102091
+        ],
+        [
+          17.709102091,
+          17.839172621
+        ],
+        [
+          17.839172621,
+          17.964453848
+        ],
+        [
+          17.964453848,
+          18.107871587
+        ],
+        [
+          18.107871587,
+          18.239291256
+        ],
+        [
+          18.239291256,
+          18.644911685
+        ],
+        [
+          18.702469476,
+          18.835176185
+        ],
+        [
+          18.835176185,
+          18.963035782
+        ],
+        [
+          18.963035782,
+          19.096805882
+        ],
+        [
+          19.096805882,
+          19.239398623
+        ],
+        [
+          19.239398623,
+          19.389851004
+        ],
+        [
+          19.389851004,
+          19.524653797
+        ],
+        [
+          19.524653797,
+          19.662094964
+        ],
+        [
+          19.711208399,
+          19.833173744
+        ],
+        [
+          19.833173744,
+          19.939740795
+        ],
+        [
+          20.009140031,
+          20.144982016
+        ],
+        [
+          20.144982016,
+          20.349825729
+        ],
+        [
+          20.349825729,
+          20.480219956
+        ],
+        [
+          20.480219956,
+          20.7158228
+        ],
+        [
+          20.7158228,
+          20.886094574
+        ],
+        [
+          20.886094574,
+          21.015744325
+        ],
+        [
+          21.015744325,
+          21.138594205
+        ],
+        [
+          21.138594205,
+          21.264036911
+        ],
+        [
+          21.264036911,
+          21.38631765
+        ],
+        [
+          21.38631765,
+          21.650679561
+        ],
+        [
+          21.650679561,
+          21.787220368
+        ],
+        [
+          21.787220368,
+          21.998611219
+        ],
+        [
+          21.998611219,
+          22.141843875
+        ],
+        [
+          22.141843875,
+          22.271559696
+        ],
+        [
+          22.334056959,
+          22.469780016
+        ],
+        [
+          22.469780016,
+          22.609898164
+        ],
+        [
+          22.609898164,
+          22.746026795
+        ],
+        [
+          22.874598702,
+          23.093225035
+        ],
+        [
+          23.093225035,
+          23.203751134
+        ],
+        [
+          23.203751134,
+          23.330756647
+        ],
+        [
+          23.330756647,
+          23.470738407
+        ],
+        [
+          23.470738407,
+          23.645853875
+        ],
+        [
+          23.645853875,
+          23.763133965
+        ],
+        [
+          23.763133965,
+          23.894052251
+        ],
+        [
+          23.894052251,
+          24.034137165
+        ],
+        [
+          24.034137165,
+          24.284857566
+        ],
+        [
+          24.284857566,
+          24.420891901
+        ],
+        [
+          24.420891901,
+          24.562501102
+        ],
+        [
+          24.620691761,
+          24.764149637
+        ],
+        [
+          24.764149637,
+          24.957185089
+        ],
+        [
+          25.08910555,
+          25.212427182
+        ],
+        [
+          25.212427182,
+          25.332777077
+        ],
+        [
+          25.332777077,
+          25.479210384
+        ],
+        [
+          25.479210384,
+          25.601604841
+        ],
+        [
+          25.601604841,
+          25.734121965
+        ],
+        [
+          25.734121965,
+          25.864172927
+        ],
+        [
+          25.864172927,
+          25.990256661
+        ],
+        [
+          25.990256661,
+          26.132484044999998
+        ],
+        [
+          26.132484044999998,
+          26.252869846
+        ],
+        [
+          26.252869846,
+          26.371140916
+        ],
+        [
+          26.371140916,
+          26.488007136
+        ],
+        [
+          26.488007136,
+          26.623586187
+        ],
+        [
+          26.623586187,
+          26.765209558
+        ],
+        [
+          26.765209558,
+          26.916386322
+        ],
+        [
+          26.916386322,
+          27.134988864
+        ],
+        [
+          27.134988864,
+          27.27955685
+        ],
+        [
+          27.27955685,
+          27.433368746
+        ],
+        [
+          27.433368746,
+          27.548232246
+        ],
+        [
+          27.548232246,
+          27.756459504
+        ],
+        [
+          27.756459504,
+          27.880334098
+        ],
+        [
+          27.880334098,
+          28.235255167
+        ],
+        [
+          28.357706049,
+          28.496020508
+        ],
+        [
+          28.496020508,
+          28.628907773
+        ],
+        [
+          28.628907773,
+          28.7439501
+        ],
+        [
+          28.7439501,
+          28.878995858
+        ],
+        [
+          28.878995858,
+          29.014707017
+        ],
+        [
+          29.014707017,
+          29.154182468
+        ],
+        [
+          29.223153111,
+          29.382060635
+        ],
+        [
+          29.4459298,
+          29.598402485
+        ],
+        [
+          29.598402485,
+          29.715261498
+        ],
+        [
+          29.765209504,
+          29.900255152
+        ],
+        [
+          29.900255152,
+          30.102786015
+        ],
+        [
+          30.102786015,
+          30.236333756
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 3.1632648661428817,
+      "udp_snmp": {
+        "InDatagrams": 17011,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 17817,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            22.71866297814995,
+            24.598749936558306
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1932,
+          "unique": 1932,
+          "missing": 116,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            26.64962806738913,
+            28.570295893587172
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5o-off-s1.txt",
+      "fps": 7.276015338213791,
+      "p95_ms": 185.655,
+      "longest_stall_ms": 712.448,
+      "post_loss_longest_stall_ms": 354.92106899999953
+    },
+    {
+      "chunks_lost_lower_bound": 756,
+      "complete": 220,
+      "complete_by_10s_phase": [
+        68,
+        77,
+        75
+      ],
+      "complete_mbps": 4.591341338438898,
+      "encoder_mbps": 4.591341338438898,
+      "fec": "off",
+      "fec_failed_media_frames": 0,
+      "fec_observed_media_chunks": 0,
+      "fec_observed_missing": 0,
+      "fec_parity_bytes": 0,
+      "fec_recovered_chunks": 0,
+      "fec_recovered_frames": 0,
+      "first_complete_after_20s_ms": 182.604423,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "latency_ms": [
+        106.247,
+        190.064,
+        247.693
+      ],
+      "mode": "auto",
+      "nack_completed": 172,
+      "nacks": 292,
+      "receive_error": null,
+      "repair_datagrams_enqueued": 747,
+      "scenario": "wifi5o",
+      "seconds": 30.059243656,
+      "seed": "2",
+      "send_error": null,
+      "sent": 220,
+      "stall_ms": [
+        112.156,
+        140.141,
+        317.487,
+        118.09,
+        313.658,
+        919.807,
+        170.328,
+        161.513,
+        135.113,
+        194.283,
+        133.106,
+        148.907,
+        133.639,
+        174.179,
+        135.36,
+        254.687,
+        133.323,
+        133.718,
+        192.758,
+        248.619,
+        142.622,
+        121.827,
+        144.345,
+        107.347,
+        125.29,
+        127.726,
+        258.622,
+        124.256,
+        125.241,
+        270.069,
+        120.818,
+        132.331,
+        275.113,
+        148.498,
+        393.981,
+        119.003,
+        254.21,
+        140.0,
+        246.853,
+        118.709,
+        128.129,
+        113.368,
+        125.968,
+        120.029,
+        116.252,
+        133.242,
+        231.796,
+        127.591,
+        140.186,
+        122.692,
+        116.172,
+        131.521,
+        120.733,
+        226.607,
+        131.37,
+        111.583,
+        156.454,
+        133.331,
+        139.712,
+        162.198,
+        129.516,
+        130.105,
+        131.031,
+        126.695,
+        238.589,
+        131.728,
+        111.682,
+        140.162,
+        126.191,
+        146.847,
+        141.29,
+        160.696,
+        114.282,
+        121.092,
+        151.065,
+        125.998,
+        137.197,
+        135.978,
+        135.111,
+        111.811,
+        135.463,
+        132.225,
+        117.541,
+        120.903,
+        139.208,
+        121.886,
+        270.906,
+        194.879,
+        119.429,
+        199.721,
+        128.969,
+        108.289,
+        131.442,
+        132.764,
+        119.497,
+        111.707,
+        130.893,
+        152.013,
+        131.497,
+        142.127,
+        188.531,
+        141.292,
+        163.399,
+        295.938,
+        249.032,
+        137.429,
+        245.905,
+        115.849,
+        108.426,
+        134.913,
+        212.047,
+        127.114,
+        138.252,
+        125.858,
+        199.245,
+        132.658,
+        141.289,
+        174.29,
+        114.973,
+        190.203,
+        182.125,
+        198.572,
+        121.23,
+        121.245,
+        251.23,
+        128.734,
+        229.001,
+        131.122,
+        110.98,
+        123.044,
+        130.795,
+        120.606,
+        130.931,
+        126.594,
+        130.162,
+        303.421,
+        126.925,
+        134.454,
+        128.459,
+        121.886,
+        130.301,
+        176.216,
+        110.11,
+        206.774,
+        120.655,
+        133.316,
+        143.401,
+        129.53,
+        138.239,
+        311.868,
+        106.331,
+        115.081,
+        124.637,
+        202.397,
+        109.178,
+        126.48,
+        172.982,
+        131.488,
+        131.702,
+        112.018,
+        133.892,
+        120.497,
+        122.73,
+        183.432,
+        213.33,
+        127.929,
+        203.358,
+        133.956,
+        194.54,
+        132.652,
+        120.667,
+        125.963
+      ],
+      "stall_ranges_s": [
+        [
+          0.090371954,
+          0.202528155
+        ],
+        [
+          0.202528155,
+          0.342669785
+        ],
+        [
+          0.342669785,
+          0.66015716
+        ],
+        [
+          0.703851529,
+          0.821941594
+        ],
+        [
+          0.883618767,
+          1.197277749
+        ],
+        [
+          1.197277749,
+          2.117084927
+        ],
+        [
+          2.117084927,
+          2.287413801
+        ],
+        [
+          2.344277741,
+          2.50579148
+        ],
+        [
+          2.50579148,
+          2.640904591
+        ],
+        [
+          2.640904591,
+          2.835187876
+        ],
+        [
+          2.835187876,
+          2.96829397
+        ],
+        [
+          2.96829397,
+          3.117201089
+        ],
+        [
+          3.117201089,
+          3.250840245
+        ],
+        [
+          3.298916168,
+          3.473095391
+        ],
+        [
+          3.537067866,
+          3.672428041
+        ],
+        [
+          3.672428041,
+          3.9271160309999997
+        ],
+        [
+          4.052826975,
+          4.186150177
+        ],
+        [
+          4.186150177,
+          4.319868788
+        ],
+        [
+          4.319868788,
+          4.512627073
+        ],
+        [
+          4.512627073,
+          4.761246642
+        ],
+        [
+          4.826018186,
+          4.968640723
+        ],
+        [
+          4.968640723,
+          5.090468688
+        ],
+        [
+          5.090468688,
+          5.234813786
+        ],
+        [
+          5.234813786,
+          5.342161246
+        ],
+        [
+          5.342161246,
+          5.467451539
+        ],
+        [
+          5.467451539,
+          5.595177904
+        ],
+        [
+          5.595177904,
+          5.853800025
+        ],
+        [
+          5.853800025,
+          5.978056416
+        ],
+        [
+          5.978056416,
+          6.103297618
+        ],
+        [
+          6.215811793,
+          6.485881755
+        ],
+        [
+          6.485881755,
+          6.606700495
+        ],
+        [
+          6.659425095,
+          6.791756861
+        ],
+        [
+          6.791756861,
+          7.066870371
+        ],
+        [
+          7.24086652,
+          7.389365168
+        ],
+        [
+          7.389365168,
+          7.7833467
+        ],
+        [
+          7.892970448,
+          8.011973694
+        ],
+        [
+          8.011973694,
+          8.266184391
+        ],
+        [
+          8.377125306,
+          8.517125927
+        ],
+        [
+          8.517125927,
+          8.763979603
+        ],
+        [
+          8.763979603,
+          8.882688736
+        ],
+        [
+          8.938864625,
+          9.066993883
+        ],
+        [
+          9.066993883,
+          9.180362429
+        ],
+        [
+          9.180362429,
+          9.306330863
+        ],
+        [
+          9.306330863,
+          9.426360403
+        ],
+        [
+          9.538293723,
+          9.654546044
+        ],
+        [
+          9.654546044,
+          9.787788769
+        ],
+        [
+          9.787788769,
+          10.019585216
+        ],
+        [
+          10.215321076,
+          10.342912214
+        ],
+        [
+          10.390910502,
+          10.53109733
+        ],
+        [
+          10.53109733,
+          10.653790296
+        ],
+        [
+          10.653790296,
+          10.769963048
+        ],
+        [
+          10.769963048,
+          10.90148493
+        ],
+        [
+          10.90148493,
+          11.022218336
+        ],
+        [
+          11.084404066,
+          11.311011908
+        ],
+        [
+          11.311011908,
+          11.442382499
+        ],
+        [
+          11.442382499,
+          11.553966067
+        ],
+        [
+          11.60158464,
+          11.758039279
+        ],
+        [
+          11.758039279,
+          11.891370665
+        ],
+        [
+          11.891370665,
+          12.031083037
+        ],
+        [
+          12.031083037,
+          12.193281053
+        ],
+        [
+          12.193281053,
+          12.322797583
+        ],
+        [
+          12.322797583,
+          12.452903252
+        ],
+        [
+          12.452903252,
+          12.583934831
+        ],
+        [
+          12.583934831,
+          12.710630145
+        ],
+        [
+          12.710630145,
+          12.949219955
+        ],
+        [
+          13.010988112,
+          13.14271666
+        ],
+        [
+          13.14271666,
+          13.254398984
+        ],
+        [
+          13.254398984,
+          13.394561917
+        ],
+        [
+          13.394561917,
+          13.52075333
+        ],
+        [
+          13.582710286,
+          13.729558205
+        ],
+        [
+          13.729558205,
+          13.870848809
+        ],
+        [
+          13.870848809,
+          14.031545404
+        ],
+        [
+          14.031545404,
+          14.145828161
+        ],
+        [
+          14.145828161,
+          14.266920429
+        ],
+        [
+          14.266920429,
+          14.417985562
+        ],
+        [
+          14.417985562,
+          14.543984007
+        ],
+        [
+          14.543984007,
+          14.681181414
+        ],
+        [
+          14.681181414,
+          14.817160022
+        ],
+        [
+          14.817160022,
+          14.952271719
+        ],
+        [
+          14.952271719,
+          15.06408342
+        ],
+        [
+          15.06408342,
+          15.199547184
+        ],
+        [
+          15.199547184,
+          15.331773145
+        ],
+        [
+          15.331773145,
+          15.44931474
+        ],
+        [
+          15.44931474,
+          15.570218285
+        ],
+        [
+          15.570218285,
+          15.709426343
+        ],
+        [
+          15.709426343,
+          15.831312921
+        ],
+        [
+          15.831312921,
+          16.10221942
+        ],
+        [
+          16.10221942,
+          16.297099378
+        ],
+        [
+          16.297099378,
+          16.416528811
+        ],
+        [
+          16.416528811,
+          16.616249881
+        ],
+        [
+          16.616249881,
+          16.745219579
+        ],
+        [
+          16.745219579,
+          16.8535086
+        ],
+        [
+          16.8535086,
+          16.984951233
+        ],
+        [
+          17.046088532,
+          17.178853502
+        ],
+        [
+          17.178853502,
+          17.298351293
+        ],
+        [
+          17.298351293,
+          17.410058688
+        ],
+        [
+          17.410058688,
+          17.540952599
+        ],
+        [
+          17.540952599,
+          17.69296605
+        ],
+        [
+          17.69296605,
+          17.824463735
+        ],
+        [
+          17.824463735,
+          17.966590805
+        ],
+        [
+          17.966590805,
+          18.155122458
+        ],
+        [
+          18.155122458,
+          18.296415036
+        ],
+        [
+          18.296415036,
+          18.459814408
+        ],
+        [
+          18.459814408,
+          18.755753202
+        ],
+        [
+          18.755753202,
+          19.004785476
+        ],
+        [
+          19.067718593,
+          19.205147661
+        ],
+        [
+          19.205147661,
+          19.451052694
+        ],
+        [
+          19.451052694,
+          19.56690186
+        ],
+        [
+          19.628855796,
+          19.737282181
+        ],
+        [
+          19.787595937,
+          19.922509144
+        ],
+        [
+          19.970556934,
+          20.182604423
+        ],
+        [
+          20.228498363,
+          20.355612832
+        ],
+        [
+          20.355612832,
+          20.493865747
+        ],
+        [
+          20.493865747,
+          20.61972428
+        ],
+        [
+          20.61972428,
+          20.818970119
+        ],
+        [
+          20.879367835,
+          21.012025839
+        ],
+        [
+          21.065054101,
+          21.206343173
+        ],
+        [
+          21.206343173,
+          21.38063384
+        ],
+        [
+          21.38063384,
+          21.495607804
+        ],
+        [
+          21.495607804,
+          21.685811717
+        ],
+        [
+          21.685811717,
+          21.867937708
+        ],
+        [
+          21.867937708,
+          22.066510175
+        ],
+        [
+          22.066510175,
+          22.187740577
+        ],
+        [
+          22.187740577,
+          22.308986169
+        ],
+        [
+          22.308986169,
+          22.560216263
+        ],
+        [
+          22.560216263,
+          22.688950479
+        ],
+        [
+          22.688950479,
+          22.91795155
+        ],
+        [
+          22.963989847,
+          23.095112838
+        ],
+        [
+          23.095112838,
+          23.206093399
+        ],
+        [
+          23.206093399,
+          23.329138103
+        ],
+        [
+          23.329138103,
+          23.459933937
+        ],
+        [
+          23.459933937,
+          23.580540401
+        ],
+        [
+          23.63678775,
+          23.767719066
+        ],
+        [
+          23.767719066,
+          23.894313637
+        ],
+        [
+          23.894313637,
+          24.024476375
+        ],
+        [
+          24.024476375,
+          24.327898031
+        ],
+        [
+          24.386001902,
+          24.512927639
+        ],
+        [
+          24.512927639,
+          24.647382268
+        ],
+        [
+          24.647382268,
+          24.775841294
+        ],
+        [
+          24.827488517,
+          24.949375109
+        ],
+        [
+          24.997198544,
+          25.127500474
+        ],
+        [
+          25.127500474,
+          25.303717338
+        ],
+        [
+          25.303717338,
+          25.413828214
+        ],
+        [
+          25.413828214,
+          25.62060318
+        ],
+        [
+          25.62060318,
+          25.741258582
+        ],
+        [
+          25.741258582,
+          25.874575096
+        ],
+        [
+          25.874575096,
+          26.01797661
+        ],
+        [
+          26.01797661,
+          26.147506838
+        ],
+        [
+          26.147506838,
+          26.285746582
+        ],
+        [
+          26.3422259,
+          26.654094287
+        ],
+        [
+          26.654094287,
+          26.760425867
+        ],
+        [
+          26.760425867,
+          26.87550774
+        ],
+        [
+          26.87550774,
+          27.00014498
+        ],
+        [
+          27.05061438,
+          27.253012336
+        ],
+        [
+          27.253012336,
+          27.362191224
+        ],
+        [
+          27.362191224,
+          27.488671663
+        ],
+        [
+          27.488671663,
+          27.66165422
+        ],
+        [
+          27.748291677,
+          27.879780543
+        ],
+        [
+          27.879780543,
+          28.011482764
+        ],
+        [
+          28.011482764,
+          28.123500792
+        ],
+        [
+          28.236987754,
+          28.370879772
+        ],
+        [
+          28.370879772,
+          28.491377251
+        ],
+        [
+          28.491377251,
+          28.614107848
+        ],
+        [
+          28.614107848,
+          28.797539972
+        ],
+        [
+          28.797539972,
+          29.010870171
+        ],
+        [
+          29.010870171,
+          29.138800143
+        ],
+        [
+          29.138800143,
+          29.34215902
+        ],
+        [
+          29.34215902,
+          29.47611507
+        ],
+        [
+          29.47611507,
+          29.670655425
+        ],
+        [
+          29.670655425,
+          29.80330806
+        ],
+        [
+          29.80330806,
+          29.923975832
+        ],
+        [
+          29.923975832,
+          30.049939282
+        ]
+      ],
+      "survived": true,
+      "udp_tx_mbps": 3.15806375856871,
+      "udp_snmp": {
+        "InDatagrams": 17276,
+        "NoPorts": 0,
+        "InErrors": 0,
+        "OutDatagrams": 18075,
+        "RcvbufErrors": 0,
+        "SndbufErrors": 0,
+        "InCsumErrors": 0,
+        "IgnoredMulti": 0,
+        "MemErrors": 0
+      },
+      "order_probe": [
+        {
+          "profile": "paced",
+          "sent": 512,
+          "received": 489,
+          "unique": 489,
+          "missing": 23,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            22.518387995660305,
+            24.41597799770534
+          ]
+        },
+        {
+          "profile": "burst",
+          "sent": 2048,
+          "received": 1928,
+          "unique": 1928,
+          "missing": 120,
+          "reordered": 0,
+          "distance_ge_129": 0,
+          "max_sequence_displacement": 0,
+          "delay_p50_p95_ms": [
+            26.51427499949932,
+            28.286857064813375
+          ]
+        }
+      ],
+      "variant": "a",
+      "evidence": "stalls2-a-wifi5o-off-s2.txt",
+      "fps": 7.318880092849134,
+      "p95_ms": 190.064,
+      "longest_stall_ms": 919.807,
+      "post_loss_longest_stall_ms": 311.86838700000055
+    }
+  ]
+}

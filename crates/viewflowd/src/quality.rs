@@ -40,6 +40,8 @@ pub struct QualityTelemetry {
     congested: AtomicU64,
     fec_budgeted: AtomicU64,
     network_failed: AtomicU64,
+    service_limit: AtomicU64,
+    sampled_rtt_us: AtomicU64,
     fec: [AtomicU64; 2],
     fec_updated: [AtomicU64; 2],
 }
@@ -53,12 +55,27 @@ impl Default for QualityTelemetry {
             congested: AtomicU64::new(0),
             fec_budgeted: AtomicU64::new(1),
             network_failed: AtomicU64::new(0),
+            service_limit: AtomicU64::new(u64::from(AUTO_CEILING_KBPS)),
+            sampled_rtt_us: AtomicU64::new(0),
             fec: [AtomicU64::new(0), AtomicU64::new(0)],
             fec_updated: [AtomicU64::new(0), AtomicU64::new(0)],
         }
     }
 }
 impl QualityTelemetry {
+    /// Completed-frame service is a congestion recovery budget, not an
+    /// unbiased link capacity estimate. It includes stop-and-wait feedback.
+    pub fn completed_service(&self, bytes: usize, elapsed: std::time::Duration) {
+        if self.congested.load(Ordering::Relaxed) == 0
+            || self.fec_budgeted.load(Ordering::Relaxed) == 0 { return; }
+        // A pure base-RTT step or tiny static frame is not capacity evidence.
+        // Require service beyond two sampled round trips before clipping.
+        if elapsed.as_micros() <= u128::from(self.sampled_rtt_us.load(Ordering::Relaxed)).saturating_mul(2) { return; }
+        let kbps = (bytes as u128 * 8000 * 6 / (elapsed.as_micros().max(1) * 10))
+            .clamp(2000, u128::from(AUTO_CEILING_KBPS));
+        self.service_limit.fetch_min(kbps as u64, Ordering::Release);
+    }
+
     pub fn network_failed(&self, total: u64) { self.network_failed.fetch_max(total, Ordering::Relaxed); }
     pub fn fec_suspended(&self) -> bool { self.congested.load(Ordering::Relaxed) != 0 || self.fec_budgeted.load(Ordering::Relaxed) == 0 }
     pub fn fec_overhead(&self, lane: usize, data: usize, parity: usize) {
@@ -103,26 +120,32 @@ impl QualityTelemetry {
     }
 }
 
-/// Confirmed incomplete media needs a burst-recovery budget even if kernel
-/// drops keep RTT flat. Presentation/input rejection never feeds this counter.
-struct FecRecoveryBudget {
+/// Confirmed incomplete media and congested completed-frame service bound
+/// burst recovery. Presentation/input rejection never counts as media loss.
+struct RecoveryBudget {
     ceiling: f64,
     previous_failed: u64,
-    last_failure_us: u64,
+    last_limit_us: u64,
     updated_us: u64,
 }
-impl Default for FecRecoveryBudget {
-    fn default() -> Self { Self { ceiling: f64::from(AUTO_CEILING_KBPS), previous_failed: 0, last_failure_us: 0, updated_us: 0 } }
+impl Default for RecoveryBudget {
+    fn default() -> Self { Self { ceiling: f64::from(AUTO_CEILING_KBPS), previous_failed: 0, last_limit_us: 0, updated_us: 0 } }
 }
-impl FecRecoveryBudget {
+impl RecoveryBudget {
+    fn limit_service(&mut self, now_us: u64, kbps: u32) {
+        if f64::from(kbps) < self.ceiling {
+            self.ceiling = f64::from(kbps.max(2000));
+            self.last_limit_us = now_us;
+        }
+    }
     fn update(&mut self, now_us: u64, failed: u64, healthy: bool) -> u32 {
         let failures = failed.saturating_sub(self.previous_failed);
         if failures > 0 {
             // Same heavy-loss multiplier as the rate controller; once per
             // confirmed failed frame, not repeatedly for one old generation.
             self.ceiling = (self.ceiling * 0.7_f64.powi(failures.min(32) as i32)).max(2000.0);
-            self.last_failure_us = now_us;
-        } else if healthy && now_us.saturating_sub(self.last_failure_us) >= 5_000_000 {
+            self.last_limit_us = now_us;
+        } else if healthy && now_us.saturating_sub(self.last_limit_us) >= 5_000_000 {
             let elapsed = now_us.saturating_sub(self.updated_us).min(1_000_000) as f64 / 1_000_000.0;
             self.ceiling = (self.ceiling * (1.0 + 0.3 * elapsed)).min(f64::from(AUTO_CEILING_KBPS));
         }
@@ -201,9 +224,38 @@ impl QualitySampler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn congested_completion_limits_next_frame_without_waiting_for_timer() {
+        let telemetry = std::sync::Arc::new(QualityTelemetry::default());
+        let monitor = QualityMonitor { target: std::sync::Arc::new(AtomicU64::new(pack(QualityTarget {
+            kbps: AUTO_CEILING_KBPS, max_fps: 60, scale_permille: 1000 }))),
+            task: tokio::spawn(std::future::pending()), telemetry: telemetry.clone(), adaptive: true };
+        telemetry.completed_service(1_000_000, std::time::Duration::from_secs(1));
+        assert_eq!(monitor.target().kbps, AUTO_CEILING_KBPS); // no congestion
+        telemetry.congested.store(1, Ordering::Relaxed);
+        telemetry.fec_budgeted.store(0, Ordering::Relaxed); // fixed quality
+        telemetry.completed_service(1_000_000, std::time::Duration::from_secs(1));
+        assert_eq!(monitor.target().kbps, AUTO_CEILING_KBPS);
+        telemetry.fec_budgeted.store(1, Ordering::Relaxed);
+        telemetry.sampled_rtt_us.store(100_000, Ordering::Relaxed);
+        telemetry.completed_service(1000, std::time::Duration::from_millis(100));
+        assert_eq!(monitor.target().kbps, AUTO_CEILING_KBPS); // pure base RTT, tiny content
+        telemetry.completed_service(1_000_000, std::time::Duration::from_secs(1));
+        assert_eq!(monitor.target().kbps, 4800);
+        telemetry.service_limit.store(u64::from(AUTO_CEILING_KBPS), Ordering::Relaxed);
+        telemetry.fec_overhead(0, 1_000_000, 200_000);
+        telemetry.completed_service(1_200_000, std::time::Duration::from_secs(1));
+        assert_eq!(monitor.target().kbps, 4800); // total 5760, parity deducted once
+        let mut budget = RecoveryBudget::default();
+        budget.limit_service(100_000, 4800);
+        assert_eq!(budget.update(4_000_000, 0, true), 4800);
+        assert!(budget.update(6_000_000, 0, true) > 4800);
+        assert_eq!(telemetry.network_failed.load(Ordering::Relaxed), 0);
+    }
+
     #[test]
     fn confirmed_network_failure_budget_cuts_once_then_recovers_without_an_exit() {
-        let mut budget = FecRecoveryBudget::default();
+        let mut budget = RecoveryBudget::default();
         assert_eq!(budget.update(200_000, 0, true), AUTO_CEILING_KBPS);
         let first = budget.update(400_000, 1, true);
         assert_eq!(first, 630_000);
@@ -304,6 +356,8 @@ mod tests {
 /// Samples independently of an in-flight encode/feedback wait. The owner only
 /// reads the latest target at its timer boundary; no per-frame locks are added.
 pub struct QualityMonitor {
+    telemetry: std::sync::Arc<QualityTelemetry>,
+    adaptive: bool,
     target: std::sync::Arc<AtomicU64>,
     task: tokio::task::JoinHandle<()>,
 }
@@ -325,6 +379,7 @@ impl QualityMonitor {
         let initial = sampler.sample(0, 0, stats.path.lost_packets, stats.path.sent_packets, 0, 0);
         let target = std::sync::Arc::new(AtomicU64::new(pack(initial)));
         let output = target.clone();
+        let service_telemetry = telemetry.clone();
         let initial_buffer_space = connection.datagram_send_buffer_space();
         let task = tokio::spawn(async move {
             let origin = tokio::time::Instant::now();
@@ -343,7 +398,7 @@ impl QualityMonitor {
             let mut sampled = false;
             let mut interval_backlogged = true;
             let mut previous_us = 0_u64;
-            let mut recovery_budget = FecRecoveryBudget::default();
+            let mut recovery_budget = RecoveryBudget::default();
             let mut previous = None;
             let mut summary = origin;
             loop {
@@ -400,13 +455,21 @@ impl QualityMonitor {
                     age,
                     dropped,
                 );
+                telemetry.sampled_rtt_us.store(stats.path.rtt.as_micros().min(u128::from(u64::MAX)) as u64, Ordering::Relaxed);
                 telemetry.congested.store(u64::from(sampler.congested), Ordering::Relaxed);
                 let overhead = telemetry.fec_ratio();
+                let service_limit = telemetry.service_limit.load(Ordering::Relaxed);
                 if mode != SourceQualityMode::HighQuality {
+                    recovery_budget.limit_service(now_us, service_limit as u32);
                     next.kbps = next.kbps.min(recovery_budget.update(now_us, telemetry.network_failed.load(Ordering::Relaxed), sampler.recovery_healthy));
                 }
                 next.kbps = (u64::from(next.kbps) * 1000 / (1000 + overhead)) as u32;
-                output.store(pack(next), Ordering::Relaxed);
+                output.store(pack(next), Ordering::Release);
+                // Publish before consuming: the next frame sees the pending
+                // cap immediately, or the monitor's incorporated target. A
+                // concurrent smaller sample survives for the next update.
+                let _ = telemetry.service_limit.compare_exchange(service_limit,
+                    u64::from(AUTO_CEILING_KBPS), Ordering::Release, Ordering::Relaxed);
                 let now = tokio::time::Instant::now();
                 if previous != Some(next) || now >= summary {
                     eprintln!(
@@ -422,12 +485,18 @@ impl QualityMonitor {
                 previous = Some(next);
             }
         });
-        Self { target, task }
+        Self { target, task, telemetry: service_telemetry, adaptive: mode != SourceQualityMode::HighQuality }
     }
     pub fn target(&self) -> QualityTarget {
-        let packed = self.target.load(Ordering::Relaxed);
+        // Read pending first: consuming it in the monitor publishes output
+        // before resetting this atomic, including on weakly ordered CPUs.
+        let pending = self.telemetry.service_limit.load(Ordering::Acquire);
+        let packed = self.target.load(Ordering::Acquire);
+        let cap = if self.adaptive && pending < u64::from(AUTO_CEILING_KBPS) {
+            (pending * 1000 / (1000 + self.telemetry.fec_ratio())) as u32
+        } else { AUTO_CEILING_KBPS };
         QualityTarget {
-            kbps: packed as u32,
+            kbps: (packed as u32).min(cap),
             max_fps: (packed >> 32) as u32,
             scale_permille: 1000,
         }

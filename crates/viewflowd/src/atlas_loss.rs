@@ -33,11 +33,12 @@ pub struct LossTelemetry {
 pub(crate) struct LossWait {
     pub request_at: Instant,
     pub expires: Instant,
-    pub repair_until: Instant,
+    retry_at: Instant,
     pub requested: bool,
     pub attempted: bool,
     rtt: Duration,
     budget: Duration,
+    frame_period: Duration,
     pub progressed: bool,
     rounds: u8,
 }
@@ -48,29 +49,54 @@ impl LossWait {
         let budget = (rtt.saturating_mul(2) + frame_period)
             .clamp(Duration::from_millis(8), Duration::from_millis(250));
         Self {
-            request_at: started + rtt.max(Duration::from_millis(2)),
+            request_at: started + rtt.max(Duration::from_millis(2)).min(Duration::from_millis(250)),
             // A manifest can overtake media queued behind congestion control.
             // Wait for the first chunk before applying an inactivity budget.
             expires: started + Duration::from_millis(250),
-            repair_until: started + Duration::from_millis(250),
+            retry_at: started + (rtt + Duration::from_millis(2)).clamp(Duration::from_millis(4), Duration::from_millis(250)),
             requested: false,
             attempted: false,
             rtt,
             budget,
+            frame_period,
             progressed: false,
             rounds: 0,
         }
     }
+    /// A warmup RTT can be obsolete during a large frame's first rate-limited
+    /// flight. Grow the current frame's repair windows from measured RTT, with
+    /// the same existing caps; never tighten a live repair or reset its rounds.
+    pub fn observe_rtt(&mut self, rtt: Duration) {
+        if rtt <= self.rtt { return; }
+        let old_grace = self.repair_grace();
+        let old_budget = self.budget;
+        let old_retry = self.retry_delay();
+        self.rtt = rtt;
+        self.budget = (rtt.saturating_mul(2) + self.frame_period)
+            .clamp(Duration::from_millis(8), Duration::from_millis(250));
+        if self.progressed {
+            self.expires += if self.requested { self.repair_grace() - old_grace }
+                else { self.budget - old_budget };
+        }
+        self.retry_at += self.retry_delay() - old_retry;
+        if !self.attempted { self.request_at = self.request_at.min(self.expires); }
+    }
+
     // Only a new accepted chunk extends inactivity waiting. Duplicates do
     // not keep a dead frame alive; supersession still drops it immediately.
     pub fn progress(&mut self) {
         let now = Instant::now();
         self.progressed = true;
         self.expires = now + if self.requested { self.repair_grace() } else { self.budget };
-        self.repair_until = self.expires;
+        self.retry_at = now + self.retry_delay();
         if !self.attempted {
-            self.request_at = now + self.rtt.max(Duration::from_millis(2));
+            self.request_at = (now + self.rtt.max(Duration::from_millis(2))).min(self.expires);
         }
+    }
+    fn retry_delay(self) -> Duration {
+        // Repair service follows RTT, not the source FPS ladder. Waiting a
+        // source frame period would add 16-33ms to each late-tail repair.
+        (self.rtt + Duration::from_millis(2)).clamp(Duration::from_millis(4), Duration::from_millis(250))
     }
     fn repair_grace(self) -> Duration {
         // NACK uses a reliable stream: a lost control packet can need PTO,
@@ -84,7 +110,7 @@ impl LossWait {
             self.requested = true;
             self.request_at = Instant::now();
             self.expires = self.request_at + self.repair_grace();
-            self.repair_until = self.expires;
+            self.retry_at = self.request_at + self.retry_delay();
         }
     }
     pub fn retry(&mut self) -> bool {
@@ -92,11 +118,17 @@ impl LossWait {
         self.attempted = false;
         self.request_at = Instant::now();
         self.expires = self.request_at + self.repair_grace();
-        self.repair_until = self.expires;
+        self.retry_at = self.request_at + self.retry_delay();
         true
     }
+    pub fn retry_due(self, now: Instant) -> bool {
+        self.requested && self.attempted && self.rounds < 3 && now >= self.retry_at
+    }
     pub fn wake(self, nack: bool) -> Instant {
-        if nack && self.progressed && !self.attempted {
+        if nack && self.requested && self.attempted && self.rounds < 3 {
+            return self.retry_at.min(self.expires);
+        }
+        if nack && (self.progressed || self.requested) && !self.attempted {
             self.request_at.min(self.expires)
         } else {
             self.expires
@@ -208,6 +240,8 @@ pub(crate) struct Retransmit {
     pub(crate) enqueued: Arc<std::sync::atomic::AtomicU64>,
     #[cfg(test)]
     block_repairs: Arc<std::sync::atomic::AtomicBool>,
+    #[cfg(test)]
+    drop_requests: Arc<std::sync::atomic::AtomicU64>,
 }
 impl Drop for Retransmit {
     fn drop(&mut self) {
@@ -228,6 +262,10 @@ impl Retransmit {
         let block_repairs = Arc::new(std::sync::atomic::AtomicBool::new(false));
         #[cfg(test)]
         let blocked = block_repairs.clone();
+        #[cfg(test)]
+        let drop_requests = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        #[cfg(test)]
+        let dropped = drop_requests.clone();
         let task = tokio::spawn(async move {
             loop {
                 let mut length = [0; 2];
@@ -258,6 +296,9 @@ impl Retransmit {
                 let Some((frame, plane, indices)) = decode(&bytes) else {
                     continue;
                 };
+                #[cfg(test)]
+                if dropped.fetch_update(std::sync::atomic::Ordering::Relaxed,
+                    std::sync::atomic::Ordering::Relaxed, |v| v.checked_sub(1)).is_ok() { continue; }
                 let cached = {
                     let Ok(mut ring) = shared.lock() else {
                         break;
@@ -285,11 +326,10 @@ impl Retransmit {
                                 let wanted: Vec<u16> = (0..count)
                                     .filter_map(|i| {
                                         if served[i] < 3
-                                            && (!fec_enabled || i < usize::from(c.original_sent.load(std::sync::atomic::Ordering::Acquire)))
+                                            && (i < usize::from(c.original_sent.load(std::sync::atomic::Ordering::Acquire)))
                                             && (indices.contains(&ALL)
                                                 || indices.contains(&(i as u16)))
                                         {
-                                            if !fec_enabled { served[i] += 1; }
                                             Some(i as u16)
                                         } else {
                                             None
@@ -303,11 +343,15 @@ impl Retransmit {
                 let Some((cached, budget, expires, lane, wanted)) = cached else {
                     continue;
                 };
+                #[cfg(test)]
+                let requested_indices = wanted.len();
+                #[cfg(test)]
+                let cached_plane = cached.plane;
                 let frame_id = cached.frame_id;
                 let Ok(packets) = cached.fragment(budget) else {
                     continue;
                 };
-                let mut enqueued_indices = Vec::with_capacity(if fec_enabled { wanted.len() } else { 0 });
+                let mut enqueued_indices = Vec::with_capacity(wanted.len());
                 for (index, packet) in packets.enumerate() {
                     if index % 64 == 0 {
                         tokio::task::yield_now().await;
@@ -325,9 +369,9 @@ impl Retransmit {
                     if wanted.binary_search(&packet.chunk_index).is_ok() {
                         #[cfg(test)]
                         if blocked.load(std::sync::atomic::Ordering::Relaxed) { break; }
-                        // Congestion drops repairs locally. Never block or extend a frame budget.
-                        // quinn evicts the oldest queued datagram when full, so check space
-                        // first: a repair must not displace another lane's pending media.
+                        // Non-evicting enqueue is atomic with Quinn buffer accounting.
+                        // Congestion skips a repair and preserves its quota for retry,
+                        // including the legacy zero-flags wire path.
                         let encoded = if fec_enabled {
                             // The negotiated FEC v1 peer distinguishes repairs
                             // from original late data; old peers retain zero flags.
@@ -335,17 +379,16 @@ impl Retransmit {
                             bytes[7] = 1;
                             bytes.freeze()
                         } else { packet.encode() };
-                        let queued = if fec_enabled {
-                            try_enqueue_repair(&connection, encoded).await
-                        } else {
-                            connection.datagram_send_buffer_space() >= encoded.len()
-                                && connection.send_datagram(encoded).is_ok()
-                        };
+                        let queued = try_enqueue_repair(&connection, encoded).await;
                         if !queued { break; }
-                        if fec_enabled { enqueued_indices.push(packet.chunk_index); }
+                        enqueued_indices.push(packet.chunk_index);
                         #[cfg(test)]
                         count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
+                }
+                #[cfg(test)]
+                if std::env::var("VF_NETEM_PRIVATE").as_deref() == Ok("1") && frame_id <= 8 {
+                    eprintln!("NETEM_REPAIR frame={frame_id} plane={:?} requested={requested_indices} enqueued={} budget={budget} max={:?}", cached_plane, enqueued_indices.len(), connection.max_datagram_size());
                 }
                 // One cache update per loss request, not one lock per shard.
                 // Skipped repairs must retain their quota for a later round.
@@ -362,7 +405,11 @@ impl Retransmit {
                 }
             }
         });
-        Arc::new(Self { feedback, cache, task, #[cfg(test)] enqueued, #[cfg(test)] block_repairs })
+        Arc::new(Self { feedback, cache, task, #[cfg(test)] enqueued, #[cfg(test)] block_repairs, #[cfg(test)] drop_requests })
+    }
+    #[cfg(test)]
+    pub fn drop_next_requests(&self, count: u64) {
+        self.drop_requests.store(count, std::sync::atomic::Ordering::Relaxed);
     }
     pub fn remember(&self, plane: MediaPlaneFrame, budget: usize, lane: u64, target: Duration) -> Arc<std::sync::atomic::AtomicU16> {
         let original_sent = Arc::new(std::sync::atomic::AtomicU16::new(0));
@@ -407,12 +454,68 @@ mod tests {
         assert!(!wait.retry());
     }
 
+    #[test]
+    fn source_fps_ladder_does_not_delay_late_tail_repairs() {
+        for frame_ms in [16, 33] {
+            let mut wait = LossWait::new(Duration::from_millis(5), Duration::from_millis(frame_ms));
+            wait.progress(); wait.mark_request(true);
+            assert_eq!(wait.wake(true) - wait.request_at, Duration::from_millis(7));
+        }
+    }
+
+    #[test]
+    fn high_rtt_first_request_never_sleeps_past_its_expiry() {
+        let mut wait = LossWait::new(Duration::from_secs(2), Duration::from_millis(16));
+        assert!(wait.request_at <= wait.expires);
+        wait.progress();
+        assert_eq!(wait.request_at, wait.expires);
+        assert_eq!(wait.wake(true), wait.request_at);
+        wait.observe_rtt(Duration::from_secs(3));
+        assert!(wait.request_at <= wait.expires);
+        assert!(!wait.attempted);
+    }
+
+    #[test]
+    fn warmup_rtt_change_preserves_current_repair_and_retry_count() {
+        let mut wait = LossWait::new(Duration::from_millis(1), Duration::from_millis(16));
+        wait.progress(); wait.mark_request(true);
+        let first = wait.request_at;
+        wait.observe_rtt(Duration::from_millis(100));
+        assert_eq!(wait.expires, first + Duration::from_millis(500));
+        assert_eq!(wait.wake(true), first + Duration::from_millis(102));
+        assert_eq!(wait.rounds, 1);
+        wait.observe_rtt(Duration::from_millis(1));
+        assert_eq!(wait.expires, first + Duration::from_millis(500));
+        assert_eq!(wait.rounds, 1);
+    }
+
+    #[test]
+    fn retry_wakes_before_pto_grace_and_progress_preserves_round_limit() {
+        let mut wait = LossWait::new(Duration::from_millis(10), Duration::from_millis(16));
+        wait.progress();
+        wait.mark_request(true);
+        let first = wait.request_at;
+        assert_eq!(wait.wake(true), first + Duration::from_millis(12));
+        assert!(!wait.retry_due(first + Duration::from_millis(11)));
+        assert!(wait.retry_due(first + Duration::from_millis(12)));
+        assert!(wait.retry());
+        wait.mark_request(true);
+        wait.progress();
+        assert!(wait.wake(true) < wait.expires);
+        assert!(wait.retry());
+        wait.mark_request(true);
+        assert_eq!(wait.wake(true), wait.expires);
+        assert!(!wait.retry_due(wait.expires));
+        assert!(!wait.retry());
+    }
+
     #[tokio::test]
     async fn retransmit_cache_is_bounded_per_lane_and_shares_payloads() {
         let cache = Arc::new(Mutex::new(VecDeque::new()));
         let retransmit = Retransmit {
             feedback: Default::default(),
             block_repairs: Default::default(),
+            drop_requests: Default::default(),
             cache: cache.clone(),
             enqueued: Arc::default(),
             task: tokio::spawn(std::future::pending()),
@@ -461,13 +564,22 @@ mod tests {
 
     #[tokio::test]
     async fn blocked_fec_repairs_keep_quota_and_successful_enqueues_still_cap_at_three() {
+        blocked_repairs_keep_quota(true).await;
+    }
+
+    #[tokio::test]
+    async fn legacy_repairs_skip_unsent_tail_and_keep_blocked_quota() {
+        blocked_repairs_keep_quota(false).await;
+    }
+
+    async fn blocked_repairs_keep_quota(fec_enabled: bool) {
         use std::sync::atomic::Ordering;
         let (_client, _server, source, sink) = crate::atlas_session::tests::pair().await;
         let tx = sink.open_uni().await.unwrap();
         let writer = NackSender::new(tx);
         assert!(writer.send(fec_feedback(0, 0, 0)));
         let requests = source.accept_uni().await.unwrap();
-        let repairs = Retransmit::new(source, requests, true);
+        let repairs = Retransmit::new(source, requests, fec_enabled);
         let original_sent = repairs.remember(MediaPlaneFrame {
             window_id: viewflow_protocol::Id128(99), frame_id: 9, geometry_epoch: 1,
             plane: MediaPlane::Color, source_submitted_ns: 1,

@@ -1,0 +1,409 @@
+Viewflow owned RGBA -> NVENC -> atlas QUIC -> reassembly (no decode/display)
+controller default fec off profile release gso off
+UTC 2026-10-29T11:45:12.278146+00:00
+git 4813aadadcf488cb3ff4f9b9395d4b3657995475 + working tree changes; source SHA256 below
+b37a6d31d95a17731e2ceee324173fd864559a7c3e19f15c161b577aca86266e  Cargo.toml
+f18ee2957cede68487a9e15706c6c8915713181c7e5aad487216023d4e65a2cc  tools/netem-order-probe.py
+4ab98dcbd70f541c92e25e90eecc01c905ce4e7934652a0d466d72673e83bce8  crates/viewflowd/Cargo.toml
+40d831be3d0a7be7ed8d4ff1a3639b2ddb40363b8b6380a307c8e26fe66001de  tools/weak-network-test.py
+99a035d9352b6ceb6e791c1d4ce5904578ea0cc2fd2d9cf35db4cac6da7414a3  protocol/viewflow/v1/control.proto
+59cb726e0ca70468f4742cc4248d1cd4ac2652d92c18aae219b581b1a4fcf87a  crates/viewflow-core/src/atlas_pipeline.rs
+b945d473b192138fb1c9cc0a046687ed6eeb6b2f5350209f72b457c24a773875  crates/viewflowd/src/atlas_netem_test.rs
+d9b23d33b6ca7950fff26c77b01c1c5b71612fb55e8de76eda49241bd935445d  crates/viewflowd/src/atlas_session.rs
+1b099a1141c537dc246b6a11d08976edb6cbfe2f55e498805e311534f859ad7e  crates/viewflowd/src/atlas_loss.rs
+7c1493fb546a9f49a1ce7f3ab29bf9259de21d1e10b8e7fd3c941906e2952093  crates/viewflowd/src/atlas_fec.rs
+182d4bcc8187c46c813975ab4886212ccbf3eed89e62934a3b13dd07dc9a71df  crates/viewflow-core/src/rate_control.rs
+542cf673b9bbd74efba0aca0d6635a5703018412633e5553fa560c5adcdd421f  crates/viewflowd/src/quality.rs
+c93a5f2cb10ce1d65c9542ec451a21abdac1dcb09c27b2def44415c63abe7cad  crates/viewflowd/src/coded_peer.rs
+fb154bd3443ed36510acdb3bd6bff708ce5421606e61750a8c6d947d074337b2  crates/viewflowd/src/gpu_atlas_sender.rs
+6bcdc7323950cec62af56a880dfffad94700ec7f59e6160bff5fa9e44abf4dcd  crates/viewflowd/src/native_quality.rs
+ac2b25b49771e3f07c9b76bf696a5eda535831162e36f2b76a47b2e1ce377703  platform/nvenc-encoder/nvenc_encoder.cpp
+d635ada15e834e223bffc2d1d47e55b9a594ff5c08a455301060dc6bd43f16c4  platform/nvenc-encoder/gpu_dmabuf_encoder.cu
+d01e7a1c0221c074c63390c661a33ea62e7151c1167df6e3911d8804f53d7083  crates/viewflow-transport/src/reassembly.rs
+9caeb37094cf6c94021a5d61acbff333aa5261d60165b3ba66a74d24f5b3ba53  crates/viewflow-transport/src/config.rs
+21151e95ab1a8badd5690cf647c9484b36780afc601585489dd274aa53e169a4  crates/viewflow-transport/src/delay_cubic.rs
+9cdb56053ed179d8d1e271adbc574f2ff5354a72276779c59b5763b3ba9608cd  crates/viewflow-transport/src/tls.rs
+344278438c4d44f6356f7e002030d54fd389f138def8c09ab464b6ad3d4dca46  Cargo.lock
+fc43075d69c99fb141583fa29144fa908c616407e13f1f1f9369132fcd6409e3  test executable
+$ cargo tree --locked -i quinn-proto --prefix none
+quinn-proto v0.11.19
+quinn v0.11.11
+viewflow-transport v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflow-transport)
+viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflowd)
+viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflowd)
+viewflow-transport v0.1.0 (/home/wilf/data/viewflow-wt/stalls/crates/viewflow-transport) (*)
+$ uname -a
+Linux SuperPower 7.2.11-zen1-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Fri, 16 Oct 2026 00:28:42 +0000 x86_64 GNU/Linux
+$ tc -V
+tc utility, iproute2-7.2.0, libbpf 1.7.0
+$ rustc --version
+rustc 1.95.0 (59807616e 2026-04-14)
+$ nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
+NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 615.78.08
+UTC 2026-10-29T11:45:12.452988+00:00 $ pgrep -af "weak-network-test|netem_session"; other measurement processes=0
+
+=== reorder/auto exit=0 ===
+qdisc noqueue 0: root refcnt 2
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+
+running 1 test
+NETEM_SOCKET recv_before=212992 recv_actual=8388608
+NETEM_SOCKET recv_before=212992 recv_actual=8388608
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=46 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=0 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 635904 bytes 512 pkt (dropped 0, overlimits 0 requeues 9)
+ backlog 0b 0p requeues 9
+  delayed 503 dropped 0 corrupted 0 duplicated 0 reordered 9 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 3179520 bytes 2560 pkt (dropped 0, overlimits 0 requeues 34)
+ backlog 0b 0p requeues 34
+  delayed 2526 dropped 0 corrupted 0 duplicated 0 reordered 34 ecn_marked 0
+NETEM_ORDER_PROBE {"scenario": "reorder", "rows": [{"profile": "paced", "sent": 512, "received": 512, "unique": 512, "missing": 0, "reordered": 116, "distance_ge_129": 0, "max_sequence_displacement": 19, "delay_p50_p95_ms": [5.006627063266933, 5.051936954259872]}, {"profile": "burst", "sent": 2048, "received": 2048, "unique": 2048, "missing": 0, "reordered": 1662, "distance_ge_129": 1157, "max_sequence_displacement": 504, "delay_p50_p95_ms": [5.190073978155851, 5.282582947984338]}]}
+NETEM_ENQUEUE frame=1 budget=1414 packets=728 too_large=0 current_max=Some(1414)
+NETEM_REPAIR frame=1 plane=Color requested=512 enqueued=512 budget=1414 max=Some(1414)
+NETEM_REPAIR frame=1 plane=Color requested=77 enqueued=77 budget=1414 max=Some(1414)
+NETEM_REPAIR frame=1 plane=Color requested=512 enqueued=512 budget=1414 max=Some(1414)
+NETEM_REPAIR frame=1 plane=Color requested=69 enqueued=69 budget=1414 max=Some(1414)
+NETEM_REPAIR frame=1 plane=Color requested=364 enqueued=364 budget=1414 max=Some(1414)
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 6553995 bytes 4920 pkt (dropped 0, overlimits 0 requeues 66)
+ backlog 0b 0p requeues 66
+  delayed 4854 dropped 0 corrupted 0 duplicated 0 reordered 66 ecn_marked 0
+NETEM_EXPIRE frame=1 keyframe=true missing=198 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 912679, tv_nsec: 568471568 }, expires: Instant { tv_sec: 912679, tv_nsec: 787391078 }, retry_at: Instant { tv_sec: 912679, tv_nsec: 584186346 }, requested: true, attempted: true, rtt: 2.602366ms, budget: 21.871732ms, frame_period: 16.667ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=262 frame=1 keyframe=true color_bytes=958552 send_ms=254 disposition=Some(ExpiredUnbound) rtt_us=7603 cwnd=3040520
+NETEM_ENQUEUE frame=2 budget=1414 packets=727 too_large=0 current_max=Some(1414)
+NETEM_REPAIR frame=2 plane=Color requested=216 enqueued=216 budget=1414 max=Some(1414)
+NETEM_REPAIR frame=2 plane=Color requested=215 enqueued=215 budget=1414 max=Some(1414)
+NETEM_REPAIR frame=2 plane=Color requested=32 enqueued=32 budget=1414 max=Some(1414)
+NETEM_ENQUEUE frame=3 budget=1414 packets=104 too_large=0 current_max=Some(1414)
+NETEM_ENQUEUE frame=4 budget=1414 packets=112 too_large=0 current_max=Some(1414)
+NETEM_ENQUEUE frame=5 budget=1414 packets=109 too_large=0 current_max=Some(1414)
+NETEM_ENQUEUE frame=6 budget=1414 packets=108 too_large=0 current_max=Some(1414)
+NETEM_ENQUEUE frame=7 budget=1414 packets=103 too_large=0 current_max=Some(1414)
+NETEM_ENQUEUE frame=8 budget=1414 packets=126 too_large=0 current_max=Some(1414)
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 11279286 bytes 8382 pkt (dropped 0, overlimits 0 requeues 100)
+ backlog 0b 0p requeues 100
+  delayed 8282 dropped 0 corrupted 0 duplicated 0 reordered 100 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 17276032 bytes 12856 pkt (dropped 0, overlimits 0 requeues 160)
+ backlog 606b 7p requeues 160
+  delayed 12703 dropped 0 corrupted 0 duplicated 0 reordered 160 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 22901147 bytes 16995 pkt (dropped 0, overlimits 0 requeues 204)
+ backlog 325187b 220p requeues 204
+  delayed 17011 dropped 0 corrupted 0 duplicated 0 reordered 204 ecn_marked 0
+netem-quality mode=Auto kbps=105190 fps=60 scale=1000 rtt_us=9681 queue_us=29345 dispatch_us=42 buffered=306897 rate_busy=false dropped=1 changed=true fec_permille=0 congested=true
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 27726948 bytes 20557 pkt (dropped 0, overlimits 0 requeues 253)
+ backlog 513b 5p requeues 253
+  delayed 20309 dropped 0 corrupted 0 duplicated 0 reordered 253 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 32019552 bytes 23739 pkt (dropped 0, overlimits 0 requeues 293)
+ backlog 122b 1p requeues 293
+  delayed 23447 dropped 0 corrupted 0 duplicated 0 reordered 293 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 34765968 bytes 25743 pkt (dropped 0, overlimits 0 requeues 306)
+ backlog 0b 0p requeues 306
+  delayed 25437 dropped 0 corrupted 0 duplicated 0 reordered 306 ecn_marked 0
+NETEM_EXPIRE frame=111 keyframe=false missing=11 color_done=false alpha_done=true wait=Some(LossWait { request_at: Instant { tv_sec: 912682, tv_nsec: 394719641 }, expires: Instant { tv_sec: 912682, tv_nsec: 624738376 }, retry_at: Instant { tv_sec: 912682, tv_nsec: 406725886 }, requested: true, attempted: true, rtt: 10.006245ms, budget: 36.666933ms, frame_period: 16.654443ms, progressed: true, rounds: 3 })
+NETEM_SLOW at_ms=3099 frame=111 keyframe=false color_bytes=188637 send_ms=284 disposition=Some(ExpiredUnbound) rtt_us=8884 cwnd=3130045
+netem-quality mode=Auto kbps=106954 fps=60 scale=1000 rtt_us=9455 queue_us=3650 dispatch_us=103 buffered=21606 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=108752 fps=60 scale=1000 rtt_us=9473 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 37617046 bytes 28288 pkt (dropped 0, overlimits 0 requeues 323)
+ backlog 76439b 64p requeues 323
+  delayed 28029 dropped 0 corrupted 0 duplicated 0 reordered 323 ecn_marked 0
+netem-quality mode=Auto kbps=110578 fps=60 scale=1000 rtt_us=9558 queue_us=43453 dispatch_us=46 buffered=217738 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+atlas-loss chunks_lost=3382 recovered=29 dropped=2 nack_round_trips=29 nack_rtt_us=291355 quic_rtt_us=10063 quic_lost_packets=12 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=29 unrecoverable=2
+netem-quality mode=Auto kbps=112353 fps=60 scale=1000 rtt_us=9925 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 40063257 bytes 30486 pkt (dropped 0, overlimits 0 requeues 338)
+ backlog 312b 3p requeues 338
+  delayed 30151 dropped 0 corrupted 0 duplicated 0 reordered 338 ecn_marked 0
+netem-quality mode=Auto kbps=114241 fps=60 scale=1000 rtt_us=8486 queue_us=12992 dispatch_us=0 buffered=63691 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=116160 fps=60 scale=1000 rtt_us=9245 queue_us=967 dispatch_us=98 buffered=4776 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=118106 fps=60 scale=1000 rtt_us=9767 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 42687898 bytes 32821 pkt (dropped 0, overlimits 0 requeues 353)
+ backlog 118203b 97p requeues 353
+  delayed 32565 dropped 0 corrupted 0 duplicated 0 reordered 353 ecn_marked 0
+netem-quality mode=Auto kbps=119999 fps=60 scale=1000 rtt_us=8467 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=122009 fps=60 scale=1000 rtt_us=8688 queue_us=19359 dispatch_us=112 buffered=110171 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 45536676 bytes 35342 pkt (dropped 0, overlimits 0 requeues 373)
+ backlog 0b 0p requeues 373
+  delayed 34969 dropped 0 corrupted 0 duplicated 0 reordered 373 ecn_marked 0
+netem-quality mode=Auto kbps=123961 fps=60 scale=1000 rtt_us=9233 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=125947 fps=60 scale=1000 rtt_us=9839 queue_us=3830 dispatch_us=34 buffered=21492 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 48374042 bytes 37897 pkt (dropped 0, overlimits 0 requeues 397)
+ backlog 0b 0p requeues 397
+  delayed 37500 dropped 0 corrupted 0 duplicated 0 reordered 397 ecn_marked 0
+netem-quality mode=Auto kbps=127964 fps=60 scale=1000 rtt_us=9953 queue_us=12902 dispatch_us=134 buffered=72576 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=130112 fps=60 scale=1000 rtt_us=9482 queue_us=20863 dispatch_us=126 buffered=114956 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=132197 fps=60 scale=1000 rtt_us=8701 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 51448552 bytes 40632 pkt (dropped 0, overlimits 0 requeues 420)
+ backlog 396b 4p requeues 420
+  delayed 40216 dropped 0 corrupted 0 duplicated 0 reordered 420 ecn_marked 0
+netem-quality mode=Auto kbps=134418 fps=60 scale=1000 rtt_us=9252 queue_us=7867 dispatch_us=284 buffered=44995 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=136671 fps=60 scale=1000 rtt_us=9304 queue_us=17813 dispatch_us=0 buffered=114191 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 54593539 bytes 43452 pkt (dropped 0, overlimits 0 requeues 444)
+ backlog 862b 9p requeues 444
+  delayed 43017 dropped 0 corrupted 0 duplicated 0 reordered 444 ecn_marked 0
+netem-quality mode=Auto kbps=138966 fps=60 scale=1000 rtt_us=9002 queue_us=1234 dispatch_us=148 buffered=7164 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=141192 fps=60 scale=1000 rtt_us=9926 queue_us=1134 dispatch_us=204 buffered=7164 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=143453 fps=60 scale=1000 rtt_us=8676 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 57817735 bytes 46337 pkt (dropped 0, overlimits 0 requeues 473)
+ backlog 58059b 48p requeues 473
+  delayed 45912 dropped 0 corrupted 0 duplicated 0 reordered 473 ecn_marked 0
+netem-quality mode=Auto kbps=145863 fps=60 scale=1000 rtt_us=9214 queue_us=6266 dispatch_us=0 buffered=38170 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=148308 fps=60 scale=1000 rtt_us=9345 queue_us=11093 dispatch_us=29 buffered=70743 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 60866886 bytes 49024 pkt (dropped 0, overlimits 0 requeues 500)
+ backlog 232b 2p requeues 500
+  delayed 48526 dropped 0 corrupted 0 duplicated 0 reordered 500 ecn_marked 0
+netem-quality mode=Auto kbps=150681 fps=60 scale=1000 rtt_us=7640 queue_us=6166 dispatch_us=33 buffered=35820 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=153097 fps=60 scale=1000 rtt_us=9800 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=155547 fps=60 scale=1000 rtt_us=9447 queue_us=8875 dispatch_us=36 buffered=54582 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 64368074 bytes 52115 pkt (dropped 0, overlimits 0 requeues 532)
+ backlog 81378b 66p requeues 532
+  delayed 51649 dropped 0 corrupted 0 duplicated 0 reordered 532 ecn_marked 0
+netem-quality mode=Auto kbps=164885 fps=60 scale=1000 rtt_us=9807 queue_us=22433 dispatch_us=0 buffered=152021 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=175292 fps=60 scale=1000 rtt_us=9101 queue_us=109 dispatch_us=109 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 67769826 bytes 55172 pkt (dropped 0, overlimits 0 requeues 560)
+ backlog 0b 0p requeues 560
+  delayed 54612 dropped 0 corrupted 0 duplicated 0 reordered 560 ecn_marked 0
+atlas-loss chunks_lost=4219 recovered=40 dropped=2 nack_round_trips=40 nack_rtt_us=408123 quic_rtt_us=9599 quic_lost_packets=44 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=40 unrecoverable=2
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 72045147 bytes 59006 pkt (dropped 0, overlimits 0 requeues 602)
+ backlog 286872b 234p requeues 602
+  delayed 58638 dropped 0 corrupted 0 duplicated 0 reordered 602 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 78370751 bytes 64535 pkt (dropped 0, overlimits 0 requeues 662)
+ backlog 43233b 36p requeues 662
+  delayed 63909 dropped 0 corrupted 0 duplicated 0 reordered 662 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 84314395 bytes 69731 pkt (dropped 0, overlimits 0 requeues 714)
+ backlog 149b 1p requeues 714
+  delayed 69018 dropped 0 corrupted 0 duplicated 0 reordered 714 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 91030526 bytes 75546 pkt (dropped 0, overlimits 0 requeues 753)
+ backlog 0b 0p requeues 753
+  delayed 74793 dropped 0 corrupted 0 duplicated 0 reordered 753 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 96952845 bytes 80672 pkt (dropped 0, overlimits 0 requeues 807)
+ backlog 335620b 277p requeues 807
+  delayed 80142 dropped 0 corrupted 0 duplicated 0 reordered 807 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 102469190 bytes 85490 pkt (dropped 0, overlimits 0 requeues 854)
+ backlog 340802b 282p requeues 854
+  delayed 84918 dropped 0 corrupted 0 duplicated 0 reordered 854 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 108549106 bytes 90772 pkt (dropped 0, overlimits 0 requeues 928)
+ backlog 131b 1p requeues 928
+  delayed 89845 dropped 0 corrupted 0 duplicated 0 reordered 928 ecn_marked 0
+netem-quality mode=Auto kbps=133295 fps=60 scale=1000 rtt_us=9242 queue_us=28794 dispatch_us=0 buffered=332052 rate_busy=false dropped=2 changed=true fec_permille=0 congested=true
+netem-quality mode=Auto kbps=39544 fps=60 scale=1000 rtt_us=8939 queue_us=8878 dispatch_us=0 buffered=22697 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 112318040 bytes 94073 pkt (dropped 0, overlimits 0 requeues 961)
+ backlog 0b 0p requeues 961
+  delayed 93112 dropped 0 corrupted 0 duplicated 0 reordered 961 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 114418519 bytes 95980 pkt (dropped 0, overlimits 0 requeues 979)
+ backlog 1074b 12p requeues 979
+  delayed 95013 dropped 0 corrupted 0 duplicated 0 reordered 979 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 116879749 bytes 98175 pkt (dropped 0, overlimits 0 requeues 996)
+ backlog 0b 0p requeues 996
+  delayed 97179 dropped 0 corrupted 0 duplicated 0 reordered 996 ecn_marked 0
+atlas-loss chunks_lost=10555 recovered=110 dropped=2 nack_round_trips=110 nack_rtt_us=1139622 quic_rtt_us=9809 quic_lost_packets=53 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=110 unrecoverable=2
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 119256570 bytes 100301 pkt (dropped 0, overlimits 0 requeues 1027)
+ backlog 692b 7p requeues 1027
+  delayed 99281 dropped 0 corrupted 0 duplicated 0 reordered 1027 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 121512725 bytes 102329 pkt (dropped 0, overlimits 0 requeues 1050)
+ backlog 0b 0p requeues 1050
+  delayed 101279 dropped 0 corrupted 0 duplicated 0 reordered 1050 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 123950615 bytes 104508 pkt (dropped 0, overlimits 0 requeues 1077)
+ backlog 481b 5p requeues 1077
+  delayed 103436 dropped 0 corrupted 0 duplicated 0 reordered 1077 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 126414834 bytes 106715 pkt (dropped 0, overlimits 0 requeues 1096)
+ backlog 232b 2p requeues 1096
+  delayed 105621 dropped 0 corrupted 0 duplicated 0 reordered 1096 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 128876786 bytes 108891 pkt (dropped 0, overlimits 0 requeues 1113)
+ backlog 387b 4p requeues 1113
+  delayed 107782 dropped 0 corrupted 0 duplicated 0 reordered 1113 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 131168912 bytes 110933 pkt (dropped 0, overlimits 0 requeues 1128)
+ backlog 970b 11p requeues 1128
+  delayed 109816 dropped 0 corrupted 0 duplicated 0 reordered 1128 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 133608952 bytes 113097 pkt (dropped 0, overlimits 0 requeues 1156)
+ backlog 314b 3p requeues 1156
+  delayed 111944 dropped 0 corrupted 0 duplicated 0 reordered 1156 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 136069958 bytes 115296 pkt (dropped 0, overlimits 0 requeues 1174)
+ backlog 396b 4p requeues 1174
+  delayed 114126 dropped 0 corrupted 0 duplicated 0 reordered 1174 ecn_marked 0
+netem-quality mode=Auto kbps=41917 fps=60 scale=1000 rtt_us=8993 queue_us=9146 dispatch_us=38 buffered=42984 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=44438 fps=60 scale=1000 rtt_us=9447 queue_us=8827 dispatch_us=29 buffered=19104 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=47225 fps=60 scale=1000 rtt_us=9058 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 137443089 bytes 116539 pkt (dropped 0, overlimits 0 requeues 1190)
+ backlog 0b 0p requeues 1190
+  delayed 115349 dropped 0 corrupted 0 duplicated 0 reordered 1190 ecn_marked 0
+netem-quality mode=Auto kbps=50059 fps=60 scale=1000 rtt_us=9235 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=53065 fps=60 scale=1000 rtt_us=8465 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 138766705 bytes 117767 pkt (dropped 0, overlimits 0 requeues 1214)
+ backlog 313b 3p requeues 1214
+  delayed 116556 dropped 0 corrupted 0 duplicated 0 reordered 1214 ecn_marked 0
+netem-quality mode=Auto kbps=56409 fps=60 scale=1000 rtt_us=9242 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+atlas-loss chunks_lost=10555 recovered=110 dropped=2 nack_round_trips=110 nack_rtt_us=1139622 quic_rtt_us=10062 quic_lost_packets=54 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=110 unrecoverable=2
+netem-quality mode=Auto kbps=59797 fps=60 scale=1000 rtt_us=8948 queue_us=880 dispatch_us=131 buffered=2442 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 140150526 bytes 119026 pkt (dropped 0, overlimits 0 requeues 1228)
+ backlog 40161b 36p requeues 1228
+  delayed 117834 dropped 0 corrupted 0 duplicated 0 reordered 1228 ecn_marked 0
+netem-quality mode=Auto kbps=63391 fps=60 scale=1000 rtt_us=8866 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=67377 fps=60 scale=1000 rtt_us=9938 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=71625 fps=60 scale=1000 rtt_us=9291 queue_us=6445 dispatch_us=120 buffered=20298 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 141797585 bytes 120524 pkt (dropped 0, overlimits 0 requeues 1241)
+ backlog 39415b 33p requeues 1241
+  delayed 119316 dropped 0 corrupted 0 duplicated 0 reordered 1241 ecn_marked 0
+netem-quality mode=Auto kbps=75923 fps=60 scale=1000 rtt_us=9077 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=80701 fps=60 scale=1000 rtt_us=9109 queue_us=16712 dispatch_us=38 buffered=52536 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 143499644 bytes 122108 pkt (dropped 0, overlimits 0 requeues 1262)
+ backlog 56379b 47p requeues 1262
+  delayed 120893 dropped 0 corrupted 0 duplicated 0 reordered 1262 ecn_marked 0
+netem-quality mode=Auto kbps=85790 fps=60 scale=1000 rtt_us=9651 queue_us=4 dispatch_us=4 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=90940 fps=60 scale=1000 rtt_us=9998 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=96677 fps=60 scale=1000 rtt_us=9319 queue_us=21236 dispatch_us=0 buffered=79246 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 145494363 bytes 123887 pkt (dropped 0, overlimits 0 requeues 1272)
+ backlog 231b 2p requeues 1272
+  delayed 122617 dropped 0 corrupted 0 duplicated 0 reordered 1272 ecn_marked 0
+netem-quality mode=Auto kbps=102741 fps=60 scale=1000 rtt_us=9317 queue_us=1819 dispatch_us=236 buffered=7164 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=108909 fps=60 scale=1000 rtt_us=9598 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 147609541 bytes 125770 pkt (dropped 0, overlimits 0 requeues 1286)
+ backlog 0b 0p requeues 1286
+  delayed 124484 dropped 0 corrupted 0 duplicated 0 reordered 1286 ecn_marked 0
+netem-quality mode=Auto kbps=115454 fps=60 scale=1000 rtt_us=8761 queue_us=14538 dispatch_us=45 buffered=63135 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=122729 fps=60 scale=1000 rtt_us=9393 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=130101 fps=60 scale=1000 rtt_us=9929 queue_us=6251 dispatch_us=37 buffered=29850 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 150361738 bytes 128258 pkt (dropped 0, overlimits 0 requeues 1302)
+ backlog 41162b 34p requeues 1302
+  delayed 126990 dropped 0 corrupted 0 duplicated 0 reordered 1302 ecn_marked 0
+netem-quality mode=Auto kbps=138278 fps=60 scale=1000 rtt_us=9858 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=146581 fps=60 scale=1000 rtt_us=9481 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 153387685 bytes 130884 pkt (dropped 0, overlimits 0 requeues 1329)
+ backlog 0b 0p requeues 1329
+  delayed 129555 dropped 0 corrupted 0 duplicated 0 reordered 1329 ecn_marked 0
+netem-quality mode=Auto kbps=155388 fps=60 scale=1000 rtt_us=9875 queue_us=837 dispatch_us=837 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=164723 fps=60 scale=1000 rtt_us=8623 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=175082 fps=60 scale=1000 rtt_us=8147 queue_us=6368 dispatch_us=36 buffered=44178 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 157140691 bytes 134229 pkt (dropped 0, overlimits 0 requeues 1357)
+ backlog 0b 0p requeues 1357
+  delayed 132872 dropped 0 corrupted 0 duplicated 0 reordered 1357 ecn_marked 0
+netem-quality mode=Auto kbps=186095 fps=60 scale=1000 rtt_us=8534 queue_us=7315 dispatch_us=35 buffered=50148 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+netem-quality mode=Auto kbps=197264 fps=60 scale=1000 rtt_us=7796 queue_us=969 dispatch_us=969 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 160964632 bytes 137581 pkt (dropped 0, overlimits 0 requeues 1391)
+ backlog 825b 9p requeues 1391
+  delayed 136199 dropped 0 corrupted 0 duplicated 0 reordered 1391 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 165975609 bytes 141948 pkt (dropped 0, overlimits 0 requeues 1425)
+ backlog 975b 11p requeues 1425
+  delayed 140534 dropped 0 corrupted 0 duplicated 0 reordered 1425 ecn_marked 0
+atlas-loss chunks_lost=11989 recovered=128 dropped=2 nack_round_trips=128 nack_rtt_us=1327679 quic_rtt_us=9867 quic_lost_packets=60 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=128 unrecoverable=2
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 172295228 bytes 147470 pkt (dropped 0, overlimits 0 requeues 1477)
+ backlog 330Kb 277p requeues 1477
+  delayed 146270 dropped 0 corrupted 0 duplicated 0 reordered 1477 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 178452940 bytes 152890 pkt (dropped 0, overlimits 0 requeues 1535)
+ backlog 82690b 68p requeues 1535
+  delayed 151423 dropped 0 corrupted 0 duplicated 0 reordered 1535 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 184844172 bytes 158447 pkt (dropped 0, overlimits 0 requeues 1596)
+ backlog 333375b 275p requeues 1596
+  delayed 157126 dropped 0 corrupted 0 duplicated 0 reordered 1596 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 190801132 bytes 163723 pkt (dropped 0, overlimits 0 requeues 1641)
+ backlog 0b 0p requeues 1641
+  delayed 162082 dropped 0 corrupted 0 duplicated 0 reordered 1641 ecn_marked 0
+netem-quality mode=Auto kbps=120057 fps=60 scale=1000 rtt_us=9900 queue_us=27058 dispatch_us=0 buffered=337970 rate_busy=false dropped=2 changed=true fec_permille=0 congested=true
+netem-quality mode=Auto kbps=39238 fps=60 scale=1000 rtt_us=8750 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=2 changed=true fec_permille=0 congested=false
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 192862196 bytes 165567 pkt (dropped 0, overlimits 0 requeues 1662)
+ backlog 75493b 64p requeues 1662
+  delayed 163969 dropped 0 corrupted 0 duplicated 0 reordered 1662 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 195272505 bytes 167702 pkt (dropped 0, overlimits 0 requeues 1681)
+ backlog 83291b 70p requeues 1681
+  delayed 166091 dropped 0 corrupted 0 duplicated 0 reordered 1681 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 197736242 bytes 169884 pkt (dropped 0, overlimits 0 requeues 1698)
+ backlog 79050b 65p requeues 1698
+  delayed 168251 dropped 0 corrupted 0 duplicated 0 reordered 1698 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 200270289 bytes 172111 pkt (dropped 0, overlimits 0 requeues 1725)
+ backlog 563b 6p requeues 1725
+  delayed 170392 dropped 0 corrupted 0 duplicated 0 reordered 1725 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 202547151 bytes 174159 pkt (dropped 0, overlimits 0 requeues 1743)
+ backlog 538b 5p requeues 1743
+  delayed 172421 dropped 0 corrupted 0 duplicated 0 reordered 1743 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 204930264 bytes 176322 pkt (dropped 0, overlimits 0 requeues 1764)
+ backlog 0b 0p requeues 1764
+  delayed 174558 dropped 0 corrupted 0 duplicated 0 reordered 1764 ecn_marked 0
+atlas-loss chunks_lost=15699 recovered=167 dropped=2 nack_round_trips=167 nack_rtt_us=1737325 quic_rtt_us=10058 quic_lost_packets=61 fec_recovered=0 parity_bytes=0 fec_frames=0 recovered_by_nack=167 unrecoverable=2
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 207311996 bytes 178433 pkt (dropped 0, overlimits 0 requeues 1779)
+ backlog 64336b 53p requeues 1779
+  delayed 176707 dropped 0 corrupted 0 duplicated 0 reordered 1779 ecn_marked 0
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 209780375 bytes 180701 pkt (dropped 0, overlimits 0 requeues 1804)
+ backlog 79792b 67p requeues 1804
+  delayed 178964 dropped 0 corrupted 0 duplicated 0 reordered 1804 ecn_marked 0
+NETEM_RESULT {"chunks_lost_lower_bound":15699,"complete":1494,"complete_by_10s_phase":[465,521,508],"complete_mbps":57.29808285038587,"encoder_mbps":57.621177616566804,"fec":"off","fec_failed_media_frames":0,"fec_observed_media_chunks":0,"fec_observed_missing":0,"fec_parity_bytes":0,"fec_recovered_chunks":0,"fec_recovered_frames":0,"first_complete_after_20s_ms":7.600898,"frames_lost":2,"keyframe_requests":2,"latency_ms":[9.535,36.964,38.774],"mode":"auto","nack_completed":167,"nacks":181,"receive_error":null,"repair_datagrams_enqueued":15666,"scenario":"reorder","seconds":30.010687312,"seed":"2","send_error":null,"sent":1496,"stall_ms":[311.284,305.466],"stall_ranges_s":[[0.0,0.311284741],[2.805198757,3.110664823]],"survived":true,"target_trace_s_kbps_fps":[[0.001089116,900000,60],[0.200507955,900000,60],[0.400442376,900000,60],[0.600522257,900000,60],[0.800840478,900000,60],[1.000740451,900000,60],[1.200666337,900000,60],[1.400491168,900000,60],[1.600969252,900000,60],[1.801141141,900000,60],[2.000453679,105190,60],[2.2008316470000002,105190,60],[2.40116087,105190,60],[2.60080422,105190,60],[2.801170179,105190,60],[3.000506218,105190,60],[3.200396049,105190,60],[3.400525982,106954,60],[3.600618165,108752,60],[3.8007094219999997,110578,60],[4.000696257,112353,60],[4.200301105,114241,60],[4.400564876,116160,60],[4.600751423,118106,60],[4.800309443,119999,60],[5.000345899,119999,60],[5.200435253,122009,60],[5.402666892,123961,60],[5.601764911,125947,60],[5.801465018,127964,60],[6.000620788,130112,60],[6.200797797,132197,60],[6.400765873,134418,60],[6.600874403,136671,60],[6.801852313,138966,60],[7.000835273,141192,60],[7.205708137,143453,60],[7.40052393,145863,60],[7.604004105,148308,60],[7.800453908,150681,60],[8.001207975,153097,60],[8.200928616,155547,60],[8.400498304,164885,60],[8.600721437,175292,60],[8.800889425,175292,60],[9.00062952,175292,60],[9.200661945,175292,60],[9.400399096,175292,60],[9.600736969,175292,60],[9.800640143,175292,60],[10.001403886,175292,60],[10.201166917,175292,60],[10.401184967,175292,60],[10.603256426,175292,60],[10.801557992,175292,60],[11.000394636,175292,60],[11.201343841,175292,60],[11.401055436,175292,60],[11.600834713,175292,60],[11.800384816,175292,60],[12.004561906,175292,60],[12.200464667,175292,60],[12.40624474,39544,60],[12.600960044,39544,60],[12.800577276,39544,60],[13.000415946,39544,60],[13.200375629,39544,60],[13.400924125,39544,60],[13.600584099,39544,60],[13.803379647,39544,60],[14.000480481,39544,60],[14.200468388,39544,60],[14.400982557,39544,60],[14.600958191,39544,60],[14.801048194,39544,60],[15.002711455,39544,60],[15.203455148,39544,60],[15.404039301,39544,60],[15.603327129,39544,60],[15.803721499,39544,60],[16.000351871,39544,60],[16.201194875,39544,60],[16.401063293,39544,60],[16.601131255,39544,60],[16.800516058,39544,60],[17.001312318,39544,60],[17.200631553,39544,60],[17.40045814,39544,60],[17.600436891,39544,60],[17.800632301,41917,60],[18.000792986,44438,60],[18.200720174,47225,60],[18.401303443,50059,60],[18.601526571,53065,60],[18.801295336,56409,60],[19.000724756,59797,60],[19.200349532,63391,60],[19.400471658,67377,60],[19.600903494,71625,60],[19.801741336,75923,60],[20.002564897,80701,60],[20.203551612,80701,60],[20.400727915,85790,60],[20.600472713,90940,60],[20.800473837,96677,60],[21.000956427,102741,60],[21.200562171,108909,60],[21.400436259,115454,60],[21.600390305,122729,60],[21.800834958,130101,60],[22.000688913,138278,60],[22.201092886,146581,60],[22.402646824,155388,60],[22.600605519,164723,60],[22.800968161,175082,60],[23.000952757,186095,60],[23.200346335,197264,60],[23.400760396,197264,60],[23.600829912000002,197264,60],[23.800797644,197264,60],[24.000309925,197264,60],[24.200611936,197264,60],[24.401001549,197264,60],[24.600944098,197264,60],[24.801005457,197264,60],[25.000385086,197264,60],[25.200850431,197264,60],[25.401150402,197264,60],[25.60084227,197264,60],[25.800337053,39238,60],[26.001146428,39238,60],[26.200672802,39238,60],[26.40074596,39238,60],[26.600520769,39238,60],[26.800329769,39238,60],[27.000937183,39238,60],[27.201192063,39238,60],[27.400955038,39238,60],[27.601223616,39238,60],[27.800906756,39238,60],[28.001957551,39238,60],[28.202938285,39238,60],[28.400890128,39238,60],[28.600955498,39238,60],[28.8011772,39238,60],[29.00049755,39238,60],[29.200500083,39238,60],[29.400731725,39238,60],[29.601020839,39238,60],[29.800596303,39238,60],[30.000540003,39238,60]],"udp_tx_mbps":53.22076177046937}
+test atlas_session::netem_test::owned_netem_session ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 761 filtered out; finished in 31.57s
+
+qdisc netem 1: root refcnt 2 limit 1000 delay 5ms reorder 1% seed 2 gap 1
+ Sent 211087570 bytes 181879 pkt (dropped 0, overlimits 0 requeues 1820)
+ backlog 0b 0p requeues 1820
+  delayed 180059 dropped 0 corrupted 0 duplicated 0 reordered 1820 ecn_marked 0
+Ip: Forwarding DefaultTTL InReceives InHdrErrors InAddrErrors ForwDatagrams InUnknownProtos InDiscards InDelivers OutRequests OutDiscards OutNoRoutes ReasmTimeout ReasmReqds ReasmOKs ReasmFails FragOKs FragFails FragCreates OutTransmits
+Ip: 1 64 184437 0 0 0 0 0 184437 184437 0 0 0 0 0 0 0 0 0 184437
+Icmp: InMsgs InErrors InCsumErrors InDestUnreachs InTimeExcds InParmProbs InSrcQuenchs InRedirects InEchos InEchoReps InTimestamps InTimestampReps InAddrMasks InAddrMaskReps OutMsgs OutErrors OutRateLimitGlobal OutRateLimitHost OutDestUnreachs OutTimeExcds OutParmProbs OutSrcQuenchs OutRedirects OutEchos OutEchoReps OutTimestamps OutTimestampReps OutAddrMasks OutAddrMaskReps
+Icmp: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets CurrEstab InSegs OutSegs RetransSegs InErrs OutRsts InCsumErrors
+Tcp: 1 200 120000 -1 0 0 0 0 0 0 0 0 0 0 0
+Udp: InDatagrams NoPorts InErrors OutDatagrams RcvbufErrors SndbufErrors InCsumErrors IgnoredMulti MemErrors
+Udp: 184437 0 0 184437 0 0 0 0 0
+
+NETEM_ANALYSIS {"scenario": "reorder", "mode": "auto", "stable_target_s": 12.406}
+
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| reorder/auto | True | 1496/1494/2 | 2/181/15666 | 53.22/57.30 | 9.5/37.0/38.8 | 2 | 900000/39238; 12.406 |
