@@ -1,0 +1,81 @@
+ABR tuning decisions, 2026-10-29 UTC; worktree abrtune only.
+No desktop capture, native input, focus changes, deployment, push or host qdisc mutation.
+
+Confirmed from the original source and historical netem evidence:
+- RTT minimum never expired; the clean warmup remained the delay baseline.
+- QualityTelemetry observed in_flight until disposition and combined it with
+  pre-encode queued age; repair/feedback wait was interpreted as send congestion.
+- All decreases clipped to 0.9 * interval UDP rate, even when stop-and-wait
+  reduced producer frame rate. The same old frame could cause repeated cuts.
+- The FPS ladder consumed that same congestion decision at the bitrate floor.
+- Both Linux NVENC paths configured one second of VBV credit. A lower bitrate
+  alone did not bound the next frame's burst size. Final source uses one nominal
+  60fps frame of credit for VBR, keeping CQ, alpha and fixed quality unchanged.
+
+Contained decisions:
+- Fixed RTT storage: 11 second buckets, discard age >=10 seconds; median of 3
+  followed by 1/4 EWMA; inflation exceeds BOTH 1.5 * min and min + 15ms.
+- Real send pressure: original media dispatch age and estimated buffered-byte
+  drain time from Quinn, excluding ACK/NACK wait and encode-ahead wait.
+- For flat RTT, service-limiting backlog above one nominal frame period fits
+  an encoder frame service budget (unknown native epochs retain four periods),
+  rather than applying repeated multiplicative congestion cuts. Correct an
+  application-limited interval by nominal_fps / observed_original_send_fps,
+  reserve 40% for feedback/repair. Zero new frames means unknown capacity.
+- At most one downward adjustment per original-send epoch. An old epoch cannot
+  independently drive the FPS ladder. All atomics fixed-size; no new per-frame
+  allocations or locks. The timer observes buffer/dispatch peaks every 10ms;
+  stats and controller updates run every 200ms, outside the per-frame hot path.
+- Stop-and-wait can alias with a 200ms instantaneous buffer observation. Keep
+  the interval peak. Large sustained RTT inflation >60ms on fresh original
+  frames additionally sees downstream kernel/AP queues after Quinn drained;
+  this permits multiplicative cuts only, never a send-rate clip without real
+  local backlog. This is a performance signal, not a timeout or exit condition.
+- Do not probe up from empty feedback waits: original service must reach
+  0.8 * min(target_fps, 1 / (baseline RTT + half a target frame period)).
+  Include baseline RTT so a normal
+  20-40ms path does not freeze quality recovery forever below nominal 60fps.
+  Clean service after burst resumes the existing ramp.
+- Targets and recovery remain connection-local; no new stream-ending condition.
+
+Pipeline decision: defer wire pipelining; retain existing one-frame encode-ahead.
+Source proof: AtlasSenderSession::send_frame owns and awaits exact disposition;
+AtlasReceiverSession has one staged/feedback_pending frame per lane. Same-lane
+new frames supersede incomplete frames; admit_manifest rejects advancing before
+native disposition. with_fenced_controls permits only one next manifest per lane.
+The source GPU path encodes the next frame before finish_pending(), but sends it
+only after the previous disposition and reference-gap decision. The retransmit
+cache already holding two frames does not make the receiver a two-frame reorder
+buffer. Removing the wait alone breaks alpha cache, sparse-patch/reference-chain
+and exact-feedback ownership. A negotiated pipeline capability needs bounded
+per-lane admission/reorder and multiple feedback slots, generation-aware alpha
+and patch dependencies, ordered commit and per-frame recovery. Legacy peers
+retain stop-and-wait. This exceeds a contained ABR fix; no protocol edit made.
+
+Measurement boundary: owned CPU RGBA -> NVENC -> real QUIC/atlas reassembly;
+no decode, presentation, real Wi-Fi, native platform or physical display proof.
+Background host workloads are not controlled. Check pgrep cargo before running;
+no concurrent Cargo build is intentionally run during a measured scenario.
+
+Final capacity correction: a peak backlog after feedback idle is not proof that
+the whole UDP-rate interval was capacity-limited. Record whether every 10ms
+queue observation was backlogged. Only sustained local backlog plus path delay
+permits clipping to unnormalized 0.9 * wall-clock send rate. Partially idle
+intervals use the nominal frame-service budget; an already-supported budget
+does not keep falling by 0.85. Full frame service ignores transient buffer peaks.
+
+Observed burst failure and contained availability recovery:
+A 75s run ended at 18.209s with 'atlas disposition feedback expired: deadline
+has elapsed', without reporting a QUIC connection error; no post-20s recovery was possible.
+Preserved in weak-network-abrtune-recovery-failed.txt. This is an observed
+recoverable-loss failure, not a new hypothetical safety restriction. Atlas
+original datagram backpressure now awaits Quinn's actual connection result.
+Disposition/ticket waits keep the exact same future, including partial bytes;
+a stack-pinned Sleep logs every 5s without cancelling work or allocating a
+per-frame boxed interval. Stream EOF/errors and connection failures propagate.
+Manifest writes retain their local operation watchdog; peer native/pipeline
+resource watchdogs and QUIC idle failure detection remain unchanged. Repair
+cache retention remains bounded to 5s/two frames per lane. No protocol change.
+Two real-QUIC unit regressions cover a partial read crossing multiple warning
+ticks and a genuine early EOF. This is retained-work recovery, not a larger
+performance timeout.

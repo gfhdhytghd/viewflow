@@ -1,0 +1,6 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.00s
+Running cap8/auto (30s)
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| cap8/auto | True | 406/403/3 | 3/208/2431 | 6.02/8.23 | 51.3/82.9/126.8 | 22 | 900000/2000; 6.401 |
+Evidence: docs/evidence/weak-network-abrtune-cap8-repeat.txt

@@ -121,8 +121,6 @@ pub struct GpuAtlasSender {
     reference_gap: bool,
     canvas_limit: (u32, u32),
     last_batch_return_ns: Option<i64>,
-    quality_telemetry: std::sync::Arc<crate::quality::QualityTelemetry>,
-    quality_lane: usize,
 }
 
 impl GpuAtlasSender {
@@ -191,8 +189,6 @@ impl GpuAtlasSender {
     pub fn new(encoder: GpuAtlasCompatibleEncoder, sender: AtlasSenderSession) -> Self {
         let canvas_limit = sender.canvas_limit();
         Self {
-            quality_telemetry: sender.quality_telemetry.clone(),
-            quality_lane: sender.quality_lane,
             encoder: Some(encoder),
             sender: Some(sender),
             pending: None,
@@ -290,7 +286,6 @@ impl GpuAtlasSender {
         deadline: Instant,
         released: Option<Box<dyn FnOnce(Vec<(WindowId, HyprCaptureGpuSocketReceiver)>) -> Result<()> + Send>>,
     ) -> Result<AtlasBatchSent> {
-        self.quality_telemetry.queue(self.quality_lane);
         let mut encoder = self
             .encoder
             .take()
@@ -475,7 +470,6 @@ impl GpuAtlasSender {
                 sent.is_some(),
             ));
         }
-        if !submitted { self.quality_telemetry.clear_queue(self.quality_lane); }
         self.last_batch_return_ns = batch_return_ns;
         self.encoder = Some(encoder);
         Ok(AtlasBatchSent {

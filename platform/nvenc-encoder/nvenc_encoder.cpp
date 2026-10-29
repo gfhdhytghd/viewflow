@@ -135,7 +135,8 @@ using Context = std::unique_ptr<AVCodecContext, ContextDeleter>;
   if (!alpha && config.bitrate_kbps) {
     context->bit_rate = int64_t(config.bitrate_kbps) * 1000;
     context->rc_max_rate = context->bit_rate;
-    context->rc_buffer_size = int(config.bitrate_kbps) * 1000;
+    // One nominal frame of VBV; a second of credit hides rate changes on Wi-Fi.
+    context->rc_buffer_size = std::max(1, int(config.bitrate_kbps) * 1000 / 60);
     if (!set_encoder_option(context.get(), "rc", "vbr", error) ||
         !set_encoder_option_int(context.get(), "cq", 7, error)) return nullptr;
   }
@@ -236,7 +237,7 @@ bool Encoder::set_bitrate_kbps(std::uint32_t kbps, std::string* error) {
   } else {
     impl_->color->bit_rate=int64_t(kbps)*1000;
     impl_->color->rc_max_rate=impl_->color->bit_rate;
-    impl_->color->rc_buffer_size=int(kbps)*1000;
+    impl_->color->rc_buffer_size=std::max(1, int(kbps)*1000/60);
   }
   impl_->config.bitrate_kbps=kbps;
   return true;

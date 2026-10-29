@@ -185,6 +185,32 @@ fn alpha_identity(frame: &AtlasFrame) -> [u8; 40] {
     key
 }
 
+// A reliable disposition can be delayed by QUIC loss recovery beyond the
+// local operation warning period. Keep the same read future (including partial
+// bytes) alive; connection/stream failure still propagates from that future.
+async fn wait_for_atlas_feedback<F: std::future::Future>(
+    connection: &Connection,
+    frame: u64,
+    waiting: F,
+    warning_period: std::time::Duration,
+) -> F::Output {
+    tokio::pin!(waiting);
+    let warning = tokio::time::sleep(warning_period);
+    tokio::pin!(warning);
+    loop {
+        tokio::select! {
+            result = &mut waiting => return result,
+            _ = &mut warning => {
+                let stats = connection.stats();
+                eprintln!("atlas-feedback-wait frame={frame} rtt_us={} lost_packets={} connection_closed={} retaining_exact_read=true",
+                    stats.path.rtt.as_micros(), stats.path.lost_packets,
+                    connection.close_reason().is_some());
+                warning.as_mut().reset(Instant::now() + warning_period);
+            }
+        }
+    }
+}
+
 pub struct AtlasSenderSession {
     pub(crate) quality_telemetry: std::sync::Arc<crate::quality::QualityTelemetry>,
     pub(crate) quality_lane: usize,
@@ -996,13 +1022,9 @@ impl AtlasSenderSession {
         for packet in color.chain(alpha) {
             #[cfg(test)]
             if self.drop_chunk == Some((packet.frame_id, packet.plane, packet.chunk_index)) { continue; }
-            check_deadline(deadline).context("before atlas datagram enqueue")?;
-            match timeout_at(
-                deadline,
-                self.connection.send_datagram_wait(packet.encode()),
-            )
-            .await
-            .context("atlas media send deadline expired")? {
+            // Backpressure is ordinary network recovery, not a failed media
+            // resource. Quinn reports actual connection closure from this wait.
+            match self.connection.send_datagram_wait(packet.encode()).await {
                 Ok(()) => {}
                 // PMTU can shrink while an already fragmented frame waits for
                 // congestion credit. Keep the manifest/feedback owner alive:
@@ -1012,7 +1034,7 @@ impl AtlasSenderSession {
                 Err(error) => return Err(error.into()),
             }
         }
-        check_deadline(deadline).context("after atlas datagram enqueue")?;
+        self.quality_telemetry.enqueued(self.quality_lane);
         let enqueued = trace.then(Instant::now);
         trace_connection(
             &self.connection,
@@ -1022,15 +1044,16 @@ impl AtlasSenderSession {
             started.map_or(0, |t| t.elapsed().as_micros()),
         );
         if let Some(ticket) = feedback_ticket {
-            self.last_disposition = Some(timeout_at(deadline + std::time::Duration::from_secs(5), ticket.wait())
-                .await.context("atlas activity disposition feedback stalled")??);
+            self.last_disposition = Some(wait_for_atlas_feedback(
+                &self.connection, pending.frame_id, ticket.wait(),
+                std::time::Duration::from_secs(5),
+            ).await?);
         } else if let Some(feedback) = &mut self.feedback {
-            let feedback_deadline = deadline + std::time::Duration::from_millis(150);
             let mut record = [0; crate::atlas_feedback::RECORD_BYTES];
-            timeout_at(feedback_deadline, feedback.read_exact(&mut record))
-                .await
-                .context("atlas disposition feedback expired")??;
-            check_deadline(feedback_deadline)?;
+            wait_for_atlas_feedback(
+                &self.connection, pending.frame_id, feedback.read_exact(&mut record),
+                std::time::Duration::from_secs(5),
+            ).await.context("atlas disposition feedback stream failed")?;
             self.last_disposition = Some(crate::atlas_feedback::decode(&record, &pending)?);
             trace_connection(
                 &self.connection,
@@ -2332,6 +2355,38 @@ pub(crate) mod tests {
     use viewflow_transport::{
         AlphaInterpretation, CodedPixelFormat, Colorimetry, VideoCodec, VideoPlaneRole,
     };
+
+    #[tokio::test]
+    async fn feedback_warning_preserves_the_same_partial_reliable_read() {
+        let (_client, _server, outbound, inbound) = pair().await;
+        let mut tx = outbound.open_uni().await.unwrap();
+        let sending = async {
+            tx.write_all(b"ab").await.unwrap();
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            tx.write_all(b"cd").await.unwrap();
+            tx.finish().unwrap();
+        };
+        let receiving = async {
+            let mut rx = inbound.accept_uni().await.unwrap();
+            let mut bytes = [0; 4];
+            wait_for_atlas_feedback(&inbound, 99, rx.read_exact(&mut bytes),
+                std::time::Duration::from_millis(5)).await.unwrap();
+            assert_eq!(&bytes, b"abcd");
+        };
+        tokio::join!(sending, receiving);
+    }
+
+    #[tokio::test]
+    async fn feedback_warning_still_propagates_real_stream_failure() {
+        let (_client, _server, outbound, inbound) = pair().await;
+        let mut tx = outbound.open_uni().await.unwrap();
+        tx.write_all(b"a").await.unwrap();
+        tx.finish().unwrap();
+        let mut rx = inbound.accept_uni().await.unwrap();
+        let mut bytes = [0; 4];
+        assert!(wait_for_atlas_feedback(&inbound, 99, rx.read_exact(&mut bytes),
+            std::time::Duration::from_millis(5)).await.is_err());
+    }
 
     #[tokio::test]
     async fn activity_receiver_keeps_both_handoffs_and_feedback_independent() {

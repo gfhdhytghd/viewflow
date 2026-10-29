@@ -1,0 +1,56 @@
+warning: unnecessary parentheses around method argument
+    --> crates/viewflowd/src/atlas_preview_input.rs:1830:25
+     |
+1830 |                         (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+     |                         ^
+1831 |                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS),
+     |                                                                                    ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+1830 ~                         crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+1831 ~                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS,
+     |
+
+warning: variable does not need to be mutable
+    --> crates/viewflowd/src/atlas_presenter_child.rs:1006:21
+     |
+1006 |                 let mut child = match mode {
+     |                     ----^^^^^
+     |                     |
+     |                     help: remove this `mut`
+     |
+     = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `wait_input_recovery_request` is never used
+    --> crates/viewflowd/src/atlas_receiver_presenter.rs:1209:25
+     |
+ 546 | impl AtlasReceiverPresenter {
+     | --------------------------- method in this implementation
+...
+1209 |     pub(crate) async fn wait_input_recovery_request(
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `poll_ready_subset` is never used
+   --> crates/viewflowd/src/gpu_atlas_capture.rs:278:19
+    |
+ 35 | impl AtlasCapturePool {
+    | --------------------- method in this implementation
+...
+278 |     pub(crate) fn poll_ready_subset(
+    |                   ^^^^^^^^^^^^^^^^^
+
+warning: `viewflowd` (lib test) generated 4 warnings (run `cargo fix --lib -p viewflowd --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.12s
+     Running unittests src/lib.rs (target/debug/deps/viewflowd-0feda313f2895333)
+
+running 1 test
+Viewflow media backend=nvidia device=/dev/dri/renderD128 preparation=cuda initialization=ok
+alpha-output-storage mode=native-owned-view
+Viewflow media backend=nvidia device=/dev/dri/renderD128 preparation=cuda initialization=ok
+test gpu_nvenc_runtime::tests::owned_bitrate_cabi_reconfiguration ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 732 filtered out; finished in 0.53s

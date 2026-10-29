@@ -111,8 +111,12 @@ impl Observations {
             sent_packets: sent.saturating_sub(previous.0),
             lost_packets: lost.saturating_sub(previous.1),
             queue_age_us,
+            backlog_epoch: 0,
             frames_dropped: std::mem::take(&mut self.dropped),
             send_kbps: self.meter.update(now_us, stats.udp_tx.bytes),
+            send_millifps: 0,
+            // The bridge reports stage ages, not send-queue duty over time.
+            send_rate_backlogged: false,
         };
         *previous = (sent, lost);
         sample

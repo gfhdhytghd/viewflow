@@ -34,40 +34,31 @@ pub const AUTO_CEILING_KBPS: u32 = 900_000;
 
 pub struct QualityTelemetry {
     origin: std::time::Instant,
-    in_flight: [AtomicU64; 2],
-    queued: [AtomicU64; 2],
+    sending: [AtomicU64; 2],
     dropped: AtomicU64,
+    epoch: AtomicU64,
 }
 impl Default for QualityTelemetry {
     fn default() -> Self {
         Self {
             origin: std::time::Instant::now(),
-            in_flight: [AtomicU64::new(0), AtomicU64::new(0)],
-            queued: [AtomicU64::new(0), AtomicU64::new(0)],
+            sending: [AtomicU64::new(0), AtomicU64::new(0)],
             dropped: AtomicU64::new(0),
+            epoch: AtomicU64::new(0),
         }
     }
 }
 impl QualityTelemetry {
-    pub fn queue(&self, lane: usize) {
-        self.queued[lane].store(self.now_us().saturating_add(1), Ordering::Relaxed);
-    }
-    pub fn clear_queue(&self, lane: usize) {
-        self.queued[lane].store(0, Ordering::Relaxed);
-    }
     pub fn begin(&self, lane: usize) {
-        let queued = self.queued[lane].swap(0, Ordering::Relaxed);
-        self.in_flight[lane].store(
-            if queued == 0 {
-                self.now_us().saturating_add(1)
-            } else {
-                queued
-            },
-            Ordering::Relaxed,
-        );
+        self.epoch.fetch_add(1, Ordering::Relaxed);
+        self.sending[lane].store(self.now_us().saturating_add(1), Ordering::Relaxed);
+    }
+    /// End original media enqueue, before waiting for repair or disposition.
+    pub fn enqueued(&self, lane: usize) {
+        self.sending[lane].store(0, Ordering::Relaxed);
     }
     pub fn finish(&self, lane: usize, dropped: bool) {
-        self.in_flight[lane].store(0, Ordering::Relaxed);
+        self.enqueued(lane);
         if dropped {
             self.dropped.fetch_add(1, Ordering::Relaxed);
         }
@@ -78,9 +69,8 @@ impl QualityTelemetry {
     pub fn observe(&self) -> (u64, u64) {
         let now = self.now_us();
         let age = self
-            .in_flight
+            .sending
             .iter()
-            .chain(self.queued.iter())
             .map(|v| v.load(Ordering::Relaxed))
             .filter(|v| *v != 0)
             .map(|v| now.saturating_sub(v - 1))
@@ -95,6 +85,9 @@ pub struct QualitySampler {
     previous: (u64, u64, u64),
     meter: viewflow_core::SendRateMeter,
     send_kbps: u32,
+    backlog_epoch: u64,
+    send_millifps: u32,
+    send_rate_backlogged: bool,
 }
 impl QualitySampler {
     pub fn new(mode: SourceQualityMode, fps: u32, lost: u64, sent: u64) -> Self {
@@ -107,6 +100,9 @@ impl QualitySampler {
             previous: (lost, sent, 0),
             meter: viewflow_core::SendRateMeter::default(),
             send_kbps: 0,
+            backlog_epoch: 0,
+            send_millifps: 0,
+            send_rate_backlogged: false,
         }
     }
     /// Cumulative bytes sent on the connection; feeds the next sample.
@@ -128,6 +124,9 @@ impl QualitySampler {
             lost_packets: lost.saturating_sub(self.previous.0),
             sent_packets: sent.saturating_sub(self.previous.1),
             queue_age_us,
+            backlog_epoch: self.backlog_epoch,
+            send_millifps: self.send_millifps,
+            send_rate_backlogged: self.send_rate_backlogged,
             frames_dropped: dropped.saturating_sub(self.previous.2),
             send_kbps: std::mem::take(&mut self.send_kbps),
         };
@@ -144,6 +143,24 @@ impl QualitySampler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn recovery_wait_is_not_send_backlog() {
+        let telemetry = QualityTelemetry {
+            origin: std::time::Instant::now() - std::time::Duration::from_secs(1),
+            ..QualityTelemetry::default()
+        };
+        // Simulate original enqueue stalled for 100ms, then waiting for NACK
+        // repair/disposition for the same frame. Only the first is backlog.
+        telemetry.sending[0].store(900_001, Ordering::Relaxed);
+        assert!(telemetry.observe().0 >= 100_000);
+        telemetry.enqueued(0);
+        assert_eq!(telemetry.observe(), (0, 0));
+        telemetry.begin(1);
+        telemetry.enqueued(1);
+        telemetry.finish(0, true);
+        assert_eq!(telemetry.observe(), (0, 1));
+    }
+
     #[test]
     fn config_modes_are_strict_and_default_auto() {
         assert_eq!(
@@ -208,10 +225,24 @@ impl QualityMonitor {
         let initial = sampler.sample(0, 0, stats.path.lost_packets, stats.path.sent_packets, 0, 0);
         let target = std::sync::Arc::new(AtomicU64::new(pack(initial)));
         let output = target.clone();
+        let initial_buffer_space = connection.datagram_send_buffer_space();
         let task = tokio::spawn(async move {
             let origin = tokio::time::Instant::now();
-            let mut timer = tokio::time::interval(std::time::Duration::from_millis(200));
+            // Observe buffer peaks independently of frame timing. Sampling
+            // only every 200ms can alias with stop-and-wait and always see an
+            // empty buffer even while each original frame drains for 100ms.
+            let mut timer = tokio::time::interval(std::time::Duration::from_millis(10));
             timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            // At startup the media queue is empty. Track its high-water free
+            // space as well, for callers starting after a first enqueue.
+            let mut buffer_capacity = initial_buffer_space;
+            let mut previous_bytes = connection.stats().udp_tx.bytes;
+            let mut previous_epoch = 0;
+            let mut peak_buffered = 0;
+            let mut peak_dispatch_age = 0;
+            let mut sampled = false;
+            let mut interval_backlogged = true;
+            let mut previous_us = 0_u64;
             let mut previous = None;
             let mut summary = origin;
             loop {
@@ -219,10 +250,47 @@ impl QualityMonitor {
                 if connection.close_reason().is_some() {
                     break;
                 }
-                let stats = connection.stats();
-                let (age, dropped) = telemetry.observe();
+                let free = connection.datagram_send_buffer_space();
+                buffer_capacity = buffer_capacity.max(free);
+                if free == buffer_capacity {
+                    interval_backlogged = false;
+                }
+                peak_buffered = peak_buffered.max(buffer_capacity.saturating_sub(free) as u64);
+                let (dispatch_age, dropped) = telemetry.observe();
+                peak_dispatch_age = peak_dispatch_age.max(dispatch_age);
                 let now_us = origin.elapsed().as_micros() as u64;
+                if sampled && now_us.saturating_sub(previous_us) < 200_000 {
+                    continue;
+                }
+                sampled = true;
+                let stats = connection.stats();
                 sampler.record_sent_bytes(now_us, stats.udp_tx.bytes);
+                sampler.send_rate_backlogged = interval_backlogged;
+                interval_backlogged = true;
+                let buffered = std::mem::take(&mut peak_buffered);
+                let dispatch_age = std::mem::take(&mut peak_dispatch_age);
+                let sent_bytes = stats.udp_tx.bytes.saturating_sub(previous_bytes);
+                let interval = now_us.saturating_sub(previous_us);
+                // Estimated drain time of real queued bytes, not frame ACK age.
+                let drain_us = if buffered == 0 {
+                    0
+                } else if sent_bytes == 0 {
+                    interval
+                } else {
+                    buffered.saturating_mul(interval) / sent_bytes
+                };
+                let age = dispatch_age.max(drain_us);
+                sampler.backlog_epoch = telemetry.epoch.load(Ordering::Relaxed);
+                let frames = sampler.backlog_epoch.saturating_sub(previous_epoch);
+                sampler.send_millifps =
+                    u32::try_from(frames.saturating_mul(1_000_000_000) / interval.max(1))
+                        .unwrap_or(u32::MAX);
+                if frames == 0 {
+                    sampler.send_kbps = 0;
+                }
+                previous_epoch = sampler.backlog_epoch;
+                previous_us = now_us;
+                previous_bytes = stats.udp_tx.bytes;
                 let next = sampler.sample(
                     now_us,
                     stats.path.rtt.as_micros().min(u128::from(u64::MAX)) as u64,
@@ -235,10 +303,11 @@ impl QualityMonitor {
                 let now = tokio::time::Instant::now();
                 if previous != Some(next) || now >= summary {
                     eprintln!(
-                        "{label}-quality mode={mode:?} kbps={} fps={} scale=1000 rtt_us={} queue_us={age} dropped={dropped} changed={}",
+                        "{label}-quality mode={mode:?} kbps={} fps={} scale=1000 rtt_us={} queue_us={age} dispatch_us={dispatch_age} buffered={buffered} rate_busy={} dropped={dropped} changed={}",
                         next.kbps,
                         next.max_fps,
                         stats.path.rtt.as_micros(),
+                        sampler.send_rate_backlogged,
                         previous != Some(next)
                     );
                     summary = now + std::time::Duration::from_secs(5);

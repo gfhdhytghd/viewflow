@@ -1,0 +1,53 @@
+Viewflow owned RGBA -> NVENC -> atlas QUIC -> reassembly (no decode/display)
+UTC 2026-10-29T03:38:17.282865+00:00
+git 93144462f03b093ab1a2ff32a2e5f7c542a796b5 + working tree changes; source SHA256 below
+1d11da616fc8bbf0d63f6076f4ba5a0439c3a8d31c2db23034583f8b73fb6721  tools/weak-network-test.py
+1c8b8bf1743c6f8a64cd1e3010d18b7e8acf80ad973451aa09c644f697b37bdc  crates/viewflowd/src/atlas_netem_test.rs
+943c6c02d747b195acff430b375a3604ce45f1aa1bc0b2cd3bc855655a039972  crates/viewflowd/src/atlas_session.rs
+e34f8190ec91f40e5b5acc79814bd70f5236afe859ee5114aaa17b6c609563e9  crates/viewflowd/src/atlas_loss.rs
+3ed7512bbc3fa70487b6fa0fb2ba62b9d8e13f12ea2506fe1527ffe303703eee  crates/viewflow-core/src/rate_control.rs
+f28c7a4900236304349560903f948a876dd0f1adf3d612e034edd86eeb8f861e  crates/viewflowd/src/quality.rs
+5e3fe38496a2e2febd0bcd50c32b7d118617b1f165f0751f0581526f5090b8a7  crates/viewflowd/src/coded_peer.rs
+fb154bd3443ed36510acdb3bd6bff708ce5421606e61750a8c6d947d074337b2  crates/viewflowd/src/gpu_atlas_sender.rs
+07ef8707afe6c6a3162871bde5d33b9f8c0f6afa3af9d5c22d1a862be0d122b9  crates/viewflowd/src/native_quality.rs
+ac2b25b49771e3f07c9b76bf696a5eda535831162e36f2b76a47b2e1ce377703  platform/nvenc-encoder/nvenc_encoder.cpp
+d635ada15e834e223bffc2d1d47e55b9a594ff5c08a455301060dc6bd43f16c4  platform/nvenc-encoder/gpu_dmabuf_encoder.cu
+d01e7a1c0221c074c63390c661a33ea62e7151c1167df6e3911d8804f53d7083  crates/viewflow-transport/src/reassembly.rs
+fa7bb9e3f382b429b71675246ae9ecbc1b0a7f0496cdf6a12fae32c43bd96db8  Cargo.lock
+6337f98039c664409b8b96c027d2a6bbed436ed6a7f88313d1fb9b0f627caebc  test executable
+$ uname -a
+Linux SuperPower 7.2.11-zen1-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Fri, 16 Oct 2026 00:28:42 +0000 x86_64 GNU/Linux
+$ tc -V
+tc utility, iproute2-7.2.0, libbpf 1.7.0
+$ rustc --version
+rustc 1.95.0 (59807616e 2026-04-14)
+$ nvidia-smi --query-gpu=name,driver_version --format=csv,noheader
+NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 615.78.08
+
+=== burst/auto exit=0 ===
+
+running 1 test
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=350 queue_us=0 dispatch_us=0 buffered=0 rate_busy=false dropped=0 changed=true
+atlas-loss chunks_lost=61 recovered=2 dropped=0 nack_round_trips=2 nack_rtt_us=1936 quic_rtt_us=322 quic_lost_packets=0
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=217 queue_us=1701 dispatch_us=1701 buffered=0 rate_busy=false dropped=0 changed=false
+atlas-loss chunks_lost=171 recovered=5 dropped=0 nack_round_trips=5 nack_rtt_us=6097 quic_rtt_us=277 quic_lost_packets=0
+netem-quality mode=Auto kbps=900000 fps=60 scale=1000 rtt_us=119 queue_us=3597 dispatch_us=2929 buffered=39042 rate_busy=false dropped=0 changed=false
+netem-quality mode=Auto kbps=80340 fps=60 scale=1000 rtt_us=318 queue_us=754422 dispatch_us=44 buffered=1048292 rate_busy=false dropped=1 changed=true
+netem-quality mode=Auto kbps=2977 fps=60 scale=1000 rtt_us=22061 queue_us=20278001 dispatch_us=0 buffered=998695 rate_busy=true dropped=2 changed=true
+atlas-loss chunks_lost=1328 recovered=5 dropped=2 nack_round_trips=5 nack_rtt_us=6097 quic_rtt_us=28025 quic_lost_packets=39
+netem-quality mode=Auto kbps=2977 fps=60 scale=1000 rtt_us=22061 queue_us=200504 dispatch_us=0 buffered=998695 rate_busy=true dropped=2 changed=false
+NETEM_RESULT {"chunks_lost_lower_bound":1328,"complete":599,"complete_by_10s_phase":[597,2,0],"complete_mbps":86.60652894957781,"encoder_mbps":87.27594257492129,"first_complete_after_20s_ms":null,"frames_lost":2,"keyframe_requests":2,"latency_ms":[11.064,14.216,16.502],"mode":"auto","nack_completed":5,"nacks":16,"receive_error":null,"repair_datagrams_enqueued":917,"scenario":"burst","seconds":18.209369422,"send_error":"atlas disposition feedback expired: deadline has elapsed","sent":602,"stall_ms":[8189.324],"survived":false,"target_trace_s_kbps_fps":[[0.001193693,900000,60],[0.204334145,900000,60],[0.40529552,900000,60],[0.607587449,900000,60],[0.80758512,900000,60],[1.006753763,900000,60],[1.206891112,900000,60],[1.403365432,900000,60],[1.607361237,900000,60],[1.807105905,900000,60],[2.007159495,900000,60],[2.200439375,900000,60],[2.400298745,900000,60],[2.6004886149999997,900000,60],[2.800998507,900000,60],[3.000613873,900000,60],[3.200599263,900000,60],[3.400927703,900000,60],[3.600818365,900000,60],[3.8003879659999997,900000,60],[4.000742506,900000,60],[4.200906765,900000,60],[4.40411882,900000,60],[4.604164799,900000,60],[4.802598385,900000,60],[5.003093239,900000,60],[5.202809295,900000,60],[5.402636214,900000,60],[5.602536579,900000,60],[5.803152525,900000,60],[6.004006971,900000,60],[6.200357374,900000,60],[6.40039957,900000,60],[6.600986928,900000,60],[6.801218786,900000,60],[7.000702607,900000,60],[7.201390907,900000,60],[7.400470461,900000,60],[7.600665053,900000,60],[7.800677953,900000,60],[8.001091673,900000,60],[8.208831957,900000,60],[8.410620633,900000,60],[8.608748955,900000,60],[8.810830891,900000,60],[9.009502733,900000,60],[9.212839558,900000,60],[9.411857808,900000,60],[9.609771838,900000,60],[9.800356132,900000,60],[10.011064261,900000,60],[10.201018616,900000,60],[10.400609245,900000,60],[10.60080971,900000,60],[10.801144609,80340,60],[11.000511842,80340,60],[11.201176135,80340,60],[11.400446583,80340,60],[11.600915017,80340,60],[11.800781928,80340,60],[12.000617862,80340,60],[12.201492626,80340,60],[12.400822721,2977,60],[12.601534666,2977,60],[12.801331522,2977,60],[13.001127036,2977,60],[13.200543146,2977,60],[13.40147895,2977,60],[13.601144453,2977,60],[13.801244547,2977,60],[14.001124961,2977,60],[14.200696195999999,2977,60],[14.401297912,2977,60],[14.601149722,2977,60],[14.800666153,2977,60],[15.000890749,2977,60],[15.200668865,2977,60],[15.400800502,2977,60],[15.600525873,2977,60],[15.801739073,2977,60],[16.001441001,2977,60],[16.201093866,2977,60],[16.400687368,2977,60],[16.600490622,2977,60],[16.800773495,2977,60],[17.001419118,2977,60],[17.201062678,2977,60],[18.216190963,2977,60]],"udp_tx_mbps":83.77746448248206}
+test atlas_session::netem_test::owned_netem_session ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 730 filtered out; finished in 19.07s
+
+qdisc netem 8055: root refcnt 2 limit 1000 loss 30% seed 12797552753932392205
+ Sent 196970369 bytes 149537 pkt (dropped 158, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+  delayed 0 dropped 158 corrupted 0 duplicated 0 reordered 0 ecn_marked 0
+
+NETEM_ANALYSIS {"scenario": "burst", "mode": "auto", "stable_target_s": null}
+
+| scenario/mode | survived | sent/complete/lost | KF/NACK/repair | UDP/complete Mbps | latency p50/p95/p99 ms | stalls >100ms | target first/final kbps; stable s |
+|---|---|---|---|---|---|---|---|
+| burst/auto | False | 602/599/2 | 2/16/917 | 83.78/86.61 | 11.1/14.2/16.5 | 1 | 900000/2977; None |
