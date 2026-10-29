@@ -5,6 +5,7 @@
 - [拖窗启动与停止](desktop-start.md)：Linux 源窗口 → Windows 代理 → 拖回 Linux 的人工试跑。
 - [拖窗实现约定](desktop-drag-contract.md)：窗口身份、帧绑定、输入和恢复边界。
 - [弱网（Wi-Fi）支持方案](weak-network.md)：丢包恢复、自适应码率与画质降级的分阶段计划。
+- [Moonlight / Sunshine 视频传输对比](moonlight-comparison.md)：源码机制、Viewflow 差距与弱网优化优先级。
 - [配置自检](doctor.md)：`viewflowd doctor` 只读检查身份、端口、对端握手和平台权限，并给出修复提示。
 - [总体架构](architecture.md)与[完整验收目标](integration-acceptance-gates.md)：三平台最终目标，不能以局部试跑代替。
 - [历史交接](../HANDOFF-2026-09-06.md)：上一任留下的实现上下文与旧构建记录。
