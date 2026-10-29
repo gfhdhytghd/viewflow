@@ -672,6 +672,11 @@ message AtlasSession {
   uint32 activity_priority_version = 19;
   // Optional dedicated-stream selective retransmission; 0 disables, 1 = VFNA v1.
   uint32 nack_version = 20;
+  // Optional per-lane pipelining. 0 retains stop-and-wait. Reserved for a
+  // future end-to-end implementation; current senders/receivers advertise 0.
+  // A receiver may decline any offered version by replying 0. Never infer
+  // support from this field's presence, NACK support, or retransmit capacity.
+  uint32 pipeline_version = 21;
 }
 
 message ControlEnvelope {
