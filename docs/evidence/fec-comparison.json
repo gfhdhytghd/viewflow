@@ -1,0 +1,1211 @@
+{
+  "scope": "owned RGBA/NVENC/real QUIC/reassembly/admission; no decode/display/input",
+  "measurements": 22,
+  "source_sha256": {
+    "Cargo.toml": "b37a6d31d95a17731e2ceee324173fd864559a7c3e19f15c161b577aca86266e",
+    "crates/viewflowd/Cargo.toml": "4ab98dcbd70f541c92e25e90eecc01c905ce4e7934652a0d466d72673e83bce8",
+    "tools/weak-network-test.py": "0db7f88d88d1c82abbb52cd0e4a19bb4fb0e054faa0bfb1e25a8e01fb25f7a13",
+    "protocol/viewflow/v1/control.proto": "99a035d9352b6ceb6e791c1d4ce5904578ea0cc2fd2d9cf35db4cac6da7414a3",
+    "crates/viewflow-core/src/atlas_pipeline.rs": "59cb726e0ca70468f4742cc4248d1cd4ac2652d92c18aae219b581b1a4fcf87a",
+    "crates/viewflowd/src/atlas_netem_test.rs": "e8a1292253ac9557acbaead10d66657dec267a7a65ef38158aeea4de354ebaf2",
+    "crates/viewflowd/src/atlas_session.rs": "c5f2216b1a7e242f749d6c6b585a3eb80a9f7c77fcd37bd264a0d9190b327a1b",
+    "crates/viewflowd/src/atlas_loss.rs": "ee9df5c7997b3dbeb919d3360a4d3f8e9c30c0165f3b82c33d6dbea376ffc943",
+    "crates/viewflowd/src/atlas_fec.rs": "7c1493fb546a9f49a1ce7f3ab29bf9259de21d1e10b8e7fd3c941906e2952093",
+    "crates/viewflow-core/src/rate_control.rs": "182d4bcc8187c46c813975ab4886212ccbf3eed89e62934a3b13dd07dc9a71df",
+    "crates/viewflowd/src/quality.rs": "a6a45efc9d2cc173ff3e6f5ad37e03b5f721a54de4cbcc93d84f40ccd8d3c62c",
+    "crates/viewflowd/src/coded_peer.rs": "c93a5f2cb10ce1d65c9542ec451a21abdac1dcb09c27b2def44415c63abe7cad",
+    "crates/viewflowd/src/gpu_atlas_sender.rs": "fb154bd3443ed36510acdb3bd6bff708ce5421606e61750a8c6d947d074337b2",
+    "crates/viewflowd/src/native_quality.rs": "6bcdc7323950cec62af56a880dfffad94700ec7f59e6160bff5fa9e44abf4dcd",
+    "platform/nvenc-encoder/nvenc_encoder.cpp": "ac2b25b49771e3f07c9b76bf696a5eda535831162e36f2b76a47b2e1ce377703",
+    "platform/nvenc-encoder/gpu_dmabuf_encoder.cu": "d635ada15e834e223bffc2d1d47e55b9a594ff5c08a455301060dc6bd43f16c4",
+    "crates/viewflow-transport/src/reassembly.rs": "d01e7a1c0221c074c63390c661a33ea62e7151c1167df6e3911d8804f53d7083",
+    "crates/viewflow-transport/src/config.rs": "9caeb37094cf6c94021a5d61acbff333aa5261d60165b3ba66a74d24f5b3ba53",
+    "crates/viewflow-transport/src/delay_cubic.rs": "21151e95ab1a8badd5690cf647c9484b36780afc601585489dd274aa53e169a4",
+    "crates/viewflow-transport/src/tls.rs": "9cdb56053ed179d8d1e271adbc574f2ff5354a72276779c59b5763b3ba9608cd",
+    "Cargo.lock": "344278438c4d44f6356f7e002030d54fd389f138def8c09ab464b6ad3d4dca46",
+    "test executable": "a01dcf7c7678e2584f74b584ee706e14ecfab72a671af0fb42d9c36a3fa8fc08"
+  },
+  "comparisons": [
+    {
+      "scenario": "clean",
+      "mode": "auto",
+      "off": {
+        "runs": 1,
+        "fps": [
+          60.0
+        ],
+        "p95_ms": [
+          7.877
+        ],
+        "nacks": [
+          0
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          0
+        ],
+        "max_stall_ms": [
+          0
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "auto": {
+        "runs": 1,
+        "fps": [
+          60.0
+        ],
+        "p95_ms": [
+          7.85
+        ],
+        "nacks": [
+          0
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          0
+        ],
+        "max_stall_ms": [
+          0
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "median_p95_ratio": 0.9965722990986416
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "auto",
+      "off": {
+        "runs": 2,
+        "fps": [
+          20.33,
+          0.0
+        ],
+        "p95_ms": [
+          277.959,
+          null
+        ],
+        "nacks": [
+          331,
+          199
+        ],
+        "keyframes": [
+          1,
+          39
+        ],
+        "stalls": [
+          41,
+          1
+        ],
+        "max_stall_ms": [
+          1120.039,
+          30569.874
+        ],
+        "parity_bytes": [
+          0,
+          0
+        ],
+        "recovered_chunks": [
+          0,
+          0
+        ]
+      },
+      "auto": {
+        "runs": 2,
+        "fps": [
+          41.92,
+          39.68
+        ],
+        "p95_ms": [
+          14.688,
+          14.492
+        ],
+        "nacks": [
+          71,
+          68
+        ],
+        "keyframes": [
+          5,
+          6
+        ],
+        "stalls": [
+          7,
+          13
+        ],
+        "max_stall_ms": [
+          4253.48,
+          4009.852
+        ],
+        "parity_bytes": [
+          9505160,
+          9537696
+        ],
+        "recovered_chunks": [
+          6212,
+          6337
+        ]
+      },
+      "median_p95_ratio": null
+    },
+    {
+      "scenario": "wifi5",
+      "mode": "auto",
+      "off": {
+        "runs": 2,
+        "fps": [
+          5.82,
+          4.42
+        ],
+        "p95_ms": [
+          421.727,
+          426.017
+        ],
+        "nacks": [
+          197,
+          188
+        ],
+        "keyframes": [
+          9,
+          9
+        ],
+        "stalls": [
+          114,
+          104
+        ],
+        "max_stall_ms": [
+          5374.041,
+          7714.101
+        ],
+        "parity_bytes": [
+          0,
+          0
+        ],
+        "recovered_chunks": [
+          0,
+          0
+        ]
+      },
+      "auto": {
+        "runs": 2,
+        "fps": [
+          11.96,
+          11.23
+        ],
+        "p95_ms": [
+          130.589,
+          131.923
+        ],
+        "nacks": [
+          75,
+          71
+        ],
+        "keyframes": [
+          5,
+          9
+        ],
+        "stalls": [
+          54,
+          59
+        ],
+        "max_stall_ms": [
+          4986.027,
+          6221.335
+        ],
+        "parity_bytes": [
+          3633574,
+          3688188
+        ],
+        "recovered_chunks": [
+          2531,
+          2577
+        ]
+      },
+      "median_p95_ratio": 0.30965951985505064
+    },
+    {
+      "scenario": "cap20",
+      "mode": "auto",
+      "off": {
+        "runs": 1,
+        "fps": [
+          21.91
+        ],
+        "p95_ms": [
+          35.088
+        ],
+        "nacks": [
+          2
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          3
+        ],
+        "max_stall_ms": [
+          672.977
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "auto": {
+        "runs": 1,
+        "fps": [
+          21.97
+        ],
+        "p95_ms": [
+          34.957
+        ],
+        "nacks": [
+          2
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          4
+        ],
+        "max_stall_ms": [
+          526.726
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "median_p95_ratio": 0.9962665298677611
+    },
+    {
+      "scenario": "cap8",
+      "mode": "auto",
+      "off": {
+        "runs": 1,
+        "fps": [
+          15.82
+        ],
+        "p95_ms": [
+          65.632
+        ],
+        "nacks": [
+          243
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          26
+        ],
+        "max_stall_ms": [
+          1125.632
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "auto": {
+        "runs": 1,
+        "fps": [
+          15.99
+        ],
+        "p95_ms": [
+          67.545
+        ],
+        "nacks": [
+          220
+        ],
+        "keyframes": [
+          1
+        ],
+        "stalls": [
+          25
+        ],
+        "max_stall_ms": [
+          1141.905
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "median_p95_ratio": 1.0291473671379814
+    },
+    {
+      "scenario": "burst",
+      "mode": "auto",
+      "off": {
+        "runs": 1,
+        "fps": [
+          40.0
+        ],
+        "p95_ms": [
+          8.053
+        ],
+        "nacks": [
+          79
+        ],
+        "keyframes": [
+          14
+        ],
+        "stalls": [
+          1
+        ],
+        "max_stall_ms": [
+          10030.981
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "auto": {
+        "runs": 1,
+        "fps": [
+          40.53
+        ],
+        "p95_ms": [
+          8.148
+        ],
+        "nacks": [
+          72
+        ],
+        "keyframes": [
+          6
+        ],
+        "stalls": [
+          16
+        ],
+        "max_stall_ms": [
+          4009.084
+        ],
+        "parity_bytes": [
+          20518596
+        ],
+        "recovered_chunks": [
+          768
+        ]
+      },
+      "median_p95_ratio": 1.0117968458959392
+    },
+    {
+      "scenario": "cap20",
+      "mode": "high_quality",
+      "off": {
+        "runs": 1,
+        "fps": [
+          21.71
+        ],
+        "p95_ms": [
+          34.716
+        ],
+        "nacks": [
+          4
+        ],
+        "keyframes": [
+          2
+        ],
+        "stalls": [
+          3
+        ],
+        "max_stall_ms": [
+          878.342
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "auto": {
+        "runs": 1,
+        "fps": [
+          21.69
+        ],
+        "p95_ms": [
+          34.812
+        ],
+        "nacks": [
+          4
+        ],
+        "keyframes": [
+          2
+        ],
+        "stalls": [
+          3
+        ],
+        "max_stall_ms": [
+          883.819
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "median_p95_ratio": 1.002765295540961
+    },
+    {
+      "scenario": "cap20",
+      "mode": "save_bandwidth",
+      "off": {
+        "runs": 1,
+        "fps": [
+          21.1
+        ],
+        "p95_ms": [
+          34.831
+        ],
+        "nacks": [
+          4
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          4
+        ],
+        "max_stall_ms": [
+          653.3
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "auto": {
+        "runs": 1,
+        "fps": [
+          21.01
+        ],
+        "p95_ms": [
+          34.668
+        ],
+        "nacks": [
+          4
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          3
+        ],
+        "max_stall_ms": [
+          923.802
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "median_p95_ratio": 0.9953202606873187
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "high_quality",
+      "off": {
+        "runs": 1,
+        "fps": [
+          36.83
+        ],
+        "p95_ms": [
+          37.436
+        ],
+        "nacks": [
+          376
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          6
+        ],
+        "max_stall_ms": [
+          281.376
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "auto": {
+        "runs": 1,
+        "fps": [
+          36.7
+        ],
+        "p95_ms": [
+          37.194
+        ],
+        "nacks": [
+          370
+        ],
+        "keyframes": [
+          0
+        ],
+        "stalls": [
+          6
+        ],
+        "max_stall_ms": [
+          287.824
+        ],
+        "parity_bytes": [
+          0
+        ],
+        "recovered_chunks": [
+          0
+        ]
+      },
+      "median_p95_ratio": 0.9935356341489476
+    }
+  ],
+  "rows": [
+    {
+      "scenario": "clean",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.000418444,
+      "survived": true,
+      "sent": 1800,
+      "complete": 1800,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 0,
+      "repair_datagrams_enqueued": 0,
+      "nack_completed": 0,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 152.32680839203297,
+      "latency_ms": [
+        5.737,
+        7.877,
+        8.611
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 59.99916312367286,
+      "stalls": 0,
+      "max_stall_ms": 0
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.004631752,
+      "survived": true,
+      "sent": 611,
+      "complete": 610,
+      "frames_lost": 1,
+      "keyframe_requests": 1,
+      "nacks": 331,
+      "repair_datagrams_enqueued": 7265,
+      "nack_completed": 271,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 15.790242383775281,
+      "latency_ms": [
+        14.002,
+        277.959,
+        338.917
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 20.330194519362482,
+      "stalls": 41,
+      "max_stall_ms": 1120.039
+    },
+    {
+      "scenario": "wifi5",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.063555809,
+      "survived": true,
+      "sent": 184,
+      "complete": 175,
+      "frames_lost": 9,
+      "keyframe_requests": 9,
+      "nacks": 197,
+      "repair_datagrams_enqueued": 5508,
+      "nack_completed": 133,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 5.060795900744809,
+      "latency_ms": [
+        91.02,
+        421.727,
+        522.983
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 5.821001384926363,
+      "stalls": 114,
+      "max_stall_ms": 5374.041
+    },
+    {
+      "scenario": "cap20",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.029706173,
+      "survived": true,
+      "sent": 658,
+      "complete": 658,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 2,
+      "repair_datagrams_enqueued": 28,
+      "nack_completed": 1,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 7.932513978913915,
+      "latency_ms": [
+        32.082,
+        35.088,
+        52.505
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 21.911636304707308,
+      "stalls": 3,
+      "max_stall_ms": 672.977
+    },
+    {
+      "scenario": "cap8",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.030353049,
+      "survived": true,
+      "sent": 475,
+      "complete": 475,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 243,
+      "repair_datagrams_enqueued": 358,
+      "nack_completed": 229,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 5.945228006766481,
+      "latency_ms": [
+        52.036,
+        65.632,
+        265.514
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 15.817329860389949,
+      "stalls": 26,
+      "max_stall_ms": 1125.632
+    },
+    {
+      "scenario": "burst",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.001552755,
+      "survived": true,
+      "sent": 1214,
+      "complete": 1200,
+      "frames_lost": 14,
+      "keyframe_requests": 14,
+      "nacks": 79,
+      "repair_datagrams_enqueued": 4145,
+      "nack_completed": 0,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 106.29824189578018,
+      "latency_ms": [
+        5.79,
+        8.053,
+        9.178
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 39.99792976715215,
+      "stalls": 1,
+      "max_stall_ms": 10030.981
+    },
+    {
+      "scenario": "cap20",
+      "mode": "high_quality",
+      "fec": "off",
+      "seconds": 30.02986085,
+      "survived": true,
+      "sent": 654,
+      "complete": 652,
+      "frames_lost": 2,
+      "keyframe_requests": 2,
+      "nacks": 4,
+      "repair_datagrams_enqueued": 38,
+      "nack_completed": 2,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 7.652791238291735,
+      "latency_ms": [
+        32.0,
+        34.716,
+        45.402
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 21.71172231722146,
+      "stalls": 3,
+      "max_stall_ms": 878.342
+    },
+    {
+      "scenario": "cap20",
+      "mode": "save_bandwidth",
+      "fec": "off",
+      "seconds": 30.005107552,
+      "survived": true,
+      "sent": 633,
+      "complete": 633,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 4,
+      "repair_datagrams_enqueued": 34,
+      "nack_completed": 2,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 7.327410095730357,
+      "latency_ms": [
+        32.047,
+        34.831,
+        44.091
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 21.096408299919833,
+      "stalls": 4,
+      "max_stall_ms": 653.3
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "high_quality",
+      "fec": "off",
+      "seconds": 30.029083969,
+      "survived": true,
+      "sent": 1106,
+      "complete": 1106,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 376,
+      "repair_datagrams_enqueued": 452,
+      "nack_completed": 359,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 13.199915135912818,
+      "latency_ms": [
+        12.428,
+        37.436,
+        40.549
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-matrix.txt",
+      "fps": 36.83096031639726,
+      "stalls": 6,
+      "max_stall_ms": 281.376
+    },
+    {
+      "scenario": "clean",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.000824677,
+      "survived": true,
+      "sent": 1800,
+      "complete": 1800,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 0,
+      "repair_datagrams_enqueued": 0,
+      "nack_completed": 0,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 152.32293835920544,
+      "latency_ms": [
+        5.766,
+        7.85,
+        8.711
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 59.99835069133823,
+      "stalls": 0,
+      "max_stall_ms": 0
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.059295713,
+      "survived": true,
+      "sent": 1265,
+      "complete": 1260,
+      "frames_lost": 5,
+      "keyframe_requests": 5,
+      "nacks": 71,
+      "repair_datagrams_enqueued": 6041,
+      "nack_completed": 41,
+      "fec_recovered_frames": 1197,
+      "fec_recovered_chunks": 6212,
+      "fec_parity_bytes": 9505160,
+      "udp_tx_mbps": 15.169555413196049,
+      "latency_ms": [
+        11.185,
+        14.688,
+        57.651
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 41.91714975727382,
+      "stalls": 7,
+      "max_stall_ms": 4253.48
+    },
+    {
+      "scenario": "wifi5",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.171763132,
+      "survived": true,
+      "sent": 366,
+      "complete": 361,
+      "frames_lost": 5,
+      "keyframe_requests": 5,
+      "nacks": 75,
+      "repair_datagrams_enqueued": 5185,
+      "nack_completed": 36,
+      "fec_recovered_frames": 323,
+      "fec_recovered_chunks": 2531,
+      "fec_parity_bytes": 3633574,
+      "udp_tx_mbps": 8.048198142668623,
+      "latency_ms": [
+        27.482,
+        130.589,
+        470.927
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 11.96482944734262,
+      "stalls": 54,
+      "max_stall_ms": 4986.027
+    },
+    {
+      "scenario": "cap20",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.038375421,
+      "survived": true,
+      "sent": 660,
+      "complete": 660,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 2,
+      "repair_datagrams_enqueued": 28,
+      "nack_completed": 1,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 7.9482309097544315,
+      "latency_ms": [
+        32.07,
+        34.957,
+        69.666
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 21.971893977281812,
+      "stalls": 4,
+      "max_stall_ms": 526.726
+    },
+    {
+      "scenario": "cap8",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.016585189,
+      "survived": true,
+      "sent": 481,
+      "complete": 480,
+      "frames_lost": 1,
+      "keyframe_requests": 1,
+      "nacks": 220,
+      "repair_datagrams_enqueued": 307,
+      "nack_completed": 207,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 5.970675707164633,
+      "latency_ms": [
+        51.374,
+        67.545,
+        172.83
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 15.991159453271278,
+      "stalls": 25,
+      "max_stall_ms": 1141.905
+    },
+    {
+      "scenario": "burst",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.003719767,
+      "survived": true,
+      "sent": 1222,
+      "complete": 1216,
+      "frames_lost": 6,
+      "keyframe_requests": 6,
+      "nacks": 72,
+      "repair_datagrams_enqueued": 2876,
+      "nack_completed": 20,
+      "fec_recovered_frames": 63,
+      "fec_recovered_chunks": 768,
+      "fec_parity_bytes": 20518596,
+      "udp_tx_mbps": 91.81946603267647,
+      "latency_ms": [
+        5.675,
+        8.148,
+        242.8
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 40.52830813789409,
+      "stalls": 16,
+      "max_stall_ms": 4009.084
+    },
+    {
+      "scenario": "cap20",
+      "mode": "high_quality",
+      "fec": "auto",
+      "seconds": 30.015536712,
+      "survived": true,
+      "sent": 653,
+      "complete": 651,
+      "frames_lost": 2,
+      "keyframe_requests": 2,
+      "nacks": 4,
+      "repair_datagrams_enqueued": 49,
+      "nack_completed": 2,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 7.6488957769731725,
+      "latency_ms": [
+        32.049,
+        34.812,
+        44.488
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 21.688767595474474,
+      "stalls": 3,
+      "max_stall_ms": 883.819
+    },
+    {
+      "scenario": "cap20",
+      "mode": "save_bandwidth",
+      "fec": "auto",
+      "seconds": 30.030531704,
+      "survived": true,
+      "sent": 631,
+      "complete": 631,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 4,
+      "repair_datagrams_enqueued": 63,
+      "nack_completed": 2,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 7.322765849354207,
+      "latency_ms": [
+        32.005,
+        34.668,
+        44.208
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 21.01194897977621,
+      "stalls": 3,
+      "max_stall_ms": 923.802
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "high_quality",
+      "fec": "auto",
+      "seconds": 30.00073933,
+      "survived": true,
+      "sent": 1101,
+      "complete": 1101,
+      "frames_lost": 0,
+      "keyframe_requests": 0,
+      "nacks": 370,
+      "repair_datagrams_enqueued": 441,
+      "nack_completed": 356,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 13.152781458469478,
+      "latency_ms": [
+        12.625,
+        37.194,
+        41.001
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-matrix.txt",
+      "fps": 36.69909557525561,
+      "stalls": 6,
+      "max_stall_ms": 287.824
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.569870111,
+      "survived": true,
+      "sent": 40,
+      "complete": 0,
+      "frames_lost": 40,
+      "keyframe_requests": 39,
+      "nacks": 199,
+      "repair_datagrams_enqueued": 61031,
+      "nack_completed": 0,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 30.18830203233113,
+      "latency_ms": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-wifi1-repeat.txt",
+      "fps": 0.0,
+      "stalls": 1,
+      "max_stall_ms": 30569.874
+    },
+    {
+      "scenario": "wifi1",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.014385027,
+      "survived": true,
+      "sent": 1197,
+      "complete": 1191,
+      "frames_lost": 6,
+      "keyframe_requests": 6,
+      "nacks": 68,
+      "repair_datagrams_enqueued": 7901,
+      "nack_completed": 35,
+      "fec_recovered_frames": 1129,
+      "fec_recovered_chunks": 6337,
+      "fec_parity_bytes": 9537696,
+      "udp_tx_mbps": 16.331244087095452,
+      "latency_ms": [
+        11.211,
+        14.492,
+        130.846
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-wifi1-repeat.txt",
+      "fps": 39.68097293776347,
+      "stalls": 13,
+      "max_stall_ms": 4009.852
+    },
+    {
+      "scenario": "wifi5",
+      "mode": "auto",
+      "fec": "off",
+      "seconds": 30.071610978,
+      "survived": true,
+      "sent": 142,
+      "complete": 133,
+      "frames_lost": 9,
+      "keyframe_requests": 9,
+      "nacks": 188,
+      "repair_datagrams_enqueued": 7693,
+      "nack_completed": 116,
+      "fec_recovered_frames": 0,
+      "fec_recovered_chunks": 0,
+      "fec_parity_bytes": 0,
+      "udp_tx_mbps": 6.6446603125513475,
+      "latency_ms": [
+        93.21,
+        426.017,
+        617.552
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-off-wifi5-repeat.txt",
+      "fps": 4.422776022784449,
+      "stalls": 104,
+      "max_stall_ms": 7714.101
+    },
+    {
+      "scenario": "wifi5",
+      "mode": "auto",
+      "fec": "auto",
+      "seconds": 30.087345947,
+      "survived": true,
+      "sent": 347,
+      "complete": 338,
+      "frames_lost": 9,
+      "keyframe_requests": 9,
+      "nacks": 71,
+      "repair_datagrams_enqueued": 6728,
+      "nack_completed": 33,
+      "fec_recovered_frames": 304,
+      "fec_recovered_chunks": 2577,
+      "fec_parity_bytes": 3688188,
+      "udp_tx_mbps": 8.737180888705524,
+      "latency_ms": [
+        27.431,
+        131.923,
+        447.263
+      ],
+      "udp_socket_errors": 0,
+      "evidence": "fec-auto-wifi5-repeat.txt",
+      "fps": 11.233958641463419,
+      "stalls": 59,
+      "max_stall_ms": 6221.335
+    }
+  ]
+}

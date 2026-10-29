@@ -23,3 +23,8 @@ unsafe_code = "deny"
 all = "warn"
 pedantic = { level = "warn", priority = -1 }
 unwrap_used = "warn"
+
+# Numerical FEC kernels must remain fast in dev/test too: unoptimized RS decode
+# can block the media receive pump for tens of milliseconds per encoded frame.
+[profile.dev.package.reed-solomon-simd]
+opt-level = 3

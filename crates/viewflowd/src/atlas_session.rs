@@ -155,6 +155,7 @@ impl AtlasSessionPlan {
             // Native handoff, alpha cache and media admission still have one
             // slot per lane. Do not advertise the experimental core window.
             pipeline_version: 0,
+            fec_version: 0,
             selection_rejection_version: 1,
             sparse_patch_version: 1,
             version: 1,
@@ -221,6 +222,10 @@ pub struct AtlasSenderSession {
     drop_chunk: Option<(u64, viewflow_transport::MediaPlane, u16)>,
     #[cfg(test)]
     datagram_budget_override: Option<usize>,
+    fec_enabled: bool,
+    fec_encoder: crate::atlas_fec::Encoder,
+    fec_adaptive: crate::atlas_fec::Adaptive,
+    fec_block: Vec<viewflow_transport::MediaDatagram>,
     retransmit: Option<std::sync::Arc<crate::atlas_loss::Retransmit>>,
     connection: Connection,
     plan: AtlasSessionPlan,
@@ -253,6 +258,10 @@ struct AtlasReceiveLane {
 }
 
 pub struct AtlasReceiverSession {
+    fec_enabled: bool,
+    fec_observed: (u64, u64, u64),
+    fec_report_at: Instant,
+    fec: crate::atlas_fec::Receiver,
     nack_enabled: bool,
     nack_sender: Option<crate::atlas_loss::NackSender>,
     loss_wait: Option<crate::atlas_loss::LossWait>,
@@ -364,6 +373,7 @@ pub async fn offer_atlas(
             drop_chunk: None,
             #[cfg(test)]
             datagram_budget_override: None,
+            fec_enabled: false, fec_encoder: Default::default(), fec_adaptive: Default::default(), fec_block: Vec::with_capacity(crate::atlas_fec::DATA),
             retransmit: None,
             connection: connection.clone(),
             plan,
@@ -419,7 +429,7 @@ fn receiver_session(
     codec: CodecSession,
 ) -> AtlasReceiverSession {
     AtlasReceiverSession {
-        nack_enabled: false,
+        fec_enabled: false, fec_observed: (0, 0, 0), fec_report_at: Instant::now(), fec: Default::default(),        nack_enabled: false,
         nack_sender: None,
         loss_wait: None,
         last_manifest_source_ns: None,
@@ -569,6 +579,7 @@ async fn offer_warmed_atlas_mode(
         let mut offer = plan.message(connection, false)?;
         offer.version = if dispositions { 3 } else { 2 };
         offer.nack_version = u32::from(dispositions);
+        offer.fec_version = u32::from(dispositions && std::env::var("VIEWFLOW_FEC").as_deref() != Ok("off"));
         offer.alpha_reference =
             dispositions && plan.alpha.codec == viewflow_transport::VideoCodec::LosslessAlpha;
         let payload = offer.encode_to_vec();
@@ -593,6 +604,9 @@ async fn offer_warmed_atlas_mode(
         let mut expected = plan.message(connection, true)?;
         expected.version = if dispositions { 3 } else { 2 };
         let mut accepted = read_message(&mut rx).await?;
+        let fec_enabled = accepted.fec_version == 1;
+        ensure!(accepted.fec_version <= offer.fec_version, "unsolicited atlas FEC version");
+        accepted.fec_version = 0;
         let nack_enabled = accepted.nack_version == 1;
         ensure!(accepted.nack_version <= offer.nack_version, "unsolicited atlas NACK version");
         accepted.nack_version = 0;
@@ -616,12 +630,12 @@ async fn offer_warmed_atlas_mode(
         } else {
             None
         };
-        let retransmit = if nack_enabled {
+        let retransmit = if nack_enabled || fec_enabled {
             let mut requests = connection.accept_uni().await?;
             let mut magic = [0; 4];
             requests.read_exact(&mut magic).await?;
             ensure!(&magic == b"VFN1", "atlas NACK stream magic");
-            Some(crate::atlas_loss::Retransmit::new(connection.clone(), requests))
+            Some(crate::atlas_loss::Retransmit::new(connection.clone(), requests, fec_enabled))
         } else { None };
         check_deadline(deadline)?;
         Ok(AtlasSenderSession {
@@ -629,6 +643,7 @@ async fn offer_warmed_atlas_mode(
             drop_chunk: None,
             #[cfg(test)]
             datagram_budget_override: None,
+            fec_enabled, fec_encoder: Default::default(), fec_adaptive: Default::default(), fec_block: Vec::with_capacity(crate::atlas_fec::DATA),
             retransmit,
             connection: connection.clone(),
             plan,
@@ -732,6 +747,7 @@ where
         // decline even unknown future pipeline versions. Both CPU and GPU
         // sources therefore retain the existing stop-and-wait contract.
         expected.pipeline_version = offer.pipeline_version;
+        expected.fec_version = offer.fec_version;
         ensure!(offer.activity_priority_version <= 1, "unsupported atlas activity offer");
         expected.activity_priority_version = offer.activity_priority_version;
         plan.activity_priority_version = plan.activity_priority_version.min(offer.activity_priority_version);
@@ -751,6 +767,8 @@ where
         let mut accepted = plan.message(connection, true)?;
         accepted.version = if dispositions { 3 } else { 2 };
         accepted.nack_version = if dispositions { offer.nack_version } else { 0 };
+        accepted.fec_version = if dispositions && offer.fec_version == 1 && std::env::var("VIEWFLOW_FEC").as_deref() != Ok("off") { 1 } else { 0 };
+        let fec_enabled = accepted.fec_version == 1;
         let nack_enabled = accepted.nack_version == 1;
         accepted.alpha_reference = offer.alpha_reference && dispositions
             && plan.alpha.codec == viewflow_transport::VideoCodec::LosslessAlpha;
@@ -760,12 +778,13 @@ where
         let mut receiver = receiver_session(connection, plan, admission, codec);
         receiver.alpha_reference = alpha_reference;
         receiver.nack_enabled = nack_enabled;
+        receiver.fec_enabled = fec_enabled;
         if dispositions {
             let mut stream = connection.open_uni().await?;
             stream.write_all(b"VFA3").await?;
             receiver.feedback = Some(stream);
         }
-        if nack_enabled {
+        if nack_enabled || fec_enabled {
             let mut stream = connection.open_uni().await?;
             stream.write_all(b"VFN1").await?;
             receiver.nack_sender = Some(crate::atlas_loss::NackSender::new(stream));
@@ -831,6 +850,7 @@ impl AtlasSenderSession {
             drop_chunk: None,
             #[cfg(test)]
             datagram_budget_override: None,
+            fec_enabled: self.fec_enabled, fec_encoder: Default::default(), fec_adaptive: Default::default(), fec_block: Vec::with_capacity(crate::atlas_fec::DATA),
             retransmit: self.retransmit.clone(),
             connection: self.connection.clone(), plan: self.plan, frame_send_poisoned: false,
             alpha_reference: self.alpha_reference, alpha_cache: None, feedback: None,
@@ -985,6 +1005,17 @@ impl AtlasSenderSession {
             .context("atlas peer does not support datagrams")?;
         #[cfg(test)]
         let budget = self.datagram_budget_override.unwrap_or(budget);
+        let fec_percent = if self.fec_enabled {
+            let feedback = self.retransmit.as_ref().map(|r| &r.feedback);
+            self.quality_telemetry.network_failed(feedback.map_or(0, |v| v.failed.load(std::sync::atomic::Ordering::Relaxed)));
+            self.fec_adaptive.update(
+                feedback.map_or(0, |v| v.missing.load(std::sync::atomic::Ordering::Relaxed)),
+                feedback.map_or(0, |v| v.total.load(std::sync::atomic::Ordering::Relaxed)),
+                self.quality_telemetry.fec_suspended())
+        } else { 0 };
+        // Reserve the larger parity header and even GF(2^16) shard size.
+        let shard_size = budget.saturating_sub(crate::atlas_fec::HEADER) & !1;
+        let budget = if fec_percent > 0 { shard_size + 52 } else { budget };
         let plane = |payload, plane| {
             let frame = viewflow_transport::MediaPlaneFrame {
                 window_id: manifest.stream_id,
@@ -994,17 +1025,13 @@ impl AtlasSenderSession {
                 plane,
                 payload,
             };
-            if let Some(cache) = &self.retransmit {
-                cache.remember(frame.clone(), budget,
-                    if self.activity_enabled() { manifest.frame_id % 2 } else { 0 },
-                    // Retain the current frame through its existing send watchdog.
-                    // Supersession and the two-frame/lane ring bound memory.
-                    std::time::Duration::from_secs(5));
-            }
-            frame.fragment(budget)
+            let sent = self.retransmit.as_ref().map(|cache| cache.remember(frame.clone(), budget,
+                if self.activity_enabled() { manifest.frame_id % 2 } else { 0 },
+                std::time::Duration::from_secs(5)));
+            frame.fragment(budget).map(|packets| (packets, sent))
         };
-        let color = plane(color, viewflow_transport::MediaPlane::Color)?;
-        let alpha = plane(alpha, viewflow_transport::MediaPlane::Alpha)?;
+        let (color, color_sent) = plane(color, viewflow_transport::MediaPlane::Color)?;
+        let (alpha, alpha_sent) = plane(alpha, viewflow_transport::MediaPlane::Alpha)?;
         let packet_count = color.len().saturating_add(alpha.len());
         ensure!(
             color.len() <= usize::from(u16::MAX) && alpha.len() <= usize::from(u16::MAX),
@@ -1026,21 +1053,51 @@ impl AtlasSenderSession {
             "manifest_enqueued",
             started.map_or(0, |t| t.elapsed().as_micros()),
         );
-        for packet in color.chain(alpha) {
-            #[cfg(test)]
-            if self.drop_chunk == Some((packet.frame_id, packet.plane, packet.chunk_index)) { continue; }
-            // Backpressure is ordinary network recovery, not a failed media
-            // resource. Quinn reports actual connection closure from this wait.
-            match self.connection.send_datagram_wait(packet.encode()).await {
-                Ok(()) => {}
-                // PMTU can shrink while an already fragmented frame waits for
-                // congestion credit. Keep the manifest/feedback owner alive:
-                // the receiver expires this incomplete frame and requests IDR.
-                // Refragmenting mid-frame would change chunk identities.
-                Err(quinn::SendDatagramError::TooLarge) => break,
-                Err(error) => return Err(error.into()),
+        let mut overhead_data = 0_usize;
+        let mut overhead_parity = 0_usize;
+        for (mut packets, sent) in [(color, color_sent), (alpha, alpha_sent)] {
+            loop {
+                self.fec_block.clear();
+                self.fec_block.extend(packets.by_ref().take(crate::atlas_fec::DATA));
+                if self.fec_block.is_empty() { break; }
+                if fec_percent > 0 {
+                    // A local codec failure simply leaves W1 in charge.
+                    if self.fec_encoder.encode(&self.fec_block, pending.config_generation,
+                        if self.activity_enabled() { (pending.frame_id % 2) as u8 } else { 0 },
+                        fec_percent, shard_size).is_err() { self.fec_encoder.packets.clear(); }
+                } else { self.fec_encoder.packets.clear(); }
+                let mut original_end = 0;
+                for packet in &self.fec_block {
+                    overhead_data += packet.payload.len();
+                    #[cfg(test)]
+                    if self.drop_chunk == Some((packet.frame_id, packet.plane, packet.chunk_index)) {
+                        original_end = packet.chunk_index + 1; continue;
+                    }
+                    let encoded = if !self.fec_encoder.packets.is_empty() {
+                        let mut encoded = packet.encode().try_into_mut().expect("fresh unique datagram");
+                        encoded[7] = 2; // Negotiated FEC v1: this block has parity.
+                        encoded.freeze()
+                    } else { packet.encode() };
+                    match self.connection.send_datagram_wait(encoded).await {
+                        Ok(()) => { original_end = packet.chunk_index + 1; }
+                        Err(quinn::SendDatagramError::TooLarge) => break,
+                        Err(error) => return Err(error.into()),
+                    }
+                }
+                if let Some(sent) = &sent {
+                    sent.fetch_max(original_end, std::sync::atomic::Ordering::Release);
+                }
+                for packet in &self.fec_encoder.packets {
+                    overhead_parity += packet.len();
+                    match self.connection.send_datagram_wait(packet.clone()).await {
+                        Ok(()) => {}
+                        Err(quinn::SendDatagramError::TooLarge) => break,
+                        Err(error) => return Err(error.into()),
+                    }
+                }
             }
         }
+        self.quality_telemetry.fec_overhead(self.quality_lane, overhead_data, overhead_parity);
         self.quality_telemetry.enqueued(self.quality_lane);
         let enqueued = trace.then(Instant::now);
         trace_connection(
@@ -1183,6 +1240,7 @@ impl AtlasReceiverSession {
         if !self.loss_wait.is_some_and(|w| w.requested) {
             self.loss_telemetry.chunks_lost += self.missing_chunk_count(&frame);
         }
+        self.report_fec_observation(frame.frame_id, self.missing_chunk_count(&frame));
         self.loss_telemetry.frames_dropped_to_keyframe += 1;
         if self.feedback.is_some() {
             self.feedback_pending = Some(frame.clone());
@@ -1217,30 +1275,53 @@ impl AtlasReceiverSession {
                 let Some(frame) = self.staged.as_ref() else { continue; };
                 // At most three rounds; each request needs a measured RTT to fit.
                 let mut requested = false;
-                let missing_count = self.missing_chunk_count(frame);
-                if Instant::now() + self.connection.stats().path.rtt < wait.repair_until {
+                let mut missing_count = if self.fec_enabled { 0 } else { self.missing_chunk_count(frame) };
+                let rtt = self.connection.stats().path.rtt;
+                // A manifest/early block can overtake unsent frame tails. FEC
+                // peers defer the first NACK to the final RTT opportunity
+                // in the existing inactivity window. No frame/session deadline changes.
+                let tail_margin = rtt + std::time::Duration::from_millis(2);
+                let protected = self.fec_enabled && self.fec.expects_parity(frame.frame_id, lane as usize);
+                let allow_tail = !protected || wait.requested || Instant::now() + tail_margin >= wait.expires;
+                if !allow_tail {
+                    // Let the block's remaining data/parity arrive before the
+                    // first W1 round. A prefix-only early NACK would leave new
+                    // tail holes waiting for the full reliable retry grace.
+                    if let Some(wait) = &mut self.loss_wait {
+                        wait.request_at = wait.expires.checked_sub(tail_margin).unwrap_or(wait.expires);
+                    }
+                    continue;
+                }
+                if Instant::now() + rtt < wait.repair_until {
                     for (plane, complete) in [
                         (viewflow_transport::MediaPlane::Color, self.color.is_some()),
                         (viewflow_transport::MediaPlane::Alpha, self.alpha.is_some())] {
                         if complete { continue; }
                         let missing = self.assembler.missing_chunks(frame.stream_id, frame.frame_id, plane);
                         match missing {
-                            Some(indices) => for batch in indices.chunks(crate::atlas_loss::NACK_BATCH) {
-                                if self.nack_sender.as_ref().is_some_and(|sender| sender.send(crate::atlas_loss::request(frame.frame_id, plane, Some(batch)))) {
-                                    requested = true;
-                                    self.loss_telemetry.nack_requests_sent += 1;
+                            Some(indices) => {
+                                for batch in indices.chunks(crate::atlas_loss::NACK_BATCH) {
+                                    if self.nack_sender.as_ref().is_some_and(|sender| sender.send(crate::atlas_loss::request(frame.frame_id, plane, Some(batch)))) {
+                                        requested = true;
+                                        self.loss_telemetry.nack_requests_sent += 1;
+                                        if self.fec_enabled { missing_count += batch.len() as u64; }
+                                    }
                                 }
                             },
-                            None => {
+                            None if allow_tail => {
                                 if self.nack_sender.as_ref().is_some_and(|sender| sender.send(crate::atlas_loss::request(frame.frame_id, plane, None))) {
                                     requested = true;
                                     self.loss_telemetry.nack_requests_sent += 1;
+                                    if self.fec_enabled { missing_count += 1; }
                                 }
                             }
+                            None => {}
                         }
                     }
                 }
-                if requested { self.loss_telemetry.chunks_lost += missing_count; }
+                if requested {
+                    self.loss_telemetry.chunks_lost += missing_count;
+                }
                 if let Some(wait) = &mut self.loss_wait {
                     wait.mark_request(requested);
                 }
@@ -1251,10 +1332,12 @@ impl AtlasReceiverSession {
             let path = self.connection.stats().path;
             self.loss_telemetry.quic_rtt_us = path.rtt.as_micros() as u64;
             self.loss_telemetry.quic_lost_packets = path.lost_packets;
-            eprintln!("atlas-loss chunks_lost={} recovered={} dropped={} nack_round_trips={} nack_rtt_us={} quic_rtt_us={} quic_lost_packets={}",
+            eprintln!("atlas-loss chunks_lost={} recovered={} dropped={} nack_round_trips={} nack_rtt_us={} quic_rtt_us={} quic_lost_packets={} fec_recovered={} parity_bytes={} fec_frames={} recovered_by_nack={} unrecoverable={}",
                 self.loss_telemetry.chunks_lost, self.loss_telemetry.frames_recovered_by_nack,
                 self.loss_telemetry.frames_dropped_to_keyframe, self.loss_telemetry.nack_round_trips,
-                self.loss_telemetry.nack_rtt_us, path.rtt.as_micros(), path.lost_packets);
+                self.loss_telemetry.nack_rtt_us, path.rtt.as_micros(), path.lost_packets,
+                self.loss_telemetry.chunks_recovered_by_fec, self.loss_telemetry.parity_bytes,
+                self.loss_telemetry.frames_recovered_by_fec, self.loss_telemetry.frames_recovered_by_nack, self.loss_telemetry.frames_dropped_to_keyframe);
             self.loss_log_at = Instant::now();
         }
         Ok(())
@@ -1600,10 +1683,7 @@ impl AtlasReceiverSession {
                 self.control_read = Some(start_control_read(self.connection.clone(), sequence));
                 self.process_control(result?, now)
             }
-            PumpEvent::Media(result) => match viewflow_transport::MediaDatagram::decode(result?) {
-                Ok(packet) => self.push_media(packet, now),
-                Err(error) => self.drop_media(error.into(), None),
-            },
+            PumpEvent::Media(result) => self.push_datagram(result?, now),
             PumpEvent::LossTick => Ok(None),
             PumpEvent::Deadline => anyhow::bail!("unexpected atlas deadline dispatch"),
         }
@@ -1805,6 +1885,53 @@ impl AtlasReceiverSession {
             self.early = None;
         }
         Ok(admitted)
+    }
+
+    fn report_fec_observation(&mut self, frame: u64, still_missing: u64) {
+        if !self.fec_enabled { return; }
+        let (total, rebuilt) = self.fec.observed(frame, if self.activity_enabled() { (frame % 2) as usize } else { 0 });
+        let total = total.max(1);
+        let missing = (rebuilt + still_missing).min(total);
+        self.fec_observed.0 += total; self.fec_observed.1 += missing;
+        self.fec_observed.2 += u64::from(still_missing > 0);
+        if self.fec_report_at.elapsed() >= std::time::Duration::from_millis(200)
+            && self.nack_sender.as_ref().is_some_and(|sender| sender.send(crate::atlas_loss::fec_feedback(self.fec_observed.0, self.fec_observed.1, self.fec_observed.2))) {
+            self.fec_report_at = Instant::now();
+        }
+    }
+
+    fn push_datagram(&mut self, bytes: bytes::Bytes, now: u64) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
+        if !self.fec_enabled || !bytes.starts_with(b"VFF1") {
+            let flags = if self.fec_enabled && bytes.len() >= 52 { u16::from_be_bytes([bytes[6], bytes[7]]) } else { 0 };
+            let repair = flags & 1 != 0;
+            return match viewflow_transport::MediaDatagram::decode(bytes) {
+                Ok(packet) => {
+                    if self.fec_enabled && packet.window_id == self.policy.stream_id {
+                        let lane = if self.activity_enabled() { (packet.frame_id % 2) as u8 } else { 0 };
+                        self.fec.data_repair(&packet, lane, repair);
+                        if flags & 2 != 0 { self.fec.protects(&packet, lane); }
+                    }
+                    let frame = self.push_media(packet, now)?;
+                    if frame.is_some() { return Ok(frame); }
+                    self.push_fec_recovered(now)
+                }
+                Err(error) => self.drop_media(error.into(), None),
+            };
+        }
+        self.fec.parity(bytes, self.policy.stream_id, self.policy.config_generation, self.activity_enabled());
+        self.loss_telemetry.parity_bytes = self.fec.parity_bytes;
+        self.push_fec_recovered(now)
+    }
+    fn push_fec_recovered(&mut self, now: u64) -> Result<Option<crate::atlas_runtime::AdmittedAtlas>> {
+        // Only loss allocates recovered payloads. Retain the vector capacity.
+        let mut recovered = std::mem::take(&mut self.fec.recovered);
+        let mut frame = None;
+        for packet in recovered.drain(..) {
+            self.loss_telemetry.chunks_recovered_by_fec += 1;
+            frame = self.push_media(packet, now)?.or(frame);
+        }
+        self.fec.recovered = recovered;
+        Ok(frame)
     }
 
     /// Accept one datagram whose timestamp is already in the receiver clock.
@@ -2166,6 +2293,11 @@ impl AtlasReceiverSession {
             }
         }
         if let Some(frame) = &frame {
+            self.report_fec_observation(frame.layout.frame_id, 0);
+            if self.fec.rebuilt_frame(frame.layout.frame_id, if self.activity_enabled() { (frame.layout.frame_id % 2) as usize } else { 0 })
+                && !self.loss_wait.is_some_and(|wait| wait.requested) {
+                self.loss_telemetry.frames_recovered_by_fec += 1;
+            }
             if let Some(wait) = self.loss_wait.take().filter(|wait| wait.requested) {
                 self.loss_telemetry.frames_recovered_by_nack += 1;
                 self.loss_telemetry.nack_round_trips += 1;
@@ -2297,10 +2429,7 @@ impl AtlasReceiverSession {
             .await
             .context("atlas datagram deadline expired")??;
         check_deadline(deadline)?;
-        let frame = match viewflow_transport::MediaDatagram::decode(bytes) {
-            Ok(packet) => self.push_media(packet, now())?,
-            Err(error) => self.drop_media(error.into(), None)?,
-        };
+        let frame = self.push_datagram(bytes, now())?;
         self.finish_handoff(frame, now(), deadline)
     }
 }
@@ -2486,6 +2615,42 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn fec_unknown_offer_is_declined_without_disrupting_v3_startup() {
+        for version in [0, 2, u32::MAX] {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let policy = plan();
+            let frames = warmup_frames();
+            let offering = async {
+                let (mut tx, mut rx) = outbound.open_bi().await.unwrap();
+                let mut offer = policy.message(&outbound, false).unwrap();
+                offer.version = 3;
+                offer.fec_version = version;
+                let bytes = offer.encode_to_vec();
+                tx.write_all(b"VFAW").await.unwrap();
+                tx.write_all(&u32::try_from(bytes.len()).unwrap().to_be_bytes()).await.unwrap();
+                tx.write_all(&bytes).await.unwrap();
+                for frame in &frames {
+                    tx.write_all(&u32::try_from(frame.color.len()).unwrap().to_be_bytes()).await.unwrap();
+                    tx.write_all(&u32::try_from(frame.alpha.len()).unwrap().to_be_bytes()).await.unwrap();
+                    tx.write_all(&frame.color).await.unwrap();
+                    tx.write_all(&frame.alpha).await.unwrap();
+                }
+                tx.finish().unwrap();
+                let accepted = read_message(&mut rx).await.unwrap();
+                assert!(accepted.accepted);
+                assert_eq!(accepted.fec_version, 0);
+                assert_eq!(accepted.version, 3);
+            };
+            let ((), receiver) = tokio::join!(offering,
+                accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) }));
+            assert!(receiver.unwrap().feedback.is_some());
+            assert!(outbound.close_reason().is_none());
+            assert!(inbound.close_reason().is_none());
+        }
+    }
+
+    #[tokio::test]
     async fn pipeline_sender_advertises_zero_and_requires_zero_acceptance() {
         // Zero response also represents a legacy receiver which ignores field 21.
         for version in [0, 1] {
@@ -2504,6 +2669,7 @@ pub(crate) mod tests {
                 read_warmup_frames(&mut rx, policy).await.unwrap();
                 offer.pipeline_version = version;
                 offer.nack_version = 0;
+                    offer.fec_version = 0;
                 offer.alpha_reference = false;
                 offer.accepted = true;
                 write_message(&mut tx, offer).await.unwrap();
@@ -2592,14 +2758,41 @@ pub(crate) mod tests {
             include_bytes!("../../viewflow-transport/tests/fixtures/ca.pem"),
         )
         .unwrap();
-        let server = quinn::Endpoint::server(
-            viewflow_transport::build_server_config(&identity).unwrap(),
-            "127.0.0.1:0".parse().unwrap(),
-        )
-        .unwrap();
-        let mut client = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();
-        client
-            .set_default_client_config(viewflow_transport::build_client_config(&identity).unwrap());
+        fn endpoint(server: Option<quinn::ServerConfig>) -> quinn::Endpoint {
+            let address: std::net::SocketAddr = "127.0.0.1:0".parse().unwrap();
+            if std::env::var("VF_NETEM_PRIVATE").as_deref() == Ok("1") {
+                // Loopback can burst a whole frame faster than a physical NIC.
+                // Isolate configured netem loss from this owned socket's overflow.
+                let socket = socket2::Socket::new(socket2::Domain::IPV4,
+                    socket2::Type::DGRAM, Some(socket2::Protocol::UDP)).unwrap();
+                let before = socket.recv_buffer_size().unwrap();
+                socket.set_recv_buffer_size(4 * 1024 * 1024).unwrap();
+                eprintln!("NETEM_SOCKET recv_before={before} recv_actual={}", socket.recv_buffer_size().unwrap());
+                socket.set_nonblocking(true).unwrap();
+                socket.bind(&address.into()).unwrap();
+                quinn::Endpoint::new(quinn::EndpointConfig::default(), server,
+                    socket.into(), quinn::default_runtime().unwrap()).unwrap()
+            } else if let Some(server) = server {
+                quinn::Endpoint::server(server, address).unwrap()
+            } else {
+                quinn::Endpoint::client(address).unwrap()
+            }
+        }
+        let mut server_config = viewflow_transport::build_server_config(&identity).unwrap();
+        let mut client_config = viewflow_transport::build_client_config(&identity).unwrap();
+        if std::env::var("VF_NETEM_PRIVATE").as_deref() == Ok("1")
+            && std::env::var("VF_NETEM_GSO").as_deref() == Ok("off") {
+            // netem loss is selected per skb before GSO segmentation. Disable
+            // batching only in this owned fixture to model independent UDP loss.
+            std::sync::Arc::get_mut(&mut server_config.transport).unwrap()
+                .enable_segmentation_offload(false);
+            let mut transport = viewflow_transport::media_transport_config();
+            transport.enable_segmentation_offload(false);
+            client_config.transport_config(std::sync::Arc::new(transport));
+        }
+        let server = endpoint(Some(server_config));
+        let mut client = endpoint(None);
+        client.set_default_client_config(client_config);
         let connecting = client
             .connect(server.local_addr().unwrap(), "localhost")
             .unwrap();
@@ -3352,11 +3545,14 @@ pub(crate) mod tests {
                         tx.write_all(&frame.alpha).await.unwrap();
                     }
                     tx.finish().unwrap();
-                    assert_eq!(read_message(&mut rx).await.unwrap().nack_version, 0);
+                    let accepted = read_message(&mut rx).await.unwrap();
+                    assert_eq!(accepted.nack_version, 0);
+                    assert_eq!(accepted.fec_version, 0);
                 };
                 let ((), receiver) = tokio::join!(legacy,
                     accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) }));
-                assert!(!receiver.unwrap().nack_enabled);
+                let receiver = receiver.unwrap();
+                assert!(!receiver.nack_enabled && !receiver.fec_enabled);
             } else {
                 let legacy = async {
                     let (mut tx, mut rx) = inbound.accept_bi().await.unwrap();
@@ -3368,6 +3564,7 @@ pub(crate) mod tests {
                     read_warmup_frames(&mut rx, policy).await.unwrap();
                     // An older protobuf implementation ignores the offered field.
                     offer.nack_version = 0;
+                    offer.fec_version = 0;
                     offer.alpha_reference = false;
                     offer.accepted = true;
                     write_message(&mut tx, offer).await.unwrap();
@@ -3377,8 +3574,153 @@ pub(crate) mod tests {
                 };
                 let (sender, _feedback) = tokio::join!(
                     offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline), legacy);
-                assert!(sender.unwrap().retransmit.is_none());
+                let sender = sender.unwrap();
+                assert!(sender.retransmit.is_none() && !sender.fec_enabled);
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn fec_waits_for_parity_before_spending_the_first_nack_round() {
+        for (fec, protected) in [(false, false), (true, false), (true, true)] {
+            let (_client, _server, _source, sink) = pair().await;
+            let policy = plan();
+            let mut receiver = receiver_session(&sink, policy,
+                AtlasReceiver::new(policy.policy).unwrap(), policy.validate().unwrap());
+            receiver.fec_enabled = fec;
+            receiver.nack_enabled = true;
+            receiver.nack_sender = Some(crate::atlas_loss::NackSender::new(sink.open_uni().await.unwrap()));
+            let manifest = AtlasFrame {
+                activity: None, patches: None, stream_id: Id128(99), frame_id: 4,
+                geometry_epoch: 1, config_generation: 1, layout_revision: 0,
+                width: 64, height: 64, source_submitted_ns: 100, tiles: vec![],
+                color_keyframe: true, alpha_keyframe: true, desktop: None,
+            };
+            receiver.stage_manifest(manifest, 110).unwrap();
+            let packet = viewflow_transport::MediaDatagram {
+                window_id: Id128(99), frame_id: 4, geometry_epoch: 1,
+                plane: viewflow_transport::MediaPlane::Color, chunk_index: 1, chunk_count: 3,
+                source_submitted_ns: 100, payload: bytes::Bytes::from_static(b"middle"),
+            };
+            let mut encoded = packet.encode().try_into_mut().unwrap();
+            if protected { encoded[7] = 2; }
+            receiver.push_datagram(encoded.freeze(), 110).unwrap();
+            let mut wait = crate::atlas_loss::LossWait::new(Duration::from_millis(1), Duration::from_millis(16));
+            wait.progress();
+            wait.request_at = Instant::now() - Duration::from_millis(1);
+            wait.expires = Instant::now() + Duration::from_millis(100);
+            wait.repair_until = wait.expires;
+            receiver.loss_wait = Some(wait);
+            receiver.poll_loss().await.unwrap();
+            assert_eq!(receiver.loss_telemetry.nack_requests_sent == 0, protected);
+            if protected { assert!(!receiver.loss_wait.unwrap().attempted); }
+        }
+    }
+
+    #[tokio::test]
+    async fn fec_recovers_before_nack_over_real_quic_both_lanes() {
+        use crate::atlas_feedback::AtlasFrameDisposition;
+        use viewflow_transport::MediaPlane;
+        for activity in [false, true] {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let frames = warmup_frames();
+            let mut policy = plan(); policy.activity_priority_version = u32::from(activity);
+            policy.policy.max_encoded_bytes = 65536;
+            let (sender, receiver) = tokio::join!(
+                offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+                accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) }));
+            let mut sender = sender.unwrap(); let mut receiver = receiver.unwrap();
+            assert!(sender.fec_enabled && receiver.fec_enabled);
+            tokio::time::sleep(Duration::from_millis(210)).await;
+            receiver.nack_enabled = false; // No repair round trip can mask broken FEC.
+            let writer = crate::shared_control::SharedControlWriter::start(&outbound).unwrap();
+            let mut other = if activity { sender.attach_shared_control(writer.sender()).unwrap(); Some(sender.fork_activity_lane().unwrap()) } else { None };
+            for id in [4, 5] {
+                let source = if activity && id % 2 == 1 { other.as_mut().unwrap() } else { &mut sender };
+                source.fec_adaptive.test_percent(20);
+                source.drop_chunk = Some((id, MediaPlane::Color, 1));
+                let manifest = AtlasFrame {
+                    activity: activity.then_some(viewflow_protocol::AtlasActivity {
+                        lane: (id % 2) as u32, epoch: 1, preferred: None, focus: None, members: vec![],
+                    }), patches: None, stream_id: Id128(99), frame_id: id, geometry_epoch: 1,
+                    config_generation: 1, layout_revision: 0, width: 64, height: 64, source_submitted_ns: 100 + id,
+                    tiles: vec![], color_keyframe: true, alpha_keyframe: true, desktop: None,
+                };
+                let mut color = vec![0; 7000]; color[..4].copy_from_slice(&[0, 0, 1, 0x65]);
+                let expected = color.clone();
+                let receiving = async {
+                    let frame = receiver.next_frame(|| 110, deadline).await.unwrap();
+                    assert_eq!(frame.media.color.as_ref(), expected.as_slice());
+                    receiver.report_disposition(&frame.layout, AtlasFrameDisposition::Committed, deadline).await.unwrap();
+                };
+                let (sent, ()) = tokio::join!(source.send_frame(manifest, color.into(), frames[0].alpha.clone(), id, deadline), receiving);
+                sent.unwrap();
+            }
+            let feedback = &sender.retransmit.as_ref().unwrap().feedback;
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while feedback.total.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                }
+            }).await.unwrap();
+            assert!(feedback.missing.load(std::sync::atomic::Ordering::Relaxed) > 0);
+            assert_eq!(receiver.loss_telemetry.nack_requests_sent, 0);
+            assert_eq!(receiver.loss_telemetry.chunks_recovered_by_fec, 2);
+            assert!(receiver.loss_telemetry.parity_bytes > 0 && !receiver.retired);
+        }
+    }
+
+    #[tokio::test]
+    async fn fec_negotiated_nack_preserves_final_tail_recovery() {
+        use crate::atlas_feedback::AtlasFrameDisposition;
+        use viewflow_transport::MediaPlane;
+        for activity in [false, true] {
+            let (_client, _server, outbound, inbound) = pair().await;
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let frames = warmup_frames();
+            let mut policy = plan(); policy.activity_priority_version = u32::from(activity);
+            policy.policy.max_encoded_bytes = 65536;
+            let (sender, receiver) = tokio::join!(
+                offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+                accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) }));
+            let mut sender = sender.unwrap(); let mut receiver = receiver.unwrap();
+            assert!(sender.fec_enabled && receiver.fec_enabled);
+            tokio::time::sleep(Duration::from_millis(210)).await;
+            receiver.nack_enabled = true; // A completely missing alpha tail must fall back to W1.
+            let writer = crate::shared_control::SharedControlWriter::start(&outbound).unwrap();
+            let mut other = if activity { sender.attach_shared_control(writer.sender()).unwrap(); Some(sender.fork_activity_lane().unwrap()) } else { None };
+            for id in [4, 5] {
+                let source = if activity && id % 2 == 1 { other.as_mut().unwrap() } else { &mut sender };
+                source.fec_adaptive.test_percent(0);
+                source.drop_chunk = Some((id, MediaPlane::Alpha, 0));
+                let manifest = AtlasFrame {
+                    activity: activity.then_some(viewflow_protocol::AtlasActivity {
+                        lane: (id % 2) as u32, epoch: 1, preferred: None, focus: None, members: vec![],
+                    }), patches: None, stream_id: Id128(99), frame_id: id, geometry_epoch: 1,
+                    config_generation: 1, layout_revision: 0, width: 64, height: 64, source_submitted_ns: 100 + id,
+                    tiles: vec![], color_keyframe: true, alpha_keyframe: true, desktop: None,
+                };
+                let mut color = vec![0; 7000]; color[..4].copy_from_slice(&[0, 0, 1, 0x65]);
+                let expected = color.clone();
+                let receiving = async {
+                    let frame = receiver.next_frame(|| 110, deadline).await.unwrap();
+                    assert_eq!(frame.media.color.as_ref(), expected.as_slice());
+                    receiver.report_disposition(&frame.layout, AtlasFrameDisposition::Committed, deadline).await.unwrap();
+                };
+                let (sent, ()) = tokio::join!(source.send_frame(manifest, color.into(), frames[0].alpha.clone(), id, deadline), receiving);
+                sent.unwrap();
+            }
+            let feedback = &sender.retransmit.as_ref().unwrap().feedback;
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while feedback.total.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                }
+            }).await.unwrap();
+            assert!(feedback.missing.load(std::sync::atomic::Ordering::Relaxed) > 0);
+            assert!(receiver.loss_telemetry.nack_requests_sent > 0);
+            assert_eq!(receiver.loss_telemetry.chunks_recovered_by_fec, 0);
+            assert_eq!(receiver.loss_telemetry.parity_bytes, 0);
+            assert!(!receiver.retired);
         }
     }
 

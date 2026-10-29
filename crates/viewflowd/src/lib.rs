@@ -1,5 +1,6 @@
 pub mod quality;
 mod atlas_loss;
+mod atlas_fec;
 pub mod managed_owner;
 use std::{
     collections::BTreeMap,
