@@ -223,7 +223,12 @@ impl Retransmit {
                     }
                     if wanted.binary_search(&packet.chunk_index).is_ok() {
                         // Congestion drops repairs locally. Never block or extend a frame budget.
-                        if connection.send_datagram(packet.encode()).is_err() {
+                        // quinn evicts the oldest queued datagram when full, so check space
+                        // first: a repair must not displace another lane's pending media.
+                        let encoded = packet.encode();
+                        if connection.datagram_send_buffer_space() < encoded.len()
+                            || connection.send_datagram(encoded).is_err()
+                        {
                             break;
                         }
                     }

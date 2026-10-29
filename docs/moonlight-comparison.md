@@ -153,7 +153,9 @@ NACK 能力在 `atlas_session.rs:538`、`:714` 双向协商 `nack_version=1`。
 “缓冲满则只丢修复包”。修复可能挤掉同连接中其他 lane 的待发媒体。
 这与 `send_datagram_wait` 等待空间的语义不同；后续应先检查可用空间或增加统一
 发送仲裁；多任务并发时，仅预查空间不能保证检查与入队之间没有变化。证据：quinn `src/connection.rs:Connection::send_datagram` 与
-quinn-proto `src/connection/datagrams.rs:Datagrams::send`。本次只记录，不修改运行代码。
+quinn-proto `src/connection/datagrams.rs:Datagrams::send`。
+**后续修复**：`atlas_loss.rs` 的修复发送已改为先检查 `datagram_send_buffer_space()`，
+空间不足时跳过修复，不再淘汰其他待发媒体；多任务并发下的检查与入队竞态仍待统一发送仲裁。
 
 **差距**：W1 已有上游当前 FEC 队列没有的显式静默唤醒，但无前向冗余。
 33 ms 目标内，较高 RTT 时 NACK 经常没有修复机会；FEC 可以填补这段空白。
