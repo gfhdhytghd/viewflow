@@ -794,9 +794,7 @@ cap20 三种模式的最终默认 qdisc drop 均为 0。cap8 配置本身含 2% 
 - 新增混合控制器 QUIC 测试；Cubic/BBR 与 Cubic/DelayCubic 都交换双向可靠流和数据报。
 
 证据：[检查摘要](evidence/weak-network-bbr-checks.txt)、
-[工作区]（原始日志未入库）、
-[NVENC]（原始日志未入库）、
-[Clippy](evidence/weak-network-bbr-check-clippy.txt)、
+工作区、NVENC 与 Clippy 原始日志未入库、
 [transport 检查](evidence/weak-network-bbr-transport-checks.txt)。
 
 ### 同一最终可执行文件的补测与恢复
