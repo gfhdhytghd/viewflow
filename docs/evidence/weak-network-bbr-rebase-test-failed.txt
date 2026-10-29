@@ -1,0 +1,109 @@
+   Compiling viewflow-transport v0.1.0 (/home/wilf/data/viewflow-wt/bbr/crates/viewflow-transport)
+warning: unused variable: `old_baseline`
+  --> crates/viewflow-transport/src/delay_cubic.rs:49:13
+   |
+49 |         let old_baseline = self.current_min.min(self.previous_min);
+   |             ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_old_baseline`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: field `config` is never read
+  --> crates/viewflow-transport/src/delay_cubic.rs:22:5
+   |
+20 | struct DelayCubic {
+   |        ---------- field in this struct
+21 |     cubic: Cubic,
+22 |     config: Arc<CubicConfig>,
+   |     ^^^^^^
+   |
+   = note: `DelayCubic` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `viewflow-transport` (lib) generated 2 warnings (run `cargo fix --lib -p viewflow-transport` to apply 1 suggestion)
+warning: `viewflow-transport` (lib test) generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.40s
+     Running unittests src/lib.rs (target/debug/deps/viewflow_transport-7df8a7647eb62af4)
+
+running 64 tests
+test alpha_rle::tests::block_repeat_scan_profile ... ignored, offline release-mode CPU profile
+test alpha_rle::tests::constant_alpha_round_trips_in_rle_mode ... ok
+test alpha_rle::tests::direct_rgba_encoder_skips_padding_and_rejects_invalid_shapes ... ok
+test clock::tests::discipline_keeps_the_least_queued_sample ... ok
+test clock::tests::inverse_preserves_event_age_for_both_offset_signs ... ok
+test alpha_rle::tests::random_alpha_round_trips_in_raw_mode ... ok
+test alpha_rle::tests::direct_rgba_encoder_is_byte_identical_for_alpha_patterns_and_row_boundaries ... ok
+test clock::tests::rejects_impossible_exchange_ordering ... ok
+test codec::tests::av1_color_roundtrips_with_lossless_alpha_but_is_not_an_alpha_codec ... ok
+test clock::tests::maps_remote_clock_and_excludes_responder_time_from_rtt ... ok
+test codec::tests::decoded_storage_limits_are_exact_and_overflow_safe ... ok
+test codec::tests::frame_metadata_is_distinct_and_binds_generation_and_geometry ... ok
+test alpha_rle::tests::malformed_bombs_are_rejected_before_output_allocation ... ok
+test alpha_rle::tests::mixed_literal_and_repeat_runs_decode_exactly ... ok
+test alpha_rle::tests::malformed_streams_and_trailing_bytes_are_rejected ... ok
+test codec::tests::h264_color_and_alpha_descriptors_are_unambiguous ... ok
+test codec::tests::newer_configuration_cannot_regress_geometry_epoch ... ok
+test codec::tests::opaque_omission_requires_explicit_policy_and_alpha_recovers_independently ... ok
+test codec::tests::raw_descriptor_round_trips_canonically ... ok
+test codec::tests::rejects_extensions_reserved_unknowns_and_ambiguous_alpha ... ok
+test codec::tests::session_accepts_h264_color_with_lossless_gray8_alpha ... ok
+test codec::tests::session_rejects_combined_limit_and_stale_configuration ... ok
+test codec::tests::session_rejects_cross_window_or_timestamp_pair_without_consuming_retry ... ok
+test codec::tests::session_rejects_mismatched_pair_without_replacing_active_configuration ... ok
+test codec::tests::session_requires_paired_idr_then_rejects_replay ... ok
+test delay_cubic::tests::baseline_expires_and_jitter_does_not_trigger_reduction ... ok
+test delay_cubic::tests::ecn_and_persistent_congestion_reduce_even_without_rtt_growth ... ok
+test delay_cubic::tests::random_loss_preserves_window_but_queue_growth_reduces_once_per_rtt ... ok
+test latency::tests::capacity_evicts_oldest_samples ... ok
+test latency::tests::exact_blur_is_measured_but_excluded_from_standard_budget ... ok
+test delay_cubic::tests::path_delay_step_restores_initial_probe_after_baseline_rebase ... FAILED
+test latency::tests::reports_nearest_rank_percentiles_and_two_frame_misses ... ok
+test latency::tests::standard_media_budget_is_an_absolute_retained_window_limit ... ok
+test media::tests::fragmentation_limits_do_not_truncate_or_wrap ... ok
+test media::tests::media_header_rejects_out_of_range_chunk ... ok
+test media::tests::media_header_round_trips_without_copying_payload ... ok
+test media::tests::fragmented_plane_roundtrips_at_negotiated_datagram_size ... ok
+test raw_bgra::tests::rejects_malformed_or_over_budget_buffers ... ok
+test raw_bgra::tests::rgba_import_reuses_allocation_and_handles_alpha ... ok
+test raw_bgra::tests::transparent_pixels_round_trip ... ok
+test reassembly::tests::duplicate_chunks_must_match_the_retained_bytes ... ok
+test reassembly::tests::invalid_chunk_ranges_do_not_panic_or_advance_watermark ... ok
+test reassembly::tests::latest_frame_finishes_after_target_but_superseded_frame_is_dropped ... ok
+test reassembly::tests::newer_frame_evicts_incomplete_old_frame ... ok
+test reassembly::tests::reassembles_audio_and_blur_through_generic_path ... ok
+test reassembly::tests::reassembles_out_of_order_chunks ... ok
+test reassembly::tests::rejects_replayed_completed_frame ... ok
+test reassembly::tests::remote_path_normalizes_source_timestamp_before_admission ... ok
+test reassembly::tests::replacing_frame_preserves_other_windows_and_planes ... ok
+test reassembly::tests::single_chunk_cannot_replace_inconsistent_pending_frame ... ok
+test reassembly::tests::single_chunk_retains_payload_allocation_and_checks_limits ... ok
+test reliable::tests::control_and_blob_have_unambiguous_stream_kinds ... ok
+test reliable::tests::rejects_oversize_and_reserved_bits ... ok
+test tests::control_sequence_rejects_zero_replay_and_reordering ... ok
+test alpha_rle::tests::allocation_free_validation_matches_decoder_for_mutated_records ... ok
+test alpha_rle::tests::gradient_alpha_round_trips_without_precision_loss ... ok
+test reassembly::tests::pending_frames_are_capped_by_evicting_the_oldest ... ok
+test tls::identity_checks::expiry_and_clock_skew_are_reported ... ok
+test tls::identity_checks::key_for_another_certificate_is_reported ... ok
+test tls::identity_checks::fixture_identity_passes ... ok
+test reassembly::tests::many_chunks_and_duplicates_complete_only_when_last_gap_arrives ... ok
+test alpha_rle::tests::block_repeat_scan_preserves_scalar_wire_at_every_run_boundary ... ok
+test tls::activity_compatibility::activity_alpn_preserves_both_old_peer_directions ... ok
+test alpha_rle::tests::direct_rgba_encoder_profile_1936x1732 ... ok
+
+failures:
+
+---- delay_cubic::tests::path_delay_step_restores_initial_probe_after_baseline_rebase stdout ----
+
+thread 'delay_cubic::tests::path_delay_step_restores_initial_probe_after_baseline_rebase' (1303300) panicked at crates/viewflow-transport/src/delay_cubic.rs:204:9:
+assertion `left == right` failed
+  left: 8400
+ right: 12000
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    delay_cubic::tests::path_delay_step_restores_initial_probe_after_baseline_rebase
+
+test result: FAILED. 62 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+error: test failed, to rerun pass `-p viewflow-transport --lib`

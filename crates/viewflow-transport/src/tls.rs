@@ -102,11 +102,11 @@ pub fn build_server_config(identity: &PeerIdentity) -> Result<ServerConfig, BoxE
     tls.alpn_protocols = vec![ACTIVITY_ALPN.to_vec(), ALPN.to_vec()];
     let crypto = QuicServerConfig::try_from(tls)?;
     let mut config = ServerConfig::with_crypto(Arc::new(crypto));
-    let transport = Arc::get_mut(&mut config.transport)
-        .ok_or("new server transport config must be exclusively owned")?;
+    let mut transport = crate::media_transport_config();
     transport.max_concurrent_uni_streams(256_u32.into());
     transport.datagram_receive_buffer_size(Some(16 * 1024 * 1024));
     transport.datagram_send_buffer_size(16 * 1024 * 1024);
+    config.transport_config(Arc::new(transport));
     Ok(config)
 }
 
@@ -124,7 +124,9 @@ pub fn build_client_config(identity: &PeerIdentity) -> Result<ClientConfig, BoxE
         )?;
     tls.alpn_protocols = vec![ACTIVITY_ALPN.to_vec(), ALPN.to_vec()];
     let crypto = QuicClientConfig::try_from(tls)?;
-    Ok(ClientConfig::new(Arc::new(crypto)))
+    let mut config = ClientConfig::new(Arc::new(crypto));
+    config.transport_config(Arc::new(crate::media_transport_config()));
+    Ok(config)
 }
 
 #[cfg(test)]

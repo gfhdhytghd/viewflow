@@ -40,7 +40,7 @@ def stable_target_time(row):
 TEST = 'atlas_session::netem_test::owned_netem_session'
 SCENARIOS = [('clean', 'auto'), ('wifi1', 'auto'), ('wifi5', 'auto'),
              ('cap20', 'auto'), ('cap8', 'auto'), ('burst', 'auto'),
-             ('cap20', 'high_quality'), ('cap20', 'save_bandwidth')]
+             ('cap20', 'high_quality'), ('cap20', 'save_bandwidth'), ('wifi1', 'high_quality')]
 
 
 def wait_for_other_measurements(record):
@@ -87,6 +87,8 @@ def main():
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--output', type=Path, default=ROOT / 'docs/evidence/weak-network-netem.txt')
     parser.add_argument('--scenario', choices=[s for s, _ in SCENARIOS[:6]])
+    parser.add_argument('--controller', choices=['default', 'cubic', 'bbr', 'delay_cubic'], default='default')
+    parser.add_argument('--mode', choices=['auto', 'high_quality', 'save_bandwidth'])
     args = parser.parse_args()
     if args.seconds < 30:
         parser.error('each scenario must last at least 30 seconds')
@@ -103,6 +105,7 @@ def main():
             evidence.write(text + '\n')
             evidence.flush()
         record('Viewflow owned RGBA -> NVENC -> atlas QUIC -> reassembly (no decode/display)')
+        record('controller ' + args.controller)
         record('UTC ' + datetime.datetime.now(datetime.timezone.utc).isoformat())
         record('git ' + subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
                + ' + working tree changes; source SHA256 below')
@@ -116,7 +119,8 @@ def main():
                   'crates/viewflowd/src/native_quality.rs',
                   'platform/nvenc-encoder/nvenc_encoder.cpp',
                   'platform/nvenc-encoder/gpu_dmabuf_encoder.cu',
-                  'crates/viewflow-transport/src/reassembly.rs', 'Cargo.lock']:
+                  'crates/viewflow-transport/src/reassembly.rs',
+                  'crates/viewflow-transport/src/config.rs', 'crates/viewflow-transport/src/delay_cubic.rs', 'crates/viewflow-transport/src/tls.rs', 'Cargo.lock']:
             record(hashlib.sha256((ROOT / p).read_bytes()).hexdigest() + '  ' + p)
         record(hashlib.sha256(Path(binary).read_bytes()).hexdigest() + '  test executable')
         for cmd in [['uname', '-a'], ['tc', '-V'], ['rustc', '--version'],
@@ -126,14 +130,28 @@ def main():
         for scenario, mode in SCENARIOS:
             if args.scenario and scenario != args.scenario:
                 continue
+            if args.mode and mode != args.mode:
+                continue
             wait_for_other_measurements(record)
             print(f'Running {scenario}/{mode} ({args.seconds}s)', flush=True)
             env = os.environ.copy()
+            if args.controller == 'default':
+                env.pop('VIEWFLOW_CONGESTION_CONTROL', None)
+            else:
+                env['VIEWFLOW_CONGESTION_CONTROL'] = args.controller
             env.update(VF_NETEM_PRIVATE='1', VF_NETEM_SCENARIO=scenario,
                        VF_NETEM_MODE=mode, VF_NETEM_SECONDS=str(args.seconds))
             # Fresh namespace per scenario; kernel removes the qdisc on exit.
             cmd = ['unshare', '-rn', 'sh', '-c',
-                   'ip link set lo up && "$@"; result=$?; tc -s qdisc show dev lo; exit "$result"',
+                   '''ip link set lo up || exit 1
+(while true; do tc -s qdisc show dev lo; sleep 0.5; done) &
+sampler=$!
+"$@"
+result=$?
+kill "$sampler"
+wait "$sampler" 2>/dev/null
+tc -s qdisc show dev lo
+exit "$result"''',
                    'netem', binary, TEST, '--exact', '--ignored', '--nocapture']
             run = subprocess.Popen(cmd, cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, start_new_session=True)
