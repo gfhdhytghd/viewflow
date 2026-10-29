@@ -1,0 +1,3 @@
+cargo test --workspace exit=0
+cargo test -p viewflowd --features native-gpu-nvenc exit=0
+cargo clippy --workspace --all-targets -- -D clippy::unwrap_used exit=0

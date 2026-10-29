@@ -561,3 +561,203 @@ GPU 的下一帧在前一帧回执前编码，发送代次不证明该提前编�
 - GPU atlas 的 DMA-BUF/纹理合成导入、双 lane 的 netem 实测、VA-API 与 AV1。
   本次仅走 CPU-owned RGBA 上传到硬件 H.264 NVENC；现有普通测试另覆盖双 lane。
 - 多次重复的统计置信区间、长时间浸泡和全内容性能回归。
+
+## 拥塞控制实测：Cubic、Quinn BBR 与 DelayCubic（2026-10-29）
+
+本节追加实验，不替换上述 W1/W2、ABR 或停止等待的历史记录。使用同一个
+`tools/weak-network-test.py` 自有 RGBA → 硬件 H.264 NVENC → 真实 atlas/QUIC → 重组路径。
+每组使用独立 `unshare -rn` 网络命名空间，至少 30 秒；不解码、不显示、不捕获桌面，
+不注入真实输入、不切换焦点。仍是单 lane、一帧在途，不修改协议或 admission。
+
+### 源码结论与选择
+
+- 锁定版本为 quinn 0.11.11 / quinn-proto 0.11.19。Quinn 明确把 BBR 标为
+  `Experimental! Use at your own risk.`；不能把它等同于 Linux BBRv2/v3。
+- 此 BBR 根据带宽与 RTT 建模，但仍有丢包 conservation/growth 恢复窗口。
+  DATAGRAM 所在 QUIC 包仍参加 ACK、丢包检测、拥塞窗口和 pacing；数据报本身不自动重传。
+- `bw_estimation.rs` 只在新的非应用受限采样严格高于旧最大值时更新最大值过滤器，
+  较低采样不能使旧估计过期。暖启动在干净 loopback、之后加入 netem 的路径变化
+  因此尤其值得检查；这不是成熟的按包 delivery snapshot 估计。
+- BBR 计算的 `pacing_rate` 只用于 `ControllerMetrics`/qlog。实际发包沿用
+  Quinn 的 `1.25 × cwnd / smoothed RTT` token bucket，未采用 BBR 的 pacing gain 速率。
+  BBR 默认初始窗口为 240000 B，Cubic 为 12000 B。
+- 实测 BBR 没有提高 wifi1 Auto，且 cap20 明显变慢，因此不设为默认值。
+  Cubic 的公开调参只有 initial window，没有随机丢包容忍度参数；增大初始窗口
+  不解决持续乘性退让。没有修改或 fork Quinn 的 BBR/pacer。
+- 新增局部 `DelayCubic`：复用 Quinn Cubic 的窗口增长、0.7 退让、MTU 和恢复状态。
+  平滑 RTT 必须同时超过近期基线的 1.5 倍和基线加 15ms，才把普通丢包作为拥塞信号。
+  无丢包时也在 ACK 路径检测排队并退让；同一 RTT 最多退让一次。ECN 和 Quinn
+  persistent congestion 继续使用原响应。Quinn 可靠流重传、丢包探测和 pacing 不变。
+- 基线用两个固定的一秒最小值桶，覆盖约 1–2 秒。确认基线上升超过 15ms，且窗口
+  已低于原始初始窗口时，只恢复到原始 12000 B 并重新 slow start。它缩短基础时延
+  改变后的过度退让，不恢复到历史大窗口。缓存并复用配置，ACK 路径没有新分配或锁。
+  此窗口与 15ms 都是性能启发式，不是输入许可、帧截止或会话退出条件。
+
+源码审阅、registry SHA256、替代方案与失败测试见
+[控制器审阅及决定](evidence/weak-network-bbr-source-review.txt)和
+[缺少恢复调用时的失败记录](evidence/weak-network-bbr-rebase-test-failed.txt)。
+
+### 统一配置与兼容
+
+`viewflow-transport` 导出 `media_transport_config()` 与
+`media_transport_config_with(MediaCongestionController)`。默认选择 `DelayCubic`。
+`VIEWFLOW_CONGESTION_CONTROL=cubic|bbr|delay_cubic` 在构造配置时读取，未知值记录错误并
+保留默认值。TLS client/server、atlas、coded、window、audio 与 clipboard 的配置覆盖
+统一经过该 builder。现有服务器 16 MiB、coded client 64 KiB、音频和默认数据报缓冲
+分别保留；keepalive 和 idle timeout 不变。历史 evidence 快照不修改。
+
+拥塞控制器只决定本地发送行为，不新增 QUIC transport parameter 或应用能力。
+Cubic 与 BBR/DelayCubic 混用时，双向可靠流和 DATAGRAM 的真实本机 QUIC 测试通过；
+原 ALPN 新旧配置兼容测试继续通过。旧端由旧 ALPN/默认 Cubic 配置模拟，未编译
+历史二进制做跨版本联测。控制器没有 wire 协商，不要求同时升级两端。
+
+### 测量与归因边界
+
+测试器在每组测量前执行 `pgrep -af "weak-network-test|netem_session"`。遇到实际网络测试
+按 60 秒间隔等待。完整进程清单和实际测量清单分别写入记录；等待中的 Python wrapper
+不是正在测量，避免两个工作树相互等待。只修正本工作树的测试器，不操作兄弟工作树。
+测量期间不运行本任务的 Cargo 检查。`tc -s qdisc` 每 0.5 秒在私有命名空间内采样。
+
+下表 UDP Mbps 是 Quinn 的发送字节统计，包含协议和重传；不是有效视频吞吐。
+完整帧逻辑 Mbps 还包含重组后的 alpha，不与压缩 RLE 的线速直接比较。
+p95 为源提交到完整帧重组，不是解码、呈现或物理显示延迟。随机 netem seed、源文件与
+可执行文件 SHA256 均保留；不同轮次没有匹配 seed，不构造统计置信区间。
+默认值的最终轮使用 `--controller default` 并清除环境覆盖，单独验证默认选择。
+
+### 最终 30 秒矩阵
+
+每格为 **UDP Mbps / p95 ms / 末目标 kbps**。BBR 是原版 Quinn BBR；默认是最终
+DelayCubic。三组各九场景均存活并产生完整帧，send/receive error 均为 null。
+
+| 场景/模式 | Cubic（旧） | Quinn BBR | DelayCubic（默认） |
+|---|---|---|---|
+| clean/auto | 152.11 / 11.8 / 900000 | 152.09 / 11.7 / 900000 | 152.14 / 12.1 / 900000 |
+| wifi1/auto | 7.43 / 97.1 / 3897 | 6.87 / 103.2 / 3821 | 15.53 / 38.0 / 9566 |
+| wifi5/auto | 2.70 / 455.2 / 2000 | 2.72 / 290.1 / 2000 | 6.03 / 109.9 / 7135 |
+| cap20/auto | 7.30 / 51.7 / 15720 | 4.34 / 137.1 / 2531 | 7.85 / 36.5 / 3654 |
+| cap8/auto | 7.00 / 88.6 / 2000 | 6.79 / 95.8 / 2243 | 6.09 / 77.3 / 3787 |
+| burst/auto | 55.04 / 11.0 / 19582 | 56.30 / 11.7 / 10576 | 102.67 / 14.9 / 900000 |
+| cap20/high_quality | 7.88 / 34.9 / 900000 | 2.77 / 287.6 / 900000 | 7.30 / 37.6 / 900000 |
+| cap20/save_bandwidth | 6.01 / 45.9 / 9118 | 2.90 / 226.2 / 2000 | 7.18 / 36.9 / 2000 |
+| wifi1/high_quality | 6.40 / 106.7 / 900000 | 7.39 / 95.8 / 900000 | 16.86 / 30.9 / 900000 |
+
+原始记录：[Cubic 九组](evidence/weak-network-bbr-cubic.txt)、
+[Quinn BBR 九组](evidence/weak-network-bbr-stock.txt)、
+[最终默认九组](evidence/weak-network-bbr-final.txt)。
+
+- wifi1 Auto：默认相对 Cubic 的 UDP 发送率约 2.09 倍，末目标约 2.45 倍；
+  完整帧从 554 增至 1258，p95 从 97.1ms 降至 38.0ms。
+  HighQuality 的 UDP 从 6.40 增至 16.86Mbps，完整帧从 440 增至 1417。
+- clean：Cubic 与默认均为 1795 完整帧，目标维持 900000kbps/60fps，
+  p95 为 11.8/12.1ms；不能把接近基线写成严格零回退证明。
+- cap20/cap8 Auto 的 p95 为 51.7→36.5ms、88.6→77.3ms。
+  cap8 UDP 为 7.00→6.09Mbps，不能声称吞吐全项改善；cap20 末目标也低于本轮 Cubic。
+- cap20 HighQuality 的 p95 为 34.9→37.6ms，Cubic 同源码补测为 36.2ms。
+  默认有小幅 p95 回退，不宣称所有模式满足严格零回退。完整帧为 677→619。
+  该模式仍保持原固定质量；控制器不改变编码目标。基础时延变化后的启动恢复仍有成本。
+- BBR 的 cap20 Auto p95 为 137.1ms、HighQuality 为 287.6ms；wifi1 Auto
+  发送率为 6.87Mbps。下表的 BBR 队列反而较小，不能把其慢帧直接归因于 netem
+  持续积压；本实验没有按包记录 BBR 内部状态来证明某一个源码缺陷的独立因果。
+
+### 内核队列与丢弃
+
+以下是 0.5 秒采样的 backlog，单位 KiB（1024 B）。p95 使用排序后
+`floor((n-1)*0.95)`；末段取最后 20 次采样的最大值。采样不能证明两次观察之间
+没有更高峰值。drop 是同一 qdisc 计数的观测最大值，不是媒体丢帧数。
+
+| 场景/模式 | 控制器 | backlog p95 KiB | 峰值 KiB | 末段峰值 KiB | drop |
+|---|---|---|---|---|---|
+| cap20/auto | Cubic | 75.7 | 863.1 | 48.8 | 0 |
+| cap20/auto | BBR | 16.0 | 281.5 | 18.9 | 0 |
+| cap20/auto | DelayCubic | 44.1 | 131.4 | 44.1 | 0 |
+| cap8/auto | Cubic | 382.5 | 869.2 | 29.6 | 174 |
+| cap8/auto | BBR | 18.1 | 96.7 | 21.7 | 170 |
+| cap8/auto | DelayCubic | 499.3 | 983.7 | 28.2 | 121 |
+| cap20/high_quality | Cubic | 44.3 | 44.4 | 44.1 | 0 |
+| cap20/high_quality | BBR | 10.4 | 17.4 | 7.3 | 0 |
+| cap20/high_quality | DelayCubic | 43.9 | 56.8 | 43.7 | 0 |
+| cap20/save_bandwidth | Cubic | 43.8 | 82.2 | 82.2 | 0 |
+| cap20/save_bandwidth | BBR | 8.8 | 25.3 | 9.1 | 0 |
+| cap20/save_bandwidth | DelayCubic | 43.7 | 44.1 | 44.1 | 0 |
+
+cap20 三种模式的最终默认 qdisc drop 均为 0。cap8 配置本身含 2% 随机丢包，
+`tc` 的合并计数不能区分随机丢弃与队列溢出。默认 cap8 有约 1 MB 瞬时峰值，
+高于本轮 Cubic；末段没有维持该积压。结论限于有界且能排空的采样结果，
+不声称每个瞬时峰值都下降。
+
+### 开发轮次与检查
+
+保留 [10 秒旧基线窗口](evidence/weak-network-bbr-delay-cubic.txt)、
+[短窗口但未恢复初始窗口](evidence/weak-network-bbr-delay-fast.txt)、
+[该版本 HighQuality 重复](evidence/weak-network-bbr-delay-hq-repeat.txt)。
+旧窗口 wifi1 为 17.08Mbps，但 cap20 启动阶段持续过度退让；缩短窗口改善恢复。
+短窗口仍在很小的 Cubic congestion-avoidance 窗口中缓慢增长，因此最终增加有界
+初始窗口恢复。不同 seed 不能用于精确分摊这两项改动的收益。
+
+最终源码检查：
+
+- `cargo test --workspace`：985 通过、0 失败、4 忽略。
+- `cargo test -p viewflowd --features native-gpu-nvenc`：749 通过、0 失败、16 忽略。
+- `cargo clippy --workspace --all-targets -- -D clippy::unwrap_used`：退出 0；保留其他告警。
+- 新增四项控制器测试：随机丢包、排队退让频率、ECN/持续拥塞、基线过期/抖动、
+  路径时延变化后的初始窗口恢复与再次退让；部分情形在同一测试中验证。
+- 新增混合控制器 QUIC 测试；Cubic/BBR 与 Cubic/DelayCubic 都交换双向可靠流和数据报。
+
+证据：[检查摘要](evidence/weak-network-bbr-checks.txt)、
+[工作区](evidence/weak-network-bbr-check-workspace.txt)、
+[NVENC](evidence/weak-network-bbr-check-nvenc.txt)、
+[Clippy](evidence/weak-network-bbr-check-clippy.txt)、
+[transport 检查](evidence/weak-network-bbr-transport-checks.txt)。
+
+### 同一最终可执行文件的补测与恢复
+
+最终默认九组及下列七项补测使用相同源 SHA256 和同一个测试可执行文件 SHA256。
+Cubic/BBR 复测在最终源码中显式选择原控制器，避免把不同构建当作唯一对照。
+
+| 补测 | UDP Mbps | 完整帧 | p95 ms | 最低/末目标 kbps |
+|---|---|---|---|---|
+| Cubic wifi1 Auto | 7.67 | 566 | 87.7 | 4955/4955 |
+| BBR wifi1 Auto | 7.03 | 504 | 112.7 | 4738/4738 |
+| BBR cap20 Auto | 2.78 | 164 | 259.3 | 2000/2000 |
+| 默认 wifi1 Auto | 15.02 | 1399 | 32.4 | 10567/36556 |
+| 默认 cap8 Auto | 6.18 | 411 | 78.7 | 2798/2798 |
+| 默认 cap20 HighQuality | 7.42 | 630 | 36.1 | 900000/900000 |
+| 默认 burst 75s | 125.39 | 3909 | 13.8 | 58134/900000 |
+
+- wifi1 两次最终默认为 15.53/15.02Mbps，Cubic 为 7.43/7.67Mbps；
+  默认末目标 9566/36556kbps，有明显 seed/码控轨迹差异，不是容量收敛的置信区间。
+- cap8 两次最终默认 p95 为 77.3/78.7ms；补测有一次 5274.7ms 完整帧间隔。
+  p95 不能替代最大停顿或启动恢复指标，本任务没有消除所有长尾。
+- cap20 HighQuality 最终默认重复为 37.6/36.1ms；Cubic 为 34.9/36.2ms。
+  两组范围接近并有重叠，仍不宣称严格零回退。
+- 75 秒 burst 存活，3912 提交、3909 完整、3 丢弃。网络恢复后 57.5ms
+  观察到完整帧；这不证明该帧的源时间也在恢复点之后。最大完整帧间隔为
+  1833.0ms，p95 为 13.8ms；最低目标 58134kbps，帧率目标始终为 60。
+  恢复后 13.4 秒首次回到 900000kbps，持续到观察结束；不是显示或视觉恢复证明。
+
+补测证据：[Cubic wifi1](evidence/weak-network-bbr-cubic-wifi-repeat.txt)、
+[Cubic HighQuality](evidence/weak-network-bbr-cubic-hq-repeat.txt)、
+[BBR wifi1](evidence/weak-network-bbr-stock-wifi-repeat.txt)、
+[BBR cap20](evidence/weak-network-bbr-stock-cap20-repeat.txt)、
+[默认 wifi1](evidence/weak-network-bbr-final-wifi-repeat.txt)、
+[默认 cap8](evidence/weak-network-bbr-final-cap8-repeat.txt)、
+[默认 HighQuality](evidence/weak-network-bbr-final-hq-repeat.txt)、
+[75 秒恢复](evidence/weak-network-bbr-final-recovery.txt)。
+
+全部 54 组完成记录通过时长、存活、完整帧、错误为空、帧计数守恒和 burst 恢复检查。
+最终矩阵与七项补测的源 SHA256 均匹配最终源码，可执行文件 SHA256 相同。
+运行 `python3 docs/evidence/weak-network-bbr-validate.py` 可以重复检查，见
+[校验结果](evidence/weak-network-bbr-validation.txt)。原始日志只删除行尾空白和末尾空行，数字不改写。
+宿主 `lo` 保持 `noqueue`；本任务的测试器、网络测试和命名空间采样进程没有残留。
+
+### 未验证与适用边界
+
+- Windows/macOS 构建及实机源，真实 Wi-Fi/AP、竞争流、小缓冲拥塞与互联网公平性。
+  没有 RTT 膨胀的小缓冲丢包不能仅凭本控制器区分随机损失与拥塞；应用 ABR 继续生效。
+- 历史二进制的跨版本联测、跨主机时钟、GPU atlas 导入、双 lane 的 netem 测量。
+  本机混合控制器测试和已有双 lane 普通测试不替代这些检查。
+- 解码正确性、主观画质、原生呈现、物理显示延迟和用户视觉验收。
+- 所有随机种子的稳定性、长时间浸泡、严格零性能回退。没有实现 FEC 或多帧流水线。
+
+默认选择基于上述单 lane 自有内容测量，保留 Cubic/BBR 覆盖开关便于回退和继续研究。
+没有增加认证、焦点、输入或会话退出限制，没有推送或部署。

@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     let source = config.remote.is_some();
     // Clipboard traffic can be idle indefinitely. Keep the connection alive so
     // the first new copy does not race a reconnect and become its baseline.
-    let mut transport = quinn::TransportConfig::default();
+    let mut transport = viewflow_transport::media_transport_config();
     transport.keep_alive_interval(Some(Duration::from_secs(5)));
     let transport = std::sync::Arc::new(transport);
     let mut endpoint = if source {

@@ -1,0 +1,8 @@
+All completed NETEM_RESULT rows: 54 survived, errors null, duration >=30s, complete>0, frame conservation, burst recovery passed
+Final matrix + seven repeats: current source hashes match; same executable SHA256: 89c379407b1f65c2edd31518af314d1618e7bf3e89a0c1df6206f7aa1f5dc62b
+All BBR documentation evidence links exist. Recovery target remains at 900000 after first return.
+$ tc -s qdisc show dev lo
+qdisc noqueue 0: root refcnt 2
+ Sent 0 bytes 0 pkt (dropped 0, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0
+Cleanup pgrep -af bracket-escaped weak-network-test|netem_session: no matching processes (exit 1).

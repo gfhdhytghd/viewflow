@@ -1,0 +1,102 @@
+Source assessment, 2026-10-29
+Local Cargo registry: quinn-proto 0.11.19 (Cargo.lock), quinn 0.11.11.
+
+congestion/bbr/mod.rs explicitly says "Experimental! Use at your own risk."
+This is the bundled implementation, not a claim about Linux BBRv2/v3.
+BbrConfig only exposes initial_window; default is 200*1200 = 240000 bytes.
+CubicConfig only exposes initial_window; default is 12000 bytes. There is no
+public loss tolerance/beta setting in this version. Enlarging Cubic's initial
+window does not remove steady-state multiplicative loss response.
+
+BBR models maximum delivery bandwidth and minimum RTT, with Startup, Drain,
+ProbeBw and ProbeRtt states. Loss enters conservation/growth recovery and
+subtracts lost bytes from a recovery window; it is not immune to loss.
+ProbeBw gains alternate 1.25/0.75/1; target cwnd is approximately 2*BDP.
+ProbeRtt uses 0.75*BDP here, not the common four-packet description.
+Important implementation limits from source:
+- bw_estimation.rs samples adjacent send/ACK events, not a per-packet delivery
+  snapshot. It updates the max filter only for a strictly larger non-app-limited
+  sample. A previously large estimate therefore cannot age downward through
+  lower samples. Warmup on clean loopback before enabling netem matters.
+- BBR's calculated pacing_rate is only returned in ControllerMetrics for qlog.
+  connection/mod.rs:627 calls Pacer::delay with smoothed RTT and cwnd instead.
+  connection/pacing.rs refills at 1.25*cwnd/RTT, with 10..256 MTU burst capacity.
+  Selecting BBR does not install its gain-controlled pacing rate.
+- min RTT uses RttEstimator::min(); probing does not create an independently
+  windowed RTT estimator. Do not infer a production-grade model from the name.
+
+QUIC DATAGRAM payloads are not automatically retransmitted. Their packets
+remain ACK-eliciting and congestion controlled/paced, so BBR receives send,
+ACK and loss events for media as for reliable streams. W1 NACK remains separate.
+The controller factory is local TransportConfig state, not a TLS/QUIC transport
+parameter or an application capability. Mixed Cubic/BBR senders need no wire
+negotiation; tests/congestion.rs checks both stream and DATAGRAM directions.
+
+Implementation decisions:
+- One shared builder, selected once per connection, explicit Cubic and BBR API.
+- VIEWFLOW_CONGESTION_CONTROL override is process-local, cubic|bbr.
+- Existing 16MiB TLS-server, 64KiB coded-client, audio and default buffers remain
+  unchanged. Keepalive call sites and idle timeout remain unchanged.
+- No per-frame config reads, allocations or locks. No input/focus/capture work.
+- Harness adds wifi1 HighQuality, controller/mode selection, process coordination
+  and private-netns qdisc sampling every 0.5s. Random netem seeds remain recorded
+  in raw tc output; these are repetitions, not matched-seed confidence intervals.
+
+Alternative evaluation:
+Cubic's public configuration has no loss-response tuning. A larger initial
+window cannot fix the steady-state limit. Bundled BBR fails wifi1 Auto and
+cap20 latency. Rather than fork Quinn's BBR estimator and pacer, evaluate a
+small local DelayCubic wrapper around Quinn's own Cubic window arithmetic.
+It gates isolated loss on smoothed RTT inflation (>1.5*baseline AND +15ms),
+also reduces on queue growth without loss, and preserves ECN and persistent
+congestion events. Quinn loss detection/retransmission, pacing and connection
+timeouts remain untouched. No new session exit or per-frame allocation/lock.
+First variant used two five-second baseline buckets and improved wifi1 but
+underutilized cap20 during the warm-clean -> shaped-path transition. Retain
+weak-network-bbr-delay-cubic.txt; evaluate two one-second buckets separately.
+The shorter window is a route-change response choice, not a security timeout.
+
+Coordination correction: counting a sleeping Python harness as an active
+measurement caused mutual waiting with the sibling pipeline harness. /proc
+showed both wrappers sleeping and no netem child. Stopped only this worktree's
+waiting wrapper, then changed the guard to record the full pgrep inventory but
+wait for actual --exact --ignored netem test processes. A waiting wrapper is
+not measuring. No sibling process/file was changed.
+
+Reviewed registry source SHA256:
+60cf8196e8c17b1ef5228128615c0d0df31cd76cafa47c3c9198ee4b5d0fa9fd  quinn-proto-0.11.19/src/congestion/bbr/mod.rs
+02eed27edb40e4c12f992f7f683fac238ced0dd153ecb87fdd689654bfb36eb7  quinn-proto-0.11.19/src/congestion/bbr/bw_estimation.rs
+06eb1be36b8700cc4b8a2df07a3d87253f0ef8184cec670928ebd27ecebda935  quinn-proto-0.11.19/src/congestion/bbr/min_max.rs
+7715fd5f2a59737fd2e16dae6c1f39701ade221a8c07f6f3cd087926d0f9d632  quinn-proto-0.11.19/src/congestion/cubic.rs
+cf7232daa3ad094a6ee93a69a5f2d7d814ae0ecef7f6efed3aaf27eb52ff9131  quinn-proto-0.11.19/src/congestion.rs
+0154f8f81187e11782bfe014be38165c41e74d0fbd4be2a54acc262102775c86  quinn-proto-0.11.19/src/connection/pacing.rs
+4cefe33794b4bfa73ae4cfc2b8c004fcc6e2be0ecd24d6f2c4a5872dda8fe812  quinn-proto-0.11.19/src/connection/paths.rs
+dc94645f5ada5beca1ebab0f435eb8ea682fc5f60797db3c75fe43e9a2b451ab  quinn-proto-0.11.19/src/connection/mod.rs
+8d17cb428f872f3cc9c0d33f56a140f08714e19ddc67d84841d0ce499cf1a8da  quinn-proto-0.11.19/src/connection/datagrams.rs
+6921939145be10e36b01f2e00a1bcd5264b0fb0ca6c9fa393fb1b5a450fab077  quinn-proto-0.11.19/src/config/transport.rs
+
+Final candidate: two one-second baseline buckets (minimum spans ~1..2 seconds).
+On a confirmed upward baseline shift >15ms, if cwnd is below the original
+initial window, restart Quinn Cubic at that original 12000-byte initial window.
+This bounds the renewed probe instead of retaining a two-packet congestion
+avoidance crawl after a propagation-delay change. Cache/reuse Arc<CubicConfig>;
+no allocation or lock in ACK processing. MTU updates are retained across rebase.
+A dedicated test checks renewed congestion still reduces the restored window.
+The first test failed because the rebase hook was missing (8400 vs 12000);
+weak-network-bbr-rebase-test-failed.txt preserves it. The assertion was retained
+and the hook added; transport checks pass afterward.
+
+No claims of Internet fairness or deployment certification: delay-only loss
+gating cannot prove whether a small-buffer drop without RTT inflation is random
+or congestive. Application RateController remains active; ECN and persistent
+congestion retain Quinn's normal response. Competing flows, shallow buffers,
+real Wi-Fi, cross-host timing, native decoding/presentation and visual quality
+require separate tests. The measured scope is the owned single-lane harness.
+
+Decision: default DelayCubic, with explicit Cubic and BBR overrides. Final nine
+scenarios plus seven same-binary repeats support wifi1 Auto improvement and
+bounded Auto cap20/cap8 latency. cap20 HighQuality p95 ranges overlap but the
+first final run is 2.7ms above the first Cubic run; no strict zero-regression
+claim. Keep all variants, failed test and 54 successful netem rows. Final
+checks: workspace 985/0/4 ignored; NVENC 749/0/16 ignored; required clippy exit 0.
+Real Wi-Fi/native presentation/fairness remain unverified. No push/deployment.

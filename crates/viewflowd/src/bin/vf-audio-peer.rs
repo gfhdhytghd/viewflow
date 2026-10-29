@@ -299,7 +299,7 @@ async fn main() -> Result<()> {
         &std::fs::read(&config.certificate_authority)?,
     )
     .map_err(|e| anyhow::anyhow!("audio TLS: {e}"))?;
-    let mut transport = quinn::TransportConfig::default();
+    let mut transport = viewflow_transport::media_transport_config();
     transport.keep_alive_interval(Some(Duration::from_secs(5)));
     transport.datagram_receive_buffer_size(Some(audio_wire::PACKET_BYTES * 8));
     transport.datagram_send_buffer_size(audio_wire::PACKET_BYTES * 4);

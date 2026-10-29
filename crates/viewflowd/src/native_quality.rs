@@ -257,7 +257,7 @@ mod tests {
             include_bytes!("../../viewflow-transport/tests/fixtures/ca.pem"),
         )
         .unwrap();
-        let transport = Arc::new(quinn::TransportConfig::default());
+        let transport = Arc::new(viewflow_transport::media_transport_config());
         let mut server_config = build_server_config(&identity).unwrap();
         server_config.transport_config(transport.clone());
         let server =

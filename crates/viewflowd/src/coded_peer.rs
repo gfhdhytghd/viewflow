@@ -1449,7 +1449,7 @@ fn bind_sender_endpoint(o: &Options) -> Result<Endpoint> {
     let mut client_config = build_client_config(&identity)
         .map_err(|e| anyhow::anyhow!("build mTLS client config: {e}"))?;
     // Preserve the bounded unsent prefix used by the deadline-gated sender.
-    let mut transport = quinn::TransportConfig::default();
+    let mut transport = viewflow_transport::media_transport_config();
     transport.datagram_send_buffer_size(64 * 1024);
     client_config.transport_config(std::sync::Arc::new(transport));
     endpoint.set_default_client_config(client_config);
@@ -5885,7 +5885,7 @@ mod tests {
         peer.options.persistent = true;
         let identity = load_identity(&peer.options).unwrap();
         let mut config = viewflow_transport::build_client_config(&identity).unwrap();
-        let mut transport = quinn::TransportConfig::default();
+        let mut transport = viewflow_transport::media_transport_config();
         transport.max_idle_timeout(Some(Duration::from_millis(500).try_into().unwrap()));
         config.transport_config(std::sync::Arc::new(transport));
         let mut client = Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();

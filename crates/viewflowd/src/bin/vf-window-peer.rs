@@ -51,7 +51,7 @@ impl Config {
 // Keepalive probes preserve that normal idle state while QUIC still detects
 // a genuinely unreachable peer using its transport idle timeout.
 fn window_transport(interval: Duration) -> quinn::TransportConfig {
-    let mut transport = quinn::TransportConfig::default();
+    let mut transport = viewflow_transport::media_transport_config();
     transport.keep_alive_interval(Some(interval));
     transport
 }

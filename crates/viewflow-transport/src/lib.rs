@@ -3,6 +3,8 @@
 mod alpha_rle;
 mod clock;
 mod codec;
+mod config;
+mod delay_cubic;
 mod latency;
 mod media;
 mod raw_bgra;
@@ -35,6 +37,7 @@ pub use codec::{
     CodecSessionError, CodecSessionPolicy, CodecShape, CodedPixelFormat, Colorimetry,
     FRAME_CODEC_METADATA_BYTES, FrameCodecMetadata, VideoCodec, VideoPlaneRole,
 };
+pub use config::{MediaCongestionController, media_transport_config, media_transport_config_with};
 pub use latency::{LatencyClass, LatencyStats, LatencyWindow};
 pub use media::{
     MediaDatagram, MediaDatagramError, MediaFragmentError, MediaPlane, MediaPlaneFrame,
