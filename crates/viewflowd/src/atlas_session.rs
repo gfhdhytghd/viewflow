@@ -190,6 +190,8 @@ pub struct AtlasSenderSession {
     pub(crate) quality_lane: usize,
     #[cfg(test)]
     drop_chunk: Option<(u64, viewflow_transport::MediaPlane, u16)>,
+    #[cfg(test)]
+    datagram_budget_override: Option<usize>,
     retransmit: Option<std::sync::Arc<crate::atlas_loss::Retransmit>>,
     connection: Connection,
     plan: AtlasSessionPlan,
@@ -331,6 +333,8 @@ pub async fn offer_atlas(
         Ok(AtlasSenderSession {
             #[cfg(test)]
             drop_chunk: None,
+            #[cfg(test)]
+            datagram_budget_override: None,
             retransmit: None,
             connection: connection.clone(),
             plan,
@@ -594,6 +598,8 @@ async fn offer_warmed_atlas_mode(
         Ok(AtlasSenderSession {
             #[cfg(test)]
             drop_chunk: None,
+            #[cfg(test)]
+            datagram_budget_override: None,
             retransmit,
             connection: connection.clone(),
             plan,
@@ -790,6 +796,8 @@ impl AtlasSenderSession {
         Ok(Self {
             #[cfg(test)]
             drop_chunk: None,
+            #[cfg(test)]
+            datagram_budget_override: None,
             retransmit: self.retransmit.clone(),
             connection: self.connection.clone(), plan: self.plan, frame_send_poisoned: false,
             alpha_reference: self.alpha_reference, alpha_cache: None, feedback: None,
@@ -942,6 +950,8 @@ impl AtlasSenderSession {
             .connection
             .max_datagram_size()
             .context("atlas peer does not support datagrams")?;
+        #[cfg(test)]
+        let budget = self.datagram_budget_override.unwrap_or(budget);
         let plane = |payload, plane| {
             let frame = viewflow_transport::MediaPlaneFrame {
                 window_id: manifest.stream_id,
@@ -954,7 +964,9 @@ impl AtlasSenderSession {
             if let Some(cache) = &self.retransmit {
                 cache.remember(frame.clone(), budget,
                     if self.activity_enabled() { manifest.frame_id % 2 } else { 0 },
-                    std::time::Duration::from_nanos(self.plan.policy.max_age_ns));
+                    // Retain the current frame through its existing send watchdog.
+                    // Supersession and the two-frame/lane ring bound memory.
+                    std::time::Duration::from_secs(5));
             }
             frame.fragment(budget)
         };
@@ -985,12 +997,20 @@ impl AtlasSenderSession {
             #[cfg(test)]
             if self.drop_chunk == Some((packet.frame_id, packet.plane, packet.chunk_index)) { continue; }
             check_deadline(deadline).context("before atlas datagram enqueue")?;
-            timeout_at(
+            match timeout_at(
                 deadline,
                 self.connection.send_datagram_wait(packet.encode()),
             )
             .await
-            .context("atlas media send deadline expired")??;
+            .context("atlas media send deadline expired")? {
+                Ok(()) => {}
+                // PMTU can shrink while an already fragmented frame waits for
+                // congestion credit. Keep the manifest/feedback owner alive:
+                // the receiver expires this incomplete frame and requests IDR.
+                // Refragmenting mid-frame would change chunk identities.
+                Err(quinn::SendDatagramError::TooLarge) => break,
+                Err(error) => return Err(error.into()),
+            }
         }
         check_deadline(deadline).context("after atlas datagram enqueue")?;
         let enqueued = trace.then(Instant::now);
@@ -1159,10 +1179,13 @@ impl AtlasReceiverSession {
             self.select_receive_lane(lane)?;
             let Some(wait) = self.loss_wait else { continue; };
             if Instant::now() >= wait.expires {
+                if self.nack_enabled && self.loss_wait.as_mut().is_some_and(|wait| wait.retry()) {
+                    continue;
+                }
                 self.expire_lost_frame().await?;
-            } else if self.nack_enabled && !wait.attempted && Instant::now() >= wait.request_at {
+            } else if self.nack_enabled && wait.progressed && !wait.attempted && Instant::now() >= wait.request_at {
                 let Some(frame) = self.staged.as_ref() else { continue; };
-                // Only one repair round, and only if a measured RTT fits.
+                // At most three rounds; each request needs a measured RTT to fit.
                 let mut requested = false;
                 let missing_count = self.missing_chunk_count(frame);
                 if Instant::now() + self.connection.stats().path.rtt < wait.repair_until {
@@ -1189,9 +1212,7 @@ impl AtlasReceiverSession {
                 }
                 if requested { self.loss_telemetry.chunks_lost += missing_count; }
                 if let Some(wait) = &mut self.loss_wait {
-                    wait.attempted = true;
-                    wait.requested = requested;
-                    if requested { wait.request_at = Instant::now(); }
+                    wait.mark_request(requested);
                 }
             }
         }
@@ -1713,10 +1734,10 @@ impl AtlasReceiverSession {
                 / if self.activity_enabled() { 2 } else { 1 }).clamp(1_000_000, 33_333_333)
         });
         self.last_manifest_source_ns = Some(manifest.source_submitted_ns);
-        let mut wait = crate::atlas_loss::LossWait::new(self.connection.stats().path.rtt,
+        // A latency target is not a repair cutoff. An incomplete current
+        // frame may still recover in the bounded RTT-based loss window.
+        let wait = crate::atlas_loss::LossWait::new(self.connection.stats().path.rtt,
             std::time::Duration::from_nanos(frame_period_ns));
-        wait.repair_until = wait.expires.min(Instant::now() + std::time::Duration::from_nanos(
-            self.policy.max_age_ns.saturating_sub(now.saturating_sub(manifest.source_submitted_ns))));
         self.loss_wait = Some(wait);
         self.staged = Some(manifest);
         self.color = None;
@@ -1889,6 +1910,15 @@ impl AtlasReceiverSession {
                 && packet.source_submitted_ns == layout.source_submitted_ns,
             "atlas datagram metadata mismatch"
         );
+        // Original and repaired chunks can race. Once this plane completed,
+        // its late duplicates must not turn the other plane's pending repair
+        // into a frame-wide StaleFrame failure.
+        if matches!(packet.plane, viewflow_transport::MediaPlane::Color) && self.color.is_some()
+            || matches!(packet.plane, viewflow_transport::MediaPlane::Alpha) && self.alpha.is_some()
+        {
+            return Ok(None);
+        }
+        let progress = !self.assembler.contains_chunk(packet.window_id, packet.frame_id, packet.plane, packet.chunk_index);
         let assembled = if self.feedback.is_some() {
             self.assembler.push_latest(packet, received_ns)?
         } else {
@@ -1898,6 +1928,9 @@ impl AtlasReceiverSession {
                 Err(error) => return Err(error.into()),
             }
         };
+        if progress {
+            if let Some(wait) = &mut self.loss_wait { wait.progress(); }
+        }
         let Some(plane) = assembled else {
             return Ok(None);
         };
@@ -2860,6 +2893,194 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn queued_repair_datagrams_preserve_quinn_send_accounting() {
+        let (_client, _server, outbound, inbound) = pair().await;
+        let packet = bytes::Bytes::from(vec![42; 1024]);
+        // Stay on this current-thread executor so the driver cannot drain the
+        // queue. This exercises the same eviction path as congested repairs.
+        for _ in 0..4096 { outbound.send_datagram(packet.clone()).unwrap(); }
+        let marker = bytes::Bytes::from_static(b"queue still usable");
+        outbound.send_datagram(marker.clone()).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            let received = timeout_at(deadline, inbound.read_datagram()).await.unwrap().unwrap();
+            if received == marker { break; }
+        }
+        assert!(outbound.close_reason().is_none());
+    }
+
+    #[tokio::test]
+    async fn progressing_frame_outlives_initial_loss_wait_without_expiry() {
+        use viewflow_transport::{MediaPlane, MediaPlaneFrame};
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let frames = warmup_frames();
+        let mut policy = plan();
+        policy.policy.max_age_ns = 33_333_333;
+        policy.policy.max_encoded_bytes = 10_000;
+        let (sender, receiver) = tokio::join!(
+            offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+            accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) })
+        );
+        let sender = sender.unwrap();
+        let mut receiver = receiver.unwrap();
+        receiver.nack_enabled = false;
+        let manifest = AtlasFrame {
+            activity: None, patches: None, stream_id: Id128(99), frame_id: 1,
+            geometry_epoch: 1, config_generation: 1, layout_revision: 0,
+            width: 64, height: 64, source_submitted_ns: 100, tiles: vec![],
+            color_keyframe: true, alpha_keyframe: true, desktop: None,
+        };
+        let mut color = vec![0; 6000];
+        color[..4].copy_from_slice(&[0, 0, 1, 0x65]);
+        let plane = |plane, payload| MediaPlaneFrame {
+            window_id: Id128(99), frame_id: 1, geometry_epoch: 1,
+            source_submitted_ns: 100, plane, payload,
+        };
+        let sending = async {
+            sender.send_manifest_inner(manifest, 1, deadline).await.unwrap();
+            for packet in plane(MediaPlane::Color, color.into()).fragment(1200).unwrap() {
+                outbound.send_datagram(packet.encode()).unwrap();
+                tokio::time::sleep(Duration::from_millis(8)).await;
+            }
+            for packet in plane(MediaPlane::Alpha, frames[0].alpha.clone()).fragment(1200).unwrap() {
+                outbound.send_datagram(packet.encode()).unwrap();
+            }
+        };
+        let ((), frame) = tokio::join!(sending, receiver.next_frame(|| 110, deadline));
+        assert_eq!(frame.unwrap().layout.frame_id, 1);
+        assert_eq!(receiver.loss_telemetry.frames_dropped_to_keyframe, 0);
+        assert!(!receiver.retired);
+    }
+
+    #[tokio::test]
+    async fn duplicate_completed_plane_does_not_abandon_other_plane_repair() {
+        use viewflow_transport::{MediaPlane, MediaPlaneFrame};
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let frames = warmup_frames();
+        let mut policy = plan();
+        policy.policy.max_encoded_bytes = 10_000;
+        let (sender, receiver) = tokio::join!(
+            offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+            accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) })
+        );
+        let _sender = sender.unwrap();
+        let mut receiver = receiver.unwrap();
+        let manifest = AtlasFrame {
+            activity: None, patches: None, stream_id: Id128(99), frame_id: 1,
+            geometry_epoch: 1, config_generation: 1, layout_revision: 0,
+            width: 64, height: 64, source_submitted_ns: 100, tiles: vec![],
+            color_keyframe: true, alpha_keyframe: true, desktop: None,
+        };
+        receiver.stage_manifest(manifest, 110).unwrap();
+        let plane = |plane, payload| MediaPlaneFrame {
+            window_id: Id128(99), frame_id: 1, geometry_epoch: 1,
+            source_submitted_ns: 100, plane, payload,
+        };
+        let alpha = plane(MediaPlane::Alpha, frames[0].alpha.clone()).fragment(1200).unwrap().next().unwrap();
+        assert!(receiver.push_media(alpha.clone(), 110).unwrap().is_none());
+        assert!(receiver.alpha.is_some());
+        assert!(receiver.push_media(alpha, 110).unwrap().is_none());
+        assert!(receiver.staged.is_some());
+        let mut color = vec![0; 3000];
+        color[..4].copy_from_slice(&[0, 0, 1, 0x65]);
+        let mut admitted = None;
+        for packet in plane(MediaPlane::Color, color.into()).fragment(1200).unwrap() {
+            admitted = receiver.push_media(packet, 110).unwrap();
+        }
+        assert!(admitted.is_some());
+        assert_eq!(receiver.loss_telemetry.frames_dropped_to_keyframe, 0);
+        assert!(!receiver.retired);
+    }
+
+    #[tokio::test]
+    async fn nack_repairs_current_frame_after_latency_target() {
+        use crate::atlas_feedback::AtlasFrameDisposition;
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let frames = warmup_frames();
+        let mut policy = plan();
+        policy.policy.max_age_ns = 33_333_333;
+        policy.policy.max_encoded_bytes = 10_000;
+        let (sender, receiver) = tokio::join!(
+            offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+            accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) })
+        );
+        let mut sender = sender.unwrap();
+        let mut receiver = receiver.unwrap();
+        let mut color = vec![0; 3000];
+        color[..4].copy_from_slice(&[0, 0, 1, 0x65]);
+        let manifest = AtlasFrame {
+            activity: None, patches: None, stream_id: Id128(99), frame_id: 1,
+            geometry_epoch: 1, config_generation: 1, layout_revision: 0,
+            width: 64, height: 64, source_submitted_ns: 100, tiles: vec![],
+            color_keyframe: true, alpha_keyframe: true, desktop: None,
+        };
+        sender.drop_chunk = Some((1, viewflow_transport::MediaPlane::Color, 1));
+        let receiving = async {
+            // Simulate a frame that took 40 ms to reach the receiver. The
+            // target is missed, but a real missing chunk still gets repaired.
+            let frame = receiver.next_frame(|| 40_000_100, deadline).await.unwrap();
+            receiver.report_disposition(&frame.layout, AtlasFrameDisposition::Committed, deadline).await.unwrap();
+        };
+        let (sent, ()) = tokio::join!(sender.send_frame(manifest, color.into(), frames[0].alpha.clone(), 1, deadline), receiving);
+        sent.unwrap();
+        assert_eq!(sender.last_disposition(), Some(AtlasFrameDisposition::Committed));
+        assert_eq!(receiver.loss_telemetry.frames_recovered_by_nack, 1);
+        assert_eq!(receiver.loss_telemetry.frames_dropped_to_keyframe, 0);
+    }
+
+    #[tokio::test]
+    async fn pmtu_shrink_during_frame_recovers_without_poisoning_sender() {
+        use crate::atlas_feedback::AtlasFrameDisposition;
+        let (_client, _server, outbound, inbound) = pair().await;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let frames = warmup_frames();
+        let mut policy = plan();
+        policy.policy.max_age_ns = 100_000_000;
+        policy.policy.max_encoded_bytes = 10_000;
+        let (sender, receiver) = tokio::join!(
+            offer_warmed_atlas_dispositions(&outbound, policy, &frames, deadline),
+            accept_warmed_atlas_dispositions(&inbound, policy, deadline, |_| async { Ok(()) })
+        );
+        let mut sender = sender.unwrap();
+        let mut receiver = receiver.unwrap();
+        // A budget sampled before a PMTU reduction produces an oversized
+        // datagram. Exercise Quinn's real TooLarge path deterministically.
+        sender.datagram_budget_override = Some(4096);
+        receiver.nack_enabled = false;
+        let mut color = vec![0; 6000];
+        color[..4].copy_from_slice(&[0, 0, 1, 0x65]);
+        for id in 1..=2 {
+            let manifest = AtlasFrame {
+                activity: None, patches: None, stream_id: Id128(99), frame_id: id,
+                geometry_epoch: 1, config_generation: 1, layout_revision: 0,
+                width: 64, height: 64, source_submitted_ns: 100 + id, tiles: vec![],
+                color_keyframe: true, alpha_keyframe: true, desktop: None,
+            };
+            let receiving = async {
+                if id == 1 {
+                    let error = receiver.next_frame(|| 110, Instant::now() + Duration::from_millis(350))
+                        .await.err().unwrap();
+                    assert!(error.is::<AtlasWaitExpired>());
+                } else {
+                    let frame = receiver.next_frame(|| 110, deadline).await.unwrap();
+                    receiver.report_disposition(&frame.layout, AtlasFrameDisposition::Committed, deadline).await.unwrap();
+                }
+            };
+            let (sent, ()) = tokio::join!(sender.send_frame(manifest, color.clone().into(), frames[0].alpha.clone(), id, deadline), receiving);
+            sent.unwrap();
+            assert!(!sender.frame_send_poisoned && !receiver.retired);
+            assert_eq!(sender.last_disposition(), Some(if id == 1 {
+                AtlasFrameDisposition::ExpiredUnbound
+            } else { AtlasFrameDisposition::Committed }));
+            sender.datagram_budget_override = None;
+        }
+        assert!(outbound.close_reason().is_none());
+    }
+
+    #[tokio::test]
     async fn lost_atlas_chunk_does_not_silently_wait() {
         let (_client, _server, outbound, inbound) = pair().await;
         let deadline = Instant::now() + Duration::from_secs(2);
@@ -2881,7 +3102,7 @@ pub(crate) mod tests {
         let mut packet = early_packet(1, viewflow_transport::MediaPlane::Color);
         packet.chunk_count = 2;
         outbound.send_datagram(packet.encode()).unwrap();
-        let error = receiver.next_frame(|| 110, Instant::now() + Duration::from_millis(80))
+        let error = receiver.next_frame(|| 110, Instant::now() + Duration::from_millis(1000))
             .await.err().expect("incomplete frame must not be admitted");
         assert!(error.is::<AtlasWaitExpired>());
         assert!(receiver.staged.is_none(), "lost frame still staged after wait; sender receives no disposition");
@@ -4910,3 +5131,7 @@ pub(crate) mod tests {
         assert!(events.try_recv().is_err());
     }
 }
+
+#[cfg(all(test, target_os = "linux", feature = "native-nvenc"))]
+#[path = "atlas_netem_test.rs"]
+mod netem_test;

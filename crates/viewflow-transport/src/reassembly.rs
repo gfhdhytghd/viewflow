@@ -105,6 +105,16 @@ impl MediaAssembler {
         }
     }
 
+    /// True for a chunk already retained in an incomplete plane. Callers use
+    /// this O(1) query to distinguish real progress from duplicate repairs.
+    #[must_use]
+    pub fn contains_chunk(&self, window_id: WindowId, frame_id: u64, plane: MediaPlane, index: u16) -> bool {
+        let key = FrameKey { plane: PlaneKey { window_id, plane }, frame_id };
+        self.pending.get(&key)
+            .and_then(|pending| pending.chunks.get(usize::from(index)))
+            .is_some_and(Option::is_some)
+    }
+
     /// Missing slots for a known incomplete plane. None means no chunk has
     /// arrived yet; callers may request the entire plane. Allocates only on loss.
     #[must_use]
