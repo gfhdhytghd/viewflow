@@ -37,6 +37,11 @@ pub struct QualityTelemetry {
     sending: [AtomicU64; 2],
     dropped: AtomicU64,
     epoch: AtomicU64,
+    congested: AtomicU64,
+    fec_budgeted: AtomicU64,
+    network_failed: AtomicU64,
+    fec: [AtomicU64; 2],
+    fec_updated: [AtomicU64; 2],
 }
 impl Default for QualityTelemetry {
     fn default() -> Self {
@@ -45,10 +50,28 @@ impl Default for QualityTelemetry {
             sending: [AtomicU64::new(0), AtomicU64::new(0)],
             dropped: AtomicU64::new(0),
             epoch: AtomicU64::new(0),
+            congested: AtomicU64::new(0),
+            fec_budgeted: AtomicU64::new(1),
+            network_failed: AtomicU64::new(0),
+            fec: [AtomicU64::new(0), AtomicU64::new(0)],
+            fec_updated: [AtomicU64::new(0), AtomicU64::new(0)],
         }
     }
 }
 impl QualityTelemetry {
+    pub fn network_failed(&self, total: u64) { self.network_failed.fetch_max(total, Ordering::Relaxed); }
+    pub fn fec_suspended(&self) -> bool { self.congested.load(Ordering::Relaxed) != 0 || self.fec_budgeted.load(Ordering::Relaxed) == 0 }
+    pub fn fec_overhead(&self, lane: usize, data: usize, parity: usize) {
+        self.fec[lane].store((parity as u64 * 1000).div_ceil(data.max(1) as u64), Ordering::Relaxed);
+        self.fec_updated[lane].store(self.now_us(), Ordering::Relaxed);
+    }
+
+    fn fec_ratio(&self) -> u64 {
+        let now = self.now_us();
+        self.fec.iter().zip(&self.fec_updated)
+            .filter(|(_, updated)| now.saturating_sub(updated.load(Ordering::Relaxed)) <= 5_000_000)
+            .map(|(ratio, _)| ratio.load(Ordering::Relaxed)).max().unwrap_or(0)
+    }
     pub fn begin(&self, lane: usize) {
         self.epoch.fetch_add(1, Ordering::Relaxed);
         self.sending[lane].store(self.now_us().saturating_add(1), Ordering::Relaxed);
@@ -80,6 +103,35 @@ impl QualityTelemetry {
     }
 }
 
+/// Confirmed incomplete media needs a burst-recovery budget even if kernel
+/// drops keep RTT flat. Presentation/input rejection never feeds this counter.
+struct FecRecoveryBudget {
+    ceiling: f64,
+    previous_failed: u64,
+    last_failure_us: u64,
+    updated_us: u64,
+}
+impl Default for FecRecoveryBudget {
+    fn default() -> Self { Self { ceiling: f64::from(AUTO_CEILING_KBPS), previous_failed: 0, last_failure_us: 0, updated_us: 0 } }
+}
+impl FecRecoveryBudget {
+    fn update(&mut self, now_us: u64, failed: u64, healthy: bool) -> u32 {
+        let failures = failed.saturating_sub(self.previous_failed);
+        if failures > 0 {
+            // Same heavy-loss multiplier as the rate controller; once per
+            // confirmed failed frame, not repeatedly for one old generation.
+            self.ceiling = (self.ceiling * 0.7_f64.powi(failures.min(32) as i32)).max(2000.0);
+            self.last_failure_us = now_us;
+        } else if healthy && now_us.saturating_sub(self.last_failure_us) >= 5_000_000 {
+            let elapsed = now_us.saturating_sub(self.updated_us).min(1_000_000) as f64 / 1_000_000.0;
+            self.ceiling = (self.ceiling * (1.0 + 0.3 * elapsed)).min(f64::from(AUTO_CEILING_KBPS));
+        }
+        self.previous_failed = failed;
+        self.updated_us = now_us;
+        self.ceiling as u32
+    }
+}
+
 pub struct QualitySampler {
     controller: RateController,
     previous: (u64, u64, u64),
@@ -88,6 +140,8 @@ pub struct QualitySampler {
     backlog_epoch: u64,
     send_millifps: u32,
     send_rate_backlogged: bool,
+    congested: bool,
+    recovery_healthy: bool,
 }
 impl QualitySampler {
     pub fn new(mode: SourceQualityMode, fps: u32, lost: u64, sent: u64) -> Self {
@@ -103,6 +157,8 @@ impl QualitySampler {
             backlog_epoch: 0,
             send_millifps: 0,
             send_rate_backlogged: false,
+            congested: false,
+            recovery_healthy: false,
         }
     }
     /// Cumulative bytes sent on the connection; feeds the next sample.
@@ -132,6 +188,8 @@ impl QualitySampler {
         };
         self.previous = (lost, sent, dropped);
         let mut target = self.controller.on_sample(sample);
+        self.congested = self.controller.is_congested(&sample);
+        self.recovery_healthy = self.controller.can_increase_quality(&sample);
         if self.controller.config().mode == QualityMode::HighQuality || target.max_fps == 60 {
             target.max_fps = self.controller.config().max_fps;
         }
@@ -143,6 +201,47 @@ impl QualitySampler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn confirmed_network_failure_budget_cuts_once_then_recovers_without_an_exit() {
+        let mut budget = FecRecoveryBudget::default();
+        assert_eq!(budget.update(200_000, 0, true), AUTO_CEILING_KBPS);
+        let first = budget.update(400_000, 1, true);
+        assert_eq!(first, 630_000);
+        assert_eq!(budget.update(600_000, 1, true), first);
+        assert_eq!(budget.update(800_000, 2, true), 441_000);
+        assert_eq!(budget.update(5_000_000, 2, true), 441_000);
+        assert_eq!(budget.update(6_000_000, 2, false), 441_000);
+        assert!(budget.update(6_200_000, 2, true) > 441_000);
+        assert_eq!(budget.update(7_000_000, 1000, true), 2000);
+        for second in 8..80 { budget.update(second * 1_000_000, 1000, true); }
+        assert_eq!(budget.update(80_000_000, 1000, true), AUTO_CEILING_KBPS);
+    }
+
+    #[test]
+    fn fec_budget_counts_tiny_shards_and_expires_idle_lane_overhead() {
+        let telemetry = QualityTelemetry { origin: std::time::Instant::now() - std::time::Duration::from_secs(10), ..QualityTelemetry::default() };
+        telemetry.fec_overhead(1, 1, 76);
+        assert_eq!(telemetry.fec_ratio(), 76_000); // Includes headers; never clamp to a nominal percentage.
+        telemetry.fec_overhead(0, 1000, 101);
+        assert_eq!(telemetry.fec_ratio(), 76_000);
+        telemetry.fec_updated[1].store(0, Ordering::Relaxed);
+        assert_eq!(telemetry.fec_ratio(), 101);
+        telemetry.fec_overhead(0, 1000, 0);
+        assert_eq!(telemetry.fec_ratio(), 0);
+    }
+
+    #[test]
+    fn stable_rtt_service_backlog_suspends_parity_but_feedback_wait_does_not() {
+        let mut sampler = QualitySampler::new(SourceQualityMode::Auto, 60, 0, 0);
+        sampler.backlog_epoch = 1;
+        sampler.send_millifps = 14_000;
+        sampler.send_rate_backlogged = true;
+        sampler.sample(200_000, 20_000, 0, 1000, 80_000, 0);
+        assert!(sampler.congested);
+        sampler.sample(400_000, 20_000, 0, 2000, 0, 0);
+        assert!(!sampler.congested);
+    }
+
     #[test]
     fn recovery_wait_is_not_send_backlog() {
         let telemetry = QualityTelemetry {
@@ -219,6 +318,7 @@ impl QualityMonitor {
         fps: u32,
         label: &'static str,
     ) -> Self {
+        telemetry.fec_budgeted.store(u64::from(mode != SourceQualityMode::HighQuality), Ordering::Relaxed);
         let stats = connection.stats();
         let mut sampler =
             QualitySampler::new(mode, fps, stats.path.lost_packets, stats.path.sent_packets);
@@ -243,6 +343,7 @@ impl QualityMonitor {
             let mut sampled = false;
             let mut interval_backlogged = true;
             let mut previous_us = 0_u64;
+            let mut recovery_budget = FecRecoveryBudget::default();
             let mut previous = None;
             let mut summary = origin;
             loop {
@@ -291,7 +392,7 @@ impl QualityMonitor {
                 previous_epoch = sampler.backlog_epoch;
                 previous_us = now_us;
                 previous_bytes = stats.udp_tx.bytes;
-                let next = sampler.sample(
+                let mut next = sampler.sample(
                     now_us,
                     stats.path.rtt.as_micros().min(u128::from(u64::MAX)) as u64,
                     stats.path.lost_packets,
@@ -299,16 +400,22 @@ impl QualityMonitor {
                     age,
                     dropped,
                 );
+                telemetry.congested.store(u64::from(sampler.congested), Ordering::Relaxed);
+                let overhead = telemetry.fec_ratio();
+                if mode != SourceQualityMode::HighQuality {
+                    next.kbps = next.kbps.min(recovery_budget.update(now_us, telemetry.network_failed.load(Ordering::Relaxed), sampler.recovery_healthy));
+                }
+                next.kbps = (u64::from(next.kbps) * 1000 / (1000 + overhead)) as u32;
                 output.store(pack(next), Ordering::Relaxed);
                 let now = tokio::time::Instant::now();
                 if previous != Some(next) || now >= summary {
                     eprintln!(
-                        "{label}-quality mode={mode:?} kbps={} fps={} scale=1000 rtt_us={} queue_us={age} dispatch_us={dispatch_age} buffered={buffered} rate_busy={} dropped={dropped} changed={}",
+                        "{label}-quality mode={mode:?} kbps={} fps={} scale=1000 rtt_us={} queue_us={age} dispatch_us={dispatch_age} buffered={buffered} rate_busy={} dropped={dropped} changed={} fec_permille={overhead} congested={}",
                         next.kbps,
                         next.max_fps,
                         stats.path.rtt.as_micros(),
                         sampler.send_rate_backlogged,
-                        previous != Some(next)
+                        previous != Some(next), sampler.congested
                     );
                     summary = now + std::time::Duration::from_secs(5);
                 }

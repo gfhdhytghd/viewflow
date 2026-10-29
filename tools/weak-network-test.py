@@ -84,6 +84,9 @@ def wait_for_other_measurements(record):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--gso', choices=['off', 'on'], default='off', help='off models independent UDP packet loss in netem; on also loses GSO batches')
+    parser.add_argument('--profile', choices=['release', 'debug'], default='release')
+    parser.add_argument('--fec', choices=['auto', 'off'], default='auto')
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--output', type=Path, default=ROOT / 'docs/evidence/weak-network-netem.txt')
     parser.add_argument('--scenario', choices=[s for s, _ in SCENARIOS[:6]])
@@ -92,7 +95,7 @@ def main():
     args = parser.parse_args()
     if args.seconds < 30:
         parser.error('each scenario must last at least 30 seconds')
-    build = subprocess.run(['cargo', 'test', '-p', 'viewflowd', '--features', 'native-gpu-nvenc',
+    build = subprocess.run(['cargo', 'test'] + (['--release'] if args.profile == 'release' else []) + ['-p', 'viewflowd', '--features', 'native-gpu-nvenc',
                             '--lib', TEST, '--no-run', '--message-format=json'],
                            cwd=ROOT, text=True, stdout=subprocess.PIPE, check=True)
     artifacts = [json.loads(line) for line in build.stdout.splitlines()]
@@ -105,15 +108,16 @@ def main():
             evidence.write(text + '\n')
             evidence.flush()
         record('Viewflow owned RGBA -> NVENC -> atlas QUIC -> reassembly (no decode/display)')
-        record('controller ' + args.controller)
+        record('controller ' + args.controller + ' fec ' + args.fec + ' profile ' + args.profile + ' gso ' + args.gso)
         record('UTC ' + datetime.datetime.now(datetime.timezone.utc).isoformat())
         record('git ' + subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
                + ' + working tree changes; source SHA256 below')
         import hashlib
-        for p in ['tools/weak-network-test.py', 'protocol/viewflow/v1/control.proto',
+        for p in ['Cargo.toml', 'crates/viewflowd/Cargo.toml', 'tools/weak-network-test.py', 'protocol/viewflow/v1/control.proto',
                   'crates/viewflow-core/src/atlas_pipeline.rs',
                   'crates/viewflowd/src/atlas_netem_test.rs',
                   'crates/viewflowd/src/atlas_session.rs', 'crates/viewflowd/src/atlas_loss.rs',
+                  'crates/viewflowd/src/atlas_fec.rs',
                   'crates/viewflow-core/src/rate_control.rs', 'crates/viewflowd/src/quality.rs',
                   'crates/viewflowd/src/coded_peer.rs', 'crates/viewflowd/src/gpu_atlas_sender.rs',
                   'crates/viewflowd/src/native_quality.rs',
@@ -139,7 +143,8 @@ def main():
                 env.pop('VIEWFLOW_CONGESTION_CONTROL', None)
             else:
                 env['VIEWFLOW_CONGESTION_CONTROL'] = args.controller
-            env.update(VF_NETEM_PRIVATE='1', VF_NETEM_SCENARIO=scenario,
+            env['VIEWFLOW_FEC'] = args.fec
+            env.update(VF_NETEM_PRIVATE='1', VF_NETEM_GSO=args.gso, VF_NETEM_SCENARIO=scenario,
                        VF_NETEM_MODE=mode, VF_NETEM_SECONDS=str(args.seconds))
             # Fresh namespace per scenario; kernel removes the qdisc on exit.
             cmd = ['unshare', '-rn', 'sh', '-c',
@@ -151,6 +156,7 @@ result=$?
 kill "$sampler"
 wait "$sampler" 2>/dev/null
 tc -s qdisc show dev lo
+cat /proc/net/snmp
 exit "$result"''',
                    'netem', binary, TEST, '--exact', '--ignored', '--nocapture']
             run = subprocess.Popen(cmd, cwd=ROOT, env=env, text=True, stdout=subprocess.PIPE,

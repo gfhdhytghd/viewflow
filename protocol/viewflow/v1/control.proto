@@ -677,6 +677,8 @@ message AtlasSession {
   // A receiver may decline any offered version by replying 0. Never infer
   // support from this field's presence, NACK support, or retransmit capacity.
   uint32 pipeline_version = 21;
+  // Optional VFF1 systematic GF(2^16) FEC; both peers must accept v1.
+  uint32 fec_version = 22;
 }
 
 message ControlEnvelope {

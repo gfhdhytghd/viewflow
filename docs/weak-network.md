@@ -849,3 +849,302 @@ Cubic/BBR 复测在最终源码中显式选择原控制器，避免把不同构�
 
 默认选择基于上述单 lane 自有内容测量，保留 Cubic/BBR 覆盖开关便于回退和继续研究。
 没有增加认证、焦点、输入或会话退出限制，没有推送或部署。
+
+## W3 可协商自适应 FEC（2026-10-29）
+
+本节记录 `fec` 工作树的应用层前向纠错。以上历史表格保持原样。
+FEC 在 Rust atlas 数据报与普通重组之间工作，不改变原生 presenter、输入、焦点、
+33ms 目标或会话退出条件。恢复顺序为 FEC → 现有 W1 选择性 NACK → 局部关键帧。
+
+### 协商与 wire 格式
+
+- `AtlasSession.fec_version = 22`；21 继续属于 pipeline。仅 V3 dispositions 暖启动
+  offer/accept 都为 1 时启用。未知版本返回 0，未协商的非零 acceptance 拒绝启动。
+  旧发送端与新接收端、以及新发送端与旧接收端，均保持原 `VFMD` v1 / W1 行为。
+  `VIEWFLOW_FEC=off` 在任一新端关闭 advertise/accept，供同一可执行文件作 A/B 对照。
+- 原始数据片仍为 52 字节 `VFMD` v1 头与原始 payload。FEC v1 双向协商后，
+原保留位（偏移 6..8，大端 u16）采用 bit0=重传、bit1=此 block 有 parity。
+只有实际生成 parity 的原片设置 bit1；0% 和拥塞暂停时仍为 0。
+接收端据此区分首次由重传补齐的片与原始迟到片；未协商时保留位始终为 0。
+  parity 为独立 `VFF1` 数据报，74 字节头；全部多字节字段使用大端序。
+  前 52 字节沿用 VFMD 身份字段布局，但 magic 为 `VFF1`，chunk_index 为 block
+  首数据索引；chunk_count 为整个平面的数据片数。随后字段如下：
+
+| 偏移 | 长度 | 字段 |
+|---|---|---|
+| 52 | 8 | config generation |
+| 60 | 1 | lane，单 lane 为 0，activity 为 frame_id % 2 |
+| 61 | 2 | block index |
+| 63 | 2 | block count |
+| 65 | 1 | D |
+| 66 | 1 | P |
+| 67 | 1 | parity shard index，范围 0..P |
+| 68 | 2 | 偶数 shard size |
+| 70 | 2 | block 最后一个原数据片的真实长度 |
+| 72 | 2 | 保留，必须为零 |
+
+完整头还包含 stream/frame/geometry/plane/source timestamp，接收端按这些身份重建
+普通 `MediaDatagram`，继续经过已有 reassembly、codec admission 与 atlas 成对绑定。
+每帧每 lane 的 color/alpha 分别分 block；D≤16，P≤8，D+P≤24。
+8192 数据片上限来自现有 assembler，因此最多 512 block，未增加四 block 限制。
+当前参数上限属于 v1 wire 契约，未来改变算法/上限必须协商其他版本。
+
+启用冗余的帧用 `max_datagram_size - 74` 向下取偶数作为最大数据 payload。
+数据片与 parity 均不超过 Quinn 返回的应用数据报预算。parity 始终补满当前预算，
+包括 D=1 的短 alpha 引用，防止该原片与 parity 一起塞入同一个 QUIC 包而同时丢失。
+接收端按真实长度截断；尾部零填充不进入重组。
+0% 帧使用原来的 `max_datagram_size - 52`，零 parity 字节。
+每 block 先排入全部原片，随后排入 parity，之后才开始下一个 block。
+默认选择 D=16，使低码率 Wi-Fi 下 parity 比 D=32 更早到达；不等待整帧。
+未增加跨 lane 的同步交织：两个 lane 的发送所有者独立，集中调度会扩大本次范围；
+没有等待后续帧积攒交织深度。突发 loss 的收益仍以测量为准。
+
+算法使用 [reed-solomon-simd 3.1.0](https://docs.rs/reed-solomon-simd/3.1.0)，
+为 systematic GF(2^16) RS。Cargo 元数据声明 `MIT AND BSD-3-Clause`；两者兼容
+项目的 GPL-3.0-only。依赖锁定于 Cargo.lock，没有复制 Sunshine/nanors 实现。
+源端复用 encoder、补零 scratch、16 片容器与 parity 容器；接收端为四个 lane/plane
+槽复用索引容器和一个 decoder。数据缓存共享现有 Bytes，不复制每个原片。
+实际 wire 数据报仍使用现有发送所需的 Bytes 分配；仅缺片重建分配恢复 payload。
+没有新增逐数据报锁。容器按观察到的最大帧增长后复用；不是预留无限帧的缓存。
+
+### 自适应与预算
+
+升档使用接收端的应用媒体观测，不再直接使用 QUIC path 丢包。开发轮表明
+QUIC 探测/ACK/拥塞相关丢包在 clean 回环也会触发冗余；该失败记录保留，
+不能将 QUIC 丢包等同于媒体缺片。
+
+接收端每帧累计已知数据片总数、FEC 重建片数、首次由带标记 W1 修复片填充的片数，
+以及最终仍缺失的片数。原片先到后的重复修复片不计入升档信号。
+计数夹紧到总片数；全平面未知时沿用至少一片的观测下界。
+这表示实际采用的恢复，而不是提前 NACK 时尚未发完的数据片；不声明等于物理丢包率。
+每 200ms 最多发一条累计反馈，复用 `VFN1` 的有界 writer 和唯一 reader，
+不新增控制流读取者或逐片锁。记录为长度前缀后的 `VFFB` + u8 version=1 +
+三个大端 u64（total、missing、确认缺片失败的帧数），共 29 字节；只有双方接受 FEC v1 才发送。
+接收端队列满时跳过本次报告，下一条累计值保留观测；回退/乱序的计数不覆盖新值。
+FEC 单独启用而 NACK 未启用时也保留该反馈流，但不发重传请求。
+
+发送端每秒消费累计差值，窗口至少 128 个数据片、至少 3 个恢复/缺片且比例≥0.5%
+才算有损窗口。连续两个有损窗口从 0 升到 10%；随后有损窗口达到 2% 时升到 20%。
+已有档位不会随单次较低损失立刻下降；连续 5 秒无合格有损窗口下降一档，再等待 5 秒。
+少量迟到/探测噪声不会因一个包就启用冗余。低流量时累积到 128 片再评估，
+下降滞回仍按墙钟执行。反馈本身丢失只延迟适配，不结束会话。
+
+QualityMonitor 使用 RateController 的完整拥塞判定，包含 RTT/路径排队和持续的
+原帧服务积压。任一分支判拥塞时实际 parity 为零，由现有 ABR 降低预算。
+单独等待 disposition/NACK 不算原片发送积压。拥塞期间保留此前学到的档位；
+恢复后直接恢复该档位，不反复等待两个有损窗口。仅在非拥塞采样时升档。
+开发轮曾只用 RTT 判定，cap8 出现稳定 RTT、约 80ms 持续积压与 FEC 回归；
+该轮明确不通过验收。最终恢复完整控制器判定，不增加新的时限或退出条件。
+原有码率决策和阈值保持不变。
+P=`ceil(D×档位/100)`，启用时至少 1；默认完整块实际为 2/16 或 4/16。
+D=1 时至少 100% 载荷冗余，且还包含 parity 头，不能称为实际 10%/20% 开销。
+源端按每帧真实 data payload 与完整 parity 数据报字节发布比例，包含短 alpha；
+QualityMonitor 的编码目标变为 `controller_target / (1 + 实际 parity/data)`。
+比例向上取千分数，不截断小帧的大比例；两个 lane 取较大比例，保守预留连接预算，
+不平均分割两个 lane 原有的质量上限。比例沿用现有 200ms 控制更新节奏，
+不是逐包硬限速，也不保证 VBR 每个瞬间、控制/QUIC/IP 全部线速都等于目标。
+停止 FEC 后下一帧发布零比例；空闲 lane 的旧比例在 5 秒后失效，
+不能因旧比例长期抑制编码预算。
+
+接收端确认仍缺片而回退的帧另外累计 `failed`；原生呈现或输入拒绝不产生这个计数。
+源端对每个新增的已确认媒体失败使用既有码控的重损失乘数 0.7，降低独立的恢复预算上界，
+下限 2000kbps；同一失败不重复扣减。连续 5 秒无新增失败且原控制器确认服务健康时，
+每秒恢复约 30%，
+直到原上界。最终总预算取该上界与 RateController 目标的较小值，再扣除 parity。
+这修复了 RTT 平稳但大 IDR 突发丢片时，900Mbps 目标反复产生不可恢复 IDR 的情况；
+不把一般 disposition 拒绝或性能目标错过等同于网络失败，不新增会话结束条件。
+
+HighQuality 仍使用固定 QP，没有可扣减的编码码率预算，因此在该模式保持 FEC=0，
+继续 W1。没有为开启 FEC 暗中把固定质量模式改成 VBR。自动与省带宽模式使用上述
+预算扣减。未运行 QualityMonitor 的低层调用仍可以协商并使用 FEC；正式源端由
+QualityMonitor 提供拥塞状态和编码目标，CPU-only QUIC 测试不代表编码预算验证。
+
+### 接收、回退与计数
+
+接收端累计不同数据片与 parity，任意 D 片到达即可恢复 block；全部原片到齐时
+不调用 RS。重复、乱序及 parity 自身丢失均不改变原数据索引；W1 查询已有
+assembler，只请求仍然缺失的数据片。只有原片标记或收到 parity 证明当前帧有冗余时，FEC v1 将首轮 NACK 延后到原无进展窗口
+最后一次 RTT 机会，给原片和 parity 留出到达时间。过早花掉第一轮会让后续尾片
+等待 W1 的重试宽限期；本次不再提前发送仅覆盖已知前缀的第一轮请求。
+整个 alpha/尾片都丢失时仍查询完整缺片，因此保留 W1 的最后防线。
+源端按 block 发布原片的实际入队前缀，不重传尚未入队的未来片。
+FEC v1 的修复片用 Quinn send_datagram_wait 单次 poll，缓冲满则局部跳过，
+不挤出原片，不等待队列，不新增逐片锁。仅成功入队的修复消耗三次重传额度；
+按请求批次记账。单元测试覆盖满缓冲与阻塞后恢复。
+无进展时重新安排 NACK 唤醒，不改变原 expiry、三轮上限或会话条件。
+未协商、0% 或拥塞暂停且未观察到 parity 时保持原 NACK 时序。
+因此协商能力本身不会让没有 parity 的限速帧等待纠错。P+1 缺片不会伪造完整块。
+身份、generation、lane、plane、D/P、block 范围、保留位、长度或补零描述冲突时，
+只忽略 parity 或本次 FEC 恢复；继续 W1 与现有静默恢复定时器。
+FEC 缓存仅保留每 lane/plane 最新一帧，原数据缓存最多 64 MiB/plane，
+数据索引最多 8192。RS scratch 与 parity 另按上述固定 shard/block 上限约束。
+新帧、旧帧、错误 generation 不共享恢复矩阵。
+
+`atlas-loss` 五秒摘要增加 `fec_recovered`（重建片数）、`fec_frames`（不用 NACK
+完成且用过 FEC 的帧数）、`parity_bytes`（接收并接受的唯一 parity 数据报字节），
+以及显式 `recovered_by_nack` / `unrecoverable`，后两项沿用现有恢复帧/关键帧回退帧。
+既有 `recovered` / `dropped` 字段保留。混合使用 FEC 与 NACK 的帧归 NACK；
+重建片数可以包含最终仍丢弃的帧。NACK 完成计数仍不能排除原片迟到。
+parity_bytes 是接收应用计数，不是源端 NIC 线速，
+因此低于源端发出的 parity 时不能解释为“预算未计费”。
+
+### 构建配置与测量边界
+
+Reed–Solomon 数值内核必须优化。初始 debug 构建的 4K 代表帧 decode p95 为
+95,921µs，而 release 为 1,583µs；未优化内核会占用接收循环并放大缺片观测。
+因此根 Cargo.toml 为 `reed-solomon-simd` 增加 dev/test 的 `opt-level=3`。
+网络脚本默认 `--profile release`，保留 `--profile debug` 作功能对照；最终前后
+矩阵必须使用同一构建配置、源码 SHA256 和可执行文件 SHA256。
+此前未优化预测不作为最终性能验收依据，所有开发结果另存汇总。
+低 RTT 禁用 FEC 的临时策略已撤回；恢复方式不增加 RTT 准入条件。
+
+### netem 的独立包丢失与接收缓冲
+
+最终对照使用脚本默认的 `--gso off`，仅在私有测试连接关闭 UDP GSO。
+Linux [sch_netem 源码](https://raw.githubusercontent.com/torvalds/linux/master/net/sched/sch_netem.c)
+先对 skb 执行 loss_event；GSO 批次会一起丢失，不等价于独立 UDP 随机丢包。
+`--gso on` 保留该批次丢失实验入口。生产连接的 GSO 配置没有改变。
+早期 GSO 开启的历史结果与新表不作直接性能归因；最终 off/auto 使用相同配置。
+
+私有夹具为自建 UDP socket 请求 4 MiB 接收缓冲，Linux 返回 8 MiB。
+未修改宿主 sysctl 或生产端点。开发轮 clean 曾出现 387 次 UDP RcvbufErrors，
+而 qdisc loss 为零，因此该轮不作为干净链路基线。脚本现在记录 UDP SNMP 计数；
+最终 clean 检查接收缓冲溢出为零。该更改属于测量夹具，不声明生产端缓冲调优。
+
+### CPU 成本与源码检查
+
+主机 CPU 为 Intel Core Ultra 7 265K，release 构建，使用库的运行时 SIMD 选择。
+`cargo test -p viewflowd --release --lib fec_cpu_cost -- --ignored --nocapture`：
+每种大小 101 帧，首帧预热不计；每 block 丢一个原数据片，D=16/P=4。
+encode 包含补零、RS、parity wire 封装；decode 包含 parity 解析、RS 和恢复片复制。
+数据缓存输入不计入 decode 计时，真实输入接收/重组也不在该 CPU 数字中。
+
+| 编码 payload/帧 | 代表负载 | encode p50/p95 µs | decode p50/p95 µs |
+|---|---|---|---|
+| 70,400 B | 1080p，60fps 时约 33.8 Mbps | 8 / 9 | 675 / 679 |
+| 281,600 B | 4K，60fps 时约 135.2 Mbps | 33 / 44 | 2707 / 2715 |
+| 1,126,400 B | 较大 4K/IDR，60fps 时约 540.7 Mbps | 201 / 215 | 10652 / 10727 |
+
+这里按编码字节选代表大小，不是原始 RGBA 帧，也不声明覆盖全部 4K 内容。
+代表 4K 的 encode p95 为 44µs，约为 60Hz 帧周期的 0.26%；大帧为 1.29%。
+稠密缺片的 decode 成本明显较高，不能用 encode 数字代替整个接收链成本。
+该测试没有捕获/解码/呈现，不证明完整 4K60 实机时延。
+早期与编译重叠的 CPU 测量不纳入此表；最终检查按顺序执行，随后才启动 netem。
+宿主其他工作负载没有清空，因此不把 p95 当作实时最坏情况保证。
+
+最终检查使用串行测试参数，避免已有毫秒级超时测试与本任务的构建相互竞争：
+
+- `cargo test --workspace -- --test-threads=1`：1013 通过、0 失败、5 忽略。
+- `cargo test -p viewflowd --features native-gpu-nvenc -- --test-threads=1`：
+  768 通过、0 失败、17 忽略。
+- `cargo clippy --workspace --all-targets -- -D clippy::unwrap_used`：退出 0，其他 warning 保留。
+- 新增的纯 CPU ignored 基准显式执行，1 通过；真实捕获/输入 ignored 用例未执行。
+- 单元覆盖 0..P、P+1、parity loss、首/中/末片、D=1、补零、多 block、重复乱序、
+  lane/plane/generation 隔离、畸形头、滞回和小片/空闲 lane 预算。
+  真实 TLS/QUIC 覆盖双向旧端降级、未知 FEC offer，以及禁用 NACK 后两个 lane 的 FEC 恢复。
+
+开发轮曾出现测试夹具字节上限/时间戳错误，以及已有队列 marker、键盘 ACK、
+输入就绪测试的计时失败。没有修改无关输入实现或放松生产检查；最终完整检查通过。
+命令、计数、失败摘要与源 SHA256 见 [FEC 检查摘要](evidence/fec-checks.txt)，
+原始 Cargo/Clippy 日志仅保留在本机 `/tmp/fec-final-*.log`，不入库。
+
+
+### 最终对照的判读方法
+
+最终矩阵每场景至少 30 秒。off/auto 各覆盖九个场景；wifi1/wifi5 的自动模式
+各重复一轮，共 22 个测量。每次新建私有 network namespace，使用相同 release
+可执行文件与源码哈希；两组都关闭测试连接的 GSO 并扩大测试 socket 缓冲。
+脚本只生成自有 RGBA，使用 NVENC 编码，随后走真实 QUIC、重组与 admission。
+没有捕获桌面，没有解码/显示，也没有注入输入。
+
+这里比较整个协商功能：包括 RS、反馈、预算与 FEC v1 的 NACK 调度，
+不能将全部差异单独归因于 RS。`off` 保持未协商时的旧格式及 NACK 行为。
+因此旧端早发的 NACK 会请求尚未到达的尾片；不能通过修改 off 来美化基线。
+`nacks` 是请求条数，单帧多批次可超过一条，不等于网络 RTT 或恢复轮数。
+停顿为完整帧间隔 >100ms，包含启动与末尾无完整帧时间；不是实际显示冻结。
+无完整帧时，原始工具输出的 p95=0 只是空样本占位，表中使用「无完整帧」。
+p95 仅统计成功帧，必须同时查看完整帧数、丢弃帧和最长停顿，不能忽略失败帧。
+完整性校验脚本的 PASS 仅证明证据一致，不代替性能验收。
+
+
+### 最终 22 次测量结果
+
+以下为首轮九场景的 off → auto。第二轮 Wi-Fi 样本单独列出。
+
+| 场景/模式 | 完整 fps | p95 ms | NACK 请求 | 关键帧请求 | >100ms 停顿 | 最长停顿 ms |
+|---|---|---|---|---|---|---|
+| clean/auto | 60.0 → 60.0 | 7.88 → 7.85 | 0 → 0 | 0 → 0 | 0 → 0 | 0 → 0 |
+| wifi1/auto | 20.33 → 41.92 | 277.96 → 14.69 | 331 → 71 | 1 → 5 | 41 → 7 | 1120.04 → 4253.48 |
+| wifi5/auto | 5.82 → 11.96 | 421.73 → 130.59 | 197 → 75 | 9 → 5 | 114 → 54 | 5374.04 → 4986.03 |
+| cap20/auto | 21.91 → 21.97 | 35.09 → 34.96 | 2 → 2 | 0 → 0 | 3 → 4 | 672.98 → 526.73 |
+| cap8/auto | 15.82 → 15.99 | 65.63 → 67.55 | 243 → 220 | 0 → 1 | 26 → 25 | 1125.63 → 1141.9 |
+| burst/auto | 40.0 → 40.53 | 8.05 → 8.15 | 79 → 72 | 14 → 6 | 1 → 16 | 10030.98 → 4009.08 |
+| cap20/high_quality | 21.71 → 21.69 | 34.72 → 34.81 | 4 → 4 | 2 → 2 | 3 → 3 | 878.34 → 883.82 |
+| cap20/save_bandwidth | 21.1 → 21.01 | 34.83 → 34.67 | 4 → 4 | 0 → 0 | 4 → 3 | 653.3 → 923.8 |
+| wifi1/high_quality | 36.83 → 36.7 | 37.44 → 37.19 | 376 → 370 | 0 → 0 | 6 → 6 | 281.38 → 287.82 |
+
+| Wi-Fi/轮次 | 完整帧 off → auto | p95 ms off → auto | NACK off → auto | 关键帧 off → auto | 停顿 off → auto | FEC 恢复片/接收 parity B |
+|---|---|---|---|---|---|---|
+| wifi1/1 | 610 → 1260 | 277.959 → 14.688 | 331 → 71 | 1 → 5 | 41 → 7 | 6212 / 9505160 |
+| wifi1/2 | 0 → 1191 | 无完整帧 → 14.492 | 199 → 68 | 39 → 6 | 1 → 13 | 6337 / 9537696 |
+| wifi5/1 | 175 → 361 | 421.727 → 130.589 | 197 → 75 | 9 → 5 | 114 → 54 | 2531 / 3633574 |
+| wifi5/2 | 133 → 338 | 426.017 → 131.923 | 188 → 71 | 9 → 9 | 104 → 59 | 2577 / 3688188 |
+
+原始证据见本节六条复现命令指定的文件。
+[比较汇总](evidence/fec-comparison.json) 保留两轮结果与源码/二进制哈希。
+`python3 docs/evidence/fec-validate.py` 检查 22 个样本的时长、连接存活、
+发送/完成/丢弃守恒、UDP socket 错误、零冗余条件、burst 恢复和哈希一致性。
+
+
+### 验收结论
+
+实现、协议单元测试、完整构建检查与证据完整性检查通过；不宣称全部性能目标通过。
+clean 两组均为 60fps、零 parity；p95 为 7.877 → 7.850ms。
+Wi-Fi 5% 两轮 p95 的中位数为 423.872 → 131.256ms，下降约 69%。
+两轮合计 NACK 请求 385 → 146，关键帧请求 18 → 14，停顿 218 → 113。
+Wi-Fi 1% 两轮合计完整帧 610 → 2451，NACK 530 → 139，关键帧 40 → 11。
+其 off 第二轮无完整帧，因此不能为两轮计算有效的 p95 中位数。
+该样本让工具返回非零，结果完整保留；不能把空 p95=0 当作更低延迟。
+
+cap20 自动模式 p95 为 35.088 → 34.957ms，完整 fps 为 21.91 → 21.97。
+cap8 完整帧为 475 → 480，但 p95 为 65.632 → 67.545ms（+2.9%），
+关键帧 0 → 1；两组 parity 都为零。容量场景各只测一轮，不能证明严格不回退，
+也不能把这次差异单独归因于 FEC。按任务的严格“不更差”条件，该项尚未通过。
+burst 两组都恢复，但停顿次数 1 → 16；最长停顿 10,030.981 → 4,009.084ms。
+前向恢复降低了长中断，却没有消除启动/恢复阶段的全部短停顿。
+因此当前状态为：代码与测量完成，完整弱网性能验收部分完成。
+
+本次没有继续用新阈值筛选样本，也没有删除不利结果。
+后续容量重复实验与突发后恢复调优仍需单独验证；不把现有结果当作生产或实机验收。
+
+
+### 未验证范围
+
+- 实际 Wi-Fi/AP、物理显示、解码与呈现、交互手感、完整 4K60。
+- Windows/macOS 全量构建与原生硬件路径；共享 Rust atlas 的变更会随实际协商生效，
+  独立 coded transport、原生 presenter 不在本次修改范围。
+- 双 lane 的 netem/容量测试；两个 lane 的协议恢复仅由真实 QUIC 单元测试覆盖。
+- 分配器 profile、CPU 调度最坏延迟与全部生产 socket 缓冲；复用结论来自源码和 CPU 测量，
+  不把现有 wire Bytes 分配描述为零分配。
+
+没有推送，没有捕获桌面，没有注入鼠标/键盘，也没有改变焦点。
+
+
+### 复现实测
+
+同一源码与依赖锁定状态下执行以下命令。默认 release、GSO off、每场景 30 秒。
+如果基线无完整帧，工具会返回非零；仍保留其完整结果，不能删除该样本。
+
+```sh
+tools/weak-network-test.py --fec off --output docs/evidence/fec-off-matrix.txt
+tools/weak-network-test.py --fec auto --output docs/evidence/fec-auto-matrix.txt
+tools/weak-network-test.py --fec off --scenario wifi1 --mode auto --output docs/evidence/fec-off-wifi1-repeat.txt
+tools/weak-network-test.py --fec auto --scenario wifi1 --mode auto --output docs/evidence/fec-auto-wifi1-repeat.txt
+tools/weak-network-test.py --fec off --scenario wifi5 --mode auto --output docs/evidence/fec-off-wifi5-repeat.txt
+tools/weak-network-test.py --fec auto --scenario wifi5 --mode auto --output docs/evidence/fec-auto-wifi5-repeat.txt
+python3 docs/evidence/fec-validate.py
+```
+
+早期参数、未优化 debug、接收缓冲溢出、GSO 批次 loss、仅 RTT 判拥塞的失败结果，
+保留在 [开发轮摘要](evidence/fec-development.json)。原始文件的 SHA256 与本机归档路径
+也在其中。该摘要不混入最终 22 个样本，不使用旧二进制结果填补最终表格。

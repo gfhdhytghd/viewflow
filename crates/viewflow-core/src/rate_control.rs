@@ -353,14 +353,28 @@ impl RateController {
                 .is_some_and(|min| self.smoothed_rtt_us > min.saturating_add(60_000))
     }
 
-    fn is_congested(&self, sample: &NetworkSample) -> bool {
-        let rtt_inflated = self.rtt_inflated();
+    /// Whether original-frame service permits increasing a recovery budget.
+    #[must_use]
+    pub fn can_increase_quality(&self, sample: &NetworkSample) -> bool {
+        !self.is_congested(sample) && !self.service_limited(sample)
+    }
+
+    /// Path-delay evidence of network congestion. Service-budget adaptation
+    /// alone is not evidence against loss recovery: QUIC can stall on random loss.
+    #[must_use]
+    pub fn is_network_congested(&self, sample: &NetworkSample) -> bool {
+        (self.large_network_delay() && sample.send_millifps > 0)
+            || (self.rtt_inflated() && sample.queue_age_us > 0)
+    }
+
+    /// Congestion includes sustained service backlog, even with stable RTT.
+    #[must_use]
+    pub fn is_congested(&self, sample: &NetworkSample) -> bool {
         let frame_period_us = 1_000_000 / u64::from(self.config.max_fps.max(1));
         // QUIC can queue while Cubic recovers random wireless loss too.
         // Moderate backlog needs path-delay corroboration; long backpressure
         // uses a service budget, without repeated loss-based cuts (above).
         // These are latency tuning targets, never session exit conditions.
-        let network_queue = self.large_network_delay() && sample.send_millifps > 0;
         // Large sustained path delay also sees queues after Quinn (kernel/AP).
         // It only permits multiplicative cuts: no measured-rate clip without
         // a real local backlog, and no cuts while merely waiting for feedback.
@@ -369,7 +383,7 @@ impl RateController {
         } else {
             sample.queue_age_us > frame_period_us && self.service_limited(sample)
         };
-        network_queue || (rtt_inflated && sample.queue_age_us > 0) || service_backlog
+        self.is_network_congested(sample) || service_backlog
     }
 }
 
@@ -437,6 +451,18 @@ mod tests {
             send_millifps: 0,
             send_rate_backlogged: true,
         }
+    }
+
+    #[test]
+    fn service_budget_still_adapts_without_misclassifying_random_loss_as_path_congestion() {
+        let mut rc = controller(QualityMode::Auto);
+        let steady = sample(200, 20, 50, 100);
+        let target = rc.on_sample(steady);
+        assert!(rc.is_congested(&steady));
+        assert!(!rc.is_network_congested(&steady));
+        assert!(target.kbps < 40_000); // Existing service adaptation remains active.
+        for i in 1..=10 { rc.on_sample(sample(200 + i * 200, 80, 50, 100)); }
+        assert!(rc.is_network_congested(&sample(2400, 80, 50, 100)));
     }
 
     #[test]

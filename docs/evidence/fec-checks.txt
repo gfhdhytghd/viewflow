@@ -1,0 +1,42 @@
+FEC final checks (2026-10-29 UTC)
+All commands below ran sequentially, without overlapping this task's final netem measurement.
+CPU: Intel Core Ultra 7 265K; default runtime SIMD engine; release profile.
+
+$ cargo test --workspace -- --test-threads=1
+exit=0; elapsed_s=44.57; aggregate passed/failed/ignored=[1013, 0, 5]
+$ cargo test -p viewflowd --features native-gpu-nvenc -- --test-threads=1
+exit=0; elapsed_s=43.95; aggregate passed/failed/ignored=[768, 0, 17]
+$ cargo clippy --workspace --all-targets -- -D clippy::unwrap_used
+exit=0; elapsed_s=6.49; aggregate passed/failed/ignored=[0, 0, 0]
+$ cargo test -p viewflowd --release --lib fec_cpu_cost -- --ignored --nocapture
+exit=0; elapsed_s=24.94; aggregate passed/failed/ignored=[1, 0, 0]
+FEC_CPU bytes=70400 D=16 P=4 encode_p50_us=8 encode_p95_us=9 decode_p50_us=675 decode_p95_us=679
+FEC_CPU bytes=281600 D=16 P=4 encode_p50_us=33 encode_p95_us=44 decode_p50_us=2707 decode_p95_us=2715
+FEC_CPU bytes=1126400 D=16 P=4 encode_p50_us=201 encode_p95_us=215 decode_p50_us=10652 decode_p95_us=10727
+
+FEC-specific coverage: exhaustive 0/1/2-erasure patterns including parity erasures; up to default P=4 first/middle/last erasures and P+1 fallback; D=1 odd padding; >4 blocks; duplicates/reordering; plane/lane/generation isolation; malformed parity; adaptive hysteresis and congestion resume; first-accepted repair feedback; actual-parity VFMD flag and deferred first NACK, unprotected frames keep original timing, final whole-alpha-tail QUIC recovery; original-enqueue prefix; non-evicting repair enqueue and successful-only quota; stable-RTT service backlog suspends parity, feedback waits do not; healthy-only recovery-budget growth; stale/tiny-shard budget; old/new and unknown-version real TLS/QUIC; FEC-only real QUIC on single/activity lanes with NACK disabled.
+
+Development check failures retained here as summaries, not raw Cargo logs:
+- Initial FEC QUIC fixture exceeded its 1024-byte policy, then reused source timestamps. Fixed fixture policy/timestamps; production admission unchanged.
+- One parallel workspace run: queued_repair_datagrams_preserve_quinn_send_accounting timed out waiting for an unreliable marker.
+- One parallel native run: two existing keyboard/native-ack tests timed out. One serial native run: existing missing_source_readiness test returned a different expiry message. No unrelated input code/test changes. Final full serial checks above passed.
+- Development netem rejected QUIC path-loss and raw NACK-hole activation proxies; see fec-development.json. A failed auto matrix was explicitly stopped during cap8 after clean/wifi1 regressions.
+- Ignored tests requiring desktop/input/capture were not invoked. Explicit ignored CPU/netns tests only use owned data.
+
+Source SHA256 (matches final measured code):
+7c1493fb546a9f49a1ce7f3ab29bf9259de21d1e10b8e7fd3c941906e2952093  crates/viewflowd/src/atlas_fec.rs
+c5f2216b1a7e242f749d6c6b585a3eb80a9f7c77fcd37bd264a0d9190b327a1b  crates/viewflowd/src/atlas_session.rs
+ee9df5c7997b3dbeb919d3360a4d3f8e9c30c0165f3b82c33d6dbea376ffc943  crates/viewflowd/src/atlas_loss.rs
+a6a45efc9d2cc173ff3e6f5ad37e03b5f721a54de4cbcc93d84f40ccd8d3c62c  crates/viewflowd/src/quality.rs
+182d4bcc8187c46c813975ab4886212ccbf3eed89e62934a3b13dd07dc9a71df  crates/viewflow-core/src/rate_control.rs
+99a035d9352b6ceb6e791c1d4ce5904578ea0cc2fd2d9cf35db4cac6da7414a3  protocol/viewflow/v1/control.proto
+344278438c4d44f6356f7e002030d54fd389f138def8c09ab464b6ad3d4dca46  Cargo.lock
+
+Final netem evidence integrity: python3 docs/evidence/fec-validate.py => PASS.
+22 measurements, one build/source hash set, >=30s each, all sessions survived,
+no send/receive error, no UDP socket receive/send buffer errors.
+The off-wifi1-repeat command returned exit 1 because complete=0; retained as a
+baseline performance failure. Other five netem commands returned exit 0.
+Performance acceptance is partial: cap8 p95 +2.9%; burst stall count 1 -> 16.
+See fec-comparison.json and the W3 acceptance conclusion; integrity PASS is not
+an assertion that every performance target passed.
