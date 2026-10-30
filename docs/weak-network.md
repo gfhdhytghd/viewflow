@@ -1260,3 +1260,151 @@ A 的源码与二进制一致性、registry 依赖和有序探针校验由
 未验证：物理 Wi-Fi/AP、解码显示、主观画质、实际 4K60、Windows/macOS、
 旧二进制互通、双 lane 拥塞公平性、GPU atlas 预算的实际应用边界。
 没有执行输入注入、焦点切换、桌面捕获或推送。
+
+## 实机 Wi-Fi 实测（2026-10-29）
+
+### 结论与范围
+
+本轮双向 UDP 探针没有观察到乱序，最大序号位移为 **0 包**，
+没有位移 ≥129 的样本。八组共发送 1,024,934 包，收到 1,023,089 个唯一包。
+因此，这个位置、信号和负载下的真实 Wi-Fi **没有提供采用 Quinn 深乱序补丁的依据**。
+这不证明其他 Wi-Fi、干扰、漫游或更长时间运行不会超过 129 包。
+探针序号也不是解密后的 QUIC 包号。
+
+推荐继续使用 `robustness-hardening` 的应用修复 A 与 stock Quinn；
+保留 B 为经过实际深乱序观测后再评估的独立候选。
+各模式只有单次 60 秒，顺序运行，不能把小幅差值归因于补丁或 FEC。
+本轮没有人工削弱信号，也没有修改 AP、Wi-Fi、系统设置或运行中的服务。
+
+### 链路、版本与方法
+
+- Linux `10.42.0.1/wlan0` ↔ Mac mini `10.42.0.125/en1`。
+  双端路由分别确认 `wlan0` / `en1`；Mac MAC 为 `2a:73:07:17:ce:79`。
+- SSID `Superpower`，802.11ax，5 GHz ch149、80 MHz。
+  Mac 初始信号/噪声为 -45/-82 dBm，MCS 11，发送 PHY 速率 1200 Mbps。
+  PHY 速率不是应用吞吐。环境与路由见 [环境摘要](evidence/realwifi-environment.txt)。
+- A 使用基线 `ac3aef14`（stock `quinn-proto 0.11.19`）。
+  A+B 使用完全相同的应用代码和测试器，只在独立 manifest 中选择
+  `5d2f199a` 的 `vendor/quinn-proto`。双端均使用同一变体。
+  `realwifi` 分支不引入 vendor，不修改生产行为。
+- 双端 release 构建。Linux 使用 `native-nvenc`，Mac 不启用 NVENC。
+  依赖树、源码 SHA256、构建失败及最终通过记录见
+  [检查摘要](evidence/realwifi-checks.txt)；每次媒体运行记录双端二进制 SHA256。
+- 原始 UDP 每种条件运行 10 秒，每包 1200 B；分别请求 20/100/300 Mbps。
+  突发条件为每 16.667ms 发送 125 包，约 150KB/突发、72Mbps。
+  表中另列实际发送率，不把请求值当作测量值。
+- 相对单向时延 = 接收单调时钟减发送单调时钟，再减本轮最小值。
+  它去掉未知常量偏移，不是绝对单向延迟；仍包含时钟漂移和主机调度。
+  丢包包含驱动、socket 和应用未收到的包，不等于无线空口丢包。
+  最大连续丢包按完整发送序号空间计算，包含首尾丢包。
+- 媒体为单 lane、1920×1080、自有滚动 RGBA → 真实 NVENC H.264 →
+  QUIC → Mac 纯 Rust 重组/admission → `Committed` 回执。
+  使用真实 `QualityMonitor`、协商 FEC 和 NACK；没有解码、显示或视觉验收。
+- 跨主机无时钟同步。测试器仅在 `cfg(test)` 的 plan 中放宽跨端时间戳检查，
+  生产配置不变。延迟在 Linux 从提交前计时，到 `send_frame` 收到该帧的精确处置回执，
+  **包括编码、发送、重组和回执返回路径**，不能与旧表的重组单向时延直接比较。
+  拒绝处置也计入回执延迟，并另列处置计数。
+- 接收间隔用 Mac 本地单调时钟。停顿为间隔 >100ms，包含启动到首帧。
+  正常结束时额外等待 100ms 后关闭连接。`tail_until_close_ms` 是末帧至连接关闭的
+  接收端间隔，包含回执返回、发送端结束等待和关闭传播；不能全归为固定 100ms。
+  该值单列，不混入相邻帧间隔计数。结束等待不是性能截止或会话策略。
+- 正式测量期间本任务不构建；预检与构建重叠的初测不纳入下表。
+  生产应用保留运行，不能保证整机无其他负载。
+  每次前后读取指定 Mac 的 `iw ... station get`；计数包括同一对端的背景/SSH 流量。
+
+### 双向原始 UDP
+
+位移定义为 `max(此前收到的最高发送序号 - 本包序号, 0)`。
+乱序率以唯一收到的包为分母。以下每行的位移 p50/p95/p99 均为 0/0/0 包，
+仅对乱序包的分位数没有样本；重复包数均为零。
+
+| 方向 | 条件 | 实际 Mbps | 发送/唯一收到 | 丢包 % | 乱序包/最大位移/≥129 | 相对时延 p50/p95/p99 ms | 连续丢包 p50/p95/p99/最大 |
+|---|---|---:|---:|---:|---|---|---|
+| linux-mac | 20 | 20.00 | 20835/20835 | 0.0000 | 0/0/0 | 2.44/7.40/12.23 | 无/无/无/0 |
+| linux-mac | 100 | 99.85 | 104093/104093 | 0.0000 | 0/0/0 | 3.53/7.78/13.73 | 无/无/无/0 |
+| linux-mac | 300 | 300.00 | 312500/312500 | 0.0000 | 0/0/0 | 3.91/10.90/15.84 | 无/无/无/0 |
+| linux-mac | burst | 72.00 | 75001/75001 | 0.0000 | 0/0/0 | 5.47/11.21/17.75 | 无/无/无/0 |
+| mac-linux | 20 | 20.00 | 20835/20781 | 0.2592 | 0/0/0 | 1.17/2.23/4.83 | 1/1/1/1 |
+| mac-linux | 100 | 100.00 | 104168/103913 | 0.2448 | 0/0/0 | 1.22/2.33/4.88 | 1/1/1/1 |
+| mac-linux | 300 | 300.00 | 312501/311443 | 0.3386 | 0/0/0 | 1.13/2.24/4.85 | 1/1/1/1 |
+| mac-linux | burst | 71.98 | 75001/74523 | 0.6373 | 0/0/0 | 1.41/2.56/5.99 | 1/1/1/2 |
+
+[UDP 逐组证据](evidence/realwifi-raw.json)保存相对时延最大值与前后 station 原文。
+
+| Ping 方向 | 收到/发送 | RTT p50/p95/p99 ms | 最大 ms |
+|---|---:|---|---:|
+| linux-mac | 100/100 | 4.14/7.39/8.49 | 10.70 |
+| mac-linux | 100/100 | 4.29/7.65/9.66 | 17.17 |
+
+[Ping 证据与完整命令](evidence/realwifi-ping.json)。
+
+### 六组媒体结果
+
+每组请求 60 秒；实际时长记录在 JSON。完整数与 `Committed` 数逐次核对相等。
+
+| Quinn | 模式/FEC | 提交/完整 | 完整 fps | 回执 p50/p95/p99 ms | 最大接收间隔 ms | >100ms 帧间停顿 | NACK/KF/丢帧 | FEC 恢复片/parity B | UDP Mbps | 末帧至关闭 ms |
+|---|---|---:|---:|---|---:|---:|---|---|---:|---:|
+| stock | auto/auto | 3488/3488 | 58.13 | 12.06/17.69/28.56 | 96.65 | 0 | 68/0/0 | 0/0 | 74.74 | 115.91 |
+| deep | auto/auto | 3490/3490 | 58.16 | 10.00/17.35/30.81 | 64.54 | 0 | 42/0/0 | 0/0 | 49.32 | 183.91 |
+| stock | auto/off | 3500/3500 | 58.33 | 10.51/17.19/29.88 | 57.45 | 0 | 26/0/0 | 0/0 | 56.98 | 112.65 |
+| deep | auto/off | 3401/3401 | 56.58 | 11.27/17.42/30.15 | 998.09 | 2 | 47/0/0 | 0/0 | 74.85 | 709.87 |
+| stock | high_quality/auto | 3552/3552 | 59.19 | 10.00/12.92/16.81 | 117.43 | 1 | 0/0/0 | 0/0 | 20.69 | 114.09 |
+| stock | save_bandwidth/auto | 3574/3574 | 59.56 | 9.78/12.63/19.29 | 59.79 | 0 | 0/0/0 | 0/0 | 21.10 | 112.52 |
+
+六组共 21,005 帧全部完整重组，无关键帧回退。FEC auto 各组的 parity 字节均为零；
+本轮视频前向链路没有产生足够的缺片来评估 FEC 收益，不能把 auto/off 当成实际冗余纠错对照。
+A+B/Auto/off 的两次帧间停顿为 998.09ms、105.20ms；HighQuality 另有一次 117.43ms。
+这些停顿的原因未确认；单次顺序运行没有证据将其归因于 Quinn 补丁。
+Auto 的实际发送率为 49.32～74.85Mbps，真实码控随反馈改变编码预算；
+这些运行不是固定码率或固定编码字节的传输微基准。本轮没有证据证明补丁收益。
+
+KF 不含启动 IDR；NACK 是请求数，丢帧是接收端请求关键帧回退数。
+UDP Mbps 是 Quinn 发送字节计数，不含全部 Wi-Fi/IP 链路开销。
+
+| Quinn | 模式/FEC | tx packets 增量 | tx retries 增量 | tx failed 增量 | signal 前→后 dBm |
+|---|---|---:|---:|---:|---|
+| stock | auto/auto | 398910 | 10941 | 0 | -37→-37 |
+| deep | auto/auto | 266721 | 10499 | 0 | -37→-37 |
+| stock | auto/off | 306539 | 10489 | 0 | -37→-35 |
+| deep | auto/off | 399258 | 11751 | 0 | -37→-37 |
+| stock | high_quality/auto | 114405 | 6782 | 0 | -37→-36 |
+| stock | save_bandwidth/auto | 116713 | 6255 | 0 | -36→-37 |
+
+重试次数不是失败率；一次数据包可以重试多次。Wi-Fi MAC 重传与应用层 UDP 丢包不是同一个量。
+[媒体逐组证据](evidence/realwifi-media.json)另存回执最大值、处置计数、接收间隔分位数、
+停顿长度、目标码率范围、socket 接收缓冲大小与前后 station 原文。
+
+### 复现与清理
+
+1. 用 `git archive realwifi Cargo.toml Cargo.lock crates platform protocol` 将源码复制到
+   Mac 的新目录，勿覆盖生产目录。Linux 构建
+   `cargo test --locked -p viewflowd --release --features native-nvenc --lib --no-run`；
+   Mac 构建 `cargo test --locked -p viewflowd --release --lib --no-run`。
+   复制各自 `Executable unittests src/lib.rs` 指向的文件为独立 stock 测试器。
+2. 为 A+B 复制相同源码到另一个目录，从 `5d2f199a` 提取 `vendor/quinn-proto`，
+   仅在该目录的 `Cargo.toml` 增加
+   `[patch.crates-io] quinn-proto = { path = "vendor/quinn-proto" }`（分两行 TOML）。
+   分别构建、保存双端 deep 测试器；正式测量前完成全部构建。
+3. 将 `tools/realwifi-probe.py` 复制到 Mac 独立目录。
+   在仓库根运行 `python3 tools/realwifi-link-test.py`。
+   默认输出八组各 10 秒的双向探针。参数支持 `--host`、`--remote-dir` 与 `--output`。
+   Ping 完整命令见上述 JSON。
+4. 运行媒体矩阵：
+
+   ```sh
+   python3 tools/realwifi-test.py \
+     --stock-sender /tmp/realwifi-stock-sender \
+     --stock-receiver /Volumes/MoveDATA/viewflow-wifi-test/stock-receiver \
+     --deep-sender /tmp/realwifi-deep-sender \
+     --deep-receiver /Volumes/MoveDATA/viewflow-wifi-test/deep-receiver
+   ```
+
+测试证书仅来自 `crates/viewflow-transport/tests/fixtures`；不读取生产配对材料。
+固定测试 UDP 端口为 45871/45872，绑定明确 Wi-Fi 地址。
+未执行叠加 netem：本任务不使用 sudo，也不修改宿主 `wlan0`。
+
+Mac 系统卷仅余约 115 MiB，创建 `~/viewflow-wifi-test` 符号链接也返回
+`No space left on device`。因此构建、临时文件及独立 Cargo 缓存均放在新建的
+`/Volumes/MoveDATA/viewflow-wifi-test`；该外置卷初始剩余 521 GiB。
+保留目录大小为 959.0 MiB（0.937 GiB），低于 5 GiB，保留 `target/`。没有删除用户文件或修改原有
+`~/.local/lib/viewflow`。测试进程与 PID 文件的清理检查也记录在摘要中。

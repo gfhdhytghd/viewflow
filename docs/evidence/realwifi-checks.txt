@@ -1,0 +1,101 @@
+Real Wi-Fi owned-content measurement, 2026-10-29
+
+Scope: no desktop capture, GUI launch, native input, focus changes, qdisc/AP
+changes, production app/service mutation, sudo, or remote push.
+Wi-Fi endpoints: Linux 10.42.0.1 (wlan0), Mac 10.42.0.125 (en1).
+Mac station: 2a:73:07:17:ce:79 (verified with ip neigh and system_profiler).
+
+Source baseline: ac3aef14 (robustness-hardening; stock quinn-proto 0.11.19).
+A+B: identical application source plus vendor/quinn-proto from 5d2f199a13f7aa29b651afd693657407a1771f9a,
+selected only in independent temporary manifests through [patch.crates-io].
+The realwifi branch retains stock Quinn and no production behavior changes.
+
+git diff 5d2f199a HEAD -- crates/viewflowd/src/atlas_session.rs \
+  crates/viewflowd/src/atlas_netem_test.rs crates/viewflowd/src/quality.rs \
+  crates/viewflowd/src/atlas_loss.rs
+Result: no differences in committed application implementation.
+
+Linux stock build:
+cargo test -p viewflowd --features native-nvenc --release --no-run
+PASS (release; CPU-owned RGBA -> NVENC; no native GPU capture).
+Linux deep build:
+CARGO_TARGET_DIR=/home/wilf/data/viewflow-wt/realwifi/target cargo test \
+  --manifest-path /tmp/viewflow-realwifi-ab/Cargo.toml -p viewflowd \
+  --features native-nvenc --release --lib --no-run
+PASS.
+Mac stock and deep builds:
+TMPDIR=/Volumes/MoveDATA/viewflow-wifi-test/tmp \
+CARGO_HOME=/Volumes/MoveDATA/viewflow-wifi-test/cargo-home \
+CARGO_TARGET_DIR=/Volumes/MoveDATA/viewflow-wifi-test/target \
+~/.cargo/bin/cargo test --release -p viewflowd --lib --no-run
+PASS on each independent manifest (stock also --locked).
+No NVENC feature on Mac. Same test-only receive/reassembly module.
+Existing warnings retained; xcrun emitted cache ENOSPC warnings on system disk,
+but final --lib builds exited 0. Full integration build initially failed because
+its unrelated historical capture fixture was not copied. Final build selects --lib.
+Initial offline resolution missed quinn-proto 0.11.19; isolated CARGO_HOME fetched
+it successfully. No existing Mac registry, runtime directory or app changed.
+
+/tmp/realwifi-stock-sender atlas_session::tests --test-threads=4
+PASS: 57 passed; 0 failed; 0 ignored.
+python3 -m py_compile tools/realwifi-probe.py tools/realwifi-test.py
+PASS.
+Synthetic probe check: receive [130,0,130] with sent=132.
+PASS: max_depth=130, depth_ge129=1, duplicates=1, max_loss_run=129.
+
+3-second cross-host smoke:
+PASS: 175 submitted/committed/reassembled, no NACK/lost frames, feedback p95
+15.521784ms. Exploratory only: overlapped deep Mac compilation, excluded from
+formal results. Likewise the first UDP matrix overlapped builds and is excluded.
+
+Formal matrix: 8 x 10s UDP, then 100 pings each direction, then 6 x 60s media.
+No builds by this task overlap the formal matrix. Existing production traffic
+is left running. Station counters include other traffic to the same peer.
+quinn-proto v0.11.19
+├── quinn v0.11.11
+│   ├── viewflow-transport v0.1.0 (/home/wilf/data/viewflow-wt/realwifi/crates/viewflow-transport)
+│   │   └── viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/realwifi/crates/viewflowd)
+│   └── viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/realwifi/crates/viewflowd)
+└── viewflow-transport v0.1.0 (/home/wilf/data/viewflow-wt/realwifi/crates/viewflow-transport) (*)
+quinn-proto v0.11.19 (/tmp/viewflow-realwifi-ab/vendor/quinn-proto)
+├── quinn v0.11.11
+│   ├── viewflow-transport v0.1.0 (/tmp/viewflow-realwifi-ab/crates/viewflow-transport)
+│   │   └── viewflowd v0.1.0 (/tmp/viewflow-realwifi-ab/crates/viewflowd)
+│   └── viewflowd v0.1.0 (/tmp/viewflow-realwifi-ab/crates/viewflowd)
+└── viewflow-transport v0.1.0 (/tmp/viewflow-realwifi-ab/crates/viewflow-transport) (*)
+quinn-proto v0.11.19 (/Volumes/MoveDATA/viewflow-wifi-test/deep/vendor/quinn-proto)
+├── quinn v0.11.11
+│   ├── viewflow-transport v0.1.0 (/Volumes/MoveDATA/viewflow-wifi-test/deep/crates/viewflow-transport)
+│   │   └── viewflowd v0.1.0 (/Volumes/MoveDATA/viewflow-wifi-test/deep/crates/viewflowd)
+│   └── viewflowd v0.1.0 (/Volumes/MoveDATA/viewflow-wifi-test/deep/crates/viewflowd)
+└── viewflow-transport v0.1.0 (/Volumes/MoveDATA/viewflow-wifi-test/deep/crates/viewflow-transport) (*)
+8997181d21e57b07eb27f2169f64bfcfa86d701fdd9f38d2f0e65c3cc25b0c71  crates/viewflowd/src/atlas_realwifi_test.rs
+c21eb9f026c26de086ba28665e47df6c60bf5674758914ba32b024e09788f14b  crates/viewflowd/src/atlas_session.rs
+344278438c4d44f6356f7e002030d54fd389f138def8c09ab464b6ad3d4dca46  Cargo.lock
+d677e4d1f56138076a2c8bb06037374968077ce8b0b11c8a83782a6aaf0a90c6  tools/realwifi-probe.py
+6e43268d40a4622e8e75ff5765e7c66b290905e602f13ab663941bf30c56d6a3  tools/realwifi-test.py
+Linux SuperPower 7.2.11-zen1-1-zen #1 ZEN SMP PREEMPT_DYNAMIC Fri, 16 Oct 2026 00:28:42 +0000 x86_64 GNU/Linux
+rustc 1.95.0 (59807616e 2026-04-14)
+NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 615.78.08
+Darwin linhaikuodeMac-mini.local 27.2.0 Darwin Kernel Version 27.2.0: Sun Sep 13 19:47:19 PDT 2026; root:xnu-13432.40.162~92/RELEASE_ARM64_T8132 arm64
+rustc 1.97.1 (8bab26f4f 2026-07-14)
+
+Final checks and cleanup:
+PASS: 8 UDP rows; exact six sequential media runs, each >=60s.
+PASS: submitted = disposition count; Committed = reassembled; monotonic station counters.
+PASS: no owned UDP/media test processes on Linux or Mac (ps argv inspection).
+Remote receiver.pid removed.
+Mac retained /Volumes/MoveDATA/viewflow-wifi-test: 982028 KiB (959.0 MiB, 0.937 GiB).
+Below 5 GiB: target/ retained. No user file or production directory removed.
+982028	/Volumes/MoveDATA/viewflow-wifi-test
+   route to: 10.42.0.1
+destination: 10.42.0.1
+  interface: en1
+      flags: <UP,HOST,DONE,LLINFO,WASCLONED,IFSCOPE,IFREF,ROUTER>
+ recvpipe  sendpipe  ssthresh  rtt,msec    rttvar  hopcount      mtu     expire
+       0         0  41707311         5         2         0      1500      1195
+8997181d21e57b07eb27f2169f64bfcfa86d701fdd9f38d2f0e65c3cc25b0c71  /Volumes/MoveDATA/viewflow-wifi-test/crates/viewflowd/src/atlas_realwifi_test.rs
+8997181d21e57b07eb27f2169f64bfcfa86d701fdd9f38d2f0e65c3cc25b0c71  /Volumes/MoveDATA/viewflow-wifi-test/deep/crates/viewflowd/src/atlas_realwifi_test.rs
+fe481d4f21e33a49af3979170e8d2af63891121fb4f0747cee009ffa5f288ae5  tools/realwifi-link-test.py
+10.42.0.125 dev wlan0 src 10.42.0.1 uid 1000
+    cache
