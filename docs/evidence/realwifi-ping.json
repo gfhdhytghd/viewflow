@@ -1,0 +1,56 @@
+[
+  {
+    "direction": "linux-mac",
+    "command": [
+      "ping",
+      "-n",
+      "-I",
+      "10.42.0.1",
+      "-c",
+      "100",
+      "-i",
+      "0.1",
+      "10.42.0.125"
+    ],
+    "returncode": 0,
+    "sent": 100,
+    "received": 100,
+    "loss_pct": 0,
+    "rtt_ms_p50_p95_p99": [
+      4.14,
+      7.39,
+      8.49
+    ],
+    "max_ms": 10.7,
+    "summary": [
+      "--- 10.42.0.125 ping statistics ---",
+      "100 packets transmitted, 100 received, 0% packet loss, time 9957ms",
+      "rtt min/avg/max/mdev = 1.845/4.587/10.702/1.888 ms"
+    ]
+  },
+  {
+    "direction": "mac-linux",
+    "command": [
+      "ssh",
+      "-o",
+      "BatchMode=yes",
+      "linhaikuo@10.42.0.125",
+      "ping -n -S 10.42.0.125 -c 100 -i 0.1 10.42.0.1"
+    ],
+    "returncode": 0,
+    "sent": 100,
+    "received": 100,
+    "loss_pct": 0,
+    "rtt_ms_p50_p95_p99": [
+      4.285,
+      7.65,
+      9.665
+    ],
+    "max_ms": 17.173,
+    "summary": [
+      "--- 10.42.0.1 ping statistics ---",
+      "100 packets transmitted, 100 packets received, 0.0% packet loss",
+      "round-trip min/avg/max/stddev = 2.001/4.881/17.173/2.333 ms"
+    ]
+  }
+]

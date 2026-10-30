@@ -5798,3 +5798,7 @@ pub(crate) mod tests {
 #[cfg(all(test, target_os = "linux", feature = "native-nvenc"))]
 #[path = "atlas_netem_test.rs"]
 mod netem_test;
+
+#[cfg(test)]
+#[path = "atlas_realwifi_test.rs"]
+mod realwifi_test;
