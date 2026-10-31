@@ -101,6 +101,15 @@ int main() {
     update(3,2,{8,5,1,1},green,7,5);shrunk[1]=green;
     verify(3,2,shrunk);
     cache.present(3,2);std::vector<Pixel> presented(6);glReadPixels(0,0,3,2,GL_RGBA,GL_UNSIGNED_BYTE,presented.data());for(unsigned x=0;x<3;++x)std::swap(presented[x],presented[3+x]);assert(presented==shrunk);
+    // A fitted image clears both letterbox bands. This uses only an EGL
+    // pbuffer and retained synthetic pixels, never a live surface/capture.
+    cache.present(3,4,0,1,3,2);
+    std::vector<Pixel> boxed(12);glReadPixels(0,0,3,4,GL_RGBA,GL_UNSIGNED_BYTE,boxed.data());
+    for(unsigned x=0;x<3;++x) {
+        assert((boxed[x]==Pixel{0,0,0,255}));
+        assert((boxed[9+x]==Pixel{0,0,0,255}));
+        assert(boxed[3+x]==shrunk[3+x] && boxed[6+x]==shrunk[x]);
+    }
     // Desktop Duplication alpha is undefined. The same snapshot draw must
     // preserve RGB but force opaque alpha, without changing ordinary WGC.
     glUniform1i(glGetUniformLocation(program,"desktop_opaque"),1);

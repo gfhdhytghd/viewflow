@@ -180,3 +180,8 @@ add_executable(viewflow_presentation_counts_test presentation_counts_test.cpp)
 target_compile_features(viewflow_presentation_counts_test PRIVATE cxx_std_20)
 target_compile_options(viewflow_presentation_counts_test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 add_test(NAME presentation_counts COMMAND viewflow_presentation_counts_test)
+
+add_executable(viewflow_window_mapping_test ../reverse-common/window_mapping_test.cpp)
+target_compile_features(viewflow_window_mapping_test PRIVATE cxx_std_20)
+target_compile_options(viewflow_window_mapping_test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+add_test(NAME window_mapping COMMAND viewflow_window_mapping_test)

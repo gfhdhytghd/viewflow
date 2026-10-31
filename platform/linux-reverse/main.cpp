@@ -19,6 +19,7 @@
 #include "../reverse-common/wire.hpp"
 #include "../reverse-common/native_touchpad.hpp"
 #include "../reverse-common/window_surface.hpp"
+#include "../reverse-common/window_resize.hpp"
 #include "../reverse-common/shadow_corner.hpp"
 #include "../reverse-common/window_residency.hpp"
 #include "../hyprland-plugin/src/touchpad_capture.hpp"
@@ -143,6 +144,7 @@ struct Window {
     wl_surface* surface{};xdg_surface* shell{};xdg_toplevel* top{};wp_viewport* viewport{};
     wl_egl_window* native{};EGLSurface egl{EGL_NO_SURFACE};
     bool configured{},placed{},workspace_assigned{},source_fullscreen{},fullscreen_pending{};vf::GeometrySync geometry_sync;vf::FullscreenBacking fullscreen_backing;vf::FullscreenRouteControl fullscreen_route;
+    vf::WindowResize resize;
     int logical_width{},logical_height{},region_width{},region_height{};bool desktop_region{},snapshot_desktop_output{};
     std::optional<std::array<int,8>> committed_surface_geometry;
     std::int32_t drag_grab_x{},drag_grab_y{};bool drag_has_anchor{};
@@ -280,6 +282,10 @@ struct App {
         });
     }
     std::uint64_t identify(wl_surface* surface) {for(auto& [id,w]:windows)if(w->surface==surface)return id;return 0;}
+    vf::SurfaceGeometry content_surface(const Window& window) const {
+        return mac_shadow?vf::fitted_body(window.logical_width,window.logical_height,
+            window.snapshot.width(),window.snapshot.height()):vf::body_surface(window.logical_width,window.logical_height);
+    }
     void forward_pointer(bool begin_drag=false) {
         if(!pointer_window || local_titlebar_window)return;
         const auto& window=*windows.at(pointer_window);
@@ -295,26 +301,21 @@ struct App {
                 int(std::lround(vf::body_pointer(pointer_y,surface.y,window.logical_height,source_height,window.tile.y,1))),1);
             return;
         }
-        if(mac_shadow && (window.tile.flags&16)) {
-            const auto surface=vf::body_surface(window.logical_width,window.logical_height);
-            if(begin_drag || pointer_anchor_window==pointer_window) {
+        if(mac_shadow) {
+            const auto content=content_surface(window);
+            if(!content.body_width || !content.body_height)return;
+            if(forwarded_buttons.empty() && !vf::body_point(content,pointer_x,pointer_y))return;
+            if(begin_drag) {
                 const auto position=nlohmann::json::parse(ipc("j/cursorpos"));
-                const auto x=position.at("x").get<double>(),y=position.at("y").get<double>();
-                if(begin_drag && pointer_anchor_window!=pointer_window) {
-                    pointer_anchor_window=pointer_window;
-                    pointer_anchor_x={x,vf::body_pointer(pointer_x,surface.x,window.logical_width,window.tile.logical_width,window.tile.x,scale),double(window.tile.logical_width)*scale/std::max(1,window.logical_width)};
-                    pointer_anchor_y={y,vf::body_pointer(pointer_y,surface.y,window.logical_height,window.tile.logical_height,window.tile.y,scale),double(window.tile.logical_height)*scale/std::max(1,window.logical_height)};
-                }
-                send(pointer_window,vf::InputKind::pointer,
-                    static_cast<int>(std::lround(pointer_anchor_x.at(x))),
-                    static_cast<int>(std::lround(pointer_anchor_y.at(y))),1);
-                return;
+                pointer_anchor_x.desktop=position.at("x").get<double>();
+                pointer_anchor_y.desktop=position.at("y").get<double>();
             }
-            // Native framing is outside the body. Map the visible body point
-            // through its displayed size before entering the Mac desktop space.
+            // Wayland positions already exclude compositor gaps and borders.
+            // Body-local pixels carry their own frame extent through resize lag.
             send(pointer_window,vf::InputKind::pointer,
-                static_cast<int>(std::lround(vf::body_pointer(pointer_x,surface.x,window.logical_width,window.tile.logical_width,window.tile.x,scale))),
-                static_cast<int>(std::lround(vf::body_pointer(pointer_y,surface.y,window.logical_height,window.tile.logical_height,window.tile.y,scale))),1);
+                int(std::lround((pointer_x-content.x)*window.snapshot.width()/content.body_width)),
+                int(std::lround((pointer_y-content.y)*window.snapshot.height()/content.body_height)),0,
+                vf::pointer_extent(window.snapshot.width(),window.snapshot.height()));
             return;
         }
         // Surface coordinates are relative to a moving proxy. Resolve the actual
@@ -356,7 +357,7 @@ struct App {
         if(button==273 && a.mac_shadow && a.touchpad && a.touchpad->available() && a.hid_ready())return;
         if(!a.windows.contains(a.pointer_window))return;
         const auto& window=*a.windows.at(a.pointer_window);
-        if(!vf::body_point(receiver_surface(window.tile,window.logical_width,window.logical_height,a.mac_shadow),a.pointer_x,a.pointer_y))return;
+        if(!vf::body_point(a.content_surface(window),a.pointer_x,a.pointer_y))return;
         if(button==272 && state==WL_POINTER_BUTTON_STATE_PRESSED && !a.held_super.empty() && a.windows.contains(a.pointer_window) && !a.windows.at(a.pointer_window)->ime_popup()) {
             a.super_drag=true;a.pending_super.clear();a.pointer_anchor_window=0;a.send(a.pointer_window,vf::InputKind::release);
             xdg_toplevel_move(a.windows.at(a.pointer_window)->top,a.seat,serial);return;
@@ -690,6 +691,10 @@ struct App {
         return pending;
     }
     void region(Window& window) {
+        if(mac_shadow) {
+            wl_surface_set_input_region(window.surface,nullptr);
+            return; // Letterbox clicks are consumed locally by pointer_button.
+        }
         if(window.snapshot_desktop_output) {
             const auto surface=receiver_surface(window.tile,window.logical_width,window.logical_height,mac_shadow);
             if(!window.desktop_region || window.region_width!=surface.width || window.region_height!=surface.height) {
@@ -810,7 +815,13 @@ struct App {
             wl_region* empty=wl_compositor_create_region(compositor);wl_surface_set_input_region(w.surface,empty);wl_region_destroy(empty);
             glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);eglSwapBuffers(egl_display,w.egl);return;
         }
-        region(w);w.snapshot.present(buffer_width,buffer_height);
+        region(w);
+        if(mac_shadow) {
+            const auto content=content_surface(w);
+            w.snapshot.present(buffer_width,buffer_height,
+                content.x*buffer_width/surface.width,content.y*buffer_height/surface.height,
+                content.body_width*buffer_width/surface.width,content.body_height*buffer_height/surface.height);
+        } else w.snapshot.present(buffer_width,buffer_height);
         // Diagnostic A/B only: distinguish queued client GPU work from the
         // compositor's presentation wait. Normal submission stays asynchronous.
         static const bool finish_before_swap=[] {const auto* value=std::getenv("VIEWFLOW_FINISH_BEFORE_SWAP");return value && std::string_view(value)=="1";}();
@@ -1160,10 +1171,11 @@ struct App {
                 }
                 const auto& tile=w.tile;
                 const double bx=(tile.flags&16)?tile.body_x:0,by=(tile.flags&16)?tile.body_y:0;
-                const double sx=double((tile.flags&16)?tile.body_width:tile.width)/width;
-                const double sy=double((tile.flags&16)?tile.body_height:tile.height)/height;
+                const auto content=content_surface(w);
+                const double sx=double((tile.flags&16)?tile.body_width:tile.width)/std::max(1,content.body_width);
+                const double sy=double((tile.flags&16)?tile.body_height:tile.height)/std::max(1,content.body_height);
                 const auto demand=vf::workspace_visible(client,monitors)
-                    ? vf::align_resident(vf::viewport_resident(tile.width,tile.height,bx+(left-x)*sx,by+(top-y)*sy,bx+(right-x)*sx,by+(bottom-y)*sy),tile.width,tile.height)
+                    ? vf::align_resident(vf::viewport_resident(tile.width,tile.height,bx+(left-x-content.x)*sx,by+(top-y-content.y)*sy,bx+(right-x-content.x)*sx,by+(bottom-y-content.y)*sy),tile.width,tile.height)
                     : vf::PixelRect{};
                 if(!w.residency || *w.residency!=demand || w.residency_width!=tile.width || w.residency_height!=tile.height) {
                     if(std::getenv("VIEWFLOW_PRESENTATION_TRACE"))std::fprintf(stderr,"ivshmem-residency id=%llu demand=%u,%u,%u,%u client=%s monitors=%s\n",(unsigned long long)id,demand.x,demand.y,demand.width,demand.height,client.dump().c_str(),monitors.dump().c_str());
@@ -1259,7 +1271,7 @@ struct App {
             // Fullscreen size belongs to the Linux output. Never send it back
             // as an AX resize, or apply the Mac display size over the compositor.
             // Wait through exit until the compositor has restored normal geometry.
-            if (w.source_fullscreen || client.value("fullscreen",0) != 0) { w.placed=true; continue; }
+            if (w.source_fullscreen || client.value("fullscreen",0) != 0) { w.resize.cancel();w.placed=true; continue; }
             // xdg window geometry and compositor inventory describe the body;
             // captured shadow padding belongs only to the underlying surface.
             const int body_width=width,body_height=height;
@@ -1268,7 +1280,11 @@ struct App {
             if(w.tile.flags&vf::windows_shell_flag){w.placed=true;continue;}
             const vf::Geometry local{x,y,width,height},remote{target_x,target_y,target_width,target_height};
             const auto action=w.ime_popup()?(local==remote?vf::GeometryAction::none:vf::GeometryAction::apply_remote):w.geometry_sync.observe(local,remote,w.tile.geometry_ack,client.value("floating",false),local_drag_window==w.native_address || local_titlebar_window==id);
-            if(action==vf::GeometryAction::send_local) {
+            const auto resize_now=std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
+            if(mac_shadow && action==vf::GeometryAction::send_local)w.resize.queue(local,resize_now);
+            const bool mac_resize_ready=mac_shadow && w.resize.ready(resize_now);
+            if((!mac_shadow && action==vf::GeometryAction::send_local) || mac_resize_ready) {
+                w.resize.cancel();
                 if(!held_super.empty() && !super_drag){super_drag=true;pending_super.clear();send(id,vf::InputKind::release);}
                 auto backing=vf::Geometry{x,y,body_width,body_height};
                 if(!client.value("floating",false)) {
@@ -1283,7 +1299,7 @@ struct App {
                     }
                 }
                 w.geometry_sync.sent(send(id,vf::InputKind::geometry,(backing.x-origin_x)*scale,(backing.y-origin_y)*scale,body_width*scale,body_height*scale));
-            } else if(action==vf::GeometryAction::apply_remote) {
+            } else if(action==vf::GeometryAction::apply_remote && !w.resize.candidate) {
                 const std::string selector="'address:"+address+"'";
                 try {
                 eval("hl.dispatch(hl.dsp.window.resize({x="+std::to_string(target_width)+",y="+std::to_string(target_height)+",window="+selector+"}));hl.dispatch(hl.dsp.window.move({x="+std::to_string(target_x)+",y="+std::to_string(target_y)+",window="+selector+"}))");

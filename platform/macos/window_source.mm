@@ -11,6 +11,7 @@
 #include "window_popup_material.hpp"
 #include "window_frame_schedule.hpp"
 #include "window_placement.hpp"
+#include "../reverse-common/window_surface.hpp"
 #include "window_parking.hpp"
 #include "window_hid.hpp"
 #include "window_frame_geometry.hpp"
@@ -299,7 +300,8 @@ struct Source {
     std::map<unsigned, bool> sharing_control_cache;
     std::map<unsigned, Held> keys, buttons;
     std::map<unsigned, std::pair<double, unsigned>> clicks;
-    CGPoint pointer{};
+    CGPoint pointer{},pointer_fraction{};
+    uint64_t pointer_window{};
     Capture* input_target{};
     uint64_t sequence{}, frame_sequence{}, next_capture_id{};
     bool menu_discovery_busy{};
@@ -344,18 +346,43 @@ struct Source {
     bool post(CGEventRef event) {
         if (!event) return false;
         if (!CGPreflightPostEventAccess()) { CFRelease(event); return false; }
+        const auto original_type=CGEventGetType(event);
+        if(input_target && (original_type==kCGEventLeftMouseDown || original_type==kCGEventLeftMouseUp ||
+            original_type==kCGEventRightMouseDown || original_type==kCGEventRightMouseUp ||
+            original_type==kCGEventOtherMouseDown || original_type==kCGEventOtherMouseUp ||
+            original_type==kCGEventMouseMoved || original_type==kCGEventLeftMouseDragged ||
+            original_type==kCGEventRightMouseDragged || original_type==kCGEventOtherMouseDragged)) {
+            const auto bounds=window_bounds(input_target->native,input_target->pid);
+            if(CGRectIsNull(bounds)){CFRelease(event);return false;}
+            const auto location=CGEventGetLocation(event);
+            // AppKit's window location is bottom-left based. Preserve it in
+            // the native event alongside the Quartz global display location.
+            NSEvent* native=[NSEvent mouseEventWithType:static_cast<NSEventType>(original_type)
+                location:NSMakePoint(location.x-bounds.origin.x,bounds.size.height-(location.y-bounds.origin.y))
+                modifierFlags:static_cast<NSEventModifierFlags>(flags()) timestamp:NSProcessInfo.processInfo.systemUptime
+                windowNumber:input_target->native context:nil eventNumber:0
+                clickCount:CGEventGetIntegerValueField(event,kCGMouseEventClickState)
+                pressure:CGEventGetDoubleValueField(event,kCGMouseEventPressure)];
+            CGEventRef routed=native?CGEventCreateCopy(native.CGEvent):nullptr;
+            if(!routed){CFRelease(event);return false;}
+            CGEventSetIntegerValueField(routed,kCGMouseEventButtonNumber,CGEventGetIntegerValueField(event,kCGMouseEventButtonNumber));
+            CGEventSetLocation(routed,location);
+            CFRelease(event);event=routed;
+        }
         CGEventSetFlags(event, flags());
         CGEventSetIntegerValueField(event, kCGEventSourceUserData, 0x56464c57);
         if (!input_target) { CFRelease(event); return false; }
         const auto type = CGEventGetType(event);
-        if (type == kCGEventKeyDown || type == kCGEventKeyUp || type == kCGEventFlagsChanged) {
-            CGEventPostToPid(static_cast<pid_t>(input_target->pid), event);
-        } else {
-            // Mouse events need WindowServer hit testing and real cursor state.
-            // The target's backing rectangle is on an actual (possibly virtual)
-            // display; process-only posting does not establish that mouse state.
-            CGEventPost(kCGHIDEventTap, event);
+        CGEventSetIntegerValueField(event, kCGEventTargetUnixProcessID, input_target->pid);
+        if (type != kCGEventKeyDown && type != kCGEventKeyUp && type != kCGEventFlagsChanged) {
+            CGEventSetIntegerValueField(event, kCGMouseEventWindowUnderMousePointer, input_target->native);
+            CGEventSetIntegerValueField(event, kCGMouseEventWindowUnderMousePointerThatCanHandleThisEvent, input_target->native);
         }
+        // Route to the selected application. Global HID posting hit-tests the
+        // wallpaper when an asynchronous proxy/backing placement diverges.
+        if(type==kCGEventMouseMoved || type==kCGEventLeftMouseDragged || type==kCGEventRightMouseDragged || type==kCGEventOtherMouseDragged)
+            CGWarpMouseCursorPosition(CGEventGetLocation(event));
+        CGEventPostToPid(static_cast<pid_t>(input_target->pid), event);
         CFRelease(event); return true;
     }
     bool mouse_button(unsigned evdev, bool down, unsigned count = 1) {
@@ -422,7 +449,7 @@ struct Source {
             capture.placement.observe(actual.origin.x, actual.origin.y);
         }
         capture.placement.place(requested.x, requested.y);
-        if (moved == kAXErrorSuccess && resized == kAXErrorSuccess && capture.geometry_request.complete(request.sequence)) {
+        if (moved == kAXErrorSuccess && (resized == kAXErrorSuccess || resized == kAXErrorAttributeUnsupported || resized == kAXErrorNotImplemented) && capture.geometry_request.complete(request.sequence)) {
             capture.geometry_ack = request.sequence; dirty = true;
             std::fprintf(stderr, "window-geometry-applied window=%u sequence=%llu requested=%.1f,%.1f,%.1f,%.1f backing=%.1f,%.1f\n",
                 capture.native, (unsigned long long)request.sequence, requested.x, requested.y, size.width, size.height, backing.x, backing.y);
@@ -488,8 +515,15 @@ struct Source {
             if (event.c != 0 && event.c != 1) return;
             pointer = event.c == 1 ? CGPointMake(capture->placement.pointer_x(event.a / options.scale),
                 capture->placement.pointer_y(event.b / options.scale))
-                : CGPointMake(bounds.origin.x + event.a * bounds.size.width / std::max(1u, capture->published_width),
-                              bounds.origin.y + event.b * bounds.size.height / std::max(1u, capture->published_height));
+                : CGPointMake(bounds.origin.x + vf::local_pointer(event.a,
+                    event.d ? (std::bit_cast<uint32_t>(event.d)&65535u) : capture->published_width,
+                    bounds.size.width, buttons.empty()),
+                    bounds.origin.y + vf::local_pointer(event.b,
+                    event.d ? (std::bit_cast<uint32_t>(event.d)>>16) : capture->published_height,
+                    bounds.size.height, buttons.empty()));
+            pointer_fraction={ (pointer.x-bounds.origin.x)/std::max(1.,bounds.size.width),
+                               (pointer.y-bounds.origin.y)/std::max(1.,bounds.size.height) };
+            pointer_window=event.id;
             auto type = kCGEventMouseMoved; CGMouseButton button = kCGMouseButtonLeft;
             if (!buttons.empty()) {
                 button = static_cast<CGMouseButton>(buttons.begin()->first - 272);
@@ -504,6 +538,11 @@ struct Source {
             auto& click = clicks[code];
             if (event.b) {
                 focus(*capture);
+                const auto current=window_bounds(capture->native,capture->pid);
+                if(CGRectIsNull(current))return;
+                if(pointer_window!=event.id)return;
+                pointer={current.origin.x+vf::local_pointer(pointer_fraction.x,1,current.size.width,true),
+                         current.origin.y+vf::local_pointer(pointer_fraction.y,1,current.size.height,true)};
                 const double now = NSProcessInfo.processInfo.systemUptime;
                 click.second = now - click.first <= NSEvent.doubleClickInterval ? std::min(click.second + 1, 3u) : 1;
                 click.first = now;

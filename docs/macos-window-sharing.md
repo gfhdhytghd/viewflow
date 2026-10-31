@@ -84,9 +84,10 @@ parameters and screenshot comparison are in the
 [shadow calibration record](evidence/mac-hyprland-shadow-20260912/README.md).
 Captured framing metadata and the original alpha still cross the wire; this
 change does not yet crop shadow padding at the source or reduce encoded extent.
-Input regions are clipped to the body, and button-down forwarding additionally
-checks the body bounds. Button releases return to the window that received the
-press, including when a drag ends outside the body.
+Mac proxies consume input across the body surface and discard letterbox
+button-downs locally. Rendering and input share the same aspect-fit rectangle.
+Button releases return to the window that received the press, including when a
+drag ends outside the body.
 
 On Linux Mac proxies, two-finger touchpad scrolling uses native HID back to
 macOS. Three or more fingers remain with the Linux compositor. Adding a third
@@ -453,8 +454,8 @@ opaque-only threshold. The full native frame, including its shadow, uses the exi
 and lossless-alpha transport.
 
 The Linux presenter sets `xdg_surface.set_window_geometry` to the body rectangle
-and restricts its input region to body pixels. Surface allocation and rendering
-use the body only. Geometry synchronization uses the logical body size,
+and consumes input within the body surface, including non-forwarded letterbox
+areas. Surface allocation and rendering use the body only. Geometry synchronization uses the logical body size,
 and scale comes from frame metadata. `ViewflowReverse-MacNative-*` windows retain
 native titlebar controls and use only the Viewflow Hyprland shadow decoration.
 They do not add a Linux titlebar or border.
@@ -510,3 +511,89 @@ across it, does not display a remote proxy. Returning the center to the physical
 Mac side withdraws that proxy. The application inventory, native capture scope,
 and per-peer destination selection use the same rule. This does not change
 Linux-origin partial-window sharing.
+
+
+## Mac → Linux 平铺点击映射修复（2026-10-30）
+
+### 原因与被动证据
+
+部署目录 `~/.local/lib/viewflow/linux-20261018-keyboard1/` 的
+`bundle-manifest.json` 记录 `build.revision=c5a3062169e11b4ad7b7b4d55456eea0b540e19c`，
+`build.dirty=true`。该提交日期为 2026-09-22；目录日期不代表完整源码版本。
+`keyboard_hotfix.revision=762fcc9c9d1827e3adda9fc07e09a3129b8c411b` 只对应键盘插件。
+清单的 provenance 明确记录其他组件复用混合源码构建。因此不能把全部二进制归到
+`762fcc9c` 或 `c5a30621` 的干净源码。只读进程列表确认接收器来自该目录，参数为
+`viewflow_linux_reverse 3072 299 2`。这些是 Linux 视口原点与缩放，不是 Mac
+停车显示器的原点。Mac 的 `window-parking.log` 最后一条记录显示器 17 位于
+`-3072,-299`，逻辑大小 `3072x1728`。
+
+工作起点与 `robustness-hardening` HEAD 同为 `02571fde`。该 HEAD 与清单所指
+`c5a30621` 都仍有以下路径：Linux 用帧中的旧窗口位置构造桌面绝对坐标，
+Mac 收到 `pointer.c=1` 后用当前 `WindowPlacement` 把该坐标映射到停车窗口。
+几何请求先更新逻辑位置，画面可以随后到达；旧帧位置与新逻辑位置混用会产生偏移。
+按下前没有重新按实际窗口范围定位。Mac 又把鼠标事件送入全局 HID 命中测试，
+因此越界坐标会命中桌面，而不是消息指定的应用。修复前还把画面独立拉伸到代理宽高，
+没有保留原比例，也没有合并密集平铺几何请求。
+
+Mac 日志 `~/Library/Logs/Viewflow/source-2052-66920-a4834581f2f870e013ee2802762a5160.log`：
+
+- 第 1852 行：`window-geometry-applied window=2052 sequence=1393 requested=-3062.0,478.0,2239.0,825.0 backing=-3062.0,478.0`。
+- 第 1911 行：`window-input button window=2052 pid=66920 button=272 down=1 native=-1878.0,-160.5 posted=1`。
+- 第 1917 行：相同位置的按钮释放。
+- 两段之间反复出现 `window encode recovering: create encoder: -12903`。
+
+点击 y 坐标在最后一次几何记录之外。日志没有逐点击的实际 WindowServer 边界，
+也没有「显示桌面」状态，因此它支持偏移路径的判断，但不是桌面动画的实机证明。
+编码器恢复失败会延长旧画面停留；本次不改编码器或服务生命周期。
+
+### 修复与决定
+
+- Linux 使用当前保留画面的主体像素，不再用 Mac 的全局桌面位置映射点击。
+  Wayland 提供表面内坐标，Hyprland gaps、border 和显示器原点不参与计算。
+- Linux 对当前画面等比缩放并居中。绘图、点击范围和可见区域需求共用同一矩形。
+  留白区按下在本地丢弃，释放仍返回原来接收按下的窗口。拖动允许超出主体。
+- 固定 40 字节输入记录保持不变。`pointer.c=0` 的 `a/b` 是主体像素坐标；
+  `d` 的低/高 16 位分别带发送画面的主体宽/高，源端用实际当前窗口大小重建比例。
+  `d=0` 保留旧像素坐标语义，`c=1` 仍接受旧桌面坐标。
+  旧 Mac 接收端忽略 `d`，不能获得本修复的主体尺寸与目标事件保证；完整验收必须
+  同时更新 Linux 接收器和 Mac 源端。没有新增版本握手或拒绝旧连接。
+- 几何同步继续使用 Hyprland 主体大小。Mac 几何请求在本地变化停止 100 ms 后发送最新值。
+  这只是合并窗口调整，不是输入期限或会话退出条件。全屏期间取消普通几何请求，
+  退出后恢复原有几何同步。浮动与平铺转换继续由原来的几何所有权状态控制。
+- AX 返回实际最小/最大尺寸时，继续显示实际主体并等比缩放。明确不支持调整大小时，
+  确认该次请求并保留实际尺寸，不以每秒 60 次重复请求同一个不支持的操作。
+  暂时失败仍保留重试。浮动窗口仍按原有规则同步远端实际尺寸。
+- Mac 使用实际窗口边界重建窗口坐标。按下前重新读取边界，避免激活造成窗口移动。
+  `NSEvent` 携带窗口 ID 和左下角原点的窗口坐标；对应 Quartz 事件保留全局坐标，
+  并携带目标 PID 与两个 window-under-pointer 字段。按钮和滚轮按 PID 投递，
+  不再向全局 HID 流发送普通按钮。移动时同步系统光标，供独立原生触控板路径使用。
+  Apple 的 [位置说明](https://developer.apple.com/documentation/coregraphics/cgevent/location)
+  定义 Quartz 全局坐标；[窗口字段说明](https://developer.apple.com/documentation/coregraphics/cgeventfield/mouseeventwindowundermousepointer)
+  列出窗口 ID 字段。具体应用接收行为仍须实机验收。
+
+### 验证范围
+
+- `cargo test --workspace`：通过。
+- `cargo clippy --workspace --all-targets -- -D clippy::unwrap_used`：通过；其他现有 lint 警告保留。
+- `cd platform/desktop-app && QT_QPA_PLATFORM=offscreen /tmp/viewflow-hid-ui-venv/bin/python -m unittest discover -p "test_*.py"`：76 项，跳过 2 项，通过。
+- `cmake -S platform/linux-reverse -B /tmp/viewflow-m2l-build -DCMAKE_BUILD_TYPE=Release` 与
+  `cmake --build /tmp/viewflow-m2l-build -j 8`：通过，包含 Linux 接收器。
+- `ctest --test-dir /tmp/viewflow-m2l-build --output-on-failure`：17 项通过。
+  新增可移植测试覆盖负原点、Retina 主体尺寸、留白区、尺寸变化、受限窗口、全屏比例、
+  拖动越界与 100 ms 合并；EGL pbuffer 测试检查缩放位置和留白像素。
+- Mac 隔离目录 `/tmp/viewflow-m2l-check`：`xcrun clang++ -std=c++20 -fobjc-arc -Wall -Wextra -Werror -fsyntax-only platform/macos/window_source.mm`
+  通过；新可移植测试在 Mac 编译并运行通过。没有构建或替换运行中的 App。
+- 未验证：端到端点击、原生触控板、窗口标题栏拖动及各应用的 PID 事件接收。
+  调查只读日志和进程状态；没有截图、输入注入、焦点切换或服务重启。
+
+### 用户手工验收清单
+
+由用户在两端更新后的构建上执行：
+
+1. 在浮动 Mac 代理的中心、四角和标题栏点击，确认应用收到对应位置。
+2. 切换平铺并调整分割比例；调整期间点击，确认位置随当前画面且不触发「显示桌面」。
+3. 用有最小尺寸或不可调整大小的窗口重复测试；点击留白，确认远端没有点击。
+4. 切换浮动、平铺、全屏并恢复；改变 Hyprland gaps 和 borders 后重复中心与边缘点击。
+5. 拖动标题栏与应用内容，跨越代理边缘后释放；确认拖动结束且按钮没有滞留。
+6. 验证双击、右键菜单、滚轮和原生双指手势；覆盖 Settings、Finder 和常用浏览器。
+7. 在 scale 2、负停车原点及多显示器之间重复检查；确认其他代理和会话持续工作。

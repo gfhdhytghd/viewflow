@@ -50,10 +50,13 @@ public:
         reset();texture_=texture;framebuffer_=framebuffer;width_=width;height_=height;
         glBindFramebuffer(GL_FRAMEBUFFER,framebuffer_);return true;
     }
-    void present(unsigned width,unsigned height) const {
+    void present(unsigned width,unsigned height,int x=0,int y=0,unsigned body_width=0,unsigned body_height=0) const {
         glBindFramebuffer(GL_READ_FRAMEBUFFER,framebuffer_);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER,0);glDisable(GL_SCISSOR_TEST);
-        glBlitFramebuffer(0,0,width_,height_,0,0,width,height,GL_COLOR_BUFFER_BIT,GL_LINEAR);
+        if(!body_width)body_width=width;
+        if(!body_height)body_height=height;
+        glClearColor(0,0,0,1);glClear(GL_COLOR_BUFFER_BIT);
+        glBlitFramebuffer(0,0,width_,height_,x,height-y-body_height,x+body_width,height-y,GL_COLOR_BUFFER_BIT,GL_LINEAR);
         glBindFramebuffer(GL_FRAMEBUFFER,0);
     }
     unsigned width() const{return width_;}
