@@ -30,6 +30,25 @@ int main() {
         const auto packed=std::bit_cast<unsigned>(vf::pointer_extent(dimensions.first,dimensions.second));
         assert((packed&65535u)==dimensions.first && (packed>>16)==dimensions.second);
     }
+    // A compositor tiling transition must reach a debounced source request,
+    // even when the source still reports a different (minimum) window size.
+    vf::GeometrySync sync;
+    const vf::Geometry local{8,12,500,400},remote{8,12,800,600};
+    assert(sync.observe(local,remote,0,false)==vf::GeometryAction::send_local);
+    resize.queue(local,2000);
+    assert(sync.observe(local,remote,0,false)==vf::GeometryAction::none);
+    assert(!resize.ready(2099) && resize.ready(2100));
+    // The source divides the scale-two request back to logical AX points.
+    const auto physical_width=resize.candidate->width*2;
+    assert(physical_width/2==500);
+    resize.cancel();sync.sent(20);
+    assert(sync.observe(local,remote,20,false)==vf::GeometryAction::none);
+    const auto constrained=vf::fitted_body(local.width,local.height,1600,1200);
+    assert(constrained.body_width==500 && constrained.body_height==375);
+    assert(vf::local_pointer(800,1600,800,true)==400);
+    // A final bounds check clamps a stale global press into the new backing.
+    assert(-3072+vf::local_pointer(-4000-(-3072),1,800,true)==-3072);
+    assert(-299+vf::local_pointer(1000-(-299),1,600,true)==300.5);
     const auto portrait=vf::fitted_body(600,1000,1600,900);
     assert(portrait.body_width==600 && portrait.body_height==338 && portrait.y==331);
     const auto fullscreen=vf::fitted_body(1920,1080,1600,900);

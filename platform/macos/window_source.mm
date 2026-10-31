@@ -346,43 +346,28 @@ struct Source {
     bool post(CGEventRef event) {
         if (!event) return false;
         if (!CGPreflightPostEventAccess()) { CFRelease(event); return false; }
-        const auto original_type=CGEventGetType(event);
-        if(input_target && (original_type==kCGEventLeftMouseDown || original_type==kCGEventLeftMouseUp ||
-            original_type==kCGEventRightMouseDown || original_type==kCGEventRightMouseUp ||
-            original_type==kCGEventOtherMouseDown || original_type==kCGEventOtherMouseUp ||
-            original_type==kCGEventMouseMoved || original_type==kCGEventLeftMouseDragged ||
-            original_type==kCGEventRightMouseDragged || original_type==kCGEventOtherMouseDragged)) {
-            const auto bounds=window_bounds(input_target->native,input_target->pid);
-            if(CGRectIsNull(bounds)){CFRelease(event);return false;}
-            const auto location=CGEventGetLocation(event);
-            // AppKit's window location is bottom-left based. Preserve it in
-            // the native event alongside the Quartz global display location.
-            NSEvent* native=[NSEvent mouseEventWithType:static_cast<NSEventType>(original_type)
-                location:NSMakePoint(location.x-bounds.origin.x,bounds.size.height-(location.y-bounds.origin.y))
-                modifierFlags:static_cast<NSEventModifierFlags>(flags()) timestamp:NSProcessInfo.processInfo.systemUptime
-                windowNumber:input_target->native context:nil eventNumber:0
-                clickCount:CGEventGetIntegerValueField(event,kCGMouseEventClickState)
-                pressure:CGEventGetDoubleValueField(event,kCGMouseEventPressure)];
-            CGEventRef routed=native?CGEventCreateCopy(native.CGEvent):nullptr;
-            if(!routed){CFRelease(event);return false;}
-            CGEventSetIntegerValueField(routed,kCGMouseEventButtonNumber,CGEventGetIntegerValueField(event,kCGMouseEventButtonNumber));
-            CGEventSetLocation(routed,location);
-            CFRelease(event);event=routed;
-        }
         CGEventSetFlags(event, flags());
         CGEventSetIntegerValueField(event, kCGEventSourceUserData, 0x56464c57);
         if (!input_target) { CFRelease(event); return false; }
         const auto type = CGEventGetType(event);
-        CGEventSetIntegerValueField(event, kCGEventTargetUnixProcessID, input_target->pid);
-        if (type != kCGEventKeyDown && type != kCGEventKeyUp && type != kCGEventFlagsChanged) {
-            CGEventSetIntegerValueField(event, kCGMouseEventWindowUnderMousePointer, input_target->native);
-            CGEventSetIntegerValueField(event, kCGMouseEventWindowUnderMousePointerThatCanHandleThisEvent, input_target->native);
+        if (type == kCGEventKeyDown || type == kCGEventKeyUp || type == kCGEventFlagsChanged) {
+            CGEventPostToPid(static_cast<pid_t>(input_target->pid), event);
+        } else {
+            if (type == kCGEventLeftMouseDown || type == kCGEventRightMouseDown || type == kCGEventOtherMouseDown) {
+                // Recheck immediately before posting: focus/AX geometry may
+                // have moved the backing after the ordered pointer event.
+                const auto bounds = window_bounds(input_target->native, input_target->pid);
+                if (CGRectIsNull(bounds) || CGRectIsEmpty(bounds)) { CFRelease(event); return false; }
+                const auto location = CGEventGetLocation(event);
+                pointer = CGPointMake(bounds.origin.x + vf::local_pointer(location.x - bounds.origin.x, 1, bounds.size.width, true),
+                                      bounds.origin.y + vf::local_pointer(location.y - bounds.origin.y, 1, bounds.size.height, true));
+                CGEventSetLocation(event, pointer);
+            }
+            // Mouse events need WindowServer hit testing and real cursor state.
+            // The target's backing rectangle is on an actual (possibly virtual)
+            // display; process-only posting does not establish that mouse state.
+            CGEventPost(kCGHIDEventTap, event);
         }
-        // Route to the selected application. Global HID posting hit-tests the
-        // wallpaper when an asynchronous proxy/backing placement diverges.
-        if(type==kCGEventMouseMoved || type==kCGEventLeftMouseDragged || type==kCGEventRightMouseDragged || type==kCGEventOtherMouseDragged)
-            CGWarpMouseCursorPosition(CGEventGetLocation(event));
-        CGEventPostToPid(static_cast<pid_t>(input_target->pid), event);
         CFRelease(event); return true;
     }
     bool mouse_button(unsigned evdev, bool down, unsigned count = 1) {

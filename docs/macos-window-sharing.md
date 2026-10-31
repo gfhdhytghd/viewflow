@@ -555,7 +555,7 @@ Mac 日志 `~/Library/Logs/Viewflow/source-2052-66920-a4834581f2f870e013ee280276
 - 固定 40 字节输入记录保持不变。`pointer.c=0` 的 `a/b` 是主体像素坐标；
   `d` 的低/高 16 位分别带发送画面的主体宽/高，源端用实际当前窗口大小重建比例。
   `d=0` 保留旧像素坐标语义，`c=1` 仍接受旧桌面坐标。
-  旧 Mac 接收端忽略 `d`，不能获得本修复的主体尺寸与目标事件保证；完整验收必须
+  旧 Mac 接收端忽略 `d`，不能获得本修复的主体尺寸与按下边界检查；完整验收必须
   同时更新 Linux 接收器和 Mac 源端。没有新增版本握手或拒绝旧连接。
 - 几何同步继续使用 Hyprland 主体大小。Mac 几何请求在本地变化停止 100 ms 后发送最新值。
   这只是合并窗口调整，不是输入期限或会话退出条件。全屏期间取消普通几何请求，
@@ -564,12 +564,18 @@ Mac 日志 `~/Library/Logs/Viewflow/source-2052-66920-a4834581f2f870e013ee280276
   确认该次请求并保留实际尺寸，不以每秒 60 次重复请求同一个不支持的操作。
   暂时失败仍保留重试。浮动窗口仍按原有规则同步远端实际尺寸。
 - Mac 使用实际窗口边界重建窗口坐标。按下前重新读取边界，避免激活造成窗口移动。
-  `NSEvent` 携带窗口 ID 和左下角原点的窗口坐标；对应 Quartz 事件保留全局坐标，
-  并携带目标 PID 与两个 window-under-pointer 字段。按钮和滚轮按 PID 投递，
-  不再向全局 HID 流发送普通按钮。移动时同步系统光标，供独立原生触控板路径使用。
-  Apple 的 [位置说明](https://developer.apple.com/documentation/coregraphics/cgevent/location)
-  定义 Quartz 全局坐标；[窗口字段说明](https://developer.apple.com/documentation/coregraphics/cgeventfield/mouseeventwindowundermousepointer)
-  列出窗口 ID 字段。具体应用接收行为仍须实机验收。
+  `post()` 在鼠标按下的最终投递点再次读取 `window_bounds`；目标窗口消失或边界为空时，
+  丢弃本次按下，否则把越界全局坐标夹到窗口内部。释放和拖动不受这个按下检查限制。
+- 鼠标移动、按钮和滚轮保持 `CGEventPost(kCGHIDEventTap, …)`，保留 WindowServer
+  命中测试、真实光标和鼠标状态。键盘仍使用 `CGEventPostToPid`。
+  不再构造 `NSEvent`、强制设置目标窗口字段或逐移动调用 `CGWarpMouseCursorPosition`。
+  本次不增加实验 PID 路由，也不增加遮挡/焦点授权限制；边界检查不是逐帧新鲜度限制。
+- 平铺调整路径为 `GeometrySync::observe(..., now_floating=false)` → `send_local` →
+  `WindowResize::queue/ready`（100 ms）→ `InputKind::geometry`。请求宽高取 Hyprland
+  主体大小乘会话 scale；Mac `Source::apply_geometry()` 除以同一个 scale 后用
+  `AXUIElementSetAttributeValue(..., kAXSizeAttribute, ...)` 请求原生逻辑尺寸。
+  输入和画面继续使用当前实际窗口/保留画面尺寸，不等待 AX 完成。此路径通过源码检查
+  和可移植状态组合测试验证；实际 AX 调整结果仍由用户验收。
 
 ### 验证范围
 
@@ -583,7 +589,7 @@ Mac 日志 `~/Library/Logs/Viewflow/source-2052-66920-a4834581f2f870e013ee280276
   拖动越界与 100 ms 合并；EGL pbuffer 测试检查缩放位置和留白像素。
 - Mac 隔离目录 `/tmp/viewflow-m2l-check`：`xcrun clang++ -std=c++20 -fobjc-arc -Wall -Wextra -Werror -fsyntax-only platform/macos/window_source.mm`
   通过；新可移植测试在 Mac 编译并运行通过。没有构建或替换运行中的 App。
-- 未验证：端到端点击、原生触控板、窗口标题栏拖动及各应用的 PID 事件接收。
+- 未验证：端到端点击、原生触控板、窗口标题栏拖动及各应用的 HID 鼠标交互。
   调查只读日志和进程状态；没有截图、输入注入、焦点切换或服务重启。
 
 ### 用户手工验收清单
@@ -591,9 +597,12 @@ Mac 日志 `~/Library/Logs/Viewflow/source-2052-66920-a4834581f2f870e013ee280276
 由用户在两端更新后的构建上执行：
 
 1. 在浮动 Mac 代理的中心、四角和标题栏点击，确认应用收到对应位置。
-2. 切换平铺并调整分割比例；调整期间点击，确认位置随当前画面且不触发「显示桌面」。
-3. 用有最小尺寸或不可调整大小的窗口重复测试；点击留白，确认远端没有点击。
+2. 切换平铺并调整分割比例；停止调整后确认 Mac 原生窗口跟随主体尺寸。
+   检查源端 `window-geometry-applied` 记录。调整期间点击，确认不触发「显示桌面」。
+3. 用有最小尺寸或不可调整大小的窗口重复测试；确认画面等比缩放。
+   点击留白，确认远端没有点击。确认受限尺寸不会导致持续调整或画面拉伸。
 4. 切换浮动、平铺、全屏并恢复；改变 Hyprland gaps 和 borders 后重复中心与边缘点击。
 5. 拖动标题栏与应用内容，跨越代理边缘后释放；确认拖动结束且按钮没有滞留。
-6. 验证双击、右键菜单、滚轮和原生双指手势；覆盖 Settings、Finder 和常用浏览器。
+6. 使用默认 HID 路径验证双击、菜单跟踪、悬停提示、内容拖动、滚轮和原生双指手势。
+   覆盖 Settings、Finder、Chromium/Electron 和常用 AppKit 控件。
 7. 在 scale 2、负停车原点及多显示器之间重复检查；确认其他代理和会话持续工作。
