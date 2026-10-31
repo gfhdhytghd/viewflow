@@ -9,6 +9,23 @@ struct SurfaceGeometry {
 inline bool body_point(const SurfaceGeometry& s,double x,double y) {
     return x>=s.x && y>=s.y && x<s.x+s.body_width && y<s.y+s.body_height;
 }
+// Aspect-fit the currently displayed frame, not an unacknowledged resize.
+inline SurfaceGeometry fitted_body(int width,int height,unsigned source_width,unsigned source_height) {
+    if(width<=0 || height<=0 || !source_width || !source_height)return {};
+    const double ratio=std::min(double(width)/source_width,double(height)/source_height);
+    const int w=std::max(1,int(std::lround(source_width*ratio)));
+    const int h=std::max(1,int(std::lround(source_height*ratio)));
+    return {width,height,(width-w)/2,(height-h)/2,w,h};
+}
+// c=0 keeps legacy pixel coordinates. d optionally carries their body extent
+// (two unsigned 16-bit dimensions), so a newer frame cannot change the ratio.
+inline std::int32_t pointer_extent(unsigned width,unsigned height) {
+    return std::bit_cast<std::int32_t>((height<<16)|width);
+}
+inline double local_pointer(double point,double extent,double native_extent,bool clamp) {
+    const double value=point*native_extent/std::max(1.,extent);
+    return clamp?std::clamp(value,0.,std::max(0.,native_extent-0.5)):value;
+}
 // Present the native body as a complete surface. Original shadow pixels use a
 // separate non-interactive subsurface, outside the tiling rectangle.
 inline Tile body_tile(Tile tile) {

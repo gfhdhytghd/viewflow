@@ -130,3 +130,8 @@ else()
     target_compile_options(viewflow_quality_control_test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 endif()
 add_test(NAME quality_control COMMAND viewflow_quality_control_test)
+
+add_executable(viewflow-window-mapping-test ../reverse-common/window_mapping_test.cpp)
+target_compile_features(viewflow-window-mapping-test PRIVATE cxx_std_20)
+target_compile_options(viewflow-window-mapping-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+add_test(NAME windows-local-mapping COMMAND viewflow-window-mapping-test)
