@@ -4,6 +4,11 @@ The [security and availability policy](security-and-availability-policy.md)
 supersedes older strict timing/fail-closed requirements below. Normal focus
 changes and performance misses require local recovery, not whole-session exit.
 
+The [cross-boundary drag audit](cross-boundary-drag-audit.md) records the
+2026-10-30 topology, all six directional paths and four edges, fixes, offline
+validation, implementation gaps, and the user-operated acceptance checklist.
+Its current-source findings supersede older placement descriptions below.
+
 Current implementation/build status and remaining work are tracked in
 [project status](project-status.md). Use [desktop start](desktop-start.md) for
 the manual trial; the [previous handoff](../HANDOFF-2026-09-06.md) is a historical

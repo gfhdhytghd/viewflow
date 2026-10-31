@@ -33,3 +33,14 @@ assert not source.needs_remote(dict(window, frame_points=[0,0,800,600]), [[0,0,1
 assert source.needs_remote(window, [[0,0,1920,1200]], [[-3072,0,3072,1728]])
 assert not source.needs_remote(dict(window, frame_points=[0,0,800,600]), [[0,0,400,1200],[400,0,400,1200]], [[-1,0,2,1200]])
 assert source.needs_remote(dict(window, frame_points=[0,0,800,600]), [[0,0,300,1200],[400,0,400,1200]], [[300,0,100,1200]])
+
+# Match the native source rule on all four edges, including negative origins.
+physical = [[-100,-200,1000,800]]
+for remote, frame in [([-1100,-200,1000,800],[-101,0,200,200]),
+                      ([900,-200,1000,800],[701,0,200,200]),
+                      ([-100,-1000,1000,800],[100,-201,200,200]),
+                      ([-100,600,1000,800],[100,401,200,200])]:
+    assert source.needs_remote(dict(window, frame_points=frame), physical, [remote])
+    assert not source.needs_remote(dict(window, frame_points=[100,0,200,200]), physical, [remote])
+assert not source.needs_remote(dict(window, frame_points=[0,0,800,600]),
+                               [[0,0,300,1200]], [[0,0,100,1200]])

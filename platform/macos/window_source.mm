@@ -1119,8 +1119,8 @@ struct Source {
             }
             if (capture->native_drag) {
                 auto& tile = frame.tiles.back();
-                tile.grab_x = std::lround(capture->native_drag_grab.x);
-                tile.grab_y = std::lround(capture->native_drag_grab.y);
+                tile.grab_x = vf::drag_grab_pixels(capture->native_drag_grab.x, options.native_decorations ? 1 : options.scale);
+                tile.grab_y = vf::drag_grab_pixels(capture->native_drag_grab.y, options.native_decorations ? 1 : options.scale);
             }
             if (options.native_decorations) {
                 auto& tile = frame.tiles.back();

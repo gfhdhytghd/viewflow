@@ -31,6 +31,8 @@ struct Tile {
     std::string title;
     std::uint32_t flags{}; // bit 0: native move; bit 1: IME; bit 2: grab offset; bit 3: HID; bit 4: native frame geometry
     std::uint64_t geometry_ack{};
+    // With native frame geometry (bit 4), grabs use logical body units.
+    // Otherwise they use the same scaled desktop units as x/y.
     std::int32_t grab_x{},grab_y{};
     std::uint32_t body_x{},body_y{},body_width{},body_height{},logical_width{},logical_height{},pixel_scale{};
     std::uint32_t resident_x{},resident_y{},resident_width{},resident_height{};

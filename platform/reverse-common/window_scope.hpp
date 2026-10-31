@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <algorithm>
+#include <utility>
 namespace viewflow::reverse {
 struct ScopeRect { double x{},y{},width{},height{}; };
 struct MenuParent { unsigned id{}; ScopeRect body; };
@@ -36,14 +37,31 @@ inline ScopeRect parking_position(ScopeRect requested, const std::vector<ScopeRe
     }
     return result;
 }
-// Mac display ownership changes only after the window center crosses an edge.
+// Share the portion outside the physical display union as soon as it enters
+// a remote viewport. Waiting for the center can strand a titlebar at a native
+// screen constraint, and disagrees with the supervisor's partial-window rule.
 inline bool needs_remote(ScopeRect frame,const std::vector<ScopeRect>& physical,const std::vector<ScopeRect>& remote) {
     if(frame.width<=0 || frame.height<=0)return false;
-    const double x=frame.x+frame.width/2, y=frame.y+frame.height/2;
-    for(const auto& r:physical)
-        if(x>=r.x && x<=r.x+r.width && y>=r.y && y<=r.y+r.height)return false;
-    return std::any_of(remote.begin(),remote.end(),[&](const auto& r){
-        return x>r.x && x<r.x+r.width && y>r.y && y<r.y+r.height;
-    });
+    for(const auto& target:remote) {
+        auto part=intersection(frame,target);
+        if(part.width<=0 || part.height<=0)continue;
+        std::vector<ScopeRect> uncovered{part};
+        for(const auto& display:physical) {
+            std::vector<ScopeRect> remaining;
+            for(const auto& r:uncovered) {
+                const auto hit=intersection(r,display);
+                if(hit.width<=0 || hit.height<=0){remaining.push_back(r);continue;}
+                for(const auto& piece:std::vector<ScopeRect>{
+                    {r.x,r.y,r.width,hit.y-r.y},
+                    {r.x,hit.y+hit.height,r.width,r.y+r.height-hit.y-hit.height},
+                    {r.x,hit.y,hit.x-r.x,hit.height},
+                    {hit.x+hit.width,hit.y,r.x+r.width-hit.x-hit.width,hit.height}})
+                    if(piece.width>0 && piece.height>0)remaining.push_back(piece);
+            }
+            uncovered=std::move(remaining);
+        }
+        if(!uncovered.empty())return true;
+    }
+    return false;
 }
 }

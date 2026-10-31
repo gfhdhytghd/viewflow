@@ -56,6 +56,12 @@ inline double body_pointer(double point,int inset,int displayed_body,unsigned lo
                            int desktop_origin,unsigned scale) {
     return desktop_origin+(point-inset)*logical_body/std::max(1,displayed_body)*scale;
 }
+// Native-frame tiles carry grabs in logical body units, like logical_width.
+// Legacy tiles carry grabs in scaled desktop units. Normalize before mapping.
+inline int drag_grab_pixels(double points,double scale) { return int(std::lround(points*scale)); }
+inline double drag_grab_points(const Tile& tile,int grab,double scale) {
+    return grab*((tile.flags&16)?double(tile.pixel_scale):1.)/scale;
+}
 // A held-pointer gesture keeps its initial source mapping. Video geometry and
 // proxy movement may arrive later and must not feed back into pointer motion.
 struct PointerAnchor {

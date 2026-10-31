@@ -7,6 +7,16 @@ use std::{collections::BTreeMap, path::PathBuf};
 use viewflow_hyprland::{HyprIpcClient, resolve_socket_path};
 use viewflow_protocol::Id128;
 
+// Match the presenter's actual PID-ID class suffix. The PID prevents another
+// presenter (or an old process's class) from claiming this native proxy.
+fn mac_proxy_id(class: &str, pid: u32) -> Option<u64> {
+    let suffix = class.strip_prefix("ViewflowReverse-Mac-")
+        .or_else(|| class.strip_prefix("ViewflowReverse-MacNative-"))?;
+    let (owner, id) = suffix.split_once('-')?;
+    if owner.parse::<u32>().ok()? != pid { return None; }
+    id.parse::<u64>().ok().filter(|id| *id > 0)
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Candidate {
     address: u64,
@@ -88,10 +98,7 @@ impl Observer {
             let Some(pid) = w["pid"].as_u64().and_then(|n| u32::try_from(n).ok()) else {
                 continue;
             };
-            let proxy = w["class"]
-                .as_str()
-                .and_then(|s| s.strip_prefix("ViewflowReverse-Mac-"))
-                .and_then(|s| s.parse().ok());
+            let proxy = w["class"].as_str().and_then(|class| mac_proxy_id(class, pid));
             let surface = bindings
                 .get(&(address, u64::from(pid)))
                 .copied()
@@ -201,6 +208,16 @@ impl Observer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn proxy_binding_matches_real_presenter_classes_and_pid() {
+        assert_eq!(mac_proxy_id("ViewflowReverse-Mac-42-7", 42), Some(7));
+        assert_eq!(mac_proxy_id("ViewflowReverse-MacNative-42-7", 42), Some(7));
+        for class in ["ViewflowReverse-Mac-41-7", "ViewflowReverse-Mac-7",
+                      "ViewflowReverse-MacNative-42-0", "ViewflowReverse-IME-42-7",
+                      "ViewflowReverse-WindowsNative-rX-42-7"] {
+            assert_eq!(mac_proxy_id(class, 42), None);
+        }
+    }
     #[test]
     fn only_position_change_preserving_extent_claims_a_drag() {
         let candidate = Candidate {

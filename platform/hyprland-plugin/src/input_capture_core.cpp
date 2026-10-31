@@ -90,6 +90,10 @@ void InputCaptureCore::observePosition(double x, double y,
   if (captured() || m_phase == CapturePhase::CAPTURE_PENDING)
     return;
 
+  if (m_phase != CapturePhase::EDGE_ARMED) {
+    m_motionEdge.reset();
+    m_outwardMotion = 0;
+  }
   m_armedEdges.clear();
   m_insideRemoteArm = false;
   constexpr double OUTSIDE_PROBE_DIP = 1.0;
@@ -211,16 +215,25 @@ void InputCaptureCore::observePosition(double x, double y,
 
 std::optional<EdgeCandidate>
 InputCaptureCore::observeMotion(double unacceleratedX, double unacceleratedY) {
-  if (m_phase != CapturePhase::EDGE_ARMED || (!m_physicalButtons.empty() && !continuingHeldLeft()) || !m_physicalKeys.empty())
+  if (m_phase != CapturePhase::EDGE_ARMED || (!m_physicalButtons.empty() && !continuingHeldLeft()) || !m_physicalKeys.empty()) {
+    m_motionEdge.reset();
+    m_outwardMotion = 0;
     return std::nullopt;
+  }
 
   const auto selected = std::ranges::max_element(
       m_armedEdges, {}, [&](const EdgeCandidate &candidate) {
         return outward(candidate.edge, unacceleratedX, unacceleratedY);
       });
-  if (selected == m_armedEdges.end() ||
-      (!m_insideRemoteArm && outward(selected->edge, unacceleratedX, unacceleratedY) <
-          m_outwardThresholdDip))
+  if (selected == m_armedEdges.end()) return std::nullopt;
+  if (!m_motionEdge || m_motionEdge->monitorId != selected->monitorId || m_motionEdge->edge != selected->edge)
+    m_outwardMotion = 0;
+  m_motionEdge = *selected;
+  // Slow devices can emit only subpixel samples while the OS clamps at the
+  // seam. Measure net outward travel, not a minimum speed per input event.
+  const auto motion = outward(selected->edge, unacceleratedX, unacceleratedY);
+  m_outwardMotion = std::max(0.0, m_outwardMotion + motion);
+  if (!m_insideRemoteArm && (motion <= 0 || m_outwardMotion < m_outwardThresholdDip))
     return std::nullopt;
 
   m_activeEdge = *selected;

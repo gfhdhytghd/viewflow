@@ -321,6 +321,11 @@ struct App {
         // Surface coordinates are relative to a moving proxy. Resolve the actual
         // desktop pointer, so a delayed Windows position never adds drag motion twice.
         const auto position=nlohmann::json::parse(ipc("j/cursorpos"));
+        if(begin_drag) {
+            pointer_anchor_window=pointer_window;
+            pointer_anchor_x.desktop=position.at("x").get<double>();
+            pointer_anchor_y.desktop=position.at("y").get<double>();
+        }
         send(pointer_window,vf::InputKind::pointer,
             static_cast<int>(std::lround((position.at("x").get<double>()-origin_x)*scale)),
             static_cast<int>(std::lround((position.at("y").get<double>()-origin_y)*scale)),1);
@@ -1315,8 +1320,8 @@ struct App {
             const bool native_drag=w.drag_start_pending || (w.tile.flags&1)!=0;
             if(w.placed && w.drag_announced!=native_drag) {
                 if(native_drag && w.drag_has_anchor)send(id,vf::InputKind::proxy_drag_anchor,
-                    static_cast<int>(std::lround(double(w.drag_grab_x)*1000/scale)),
-                    static_cast<int>(std::lround(double(w.drag_grab_y)*1000/scale)),getpid());
+                    static_cast<int>(std::lround(vf::drag_grab_points(w.tile,w.drag_grab_x,scale)*1000)),
+                    static_cast<int>(std::lround(vf::drag_grab_points(w.tile,w.drag_grab_y,scale)*1000)),getpid());
                 send(id,vf::InputKind::proxy_drag,getpid(),native_drag,static_cast<int>(w.native_address),static_cast<int>(w.native_address>>32));
                 w.drag_announced=native_drag;
                 w.drag_start_pending=false;

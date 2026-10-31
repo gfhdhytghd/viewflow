@@ -597,6 +597,11 @@ compared against the original display image before adopting it for streaming.
 
 ### Mac window center crossing (2026-09-26)
 
+Historical behavior. The [2026-10-30 cross-boundary audit](cross-boundary-drag-audit.md)
+supersedes this center rule with positive-area remote overlap, after subtracting
+the physical display union. It also records source-drag takeover and four-edge
+validation boundaries. The paragraph below preserves the older behavior record.
+
 Mac-origin windows follow display ownership by their center. A remote proxy is
 eligible only once the window center is strictly inside a remote viewport and
 outside every physical Mac display. Touching the seam, or moving only a corner

@@ -2,6 +2,7 @@
 #include "input_capture_core.hpp"
 
 #include <array>
+#include <cassert>
 #include <cstdint>
 
 using namespace viewflow::hyprland;
@@ -12,6 +13,37 @@ static_assert(!windowPointerRouteAllowed(CapturePhase::CAPTURE_PENDING));
 static_assert(!windowPointerRouteAllowed(CapturePhase::REMOTE_CAPTURED));
 
 int main() {
+  // A clamped cursor still crosses with slow subpixel deltas, on every edge.
+  // Re-observing the same clamped position must retain accumulated motion.
+  for (const auto& remote : std::array{InputRect{1,-100,0,100,100},
+       InputRect{1,100,0,100,100},InputRect{1,0,-100,100,100},InputRect{1,0,100,100,100}}) {
+    InputCaptureCore slow;
+    const std::array monitors{InputRect{0,0,0,100,100},remote};
+    assert(slow.configureRemote(remote));
+    const double dx=remote.x<0?-.25:remote.x>0?.25:0;
+    const double dy=remote.y<0?-.25:remote.y>0?.25:0;
+    const double x=dx<0?.1:dx>0?99.9:50;
+    const double y=dy<0?.1:dy>0?99.9:50;
+    for(int i=0;i<3;++i) {
+      slow.observePosition(x,y,monitors);
+      assert(!slow.observeMotion(dx,dy));
+    }
+    // Leaving and re-entering the same edge cannot reuse old motion.
+    slow.observePosition(50,50,monitors);
+    slow.observePosition(x,y,monitors);
+    assert(!slow.observeMotion(dx,dy));
+    // Inward motion cancels accumulated intent; hover cannot trigger entry.
+    slow.observePosition(x,y,monitors);
+    assert(!slow.observeMotion(-dx*4,-dy*4));
+    assert(!slow.observeMotion(0,0));
+    for(int i=0;i<3;++i) {
+      slow.observePosition(x,y,monitors);
+      assert(!slow.observeMotion(dx,dy));
+    }
+    slow.observePosition(x,y,monitors);
+    assert(slow.observeMotion(dx,dy));
+  }
+
   CaptureSeat seat;
   int windows = 0, macos = 0;
   if (!seat.claim(&windows) || seat.claim(&macos)) return 70;
