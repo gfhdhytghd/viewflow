@@ -101,7 +101,8 @@ int main(int argc,char** argv) {
                 throw std::runtime_error("portable DMA-BUF readback/unpremultiply mismatch");
         viewflow::reverse::GpuDecoder decoder;decoder.start(1);
         std::string error;
-        viewflow::gpu::GpuDmabufEncoder encoder({width,height,4*1024*1024,2},&error);
+        viewflow::gpu::GpuDmabufEncoderConfig config;config.outputWidth=width;config.outputHeight=height;config.colorCodec=2;
+        viewflow::gpu::GpuDmabufEncoder encoder(config,&error);
         if(!encoder.ready()) throw std::runtime_error(error);
         egl.makeCurrent();
         unsigned frames=0;
