@@ -307,9 +307,102 @@ Window positions use source desktop coordinates. The presenter's `origin` adds
 a local placement offset; `scale` divides source pixels into local points (Mac
 and Hyprland) or pixels (Windows). Use scale 2 on the presenter when the Mac source
 uses scale 2. Offset negative source coordinates into a visible receiver area.
-Mac proxy Command-drag and Windows proxy Alt-drag move the native source window;
-the Hyprland proxy retains its existing Super-drag behavior. Normal clicks and
-keys operate the remote application.
+Mac proxy Command-drag moves the receiver's native proxy and synchronizes its
+content geometry to the source; Command+Shift-drag resizes it. Windows proxy
+Alt-drag moves the native source window; the Hyprland proxy retains its existing
+Super-drag behavior. Normal clicks and keys operate the remote application.
+
+### Linux 窗口在 Mac 上的移动、缩放与输入（2026-10-30）
+
+Linux 源端设置 `presenter_titlebar_flag`（16384），请求 Mac 在视频区域外增加
+原生标题栏。普通标题栏拖动由 AppKit 执行。内容区域的 Command+左键拖动移动
+代理，Command+Shift+左键拖动缩放代理。Linux 键盘的 Super 到达 Mac 后对应
+Command。弹出窗口不接管这些手势。缩放从按下位置计算，固定内容区域左上角。
+最小内容尺寸为 1×1；源应用仍可以约束最终尺寸。
+
+本地操作期间，Mac 持有代理几何。Mac 将内容区域的位置和大小发送给 Linux。
+Linux 执行原生操作，并在后续捕获帧中返回观测几何与 `geometry_ack`。
+Mac 在请求尚未确认时保留本地几何；确认后跟随源端观测结果。
+标题栏不属于视频尺寸，也不参与点击映射。AppKit 的 frame/content 转换负责
+排除标题栏高度，保留负坐标与 2 倍像素比例。普通源端位置变化继续同步到 Mac。
+
+新增标志使用现有记录中的标志位，不增加记录字段。旧 Mac 呈现器拒绝该未知位。
+发布时必须一起更新 Linux 源程序与 Mac 呈现器；只替换 Linux 输入辅助程序
+只能修复身份校验，不能增加标题栏或缩放手势。本次调查没有部署或重启应用。
+
+**原因与证据。** 本次只读调查发现以下问题：
+
+- `viewflow-linux-window-input` 将 `w.stable_id` 与 Lua 整数比较。实际运行的
+  Hyprland 通过 IPC 和 Lua 都返回十六进制字符串。窗口地址、PID、稳定 ID
+  均匹配时，旧判断仍失败。修复同时接受字符串与旧整数表示，保留这三个
+  身份条件及 mapped 条件。错误不依赖 kitty 或 XWayland。
+- Linux 的 `…-session/windows/55675023acb0-2327048.log:13` 起持续记录
+  `window target changed` 和 `Hyprland window input operation unavailable, media retained`。
+  该文件位于组 `5f36b8d50fbe23b994a88e1f7984b50e` 的运行目录。
+  Mac 的 `windows-receive-a4834581f2f870e013ee2802762a5160.log:2320–2356`
+  记录 `kind=4` 键盘事件，`:2307–2329` 记录原生拖动回退。
+  因此，事件到达 Mac 后仍遭 Linux 原生操作拒绝。几何请求确认后，Mac 跟随
+  未改变的源端几何，形成回弹。此处未将每个键与每条拒绝日志逐一配对。
+- 旧 Mac 代理使用 borderless 样式，没有原生标题栏。旧 Command 分支不区分
+  Shift，因而没有独立缩放路径。修复分别增加标题栏和缩放分支。
+
+2026-10-30 20:03 EDT 的只读窗口清单确认：目标地址 `0x55675023acb0`，
+PID `2327048`，稳定 ID `180001ed`，`class=kitty`，`xwayland=false`，
+`floating=true`。只读 Lua 查询返回 `string:180001ed:number:true`，分别表示
+稳定 ID 的类型和值、PID 类型、mapped 状态。生成后的生产校验语句在同一
+运行对象上只读执行成功；没有执行其后的 focus、move、resize 或输入动作。
+
+配置中的 `source_device=a483…` 是 Linux，`owner_device=ddc2…` 是 Mac。
+`direct_keyboard=true`，远端输出比例为 2。Linux 的跨屏输入先到 Mac，
+Mac 也可以接收自己的物理输入。Mac 呈现器再通过 `vf-window-peer` 的有序
+窗口输入流返回 Linux，经 `vf-hyprland-windows` 和
+`viewflow-linux-window-input` 到达 Hyprland。此窗口后端不经过
+`window_keyboard_runtime` 的焦点租约协议。日志支持这条已配置路径，
+不能单凭日志确定用户复现时每个事件来自哪一套物理键鼠。
+
+**部署来源。** Linux 正在运行 `linux-20261018-keyboard1`。
+其 `bundle-manifest.json` 声明基础 revision 为
+`c5a3062169e11b4ad7b7b4d55456eea0b540e19c`，`dirty=true`；
+键盘热修 revision 为 `762fcc9c9d1827e3adda9fc07e09a3129b8c411b`，
+`plugin_source_dirty=true`。清单明确说明应用组件复用了混合来源的已安装包。
+因此，不能将整个部署归属到单个干净提交。
+调查起点 `robustness-hardening` 的 `02571fde1c4f4a88a4262a0ae16ce3400e7a04be`
+仍有上述整数比较、borderless 样式和缺少 Shift 分支的问题。
+Mac 应用清单声明 `git_revision=d38b72276bc0cfc5dd05a9cadb0e11c7e4c68258`、
+`workspace_dirty=true`，打包时间为 2026-10-05。该清单不证明后续单独替换的
+辅助程序与此提交完全一致。
+
+**自动验证。** 以下检查均不注入输入、不改变焦点、不捕获屏幕：
+
+- `cargo test --workspace`：1022 项通过，6 项忽略，0 项失败。
+- `cargo clippy --workspace --all-targets -- -D clippy::unwrap_used`：通过；
+  仓库已有的其他 lint 警告仍保留。
+- `cd platform/desktop-app && QT_QPA_PLATFORM=offscreen /tmp/viewflow-hid-ui-venv/bin/python -m unittest discover -p "test_*.py"`：
+  76 项测试，2 项跳过，结果为 OK。
+- `cmake -S platform/linux-window-input -B /tmp/viewflow-l2m-input-build && cmake --build /tmp/viewflow-l2m-input-build && ctest --test-dir /tmp/viewflow-l2m-input-build --output-on-failure`：
+  编译通过；help 与生产身份校验的 Lua 回归测试通过。
+  身份测试覆盖字符串 ID、旧整数 ID、错误 ID、错误 PID、未映射和关闭窗口。
+- `c++ -std=c++20 -Wall -Wextra -Werror -UNDEBUG platform/macos/window_gesture_test.cpp -o /tmp/viewflow-l2m-gesture-test && /tmp/viewflow-l2m-gesture-test`：
+  手势选择、负坐标、缩放方向及最小内容尺寸测试通过。
+- `c++ -std=c++20 -Wall -Wextra -Werror -UNDEBUG platform/reverse-common/wire_test.cpp -o /tmp/viewflow-l2m-wire-test && /tmp/viewflow-l2m-wire-test`：
+  新标题栏标志往返与未知标志拒绝测试通过。
+- Mac 上的 `window_titlebar_geometry_test.mm`：只执行 AppKit 类方法，
+  验证标题栏与内容区域转换、负坐标、2 倍尺寸和中心点击映射；结果通过。
+- `cargo test -p viewflowd --bin vf-hyprland-windows --features native-gpu-nvenc`：
+  原生源程序编译通过；负坐标、源端装饰与输入几何转换测试通过。
+- Mac 上隔离临时目录中的完整窗口程序通过 `clang++` 编译与链接，
+  使用 `-std=c++20 -fobjc-arc -Wall -Wextra -Werror`。没有运行呈现器或捕获器。
+
+**用户手动验收。** 下列检查未执行，留待配套程序更新后由用户操作：
+
+1. 将 Wayland kitty 拖到 Mac，检查原生标题栏和完整内容。
+2. 拖动标题栏，释放后等待数秒，检查窗口没有回弹。
+3. 在内容区域执行 Super/Command+左键拖动，检查移动与跨屏位置同步。
+4. 执行 Super/Command+Shift+左键拖动，检查放大、缩小与释放后尺寸。
+5. 点击 kitty，输入文字，检查 Shift、Ctrl 组合键及按键释放。
+6. 切到另一窗口再返回，检查输入恢复且其他代理继续显示。
+7. 分别使用 Linux 与 Mac 的键鼠重复以上检查。
+8. 检查负坐标显示器、全屏切换与应用最小尺寸；关闭窗口后检查没有残留按键。
 
 Mac proxy shortcuts use a native-first fallback: AppKit's menu/responder chain
 gets the shortcut first, and an unhandled shortcut is forwarded to the Linux
