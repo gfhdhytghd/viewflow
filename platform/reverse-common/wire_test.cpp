@@ -50,9 +50,11 @@ int main() {
         ++differences;flag_high_byte=i;assert((bytes[i]^desktop_bytes[i])==0x20);
     }
     assert(differences==1);
-    auto unknown=desktop_frame;unknown.tiles[0].flags|=16384u;rejected([&]{vf::pack_frame(unknown);});
+    auto titled=frame;titled.tiles[0].flags|=vf::presenter_titlebar_flag;
+    assert(vf::unpack_frame(vf::pack_frame(titled)).tiles[0].flags&vf::presenter_titlebar_flag);
+    auto unknown=desktop_frame;unknown.tiles[0].flags|=32768u;rejected([&]{vf::pack_frame(unknown);});
     unknown.tiles[0].flags=0x80000000u;rejected([&]{vf::pack_frame(unknown);});
-    auto unknown_bytes=desktop_bytes;unknown_bytes[flag_high_byte]|=0x40;rejected([&]{vf::unpack_frame(unknown_bytes);});
+    auto unknown_bytes=desktop_bytes;unknown_bytes[flag_high_byte]|=0x80;rejected([&]{vf::unpack_frame(unknown_bytes);});
     auto popup_frame=frame;popup_frame.tiles[0].flags|=vf::windows_popup_flag;
     assert(vf::unpack_frame(vf::pack_frame(popup_frame)).tiles[0].flags&vf::windows_popup_flag);
     auto shell_frame=frame;shell_frame.tiles[0].flags|=vf::windows_shell_flag;

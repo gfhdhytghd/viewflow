@@ -11,6 +11,7 @@
 #include "../reverse-common/geometry_sync.hpp"
 #include "../reverse-common/shadow_corner.hpp"
 #include "window_shortcut_policy.hpp"
+#include "window_gesture.hpp"
 #include "window_background.hpp"
 #import <AppKit/AppKit.h>
 #import <CoreImage/CoreImage.h>
@@ -162,6 +163,8 @@ struct Proxy {
     NSRect drag_last_frame{};
     NSPoint drag_last_pointer{};
     bool drag_fallback_logged{}, drag_native_moved{};
+    bool resizing{};
+    NSRect resize_start{};
     vf::NativeMoveConfirmation move_confirmation;
     bool geometry_queued{};
     uint64_t geometry_pending{}, generation{};
@@ -267,7 +270,7 @@ struct Presenter {
         // independently of the source (for example at the top screen edge).
         // A desktop-global coordinate would then hit a different source window.
         const auto point = NSEvent.mouseLocation;
-        const auto body = body_screen_rect(proxy.tile,proxy.window.frame);
+        const auto body = body_screen_rect(proxy.tile,[proxy.window contentRectForFrameRect:proxy.window.frame]);
         if(body.size.width<=0 || body.size.height<=0)return;
         send(proxy.tile.id, vf::InputKind::pointer,
             static_cast<int>(std::lround(proxy.tile.x+(point.x-NSMinX(body))*body_width(proxy.tile)/body.size.width)),
@@ -284,7 +287,7 @@ struct Presenter {
     }
     void flush_geometry(Proxy& proxy) {
         if (proxy.applying || quitting || proxy.fullscreen_transition || (proxy.window.styleMask & NSWindowStyleMaskFullScreen)) return;
-        const auto rect = body_screen_rect(proxy.tile,proxy.window.frame);
+        const auto rect = body_screen_rect(proxy.tile,[proxy.window contentRectForFrameRect:proxy.window.frame]);
         const double desktop_top = NSScreen.screens.firstObject.frame.size.height;
         const auto sent = send(proxy.tile.id, vf::InputKind::geometry,
             static_cast<int>(std::lround((rect.origin.x - options.origin_x) * options.scale)),
@@ -593,7 +596,10 @@ struct Presenter {
                 entry = std::make_unique<Proxy>(); auto& proxy = *entry;
                 proxy.owner = this; proxy.tile = tile; proxy.generation = ++next_generation;
                 proxy.window = [[VFProxyWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1, 1)
-                    styleMask:(tile.flags & 2 ? NSWindowStyleMaskBorderless : NSWindowStyleMaskBorderless | NSWindowStyleMaskResizable) backing:NSBackingStoreBuffered defer:NO];
+                    styleMask:(tile.flags & 2 ? NSWindowStyleMaskBorderless :
+                        NSWindowStyleMaskResizable | ((tile.flags & vf::presenter_titlebar_flag) ?
+                        NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable : NSWindowStyleMaskBorderless))
+                    backing:NSBackingStoreBuffered defer:NO];
                 proxy.window.releasedWhenClosed = NO;
                 proxy.window.animationBehavior = NSWindowAnimationBehaviorNone;
                 if(tile.flags&2) {
@@ -645,9 +651,9 @@ struct Presenter {
             }
             proxy.background->configure(blur_recipe);
             const double desktop_top = NSScreen.screens.firstObject.frame.size.height;
-            const auto rect = surface_screen_rect(tile,NSMakeRect(options.origin_x + tile.x / options.scale,
+            const auto rect = [proxy.window frameRectForContentRect:surface_screen_rect(tile,NSMakeRect(options.origin_x + tile.x / options.scale,
                 desktop_top - options.origin_y - (tile.y + body_height(tile)) / options.scale,
-                body_width(tile) / options.scale, body_height(tile) / options.scale));
+                body_width(tile) / options.scale, body_height(tile) / options.scale))];
             if (!proxy.fullscreen_transition && !proxy.fullscreen_pending && !(proxy.window.styleMask & NSWindowStyleMaskFullScreen) && !proxy.dragging && !proxy.geometry_queued && (!proxy.geometry_pending || tile.geometry_ack >= proxy.geometry_pending)) {
                 proxy.geometry_pending = 0; proxy.applying = true;
                 if (!same_backing_frame(proxy.window.frame,rect,options.scale)) [proxy.window setFrame:rect display:NO animate:NO];
@@ -781,6 +787,15 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
 - (void)mouseEntered:(NSEvent*)event { [self mouseMoved:event]; }
 - (void)mouseDragged:(NSEvent*)event {
     if (proxy && proxy->dragging) {
+        if (proxy->resizing) {
+            const auto point = NSEvent.mouseLocation;
+            const auto start = proxy->resize_start;
+            const auto rect = vm::resize_from_press({start.origin.x,start.origin.y,start.size.width,start.size.height},
+                point.x-proxy->drag_start.x,point.y-proxy->drag_start.y);
+            [self.window setFrame:[self.window frameRectForContentRect:NSMakeRect(rect.x,rect.y,rect.width,rect.height)] display:YES];
+            proxy->owner->geometry(*proxy);
+            return;
+        }
         // Normally WindowServer consumes the drag. Some posted cross-desktop
         // events still reach this view without moving the native window. Keep
         // that input usable locally, while leaving native tiling enabled.
@@ -820,20 +835,26 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
         (unsigned long long)proxy->tile.id,NSEvent.mouseLocation.x,NSEvent.mouseLocation.y,
         self.window.frame.origin.x,self.window.frame.origin.y,int(proxy->geometry_queued),
         (unsigned long long)proxy->geometry_pending,(unsigned long long)proxy->tile.geometry_ack);
-    if (event.modifierFlags & NSEventModifierFlagCommand) {
+    const auto gesture = vm::window_gesture(proxy->tile.flags & 2,
+        event.modifierFlags & NSEventModifierFlagCommand, event.modifierFlags & NSEventModifierFlagShift);
+    if (gesture != vm::WindowGesture::forward) {
         proxy->owner->send(proxy->tile.id, vf::InputKind::release);
         // Let the receiving desktop own dragging, edge tiling, and Spaces.
         const auto point = NSEvent.mouseLocation;
         proxy->drag_offset = NSMakePoint(point.x-self.window.frame.origin.x,
                                         point.y-self.window.frame.origin.y);
         proxy->dragging = true;proxy->owner->interaction(proxy->tile.id,true);
+        proxy->resizing = gesture == vm::WindowGesture::resize;
+        proxy->drag_start = point;
+        proxy->resize_start = [self.window contentRectForFrameRect:self.window.frame];
         proxy->modifiers.clear();
         proxy->keys.clear();
         proxy->owner->geometry(*proxy);
         proxy->drag_last_frame = self.window.frame; proxy->drag_last_pointer = point;
         proxy->drag_fallback_logged = false; proxy->drag_native_moved=false;
         proxy->geometry_queued = false; proxy->owner->flush_geometry(*proxy);
-        [self.window performWindowDragWithEvent:event]; return;
+        if (!proxy->resizing) [self.window performWindowDragWithEvent:event];
+        return;
     }
     [self button:event down:YES];
     if (!(proxy->tile.flags & 2) && !proxy->geometry_queued &&
@@ -848,7 +869,7 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
 - (void)mouseUp:(NSEvent*)event {
     if (proxy) { proxy->move_confirmation.cancel(); proxy->drag_event = nil; }
     if (proxy && proxy->dragging) {
-        proxy->dragging = false;proxy->owner->interaction(proxy->tile.id,false);
+        proxy->dragging = false;proxy->resizing = false;proxy->owner->interaction(proxy->tile.id,false);
         proxy->owner->geometry(*proxy);
         return;
     }
@@ -912,7 +933,7 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
     if (proxy) {
         proxy->modifiers.clear();
         proxy->keys.clear();
-        proxy->dragging = false;proxy->owner->interaction(proxy->tile.id,false);
+        proxy->dragging = false;proxy->resizing = false;proxy->owner->interaction(proxy->tile.id,false);
         proxy->move_confirmation.cancel();
         proxy->drag_event = nil;
         proxy->owner->send(proxy->tile.id, vf::InputKind::release);

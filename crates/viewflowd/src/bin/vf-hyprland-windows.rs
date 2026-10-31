@@ -560,7 +560,9 @@ mod native {
                         let sx = f64::from(captured.crop_width) / captured.logical_width;
                         let sy = f64::from(captured.crop_height) / captured.logical_height;
                         let tile = Tile {
-                            flags: 512 | (if fullscreen.load(Ordering::Acquire) {32} else {0}) | (if raised.load(Ordering::Acquire) {64} else {0}),
+                            // Hyprland decorations do not provide an AppKit title
+                            // bar. Request receiver-owned chrome outside the video.
+                            flags: 512 | 16384 | (if fullscreen.load(Ordering::Acquire) {32} else {0}) | (if raised.load(Ordering::Acquire) {64} else {0}),
                             id: 1,
                             x: (captured.logical_x * sx).round() as i32,
                             y: (captured.logical_y * sy).round() as i32,

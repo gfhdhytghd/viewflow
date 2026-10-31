@@ -23,6 +23,7 @@ inline constexpr std::uint32_t application_icon_flag = 1024u;
 inline constexpr std::uint32_t windows_shell_flag = 2048u;
 inline constexpr std::uint32_t windows_desktop_output_flag = 8192u; // final composed DD output: opaque full rectangle, not WGC alpha
 inline constexpr std::uint32_t windows_popup_flag = 4096u; // native transient/tool surface; not inferred from size
+inline constexpr std::uint32_t presenter_titlebar_flag = 16384u; // source requests receiver-owned window chrome
 struct Tile {
     std::uint64_t id{}, owner{};
     std::int32_t x{}, y{};
@@ -111,7 +112,7 @@ inline void validate(const Frame& frame) {
         throw std::runtime_error("invalid shared frame reference envelope");
     std::set<std::uint64_t> ids;
     for(const auto& tile:frame.tiles) {
-        if(!tile.id || !ids.insert(tile.id).second || !tile.width || !tile.height || tile.width>dimension || tile.height>dimension || tile.title.size()>4096 || (tile.flags & ~(8191u | windows_desktop_output_flag)) ||
+        if(!tile.id || !ids.insert(tile.id).second || !tile.width || !tile.height || tile.width>dimension || tile.height>dimension || tile.title.size()>4096 || (tile.flags & ~(8191u | windows_desktop_output_flag | presenter_titlebar_flag)) ||
            ((tile.flags&4) && (!(tile.flags&1) || tile.grab_x < -1000000 || tile.grab_x > 1000000 || tile.grab_y < -1000000 || tile.grab_y > 1000000)))
             throw std::runtime_error("invalid reverse tile");
         if(tile.flags&application_icon_flag) {

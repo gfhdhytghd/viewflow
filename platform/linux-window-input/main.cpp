@@ -1,4 +1,5 @@
 #include "../reverse-common/pipe_io.hpp"
+#include "window_identity.hpp"
 #include "wlr-virtual-pointer-unstable-v1-client-protocol.h"
 #include "virtual-keyboard-unstable-v1-client-protocol.h"
 #include <wayland-client.h>
@@ -130,10 +131,7 @@ struct App {
         if (wl_display_roundtrip(display) < 0 || !state) throw std::runtime_error("read native keyboard layout");
     }
     std::string guard() const {
-        // The client inventory serializes stable IDs as hexadecimal strings;
-        // Lua window objects expose the same ID as an integer.
-        return "local w=hl.get_window('address:" + address + "');assert(w and w.mapped and w.pid==" + std::to_string(pid) +
-            " and w.stable_id==0x" + stable_id + ",'window target changed');";
+        return viewflow::linux_input::window_guard(address, pid, stable_id);
     }
     void action(const std::string& body) {
         const auto result = ipc("/eval " + guard() + body);
