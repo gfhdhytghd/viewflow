@@ -666,11 +666,12 @@ async fn run(
                     .observe((x, y), left_button_held, &config.drag, &config.reverse_drag)
                     .await;
             }
-            let returned = feedback_seen
-                .then(|| {
-                    observed_cursor_return(&config.local, config.remote, previous_position, (x, y))
-                })
-                .flatten();
+            // The first feedback sample may already be clamped at the seam.
+            // Use the activation position too; waiting for a second sample
+            // loses the only outward delta and strands a fast return.
+            let returned = observed_cursor_return(
+                &config.local, config.remote, previous_position, (x, y),
+            );
             feedback_seen = true;
             let Some(position) = returned else {
                 continue;
@@ -1416,6 +1417,26 @@ mod tests {
             observed_cursor_return(&[local], remote, (3080., 100.), (3072., 100.)),
             None
         );
+    }
+
+    #[test]
+    fn first_native_feedback_can_return_at_each_clamped_edge() {
+        let local = DesktopRect { x_millidip: -100_000, y_millidip: -200_000,
+            width_millidip: 1_000_000, height_millidip: 800_000 };
+        for (rx, ry, previous, current) in [
+            (900_000, -200_000, (903., 0.), (900., 0.)),
+            (-1_100_000, -200_000, (-104., 0.), (-101., 0.)),
+            (-100_000, 600_000, (100., 603.), (100., 600.)),
+            (-100_000, -1_000_000, (100., -204.), (100., -201.)),
+        ] {
+            let remote = DesktopRect { x_millidip: rx, y_millidip: ry,
+                width_millidip: 1_000_000, height_millidip: 800_000 };
+            let point = observed_cursor_return(&[local], remote, previous, current)
+                .expect("first sample at the clamped seam must return");
+            assert!(contains(local, point.0, point.1));
+            assert!(observed_cursor_return(&[local], remote, current, current).is_none());
+            assert!(observed_cursor_return(&[local], remote, current, previous).is_none());
+        }
     }
 
     #[test]

@@ -1,3 +1,5 @@
+#include "../reverse-common/source_drag.hpp"
+#include "../reverse-common/window_surface.hpp"
 #include "../reverse-common/activity_hint.hpp"
 #include "../reverse-common/activity_workers.hpp"
 #include "../reverse-common/activity_presentation.hpp"
@@ -164,6 +166,8 @@ struct Proxy {
     NSPoint drag_last_pointer{};
     bool drag_fallback_logged{}, drag_native_moved{};
     bool resizing{};
+    vf::SourceDrag source_drag;
+    NSPoint source_grab{};
     NSRect resize_start{};
     vf::NativeMoveConfirmation move_confirmation;
     bool geometry_queued{};
@@ -465,12 +469,47 @@ struct Presenter {
         // Shadow-only hit testing must use a separate noninteractive surface.
         for(auto& [_,entry]:windows){entry->window.ignoresMouseEvents=NO;sync_shadow(*entry);}
     }
+    void follow_source_drag(Proxy& proxy) {
+        if(proxy.source_drag.active && (proxy.fullscreen_transition || (proxy.window.styleMask&NSWindowStyleMaskFullScreen))) {
+            proxy.source_drag.cancel();proxy.dragging=false;interaction(proxy.tile.id,false);return;
+        }
+        const bool hint=(proxy.tile.flags&5)==5 && !(proxy.tile.flags&2);
+        const bool available=proxy.shown && !proxy.dragging && !proxy.geometry_queued &&
+            (!proxy.geometry_pending || proxy.tile.geometry_ack>=proxy.geometry_pending) &&
+            !proxy.fullscreen_transition && !(proxy.window.styleMask&NSWindowStyleMaskFullScreen);
+        const auto action=proxy.source_drag.observe(hint,NSEvent.pressedMouseButtons&1,available);
+        if(action==vf::SourceDragAction::none)return;
+        if(action==vf::SourceDragAction::begin) {
+            proxy.source_grab=NSMakePoint(vf::drag_grab_points(proxy.tile,proxy.tile.grab_x,options.scale),
+                                         vf::drag_grab_points(proxy.tile,proxy.tile.grab_y,options.scale));
+            if(!send(proxy.tile.id,vf::InputKind::release)) {
+                proxy.source_drag={};return; // Retry locally after ordered-output backpressure.
+            }
+            proxy.modifiers.clear();proxy.keys.clear();
+            proxy.dragging=true;interaction(proxy.tile.id,true);
+            std::fprintf(stderr,"macos-source-drag-handoff window=%llu grab=%.1f,%.1f\n",
+                (unsigned long long)proxy.tile.id,proxy.source_grab.x,proxy.source_grab.y);
+        }
+        const auto point=NSEvent.mouseLocation;
+        const auto frame=proxy.window.frame;
+        const auto body=body_screen_rect(proxy.tile,[proxy.window contentRectForFrameRect:frame]);
+        const auto origin=NSMakePoint(frame.origin.x+point.x-proxy.source_grab.x-body.origin.x,
+            frame.origin.y+point.y+proxy.source_grab.y-NSMaxY(body));
+        if(!NSEqualPoints(origin,frame.origin)) {
+            [proxy.window setFrameOrigin:origin];geometry(proxy);
+        } else if(action!=vf::SourceDragAction::follow)geometry(proxy);
+        if(action==vf::SourceDragAction::finish) {
+            proxy.dragging=false;interaction(proxy.tile.id,false);
+            std::fprintf(stderr,"macos-source-drag-end window=%llu\n",(unsigned long long)proxy.tile.id);
+        }
+    }
     void draw_pending() {
         update_pointer_regions();
         if (windows.empty()) return;
         auto it = windows.upper_bound(last_drawn);
         for (size_t remaining = windows.size(); remaining; --remaining) {
             if (it == windows.end()) it = windows.begin();
+            follow_source_drag(*it->second);
             // WindowServer-owned dragging may consume mouseUp. Physical state
             // completes ownership without depending on a proxy-delivered event.
             if (it->second->dragging && !(NSEvent.pressedMouseButtons & 1)) {
@@ -733,7 +772,8 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
         auto* state=((VFProxyView*)self.contentView)->proxy;
         // Remote geometry can belong to an adjacent device. AppKit must not
         // constrain it back onto this screen and feed that correction upstream.
-        if(state && state->applying)return frame;
+        if(state && vm::unconstrained_move(state->applying,state->dragging,state->resizing,
+            self.styleMask & NSWindowStyleMaskFullScreen))return frame;
         if(state && state->local_padding && !(self.styleMask&NSWindowStyleMaskFullScreen)) {
             const auto body=body_screen_rect(state->tile,frame);
             return surface_screen_rect(state->tile,[super constrainFrameRect:body toScreen:screen]);
@@ -783,9 +823,10 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
         options:NSTrackingMouseMoved | NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
         owner:self userInfo:nil]];
 }
-- (void)mouseMoved:(NSEvent*)event { if (proxy) proxy->owner->pointer(*proxy, event); }
+- (void)mouseMoved:(NSEvent*)event { if (proxy && !proxy->dragging) proxy->owner->pointer(*proxy, event); }
 - (void)mouseEntered:(NSEvent*)event { [self mouseMoved:event]; }
 - (void)mouseDragged:(NSEvent*)event {
+    if(proxy && proxy->source_drag.active) { proxy->owner->follow_source_drag(*proxy);return; }
     if (proxy && proxy->dragging) {
         if (proxy->resizing) {
             const auto point = NSEvent.mouseLocation;
@@ -867,8 +908,14 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
     }
 }
 - (void)mouseUp:(NSEvent*)event {
+    if(proxy && proxy->source_drag.active) {
+        proxy->owner->follow_source_drag(*proxy);
+        proxy->source_drag.cancel();
+        return;
+    }
     if (proxy) { proxy->move_confirmation.cancel(); proxy->drag_event = nil; }
     if (proxy && proxy->dragging) {
+        proxy->source_drag.cancel();
         proxy->dragging = false;proxy->resizing = false;proxy->owner->interaction(proxy->tile.id,false);
         proxy->owner->geometry(*proxy);
         return;
@@ -933,6 +980,7 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
     if (proxy) {
         proxy->modifiers.clear();
         proxy->keys.clear();
+        proxy->source_drag.cancel();
         proxy->dragging = false;proxy->resizing = false;proxy->owner->interaction(proxy->tile.id,false);
         proxy->move_confirmation.cancel();
         proxy->drag_event = nil;
@@ -942,6 +990,15 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
 - (void)windowDidBecomeKey:(NSNotification*)notification {
     if(proxy && proxy->application_icon)NSApp.applicationIconImage=proxy->application_icon;
     (void)notification; if (proxy) proxy->owner->send(proxy->tile.id, vf::InputKind::focus);
+}
+- (void)windowWillMove:(NSNotification*)notification {
+    (void)notification;
+    // Native titlebar moves do not pass through the content view's mouseDown.
+    if(proxy && !proxy->applying && !proxy->dragging && (NSEvent.pressedMouseButtons & 1)) {
+        proxy->owner->send(proxy->tile.id,vf::InputKind::release);
+        proxy->modifiers.clear();proxy->keys.clear();
+        proxy->dragging=true;proxy->owner->interaction(proxy->tile.id,true);
+    }
 }
 - (void)windowDidMove:(NSNotification*)notification {
     (void)notification; if (proxy) proxy->owner->geometry(*proxy);

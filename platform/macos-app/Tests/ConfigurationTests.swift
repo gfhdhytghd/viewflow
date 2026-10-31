@@ -84,15 +84,15 @@ import Foundation
         var crossing = local
         crossing.physicalDisplays = [[100,0,1920,1200]]
         crossing.remoteDisplays = [[-2972,0,3072,1728]]
-        precondition((try? crossing.selected(existing: [], limit: 8)) == [])
+        precondition((try? crossing.selected(existing: [], limit: 8)) == [one])
         for edge in [399.0, 400.0, 401.0, 399.0] {
             crossing.physicalDisplays = [[edge,0,1920,1200]]
             crossing.remoteDisplays = [[edge-3072,0,3072,1728]]
-            precondition(crossing.needsRemote(one) == (edge > 400))
+            precondition(crossing.needsRemote(one) == (edge > 0))
         }
         let remotePeer = ConnectionProfile.WindowDestination(id: "linux", address: "127.0.0.1:44221", serverName: "linux", viewport: .init(width: 3072, height: 1728, x: -2671, y: 0))
         precondition(remotePeer.accepts(one))
-        var touchingPeer = remotePeer; touchingPeer.viewport!.x = -2672
+        var touchingPeer = remotePeer; touchingPeer.viewport!.x = -3072
         precondition(!touchingPeer.accepts(one))
         var covered = crossing
         covered.physicalDisplays = [[0,0,400,1200],[400,0,400,1200]]
@@ -100,7 +100,26 @@ import Foundation
         var gap = covered
         gap.physicalDisplays = [[0,0,300,1200],[400,0,400,1200]]
         gap.remoteDisplays = [[300,0,100,1200]]
-        precondition((try? gap.selected(existing: [], limit: 8)) == [])
+        precondition((try? gap.selected(existing: [], limit: 8)) == [one])
+        for (viewport, frame) in [
+            ([-1100,-200,1000,800],[-101.0,0,200,200]),
+            ([900,-200,1000,800],[701.0,0,200,200]),
+            ([-100,-1000,1000,800],[100.0,-201,200,200]),
+            ([-100,600,1000,800],[100.0,401,200,200])
+        ] {
+            let window = NativeWindow(windowID: 1, pid: 10, bundleID: "com.example", applicationName: "Example",
+                executableName: "Example", onScreen: true, layer: 0, framePoints: frame)
+            let sample = WindowInventory(schemaVersion: 1, enumeration: "ok", windows: [window],
+                physicalDisplays: [[-100,-200,1000,800]], remoteDisplays: [viewport.map(Double.init)])
+            precondition(sample.needsRemote(window))
+            let peer = ConnectionProfile.WindowDestination(id: "edge", address: "127.0.0.1:44221", serverName: "edge",
+                viewport: .init(width: viewport[2], height: viewport[3], x: viewport[0], y: viewport[1]))
+            precondition(peer.accepts(window))
+        }
+        var coveredRemote = gap
+        coveredRemote.physicalDisplays = [[0,0,300,1200]]
+        coveredRemote.remoteDisplays = [[0,0,100,1200]]
+        precondition(!coveredRemote.needsRemote(one))
         var noGeometry = local; noGeometry.physicalDisplays = nil
         precondition(!noGeometry.needsRemote(one))
         do {

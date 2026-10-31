@@ -110,8 +110,9 @@ struct ConnectionProfile: Codable, Equatable {
             guard let viewport else { return true }
             guard window.framePoints.count == 4 else { return false }
             let frame = CGRect(x: window.framePoints[0], y: window.framePoints[1], width: window.framePoints[2], height: window.framePoints[3])
-            return frame.midX > Double(viewport.x) && frame.midX < Double(viewport.x + viewport.width) &&
-                frame.midY > Double(viewport.y) && frame.midY < Double(viewport.y + viewport.height)
+            let target = CGRect(x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height)
+            let hit = frame.intersection(target)
+            return !hit.isNull && hit.width > 0 && hit.height > 0
         }
     }
 
@@ -260,8 +261,8 @@ struct WindowInventory: Decodable {
         case pointerPoints = "pointer_points", leftButtonDown = "left_button_down"
         case physicalDisplays = "physical_displays", remoteDisplays = "remote_displays"
     }
-    // Match native Mac ownership: touching an edge is insufficient; the center
-    // must cross into a remote display. Physical displays win any overlap.
+    // Match native capture and destination selection: a positive-area crossing
+    // starts sharing, after subtracting the physical display union.
     func needsRemote(_ window: NativeWindow) -> Bool {
         guard let physicalDisplays, let remoteDisplays else { return false }
         func rect(_ values: [Double]) -> CGRect? {
@@ -269,9 +270,24 @@ struct WindowInventory: Decodable {
             return CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
         }
         guard let frame = rect(window.framePoints) else { return false }
-        let x = frame.midX, y = frame.midY
-        if physicalDisplays.compactMap(rect).contains(where: { x >= $0.minX && x <= $0.maxX && y >= $0.minY && y <= $0.maxY }) { return false }
-        return remoteDisplays.compactMap(rect).contains { x > $0.minX && x < $0.maxX && y > $0.minY && y < $0.maxY }
+        for remote in remoteDisplays.compactMap(rect) {
+            let hit = frame.intersection(remote)
+            if hit.isNull || hit.width <= 0 || hit.height <= 0 { continue }
+            var uncovered = [hit]
+            for display in physicalDisplays.compactMap(rect) {
+                uncovered = uncovered.flatMap { part -> [CGRect] in
+                    let covered = part.intersection(display)
+                    if covered.isNull || covered.width <= 0 || covered.height <= 0 { return [part] }
+                    return [CGRect(x: part.minX, y: part.minY, width: part.width, height: covered.minY-part.minY),
+                            CGRect(x: part.minX, y: covered.maxY, width: part.width, height: part.maxY-covered.maxY),
+                            CGRect(x: part.minX, y: covered.minY, width: covered.minX-part.minX, height: covered.height),
+                            CGRect(x: covered.maxX, y: covered.minY, width: part.maxX-covered.maxX, height: covered.height)]
+                        .filter { $0.width > 0 && $0.height > 0 }
+                }
+            }
+            if !uncovered.isEmpty { return true }
+        }
+        return false
     }
     func selected(existing: Set<String>, limit: Int) throws -> [NativeWindow] {
         guard schemaVersion == 1, enumeration == "ok" else {

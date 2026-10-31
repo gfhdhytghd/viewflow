@@ -1,9 +1,40 @@
 #include "window_surface.hpp"
+#include "source_drag.hpp"
 #include "window_resize.hpp"
 #include <cassert>
 #include <cmath>
 namespace vf=viewflow::reverse;
 int main() {
+    // Native-frame grabs use logical body units; legacy grabs use scaled
+    // desktop units. Both must land at the same point on a scale-two host.
+    vf::Tile legacy_grab,native_grab;
+    native_grab.flags=16;native_grab.pixel_scale=2;
+    for(double receiver_scale:{1.,1.5,2.,3.}) {
+        const auto x=vf::drag_grab_pixels(120,2), y=vf::drag_grab_pixels(24,2);
+        assert(vf::drag_grab_points(legacy_grab,x,receiver_scale)==240/receiver_scale);
+        assert(vf::drag_grab_points(native_grab,120,receiver_scale)==240/receiver_scale);
+        assert(vf::drag_grab_points(legacy_grab,y,receiver_scale)==48/receiver_scale);
+        assert(vf::drag_grab_points(native_grab,24,receiver_scale)==48/receiver_scale);
+    }
+    assert(-3072+500-vf::drag_grab_points(native_grab,120,2)==-2692);
+    vf::Tile windows_grab;windows_grab.flags=16;windows_grab.pixel_scale=1;
+    assert(vf::drag_grab_points(windows_grab,120,2)==60);
+    // Source hint can start without a local mouseDown. Source release clears
+    // the hint but must not stop local following before the physical mouseUp.
+    vf::SourceDrag source_drag;
+    assert(source_drag.observe(true,false,true)==vf::SourceDragAction::none);
+    assert(source_drag.observe(true,true,false)==vf::SourceDragAction::none);
+    assert(source_drag.observe(true,true,true)==vf::SourceDragAction::begin);
+    assert(source_drag.observe(false,true,false)==vf::SourceDragAction::follow);
+    assert(source_drag.observe(false,false,true)==vf::SourceDragAction::finish);
+    assert(source_drag.observe(false,false,true)==vf::SourceDragAction::none);
+    assert(source_drag.observe(true,true,true)==vf::SourceDragAction::begin);
+    source_drag.cancel();
+    assert(source_drag.observe(true,true,true)==vf::SourceDragAction::none);
+    assert(source_drag.observe(false,true,true)==vf::SourceDragAction::none);
+    assert(source_drag.observe(true,true,true)==vf::SourceDragAction::begin);
+    assert(source_drag.observe(true,false,true)==vf::SourceDragAction::finish);
+    assert(source_drag.observe(true,true,true)==vf::SourceDragAction::none); // old hint, new press
     vf::WindowResize resize;
     resize.queue({10,20,800,600},1000);
     assert(!resize.ready(1099));

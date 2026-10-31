@@ -142,6 +142,8 @@ private:
 
   double m_edgeBandDip;
   double m_outwardThresholdDip;
+  double m_outwardMotion = 0;
+  std::optional<EdgeCandidate> m_motionEdge;
   CapturePhase m_phase = CapturePhase::LOCAL;
   std::vector<EdgeCandidate> m_armedEdges;
   std::optional<EdgeCandidate> m_activeEdge;

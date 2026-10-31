@@ -35,23 +35,29 @@ def needs_remote(window, physical, remote):
         x, y = max(a[0], b[0]), max(a[1], b[1])
         w, h = min(a[0]+a[2], b[0]+b[2])-x, min(a[1]+a[3], b[1]+b[3])-y
         return (x, y, w, h) if w > 0 and h > 0 else None
-    if not any(intersect(frame, region) for region in remote):
-        return False
-    uncovered = [frame]
-    for display in physical:
-        remaining = []
-        for part in uncovered:
-            hit = intersect(part, display)
-            if not hit:
-                remaining.append(part)
-                continue
-            x, y, w, h = part
-            hx, hy, hw, hh = hit
-            remaining.extend(rect for rect in [(x, y, w, hy-y), (x, hy+hh, w, y+h-hy-hh),
-                                               (x, hy, hx-x, hh), (hx+hw, hy, x+w-hx-hw, hh)]
-                             if rect[2] > 0 and rect[3] > 0)
-        uncovered = remaining
-    return bool(uncovered)
+    # Only uncovered pixels inside a remote viewport count. A gap elsewhere
+    # in the same window cannot create ownership of a covered remote region.
+    for region in remote:
+        part = intersect(frame, region)
+        if not part:
+            continue
+        uncovered = [part]
+        for display in physical:
+            remaining = []
+            for part in uncovered:
+                hit = intersect(part, display)
+                if not hit:
+                    remaining.append(part)
+                    continue
+                x, y, w, h = part
+                hx, hy, hw, hh = hit
+                remaining.extend(rect for rect in [(x, y, w, hy-y), (x, hy+hh, w, y+h-hy-hh),
+                                                   (x, hy, hx-x, hh), (hx+hw, hy, x+w-hx-hw, hh)]
+                                 if rect[2] > 0 and rect[3] > 0)
+            uncovered = remaining
+        if uncovered:
+            return True
+    return False
 
 
 def selected_windows(report, existing, limit):
