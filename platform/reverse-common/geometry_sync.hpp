@@ -41,20 +41,28 @@ enum class GeometryAction { none, send_local, apply_remote };
 // Geometry comes from two asynchronous compositors. Only a receipt for the
 // latest local edit may return ownership to Windows; elapsed time cannot do so.
 struct GeometrySync {
-    bool initialized{},floating{true};
+    bool initialized{},floating{true},queued{};
     Geometry observed{};
     std::uint64_t pending{};
     GeometryAction observe(Geometry local,Geometry remote,std::uint64_t acknowledged,bool now_floating,bool local_drag=false) {
         if(!initialized){initialized=true;floating=now_floating;observed=local;return now_floating?GeometryAction::apply_remote:GeometryAction::send_local;}
         const bool changed=local!=observed || floating!=now_floating;
         observed=local;floating=now_floating;
-        if(changed)return GeometryAction::send_local;
+        // Keep one in-flight target and one replaceable local target. The wire
+        // sequence is the drag generation receipt; an old ACK never unlocks
+        // a newer edit, including edits made after button release.
+        queued = queued || changed;
+        if(queued) {
+            if(pending && acknowledged<pending)return GeometryAction::none;
+            queued=false;
+            return GeometryAction::send_local;
+        }
         if(!floating || local_drag)return GeometryAction::none;
         if(pending && acknowledged<pending)return GeometryAction::none;
         pending=0;
         return local==remote?GeometryAction::none:GeometryAction::apply_remote;
     }
-    void sent(std::uint64_t sequence){pending=sequence;}
+    void sent(std::uint64_t sequence){if(sequence)pending=sequence;else queued=true;}
     void applied(Geometry remote){observed=remote;}
 };
 }

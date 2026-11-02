@@ -165,7 +165,7 @@ struct Proxy {
     NSRect drag_last_frame{};
     NSPoint drag_last_pointer{};
     bool drag_fallback_logged{}, drag_native_moved{};
-    bool resizing{};
+    bool resizing{}, pointer_move{};
     vf::SourceDrag source_drag;
     NSPoint source_grab{};
     NSRect resize_start{};
@@ -291,6 +291,12 @@ struct Presenter {
     }
     void flush_geometry(Proxy& proxy) {
         if (proxy.applying || quitting || proxy.fullscreen_transition || (proxy.window.styleMask & NSWindowStyleMaskFullScreen)) return;
+        // One request in flight; geometry_queued retains only the latest
+        // native frame under congestion. Never wait in the pointer handler.
+        if (proxy.geometry_pending && proxy.tile.geometry_ack < proxy.geometry_pending) {
+            proxy.geometry_queued = true;
+            return;
+        }
         const auto rect = body_screen_rect(proxy.tile,[proxy.window contentRectForFrameRect:proxy.window.frame]);
         const double desktop_top = NSScreen.screens.firstObject.frame.size.height;
         const auto sent = send(proxy.tile.id, vf::InputKind::geometry,
@@ -837,6 +843,12 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
             proxy->owner->geometry(*proxy);
             return;
         }
+        if (proxy->pointer_move) {
+            const auto point = NSEvent.mouseLocation;
+            [self.window setFrameOrigin:NSMakePoint(point.x-proxy->drag_offset.x, point.y-proxy->drag_offset.y)];
+            proxy->owner->geometry(*proxy);
+            return;
+        }
         // Normally WindowServer consumes the drag. Some posted cross-desktop
         // events still reach this view without moving the native window. Keep
         // that input usable locally, while leaving native tiling enabled.
@@ -871,21 +883,26 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
     [self.window makeKeyAndOrderFront:nil];
     [self.window makeFirstResponder:self];
     proxy->drag_event = event;
+    proxy->pointer_move = false;
     self.window.ignoresMouseEvents=NO;
     std::fprintf(stderr,"macos-drag-press window=%llu pointer=%.1f,%.1f body=%.1f,%.1f queued=%d pending=%llu ack=%llu\n",
         (unsigned long long)proxy->tile.id,NSEvent.mouseLocation.x,NSEvent.mouseLocation.y,
         self.window.frame.origin.x,self.window.frame.origin.y,int(proxy->geometry_queued),
         (unsigned long long)proxy->geometry_pending,(unsigned long long)proxy->tile.geometry_ack);
     const auto gesture = vm::window_gesture(proxy->tile.flags & 2,
-        event.modifierFlags & NSEventModifierFlagCommand, event.modifierFlags & NSEventModifierFlagShift);
+        (event.modifierFlags | NSEvent.modifierFlags) & NSEventModifierFlagCommand,
+        (event.modifierFlags | NSEvent.modifierFlags) & NSEventModifierFlagShift);
     if (gesture != vm::WindowGesture::forward) {
         proxy->owner->send(proxy->tile.id, vf::InputKind::release);
-        // Let the receiving desktop own dragging, edge tiling, and Spaces.
+        // Command (including routed Linux Super) owns movement here. A single
+        // pointer writer avoids racing WindowServer's drag loop with posted
+        // events. Native titlebar dragging keeps its WindowServer path.
         const auto point = NSEvent.mouseLocation;
         proxy->drag_offset = NSMakePoint(point.x-self.window.frame.origin.x,
                                         point.y-self.window.frame.origin.y);
         proxy->dragging = true;proxy->owner->interaction(proxy->tile.id,true);
         proxy->resizing = gesture == vm::WindowGesture::resize;
+        proxy->pointer_move = gesture == vm::WindowGesture::move;
         proxy->drag_start = point;
         proxy->resize_start = [self.window contentRectForFrameRect:self.window.frame];
         proxy->modifiers.clear();
@@ -894,7 +911,8 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
         proxy->drag_last_frame = self.window.frame; proxy->drag_last_pointer = point;
         proxy->drag_fallback_logged = false; proxy->drag_native_moved=false;
         proxy->geometry_queued = false; proxy->owner->flush_geometry(*proxy);
-        if (!proxy->resizing) [self.window performWindowDragWithEvent:event];
+        // mouseDragged moves the local window immediately; source ACKs are
+        // used only by flush_geometry and final reconciliation.
         return;
     }
     [self button:event down:YES];

@@ -239,3 +239,119 @@ G 表示上述 Linux 光标状态机；N 表示另配输入路由，当前组没
 
 初始 Linux 原生按住拖动与返回拖动分别记录。F 路径同时检查源端提示接管。
 若任何一项不能保持同一次按住手势，整体连续交接验收仍是未完成。
+
+## Super/Command drag（2026-11-01）
+
+已完成：双向代理优先移动、几何合并、旧回执保护与隔离构建。
+未验证：真实鼠标拖动的流畅度、源端应用的 AX 行为与现场网络时延。
+没有运行输入注入、窗口移动、焦点切换、在线 Hyprland 查询、插件加载、
+服务重启或部署。Mac 的编译和离线测试只使用新建的
+`/Volumes/MoveDATA/viewflow-wifi-test/codex-superdrag-20261101-01/`。
+
+### 源码追踪与原因
+
+任务描述中的“每次先移动源端再回传代理”不适用于全部现有路径。
+`374df8de` 后的 Command 手势已有本地移动和拖动期间的回写保护。
+本次沿实际调用链修复剩余的竞争与等待。
+
+| 方向 | 修饰键与移动所有者 | 请求、执行和回显 | 原有抖动或延迟来源 |
+| --- | --- | --- | --- |
+| Linux 窗口 → Mac 代理 | Linux Super 经 `atlas_cursor_handoff.rs` 转为 HID GUI usage `0xe3/0xe7`；`crates/viewflow-platform/src/macos_input.rs` 映射为 Mac keycode `55/54`，并给鼠标事件附加 Command flags。Mac 本机 Command 走相同的 AppKit 手势选择。`window_presenter.mm::mouseDown` 选 Command 移动，Command+Shift 选调整尺寸 | 代理 `geometry()` → `flush_geometry()` → kind 6、单调 sequence → `vf-hyprland-windows.rs::translate` → `InputHelper` → `linux-window-input/main.cpp` 按稳定窗口身份执行 Lua resize/move → HCGF 捕获几何 → `Tile.geometry_ack` → Mac `update` | Command 原来调用 `performWindowDragWithEvent`，同时保留 posted-event fallback；两个本地写入路径使所有权依赖原生拖动是否消费事件。几何每个事件循环都能入队。Linux 在编码结束时读取最新 ACK，能把新回执附到移动之前捕获的旧几何上 |
+| Mac 窗口 → Linux 代理 | Hyprland 原生 Super+左键移动 Linux 代理。`linux-reverse/main.cpp` 暂存 Super，确认本地几何变化后释放源端输入，避免 Mac 同时解释这次拖动。`capture_status().native_drag_window` 标明原生拖动的窗口 | compositor inventory → `GeometrySync::observe` → kind 6 → Mac `window_source.mm::geometry_request` 最新请求 → `apply_geometry` 每至多 1/60 秒尝试 AX position/size → placement 与几何回执随视频返回 → Linux `GeometrySync` | Mac 代理的全部几何变化都进入 `WindowResize` 的 100 ms 稳定防抖；连续移动不断重置计时。普通 Super 移动原来按 33 ms 轮询。即使源端已有最新回执，活动原生拖动仍必须保留本地所有权 |
+
+量化不是本次新增的控制机制。Mac 代理的屏幕点按 `options.scale`
+转换为 wire 整数。Linux 源端再按 HCGF 的逻辑宽高与 crop 比例映射，
+保留捕获边框和 content 的差值，最终转为毫 DIP。
+反向路径按接收原点与 scale 映射，Mac native tile 的逻辑尺寸不再次除以 scale。
+这些既有单位保持不变。整数舍入和源端原生约束仍能使最终矩形与请求不同；
+拖动期间不得把这种差值反复应用到代理。
+AX 调用、Hyprland IPC、捕获和网络耗时没有现场测量。
+源码证据不能证明它们各自占现场延迟的比例。
+
+### 改动与决定
+
+1. Command 移动由 AppKit 的 `mouseDragged` 单独写代理位置。
+   每次事件按当前指针和按下时的抓取偏移设置本地位置。
+   此步骤没有网络等待，也不启动 WindowServer 的第二个拖动循环。
+   普通原生标题栏继续使用既有 WindowServer 路径。
+   Command+Shift 继续使用既有按下矩形调整尺寸路径。
+   手势同时读取事件 flags 和当前 AppKit modifier flags，覆盖两种键盘来源。
+2. 双向几何采用一个未确认请求，加一个可替换的最新本地目标。
+   Mac 的 `geometry_queued` 保留最新原生 frame；Linux 的
+   `GeometrySync.queued` 保留最新 observed 矩形。
+   未确认请求期间，后续指针事件只覆盖最新目标，不继续增加几何队列。
+   每个源端回执开放一次发送机会，因此发送速率跟随源端捕获和处理能力。
+   长 RTT 下源端更新率会下降；代理本地移动不等待这个速率。
+   这是本次明确采用的有界流量决定，不增加延迟退出条件。
+3. 复用既有单调 input sequence 作为每次几何编辑的代次标记。
+   没有扩展 wire 协议，也没有要求同时升级额外的 drag-ID 字段。
+   活动本地拖动忽略所有源端位置回写。
+   释放后继续保护最新待发目标和最后一个未确认请求。
+   最后回执到达后，按源端返回矩形核对一次。
+   下一次拖动可以在旧回执尚未到达时开始；旧回执只开放最新目标的发送，
+   不取得新拖动的位置所有权。之后独立发生的源端原生移动仍正常传播。
+4. Linux 源端把 helper 完成时刻与 sequence 存成同一份回执。
+   `window_renderer.cpp` 与 Rust `now()` 都使用 `CLOCK_MONOTONIC`。
+   只有捕获时间不早于完成时刻的帧才携带新回执。
+   编码较慢的旧帧继续携带上一份已发布回执。
+   这个规则表示因果顺序，不是帧新鲜度门槛，也不丢弃或中断视频。
+5. Linux 接收器只给尺寸变化保留 100 ms AX 防抖。
+   只有位置变化时，最新目标立即取得发送资格。
+   Super 移动采用与标题栏相同的 16 ms 几何采样间隔；
+   回执仍限制实际发送速率，迟到采样不会累积补发。
+6. 保留局部恢复。Mac 输出繁忙时保留最新几何；
+   Linux helper 不可用时继续媒体并回传处理后的观测几何；
+   Mac AX 暂时失败时保留请求供重试。没有新增全会话关闭条件。
+   没有修改 Hyprland 插件、本机 Linux 窗口手势、卸载或兼容构建代码。
+
+既有八项跨边修复的代码保持原路径：正面积选源、四边累计位移、
+锚点单位换算、两种 Mac 代理身份、非 Mac 按下锚点、首样本返回、
+AppKit 跨边约束与源端拖动提示接管。
+`source_drag.hpp` 和 `window_mapping_test.cpp` 的离线检查仍覆盖提示接管与单位映射。
+这不代替四边连续按住拖动的现场验收。
+
+### 验证
+
+- 已验证：`cmake -S platform/linux-reverse -B /tmp/viewflow-superdrag-build -DCMAKE_BUILD_TYPE=Release`、
+  `cmake --build /tmp/viewflow-superdrag-build -j 6`、
+  `ctest --test-dir /tmp/viewflow-superdrag-build --output-on-failure`：17 项通过。
+  `reverse_geometry` 增加 10000 次突发变化、旧回执、释放后的最终目标、
+  本地发送失败重试与最终矩形核对检查。
+  `window_mapping` 增加 1000 次连续位置更新不重启尺寸防抖的检查。
+- 已验证：Mac 在上述隔离目录运行
+  `cmake -S platform/macos -B build -DCMAKE_BUILD_TYPE=Release`、
+  `cmake --build build -j 6`、
+  `ctest --test-dir build --output-on-failure -LE hardware-codec`。
+  原生窗口目标编译并链接成功。29 项离线测试通过。
+  新增 `windows-geometry-sync`，在 Apple 编译器下检查同一份回执状态机。
+  排除的 `windows-codec` 不属于本次几何验证。
+- 已验证：`cargo test -p viewflowd --bin vf-hyprland-windows`：
+  旧捕获帧不得携带新几何回执的 Rust 测试通过。
+- 已验证：`cargo test -p viewflowd --bin vf-hyprland-windows --features native-gpu-nvenc`：
+  2 项通过，包括 scale、负原点、边框映射与旧帧回执。
+- 已验证：`cargo check -p viewflowd --bin vf-hyprland-windows --features native-gpu-nvenc`：
+  原生 GPU 功能代码编译检查通过。库输出 18 条 warning；没有编译错误。
+- 未验证：真实 AppKit/Hyprland 交互、实际网络下的帧率与抖动幅度。
+  所有现场鼠标和键盘验收由用户执行。
+
+### 用户手工验收清单
+
+1. 在 Mac 上按本机 Command 拖动 Linux 代理的内容区域。
+   检查代理立即跟随指针，源端异步跟随。
+2. 用 Linux 键盘把 Super 路由到 Mac，再重复相同拖动。
+   分别检查左右 Super/Command。检查抓取偏移与本机键盘一致。
+3. 在 Linux 上用 Super 拖动 Mac 代理。
+   检查代理保持 Hyprland 原生移动，Mac 源端在连续移动期间跟随。
+   不得只在静止满 100 ms 后移动。
+4. 每个方向覆盖慢速、快速、停顿、反向、释放后立即再拖动。
+   检查拖动期间无旧位置回跳，释放后源端和代理停止争夺位置。
+5. 在既有负原点、scale 2 拓扑上跨接缝往返。
+   检查按下锚点、按钮释放与原有连续交接。
+   其他边和 scale 1 仅在用户实际配置对应拓扑后检查。
+6. 覆盖原生标题栏、Command+Shift 调整尺寸、平铺后再浮动。
+   检查这三条既有路径没有退化。
+7. 用一个普通 Linux 原生窗口执行 Super 拖动。
+   检查 Hyprland 原生行为不变。
+8. 用户自行制造短暂网络拥塞或源端不可移动的条件。
+   检查代理本地拖动继续，旧几何不排队回放，媒体和其他代理继续运行。
+   恢复后检查最后目标与源端原生约束下的最终矩形。

@@ -1284,9 +1284,16 @@ struct App {
             // must not move/resize Windows' full-display shell backing HWND.
             if(w.tile.flags&vf::windows_shell_flag){w.placed=true;continue;}
             const vf::Geometry local{x,y,width,height},remote{target_x,target_y,target_width,target_height};
+            const bool same_local_size=w.geometry_sync.initialized &&
+                w.geometry_sync.observed.width==width && w.geometry_sync.observed.height==height;
             const auto action=w.ime_popup()?(local==remote?vf::GeometryAction::none:vf::GeometryAction::apply_remote):w.geometry_sync.observe(local,remote,w.tile.geometry_ack,client.value("floating",false),local_drag_window==w.native_address || local_titlebar_window==id);
             const auto resize_now=std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
-            if(mac_shadow && action==vf::GeometryAction::send_local)w.resize.queue(local,resize_now);
+            // Moving keeps size unchanged and must follow immediately. Only
+            // actual resize/configure churn uses the existing AX debounce.
+            const bool mac_move=mac_shadow && same_local_size;
+            if(mac_shadow && action==vf::GeometryAction::send_local) {
+                w.resize.queue(local,resize_now,mac_move);
+            }
             const bool mac_resize_ready=mac_shadow && w.resize.ready(resize_now);
             if((!mac_shadow && action==vf::GeometryAction::send_local) || mac_resize_ready) {
                 w.resize.cancel();
@@ -1510,7 +1517,8 @@ struct App {
                 for(auto& [_,w]:windows)if(w->configured && !w->native)draw(*w);
                 if(Clock::now()>=geometry_at || drag_transition_pending()){
                     const auto started=Clock::now();synchronize_geometry();const auto finished=Clock::now();
-                    geometry_at=finished+std::chrono::milliseconds(local_titlebar_window?16:33);
+                    // Sample Super moves at the same cadence as native titlebar moves.
+                    geometry_at=finished+std::chrono::milliseconds((local_titlebar_window || super_drag || !held_super.empty())?16:33);
                     static auto report=finished;static std::vector<double> durations;
                     if(durations.size()<4096)durations.push_back(std::chrono::duration<double,std::milli>(finished-started).count());
                     if(finished-report>=std::chrono::seconds(5)) {
