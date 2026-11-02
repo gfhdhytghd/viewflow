@@ -199,8 +199,10 @@ After a separately authorized deployment, the user can:
 The supplied observation came from an older installed bundle. This change was
 implemented and tested in the `floatonly` checkout, without inspecting or
 mutating the live compositor, installing a bundle, restarting a service, or
-accessing the Mac. The older verification table above records the earlier
-headlessws work; the results below apply to this follow-up.
+accessing the Mac during the initial Linux-only phase. The isolated Mac checks
+recorded below completed that native validation. The older verification table
+above records the earlier headlessws work; the results below apply to this
+follow-up.
 
 ### Floating ownership and geometry
 
@@ -296,9 +298,10 @@ Artifacts and isolated builds are under `/tmp/vf-floatonly`; command logs use
 socket before every compositor command. All GPU tests use generated pixels,
 not desktop capture. No mouse/keyboard injection or explicit focus dispatch was
 used. Native Windows checks were not executed because this Linux environment has no
-Windows SDK. The third item authorizes isolated Mac compilation/testing only in
-`/Volumes/MoveDATA/viewflow-wifi-test/codex-floatonly/`. SSH to the supplied host
-returns `No route to host`; no Mac build or test has run.
+Windows SDK. Mac compilation/testing runs only in
+`/Volumes/MoveDATA/viewflow-wifi-test/codex-floatonly/`. The Ethernet SSH endpoint
+uses `HostKeyAlias=10.42.0.125` to verify the existing known host key. The native
+build and all 33 CTest checks passed on arm64 macOS 27.2 (2026-11-02 UTC).
 
 | Check | Result and scope |
 | --- | --- |
@@ -313,7 +316,7 @@ returns `No route to host`; no Mac build or test has run.
 | Rust retry/backoff test | PASS: 500 identical failures retain capped retries; successful recovery resets delay |
 | Rust reverse bridge tests | PASS: 6/6, including atomic work-area record relay |
 | Shared workspace generator and mocked launcher tests | PASS: Python autostart, Mac viewport selection, hermetic shell launcher |
-| VideoToolbox native build/runtime | BLOCKED: specified SSH host returns `No route to host`; Mac codec self-test includes an oversized H.264 canvas |
+| VideoToolbox native build/runtime | PASS: native arm64 build and 33/33 CTest checks; H.264/HEVC, oversized H.264 color/full-canvas alpha, async ownership and resize checks |
 | Windows MFT/VPL/D3D11 native build/runtime | UNVERIFIED: no Windows SDK/device actions |
 | VA-API hardware runtime | UNVERIFIED: available test encoder is NVIDIA; portable backend compilation and extent policy tests passed |
 
@@ -453,7 +456,7 @@ placement during that drag; crossing into an adjacent viewport remains possible.
 After release, the work-area fit and authoritative geometry settle the window.
 No focus dispatch or synthetic mouse/key test was introduced.
 
-### Third-item verification and remaining native check
+### Third-item verification and manual acceptance
 
 | Check | Result and scope |
 | --- | --- |
@@ -463,24 +466,36 @@ No focus dispatch or synthetic mouse/key test was introduced.
 | Rust reverse relay | PASS: an atomic snapshot reaches the native source in both relay directions, including the distinct source-event parser |
 | Paired QUIC ALPN loopback | PASS: new/new, legacy/new, new/legacy, activity-only/new and new/activity-only; mutual TLS identity remains present |
 | Linux input helper | PASS: build and 2/2 tests; no input was injected |
-| Native Mac build and tests | BLOCKED: `ssh -o BatchMode=yes -o ConnectTimeout=5 linhaikuo@10.42.0.125 'uname -m'` returns `No route to host` |
-| Actual Dock/menu-bar/notch changes and proxy jitter | UNVERIFIED: no Mac connection or physical interaction; policy tests are not AppKit runtime proof |
+| Native Mac build and tests | PASS: isolated arm64 build on macOS 27.2, initial selected tests 7/7, full CTest 33/33; no code fixes required |
+| Native Mac Rust peer | PASS: `vf-window-peer` build and QUIC compatibility test covering five new/old ALPN combinations |
+| Actual Dock/menu-bar/notch changes and proxy jitter | UNVERIFIED: no preference changes or physical interaction; native initial-screen snapshot and policy tests passed, but do not prove interactive jitter acceptance |
 
-The ready-to-copy source bundle is `/tmp/vf-floatonly/macos-source.tar.gz`, with
+The source bundle used for isolated verification is `/tmp/vf-floatonly/macos-source.tar.gz`, with
 its adjacent SHA256 file. It contains only source and an isolated
 `verify-mac.sh`. The script uses the requested tools-venv313 and Cargo paths,
 places source/build/logs/temp files inside the specified new directory, builds
 the Mac native backend, runs work-area/codec/geometry/placement/gesture tests,
 and builds the Rust peer. It does not install, launch the normal presenter,
 change preferences, inject input, or access `/Applications/Viewflow.app`.
-Nothing was copied to the unreachable Mac.
+Extracted source, build, temporary files and logs are inside the isolated Mac
+directory. `/Applications/Viewflow.app` and the running app were not modified,
+installed, relaunched, or signed. No input or focus operations were performed.
 
-After connectivity is available, the authorized isolated verification is:
+The verified native test output includes:
+
+- `PASS Mac work area snapshot displays=1 scale/origin and preference change; no window/input/pref mutation`
+- `macos-window codec self-test passed: H264/HEVC, NV12/BGRA color, full-canvas alpha, oversized color, resize, async ownership/order; no capture/input`
+- `100% tests passed out of 33`
+
+Logs are in the Mac directory under `logs/`; full native output is also in
+`build/Testing/Temporary/LastTest.log`. Read-back copies are under
+`/tmp/vf-floatonly/mac-native/` on Linux.
+
+Reproduce with the existing host key and isolated directory:
 
 ```sh
-ssh -o BatchMode=yes linhaikuo@10.42.0.125 'mkdir -p /Volumes/MoveDATA/viewflow-wifi-test/codex-floatonly'
-scp -o BatchMode=yes /tmp/vf-floatonly/macos-source.tar.gz linhaikuo@10.42.0.125:/Volumes/MoveDATA/viewflow-wifi-test/codex-floatonly/
-ssh -o BatchMode=yes linhaikuo@10.42.0.125 'cd /Volumes/MoveDATA/viewflow-wifi-test/codex-floatonly && tar -xzf macos-source.tar.gz && bash verify-mac.sh'
+cat /tmp/vf-floatonly/macos-source.tar.gz | ssh -o BatchMode=yes -o HostKeyAlias=10.42.0.125 linhaikuo@2604:fa00:130:a69:7:6664:90bc:ef6f 'cd /Volumes/MoveDATA/viewflow-wifi-test/codex-floatonly && tar -xzf - && bash verify-mac.sh'
+ssh -o BatchMode=yes -o HostKeyAlias=10.42.0.125 linhaikuo@2604:fa00:130:a69:7:6664:90bc:ef6f 'cd /Volumes/MoveDATA/viewflow-wifi-test/codex-floatonly && export PATH="$PATH:/Volumes/MoveDATA/viewflow-wifi-test/tools-venv313/bin:$HOME/.cargo/bin" && export TMPDIR="$PWD/tmp/" && ctest --test-dir build --output-on-failure'
 ```
 
 The native `--workarea-self-test` only reads screen/pref state and checks change
