@@ -14,8 +14,16 @@ pub struct Snapshot {
 impl Snapshot {
     pub fn decode(bytes: &[u8]) -> Result<Self> {
         ensure!(bytes.len() >= 24, "work area header");
-        let u32_at = |i| u32::from_le_bytes(bytes[i..i + 4].try_into().unwrap());
-        let u64_at = |i| u64::from_le_bytes(bytes[i..i + 8].try_into().unwrap());
+        let u32_at = |i: usize| {
+            let mut word = [0; 4];
+            word.copy_from_slice(&bytes[i..i + 4]);
+            u32::from_le_bytes(word)
+        };
+        let u64_at = |i: usize| {
+            let mut word = [0; 8];
+            word.copy_from_slice(&bytes[i..i + 8]);
+            u64::from_le_bytes(word)
+        };
         let count = u32_at(16) as usize;
         ensure!(
             u32_at(0) == 7
