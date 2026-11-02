@@ -23,9 +23,9 @@ def main():
     manifest = json.loads((bundle / 'bundle-manifest.json').read_text())
     if manifest.get('platform') != 'linux' or manifest.get('architecture') != 'x86_64':
         parser.error('an x86_64 Linux bundle is required')
-    hyprland = manifest['hyprland_build']['version']
-    if not re.fullmatch(r'[A-Za-z0-9_.+]+', hyprland):
-        parser.error('invalid Hyprland build version')
+    if not any(v.get('line') == 'release' and v.get('commit') and v.get('api_hash')
+               for v in manifest.get('hyprland_variants', [])):
+        parser.error('bundle requires a release Hyprland variant')
     subprocess.run([bundle / 'Viewflow', '--check-bundle'], check=True)
     destination = args.output.resolve()
     destination.mkdir(parents=True, exist_ok=True)
@@ -42,7 +42,10 @@ url='https://github.com/gfhdhytghd/viewflow'
 license=('GPL-3.0-only')
 depends=('glibc' 'gcc-libs')
 optdepends=('openssh: native remote input transport'
-            'hyprland: window sharing and input; bundled plugin ABI is checked by the GUI'
+            'hyprland: window sharing and input; matching development headers for local plugin builds'
+            'cmake: local Hyprland plugin builds'
+            'gcc: C++23 compiler for local Hyprland plugin builds'
+            'pkgconf: discover installed Hyprland development headers'
             'nvidia-utils: NVIDIA GPU components; driver setup is checked by the GUI'
             'mesa: AMD graphics and VA-API driver'
             'intel-media-driver: Intel VA-API driver for recent GPUs'

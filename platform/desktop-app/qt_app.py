@@ -560,27 +560,30 @@ class ApplicationModel(QObject):
 
     def load_plugins(self):
         def work():
-            version = json.loads(subprocess.check_output(['hyprctl', '-j', 'version'], timeout=5))
-            built = self.manifest.get('hyprland_build', {})
-            if not built.get('commit') or built['commit'] != version.get('commit'):
-                raise ValueError('插件与当前 Hyprland 版本不匹配，请使用为当前版本构建的安装包。')
-            loaded = json.loads(subprocess.check_output(['hyprctl', '-j', 'plugin', 'list'], timeout=5))
+            from hyprland_plugins import resolve_plugins, host_environment
+            try:
+                paths_to_load, selection = resolve_plugins(ROOT, self.manifest)
+            except (RuntimeError, ValueError) as error:
+                raise ValueError(translate('插件准备失败：{detail}', self.language, detail=str(error))) from error
+            loaded = json.loads(subprocess.check_output(['hyprctl', '-j', 'plugin', 'list'], timeout=5, env=host_environment()))
             paths = {item.get('path') for item in loaded} if isinstance(loaded, list) else set()
             names = {item.get('name') for item in loaded} if isinstance(loaded, list) else set()
-            candidates = ('viewflow-hyprland.so', 'viewflow-capture.so')
-            for name in candidates:
-                if name.removesuffix('.so') not in names:
-                    validate_plugin_for_load(ROOT / 'plugins' / name)
+            for plugin in paths_to_load:
+                if plugin.name.removesuffix('.so') not in names:
+                    validate_plugin_for_load(plugin)
             retained = False
-            for name in candidates:
-                path = str(ROOT / 'plugins' / name)
+            for plugin in paths_to_load:
+                name = plugin.name
+                path = str(plugin)
                 if path not in paths and name.removesuffix('.so') not in names:
-                    subprocess.run(['hyprctl', 'plugin', 'load', path], check=True, capture_output=True, timeout=10)
+                    subprocess.run(['hyprctl', 'plugin', 'load', path], check=True, capture_output=True, timeout=10, env=host_environment())
                 else:
                     retained = True
             if retained:
-                return '现有插件保持加载。此操作不替换旧插件；旧插件升级请使用新的 Hyprland 会话。'
-            return '已提交插件加载；请检查组件状态。'
+                return translate('现有插件保持加载。此操作不替换旧插件；旧插件升级请使用新的 Hyprland 会话。', self.language)
+            messages = {'prebuilt': '插件使用匹配的预构建版本。',
+                        'cached': '插件使用本地构建缓存。', 'built': '插件已按当前 Hyprland 构建。'}
+            return translate(messages[selection], self.language) + translate('已提交插件加载；请检查组件状态。', self.language)
         def done(value):
             self.set_message(value)
             self.check_permissions()

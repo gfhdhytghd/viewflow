@@ -17,8 +17,10 @@ def launch_command(prepared, monitor, peer, existing_output=None, state_dir=None
     if getattr(sys, 'frozen', False):
         bundle = Path(sys.executable).resolve().parent
         helper = Path(__file__).resolve().with_name('desktop-drag-linux.sh')
-        plugins = ['--capture-plugin', str(bundle / 'plugins/viewflow-capture.so'),
-                   '--input-plugin', str(bundle / 'plugins/viewflow-hyprland.so')]
+        from hyprland_plugins import resolve_plugins
+        selected, status = resolve_plugins(bundle, json.loads((bundle / 'bundle-manifest.json').read_text()))
+        print('Hyprland plugins: ' + status, flush=True)
+        plugins = ['--capture-plugin', str(selected[1]), '--input-plugin', str(selected[0])]
     else:
         helper = Path(__file__).resolve().with_name('desktop-drag-linux.sh')
         plugins = []

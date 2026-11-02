@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "popup_backdrop.hpp"
+#include "../../hyprland-compat/render_layer.hpp"
 #include "../../reverse-common/backdrop_shm.hpp"
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/HookSystem.hpp>
@@ -169,7 +170,7 @@ void render_desktop(const std::shared_ptr<Capture>& capture, PHLMONITOR monitor)
     auto layers = [&](size_t layer) {
         for (const auto& weak : monitor->m_layerSurfaceLayers[layer])
             if (auto surface = weak.lock())
-                (renderer.*&RendererAccess::renderLayer)(renderer.context(), surface, monitor, now, false, false);
+                viewflow::hyprland_compat::render_layer(&RendererAccess::renderLayer, renderer, renderer.context(), surface, monitor, now);
     };
     layers(0); layers(1);
     // The compositor window order is bottom to top within each plane.

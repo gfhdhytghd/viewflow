@@ -2,8 +2,8 @@ Viewflow Linux permissions
 
 1. Open Viewflow in your user's Hyprland session.
    The Permissions page checks versions and can load the two bundled plugins.
-   Their build commit must match Hyprland. Rebuild the package after upgrading
-   Hyprland. Loading affects only the current session. For persistent loading,
+   Their ABI must match Hyprland. If no exact prebuilt is bundled, Viewflow
+   builds against matching local development headers into your data directory. Loading affects only the current session. For persistent loading,
    add the two absolute plugin paths to your existing Hyprland configuration.
    The installer does not rewrite your desktop configuration.
 

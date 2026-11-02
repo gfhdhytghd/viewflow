@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-01",
+  "variants": [
+    {
+      "version": "0.57.0",
+      "commit": "0aa6745f705f2c4b0a5004eb019ef76e5bbdb426",
+      "api_hash": "0aa6745f705f2c4b0a5004eb019ef76e5bbdb426_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6",
+      "api_version": "0.2",
+      "line": "release",
+      "path": "plugins/release/0aa6745f705f2c4b0a5004eb019ef76e5bbdb426_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6"
+    },
+    {
+      "version": "0.57.0",
+      "commit": "d55a55d72a2ecfbb31b875b0b45c27559ce86691",
+      "api_hash": "d55a55d72a2ecfbb31b875b0b45c27559ce86691_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6",
+      "api_version": "0.2",
+      "line": "main",
+      "path": "plugins/main/d55a55d72a2ecfbb31b875b0b45c27559ce86691_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6"
+    }
+  ],
+  "plugin_ctest": {
+    "release": {
+      "hyprland": 10,
+      "capture": 8,
+      "passed": 18
+    },
+    "main": {
+      "hyprland": 10,
+      "capture": 8,
+      "passed": 18
+    },
+    "fork": {
+      "hyprland": 10,
+      "capture": 8,
+      "passed": 18
+    }
+  },
+  "python_tests": {
+    "run": 82,
+    "passed": 80,
+    "skipped": 2
+  },
+  "packaging_tests": {
+    "run": 10,
+    "passed": 9,
+    "skipped": 1
+  },
+  "local_build_statuses": [
+    "built",
+    "cached"
+  ],
+  "fork_commit": "e5a03b6a5ce64ec4c85954649bad4df083627574",
+  "private_dependencies": {
+    "hyprutils": "7e1f69209cd910615d0573a93fa970408f643539",
+    "hyprland-protocols": "cd1aba6bd78775825eb230b3a4274c48b6705eb7"
+  },
+  "artifacts_sha256": {
+    "ci-output/plugins/main/d55a55d72a2ecfbb31b875b0b45c27559ce86691_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6/viewflow-capture.so": "49b81cefdc6f338094080b2ab00b879c8f650629a5876fd8dde5d57bb26aa56f",
+    "ci-output/plugins/main/d55a55d72a2ecfbb31b875b0b45c27559ce86691_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6/viewflow-hyprland.so": "fd05454bfb91e83624678c511f9645d9fca375cf202a7a44da5895cd3a467e08",
+    "ci-output/plugins/release/0aa6745f705f2c4b0a5004eb019ef76e5bbdb426_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6/viewflow-capture.so": "749838d697dea19a08dc4dccf04e7a2cbaf8353ce72c325bb83577052ac787cb",
+    "ci-output/plugins/release/0aa6745f705f2c4b0a5004eb019ef76e5bbdb426_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6/viewflow-hyprland.so": "5b23660e95ccd87f6fc54cb159d176b21141d4944ca657b5fa909ea9b5821779",
+    "fork-binaries/viewflow-capture.so": "f775dd3d3db6b11c2a54ded2e1a16d99d2663013460eae182099752adc49a34f",
+    "fork-binaries/viewflow-hyprland.so": "448341a620d0470a531e37d5e0729338154ea8d5935c880f97b73b226e10710b",
+    "local-data/viewflow/plugins/e5a03b6a5ce64ec4c85954649bad4df083627574/3e788b169846ffdbbe3c600e/viewflow-capture.so": "f775dd3d3db6b11c2a54ded2e1a16d99d2663013460eae182099752adc49a34f",
+    "local-data/viewflow/plugins/e5a03b6a5ce64ec4c85954649bad4df083627574/3e788b169846ffdbbe3c600e/viewflow-hyprland.so": "448341a620d0470a531e37d5e0729338154ea8d5935c880f97b73b226e10710b"
+  },
+  "logs_sha256": {
+    "ci.log": "80861c5eb56f7a857ed1426f0cdb5c94edcdd7f7e5f09b16cf832d0d5a35411d",
+    "build.log": "4a2a73505a1fbb6db35271ecc0aa9937aa05f76ec7eedec1d010d30a48fed700",
+    "fork-build.log": "49070a5453902b64f5e07068422350e307bcdd9bd2a7190ad84a9b2ab4e5b2bf",
+    "python-tests.log": "9461aa0041671720ecf98e404bcc9bf09c929779d5657a7fa7e0543296c63515",
+    "packaging-tests.log": "2baa757aadbd82dd8603dc0695f32577080b9942f7034be57138cdacaaa8d297",
+    "autostart-tests.log": "777c9ff9016f40a10bc8d64840f9796bbed3e81ef80367199fbaaaa52e323d31",
+    "local-build.log": "3a2a41e210e653939d0cc606029d48f55d855559aec20e07ea977547ef9418f9"
+  },
+  "unverified": [
+    "nested compositor load",
+    "live compositor load and input",
+    "complete desktop bundle build"
+  ]
+}

@@ -99,3 +99,22 @@ subprocess.run(['lua', '-'], input=(mock + migration +
     "\nassert(monitor.number==4 and moved==1)\n" +
     "monitor.active_workspace={name='4',id=4,special=false}\n" + migration +
     "\nassert(moved==1)\n"), text=True, check=True)
+
+# The frozen helper uses the same ABI selector as the GUI, including local cache
+# paths. Never resolve or load a real compositor during this configuration test.
+from unittest.mock import patch
+import sys
+sys.path.insert(0, str(script.parents[1] / 'platform/desktop-app'))
+with tempfile.TemporaryDirectory() as directory:
+    bundle = Path(directory)
+    manifest = {'hyprland_variants': []}
+    (bundle / 'bundle-manifest.json').write_text(json.dumps(manifest))
+    selected = [bundle / 'data/input.so', bundle / 'data/capture.so']
+    with patch.object(autostart.sys, 'frozen', True, create=True), \
+         patch.object(autostart.sys, 'executable', str(bundle / 'Viewflow')), \
+         patch('hyprland_plugins.resolve_plugins', return_value=(selected, 'cached')) as resolve:
+        command = autostart.launch_command(bundle / 'config', 'HEADLESS-1', bundle / 'peer')
+    resolve.assert_called_once_with(bundle, manifest)
+    assert command[command.index('--capture-plugin') + 1] == str(selected[1])
+    assert command[command.index('--input-plugin') + 1] == str(selected[0])
+print('autostart plugin selection test passed')
