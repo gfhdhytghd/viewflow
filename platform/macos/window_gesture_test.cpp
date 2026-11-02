@@ -7,7 +7,7 @@ int main() {
     assert(window_gesture(true, true, true) == WindowGesture::forward);
     assert(window_gesture(false, true, false) == WindowGesture::move);
     assert(window_gesture(false, true, true) == WindowGesture::resize);
-    assert(unconstrained_move(true,false,false,false));
+    assert(!unconstrained_move(true,false,false,false));
     assert(unconstrained_move(false,true,false,false));
     assert(!unconstrained_move(false,true,true,false));
     assert(!unconstrained_move(false,true,false,true));

@@ -182,6 +182,16 @@ fn alpha(raw: &[u8]) -> Vec<u8> {
     bytes
 }
 
+pub enum SourceEvent { Input(Input), WorkArea(crate::work_area::Snapshot) }
+pub fn read_source_event(reader:&mut impl Read)->Result<Option<SourceEvent>> {
+    let mut prefix=[0;4];if reader.read(&mut prefix[..1])?==0 {return Ok(None);}
+    reader.read_exact(&mut prefix[1..])?;let length=u32::from_le_bytes(prefix) as usize;
+    ensure!(length==40 || (24..=1176).contains(&length),"source event length");
+    let mut bytes=vec![0;length];reader.read_exact(&mut bytes)?;
+    if bytes[..4]==7u32.to_le_bytes() {Ok(Some(SourceEvent::WorkArea(crate::work_area::Snapshot::decode(&bytes)?)))}
+    else {Input::decode(&bytes).map(|i|Some(SourceEvent::Input(i)))}
+}
+
 pub fn read_input(reader: &mut impl Read) -> Result<Option<Input>> {
     let mut prefix = [0; 4];
     let count = reader.read(&mut prefix[..1])?;

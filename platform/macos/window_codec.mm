@@ -1,4 +1,5 @@
 #include "window_codec.hpp"
+#include "../reverse-common/encoder_extent.hpp"
 #include "../reverse-common/quality_control.hpp"
 #include "../reverse-common/annex_b.hpp"
 #import <Foundation/Foundation.h>
@@ -47,6 +48,20 @@ void encoded(void*, void* context, OSStatus status, VTEncodeInfoFlags flags, CMS
     }
     output.changed.notify_all();
 }
+CVPixelBufferRef scalePixels(CVPixelBufferRef source, unsigned width, unsigned height) {
+    if (CVPixelBufferGetWidth(source)==width && CVPixelBufferGetHeight(source)==height)
+        return CVPixelBufferRetain(source);
+    CVPixelBufferRef result=nullptr;
+    NSDictionary* attributes=@{(__bridge NSString*)kCVPixelBufferIOSurfacePropertiesKey:@{}};
+    check(CVPixelBufferCreate(nullptr,width,height,CVPixelBufferGetPixelFormatType(source),
+        (__bridge CFDictionaryRef)attributes,&result), "scaled pixels");
+    static CIContext* context=[CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer:@NO}];
+    CIImage* image=[CIImage imageWithCVPixelBuffer:source];
+    image=[image imageByApplyingTransform:CGAffineTransformMakeScale(
+        double(width)/CVPixelBufferGetWidth(source),double(height)/CVPixelBufferGetHeight(source))];
+    [context render:image toCVPixelBuffer:result];
+    return result;
+}
 struct Decoded {
     OSStatus status{};
     CVPixelBufferRef image{};
@@ -63,6 +78,7 @@ struct Encoder::Impl {
     VTCompressionSessionRef session{};
     unsigned width{}, height{}, codec{}, fps{60};
     bool latency{}, pipeline{};
+    media::Extent h264Limit=media::encoderLimit(true), hevcLimit=media::encoderLimit(false);
     unsigned target_kbps{}, applied_bps{};
     void apply_bitrate() {
         if(!session || !target_kbps)return;
@@ -155,7 +171,24 @@ Encoder::Ticket Encoder::submit(CVPixelBufferRef color, reverse::Frame frame) {
         !frame.width || !frame.height || frame.width > 8192 || frame.height > 8192 ||
         std::uint64_t(frame.width) * frame.height > reverse::max_pixels || (frame.codec != 1 && frame.codec != 2))
         throw std::runtime_error("encoder input extent/codec mismatch");
-    impl_->prepare(frame);
+    // The frame remains the logical atlas canvas. Only color is reduced;
+    // alpha, tile placement and input coordinates retain their exact geometry.
+    auto& limit=frame.codec==1 ? impl_->h264Limit : impl_->hevcLimit;
+    auto coded=media::fitExtent({frame.width,frame.height},limit);
+    reverse::Frame prepared;prepared.codec=frame.codec;
+    for (;;) {
+        prepared.width=coded.width;prepared.height=coded.height;
+        try { impl_->prepare(prepared);break; }
+        catch (const std::exception& error) {
+            impl_->reset();
+            if (coded.width<=192 || coded.height<=192) throw;
+            limit={std::max(2u,coded.width/2),std::max(2u,coded.height/2)};
+            coded=media::fitExtent({frame.width,frame.height},limit);
+            std::fprintf(stderr,"macos-encoder retry-size=%ux%u reason=%s\n",coded.width,coded.height,error.what());
+        }
+    }
+    CF<CVPixelBufferRef> scaled{scalePixels(color,coded.width,coded.height)};
+    color=scaled;
     std::erase_if(impl_->pending, [](const auto& ticket) {
         std::lock_guard lock(ticket->mutex); return ticket->done;
     });
@@ -296,8 +329,13 @@ CVPixelBufferRef Decoder::decode(const reverse::Frame& frame) {
     check(status, "decode frame");
     check(output.status, "decoded callback");
     if (!output.image) return nullptr;
-    if (CVPixelBufferGetWidth(output.image) != frame.width || CVPixelBufferGetHeight(output.image) != frame.height)
-        throw std::runtime_error("decoded geometry differs from frame metadata");
+    const media::Extent coded{unsigned(CVPixelBufferGetWidth(output.image)),unsigned(CVPixelBufferGetHeight(output.image))};
+    if (!media::reducedColor(coded,{frame.width,frame.height}))
+        throw std::runtime_error("decoded color exceeds frame canvas");
+    if (coded.width!=frame.width || coded.height!=frame.height) {
+        const auto scaled=scalePixels(output.image,frame.width,frame.height);
+        CVPixelBufferRelease(output.image);output.image=scaled;
+    }
     const auto result = output.image; output.image = nullptr; return result;
 }
 
@@ -313,7 +351,8 @@ void codec_self_test(const char* fixture_path) {
         Decoder decoder;
         Decoder bgra_decoder(false);
         CIContext* context = [CIContext contextWithOptions:nil];
-        for (const unsigned width : {64u, 64u, 80u, 64u}) {
+        for (const unsigned width : {64u, 64u, 80u, 64u, 4512u}) {
+            if (fixture_path && width==4512) continue; // Preserve the legacy exported fixture sequence.
             CF<CVPixelBufferRef> buffer;
             auto attributes = @{(__bridge NSString*)kCVPixelBufferIOSurfacePropertiesKey: @{}};
             check(CVPixelBufferCreate(nullptr, width, 64, kCVPixelFormatType_32BGRA, (__bridge CFDictionaryRef)attributes, &buffer.value), "fixture pixels");
@@ -343,7 +382,8 @@ void codec_self_test(const char* fixture_path) {
                 if (!fixture) throw std::runtime_error("write generated codec fixture");
             }
             CF<CVPixelBufferRef> decoded_buffer{decoder.decode(frame)};
-            if (!decoded_buffer.value) throw std::runtime_error("fixture decode missing");
+            if (!decoded_buffer.value || CVPixelBufferGetWidth(decoded_buffer)!=width || CVPixelBufferGetHeight(decoded_buffer)!=64)
+                throw std::runtime_error("fixture canvas restoration failed");
             CF<CVPixelBufferRef> bgra_buffer{bgra_decoder.decode(frame)};
             if (!bgra_buffer.value || CVPixelBufferGetPixelFormatType(decoded_buffer) != kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)
                 throw std::runtime_error("codec fixture native NV12 output missing");
@@ -405,6 +445,6 @@ void codec_self_test(const char* fixture_path) {
         auto last = result.get();
         if (!timely || last.pts != 100'000) throw std::runtime_error("static frame required encoder flush");
     }
-    std::fprintf(stderr, "macos-window codec self-test passed: H264/HEVC, NV12/BGRA color, alpha, resize, async ownership/order; no capture/input\n");
+    std::fprintf(stderr, "macos-window codec self-test passed: H264/HEVC, NV12/BGRA color, full-canvas alpha, oversized color, resize, async ownership/order; no capture/input\n");
 }
 }

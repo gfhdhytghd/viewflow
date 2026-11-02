@@ -14,6 +14,7 @@ pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
 pkg_check_modules(LIBINPUT REQUIRED IMPORTED_TARGET libinput)
 
 add_library(viewflow-hyprland SHARED
+    src/output_float.cpp
     src/main.cpp
     src/macos_shadow.cpp
     src/popup_backdrop.cpp
@@ -105,4 +106,18 @@ if(BUILD_TESTING)
     target_include_directories(viewflow-ime-popup-scope-test PRIVATE src)
     target_compile_options(viewflow-ime-popup-scope-test PRIVATE -Wall -Wextra -Wpedantic -Werror)
     add_test(NAME viewflow-ime-popup-scope-test COMMAND viewflow-ime-popup-scope-test)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(viewflow-output-float-geometry-test tests/output_float_geometry_test.cpp)
+    target_include_directories(viewflow-output-float-geometry-test PRIVATE src)
+    target_compile_options(viewflow-output-float-geometry-test PRIVATE -UNDEBUG)
+    add_test(NAME viewflow-output-float-geometry-test COMMAND viewflow-output-float-geometry-test)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(viewflow-work-area-test ../reverse-common/work_area_test.cpp)
+    target_compile_features(viewflow-work-area-test PRIVATE cxx_std_20)
+    target_compile_options(viewflow-work-area-test PRIVATE -UNDEBUG)
+    add_test(NAME viewflow-work-area-test COMMAND viewflow-work-area-test)
 endif()

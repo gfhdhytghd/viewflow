@@ -1,3 +1,4 @@
+#include "../reverse-common/encoder_extent.hpp"
 #include "video_compositor.h"
 #include "annex_b_clean_point.h"
 
@@ -242,8 +243,8 @@ HRESULT GpuVideoCompositor::Submit(uint64_t identity, std::span<const uint8_t> a
   if (a.owner && (a.owner->data() != a.bytes.data() || a.owner->size() != a.bytes.size())) return E_INVALIDARG;
   if (std::ranges::any_of(pending_, [identity](const Pending& p) { return p.identity == identity; })) return MF_E_INVALIDREQUEST;
 #ifdef VIEWFLOW_HAVE_FFMPEG
-  if (ffmpeg_decoder_ && decoder_geometry_.negotiated_width &&
-      (decoder_geometry_.negotiated_width != a.width || decoder_geometry_.negotiated_height != a.height)) {
+  if (ffmpeg_decoder_ && cached_alpha_width_ &&
+      (cached_alpha_width_ != a.width || cached_alpha_height_ != a.height)) {
     // The atlas binding admits a size change only with paired keyframes. FFmpeg's
     // AV1 D3D11VA decoder can retain its old surface pool across a new sequence
     // header, so replace it once every previous frame has been composited.
@@ -393,25 +394,26 @@ HRESULT GpuVideoCompositor::Composite(IMFSample* sample, std::vector<CompositedF
   decoder_geometry_.texture_width = sd.Width;
   decoder_geometry_.texture_height = sd.Height;
   if(sd.Format!=DXGI_FORMAT_NV12) return MF_E_INVALIDMEDIATYPE;
-  UINT crop_x=0, crop_y=0;
+  UINT crop_x=0, crop_y=0, color_width=found->width, color_height=found->height;
   if (decoder_geometry_.has_minimum_display_aperture) {
     const auto& geometry = decoder_geometry_;
     if (geometry.aperture_x < 0 || geometry.aperture_y < 0 ||
         geometry.aperture_x_fraction || geometry.aperture_y_fraction ||
-        geometry.aperture_width != found->width || geometry.aperture_height != found->height)
+        !viewflow::media::reducedColor({geometry.aperture_width,geometry.aperture_height},{found->width,found->height}))
       return MF_E_INVALIDMEDIATYPE;
     crop_x=UINT(geometry.aperture_x); crop_y=UINT(geometry.aperture_y);
+    color_width=geometry.aperture_width;color_height=geometry.aperture_height;
   } else if (sd.Width!=found->width || sd.Height!=found->height) {
     return MF_E_INVALIDMEDIATYPE; // Never guess a padded surface's visible area.
   }
-  if ((crop_x | crop_y | found->width | found->height) & 1u ||
-      uint64_t(crop_x)+found->width > sd.Width ||
-      uint64_t(crop_y)+found->height > sd.Height)
+  if ((crop_x | crop_y | color_width | color_height) & 1u ||
+      uint64_t(crop_x)+color_width > sd.Width ||
+      uint64_t(crop_y)+color_height > sd.Height)
     return MF_E_INVALIDMEDIATYPE;
-  const bool cropped = crop_x || crop_y || sd.Width!=found->width || sd.Height!=found->height;
-  const D3D11_BOX source_box{crop_x,crop_y,0,crop_x+found->width,crop_y+found->height,1};
+  const bool cropped = crop_x || crop_y || sd.Width!=color_width || sd.Height!=color_height;
+  const D3D11_BOX source_box{crop_x,crop_y,0,crop_x+color_width,crop_y+color_height,1};
   D3D11_TEXTURE2D_DESC nv=sd; nv.BindFlags=D3D11_BIND_SHADER_RESOURCE; nv.Usage=D3D11_USAGE_DEFAULT; nv.CPUAccessFlags=0; nv.MiscFlags=0;
-  nv.Width=found->width; nv.Height=found->height; nv.MipLevels=1; nv.ArraySize=1;
+  nv.Width=color_width; nv.Height=color_height; nv.MipLevels=1; nv.ArraySize=1;
   // Prefer direct sampling if the decoder exported shader-bindable planes;
   // otherwise make the required GPU-only copy into a shader-bindable NV12.
   ComPtr<ID3D11ShaderResourceView> y,uv,a,bgra;
@@ -431,7 +433,7 @@ HRESULT GpuVideoCompositor::Composite(IMFSample* sample, std::vector<CompositedF
         shader_nv12_.input_sample_count == sd.SampleDesc.Count &&
         shader_nv12_.input_sample_quality == sd.SampleDesc.Quality &&
         shader_nv12_.crop_x == crop_x && shader_nv12_.crop_y == crop_y &&
-        shader_nv12_.output_width == found->width && shader_nv12_.output_height == found->height;
+        shader_nv12_.output_width == color_width && shader_nv12_.output_height == color_height;
     if (!scratch_matches) {
       // Do not replace a usable cache until the entire texture/view set exists.
       ShaderNv12Cache next;
@@ -440,7 +442,7 @@ HRESULT GpuVideoCompositor::Composite(IMFSample* sample, std::vector<CompositedF
       next.input_sample_count = sd.SampleDesc.Count;
       next.input_sample_quality = sd.SampleDesc.Quality;
       next.crop_x = crop_x; next.crop_y = crop_y;
-      next.output_width = found->width; next.output_height = found->height;
+      next.output_width = color_width; next.output_height = color_height;
       { ScopedHostDuration resource_timer(recording_submit_host_durations_ ? &last_submit_host_durations_.composite_gpu_resource_alloc_us : nullptr);
         hr=device_->CreateTexture2D(&nv,nullptr,&next.texture);
         if(SUCCEEDED(hr)) hr=CreateSrv(device_.Get(),next.texture.Get(),DXGI_FORMAT_R8_UNORM,0,&next.y);
@@ -497,7 +499,7 @@ HRESULT GpuVideoCompositor::Composite(IMFSample* sample, std::vector<CompositedF
     D3D11_VIDEO_PROCESSOR_COLOR_SPACE out_space{}; out_space.RGB_Range=1; out_space.Nominal_Range=D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_0_255;
     video_context_->VideoProcessorSetStreamColorSpace(processor.Get(),0,&in_space);
     video_context_->VideoProcessorSetOutputColorSpace(processor.Get(),&out_space);
-    RECT source_rect{LONG(crop_x),LONG(crop_y),LONG(crop_x+found->width),LONG(crop_y+found->height)};
+    RECT source_rect{LONG(crop_x),LONG(crop_y),LONG(crop_x+color_width),LONG(crop_y+color_height)};
     RECT target_rect{0,0,LONG(found->width),LONG(found->height)};
     video_context_->VideoProcessorSetStreamSourceRect(processor.Get(),0,TRUE,&source_rect);
     video_context_->VideoProcessorSetStreamDestRect(processor.Get(),0,TRUE,&target_rect);

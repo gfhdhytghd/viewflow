@@ -31,6 +31,7 @@ target_link_libraries(viewflow-macos-windows PRIVATE
   "-framework CoreImage" "-framework CoreMedia" "-framework CoreVideo"
   "-framework VideoToolbox" "-framework QuartzCore" "-framework Metal" "-framework MetalPerformanceShaders")
 add_test(NAME windows-help COMMAND viewflow-macos-windows --help)
+add_test(NAME windows-workarea COMMAND viewflow-macos-windows --workarea-self-test)
 add_test(NAME windows-codec COMMAND viewflow-macos-windows --codec-self-test)
 set_tests_properties(windows-codec PROPERTIES LABELS "hardware-codec")
 add_test(NAME windows-pixels COMMAND viewflow-macos-windows --pixel-self-test)
@@ -145,3 +146,8 @@ set_target_properties(viewflow-window-retained-image-test PROPERTIES OBJCXX_STAN
 target_compile_options(viewflow-window-retained-image-test PRIVATE -fobjc-arc -Wall -Wextra -Werror)
 target_link_libraries(viewflow-window-retained-image-test PRIVATE "-framework CoreImage" "-framework Foundation" "-framework CoreGraphics")
 add_test(NAME windows-retained-image COMMAND viewflow-window-retained-image-test)
+
+add_executable(viewflow-work-area-test ../reverse-common/work_area_test.cpp)
+target_compile_features(viewflow-work-area-test PRIVATE cxx_std_20)
+target_compile_options(viewflow-work-area-test PRIVATE -UNDEBUG)
+add_test(NAME viewflow-work-area-test COMMAND viewflow-work-area-test)

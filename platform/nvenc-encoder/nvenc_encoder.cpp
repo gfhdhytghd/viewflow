@@ -1,4 +1,5 @@
 #include "nvenc_encoder.hpp"
+#include "../reverse-common/encoder_extent.hpp"
 #include "../linux-media/vaapi_encoder.hpp"
 #include "../linux-media/device_selection.hpp"
 
@@ -249,19 +250,22 @@ std::unique_ptr<Encoder> Encoder::create(const EncoderConfig& config, std::strin
   if (error == nullptr) return nullptr;
   if (!valid_config(config, error)) return nullptr;
   auto impl = std::make_unique<Impl>(config);
+  auto colorConfig=config;
+  const auto coded=media::fitExtent({config.width,config.height},media::encoderLimit(true));
+  colorConfig.width=coded.width;colorConfig.height=coded.height;
   try {
     const auto selected=media::selection(false);
     if(selected.vaapi) impl->vaapi=std::make_unique<media::VaapiEncoder>(config.width,config.height,2,selected.renderNode,config.bitrate_kbps);
     else {
-      impl->color = make_context(config, AV_PIX_FMT_RGBA, false, error);
+      impl->color = make_context(colorConfig, AV_PIX_FMT_RGBA, false, error);
       if (!impl->color) return nullptr;
     }
   } catch(const std::exception& failure) { *error=failure.what();return nullptr; }
   if (config.alpha_policy != AlphaPolicy::ColorOnlyExternalAlpha) {
-    impl->alpha = make_context(config, AV_PIX_FMT_YUV444P, true, error, bool(impl->vaapi));
+    impl->alpha = make_context(config, AV_PIX_FMT_YUV444P, true, error, bool(impl->vaapi) || coded.width!=config.width || coded.height!=config.height);
     if (!impl->alpha) return nullptr;
   }
-  impl->color_frame = allocate_frame(config, AV_PIX_FMT_RGBA, error);
+  impl->color_frame = allocate_frame(colorConfig, AV_PIX_FMT_RGBA, error);
   if (!impl->color_frame) return nullptr;
   if (config.alpha_policy != AlphaPolicy::ColorOnlyExternalAlpha) {
     impl->alpha_frame = allocate_frame(config, AV_PIX_FMT_YUV444P, error);
@@ -280,10 +284,14 @@ namespace {
     *error = "color frame is not writable: " + ffmpeg_error(writable);
     return false;
   }
-  const std::size_t row_bytes = static_cast<std::size_t>(impl->config.width) * 4;
-  for (std::uint32_t row = 0; row < impl->config.height; ++row) {
-    std::memcpy(frame->data[0] + static_cast<std::ptrdiff_t>(row) * frame->linesize[0],
-                rgba.data() + static_cast<std::size_t>(row) * row_bytes, row_bytes);
+  if (unsigned(frame->width)==impl->config.width && unsigned(frame->height)==impl->config.height) {
+    for (int y=0;y<frame->height;++y)
+      std::memcpy(frame->data[0]+size_t(y)*frame->linesize[0],rgba.data()+size_t(y)*frame->width*4,size_t(frame->width)*4);
+  } else for (int y=0;y<frame->height;++y) for (int x=0;x<frame->width;++x) {
+    const auto sy=uint64_t(y)*impl->config.height/frame->height;
+    const auto sx=uint64_t(x)*impl->config.width/frame->width;
+    std::memcpy(frame->data[0]+size_t(y)*frame->linesize[0]+size_t(x)*4,
+        rgba.data()+(sy*impl->config.width+sx)*4,4);
   }
   frame->pts = pts;
   frame->pict_type = idr ? AV_PICTURE_TYPE_I : AV_PICTURE_TYPE_NONE;

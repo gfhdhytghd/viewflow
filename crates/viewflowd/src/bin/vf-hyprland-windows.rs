@@ -31,6 +31,7 @@ mod receipt_tests {
 }
 
 fn main() -> Result<()> {
+    if std::env::args().nth(1).as_deref()==Some("--workarea-capabilities") {println!("workarea-source-v1");return Ok(());}
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args == ["--help"] || args == ["-h"] {
         println!("{USAGE}");
@@ -315,7 +316,22 @@ mod native {
             let result = (|| -> Result<()> {
                 let mut sequence = 0;
                 let mut stdin = std::io::stdin().lock();
-                while let Some(event) = wire::read_input(&mut stdin)? {
+                while let Some(event) = wire::read_source_event(&mut stdin)? {
+                    let event=match event {
+                        wire::SourceEvent::Input(event)=>event,
+                        wire::SourceEvent::WorkArea(area)=>{
+                            if std::env::var("VIEWFLOW_WORKAREA").as_deref()==Ok("1") {
+                                let scale=snapshot.lock().unwrap().as_ref().map(|(f,_)| f64::from(f.crop_width)/f.logical_width);
+                                let mut value=serde_json::to_value(area)?;
+                                if let Some(scale)=scale {value["source_scale"]=serde_json::json!(scale);}
+                                let expression=format!("eval hl.plugin.viewflow.workarea(\"address:{}\",{})",address,serde_json::to_string(&value.to_string())?);
+                                if let Err(error)=resolve_socket_path().map(HyprIpcClient::new).and_then(|ipc|ipc.request(&expression)) {
+                                    eprintln!("work area update retained for next report: {error}");
+                                }
+                            }
+                            continue;
+                        }
+                    };
                     if event.kind == 3 { eprintln!("window-scroll transport seq={} id={} axis={} amount={} precise={} stop={}",event.sequence,event.id,event.a,event.b,event.c,event.d); }
                     if event.sequence <= sequence {
                         eprintln!("window input sequence regression rejected");
@@ -513,6 +529,7 @@ mod native {
         .await?;
         let (mut receiver, control) = stream.into_parts();
         let mut encoder: Option<GpuEncoder> = None;
+        let mut encoder_retry = viewflowd::recovery_backoff::RecoveryBackoff::default();
         let mut extent = (0, 0);
         let mut force_idr = true;
         let mut outstanding: Option<Box<GpuFrame>> = None;
@@ -583,12 +600,19 @@ mod native {
                     // in-band IDR after resize, without changing the connection.
                     receiver.release_after_source_reads(frame)?;
                     outstanding = None;
-                    encoder = Some(GpuEncoder::new(
-                        wanted.0,
-                        wanted.1,
-                        32 * 1024 * 1024,
-                        wanted.0 as usize * wanted.1 as usize,
-                    )?);
+                    match GpuEncoder::new(wanted.0, wanted.1, 32 * 1024 * 1024,
+                        wanted.0 as usize * wanted.1 as usize) {
+                        Ok(created) => { encoder = Some(created); encoder_retry.reset(); }
+                        Err(error) => {
+                            // Device/codec resource failures retain the proxy and input
+                            // connection. No capture lease survives this retry wait.
+                            let delay=encoder_retry.delay();
+                            eprintln!("window encoder recovering in {delay:?}: {error:#}");
+                            encoder = None; extent = (0, 0); force_idr = true;
+                            tokio::time::sleep(delay).await;
+                            continue;
+                        }
+                    }
                     extent = wanted;
                     force_idr = true;
                     continue;

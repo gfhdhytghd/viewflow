@@ -1,3 +1,4 @@
+#include "output_float.hpp"
 // SPDX-License-Identifier: GPL-3.0-only
 #include "desktop_window_controller.hpp"
 
@@ -251,6 +252,7 @@ struct DesktopWindowController::Impl {
     }
     if (!succeeded(Config::Actions::move(target, false, window)))
       return failure("Hyprland rejected owned window move");
+    requestOutputFloatFit();
     // Successful ordered activity renews the idle enrollment watchdog. A long
     // physical drag must not expire at a fixed offset from its initial Begin.
     owned->expires_at_ns = std::max(owned->expires_at_ns, now + MAX_LIFETIME_NS);

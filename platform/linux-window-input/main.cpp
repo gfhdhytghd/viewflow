@@ -227,7 +227,7 @@ struct App {
         case vf::InputKind::geometry:
             if (event.c <= 0 || event.d <= 0) return;
             action("hl.dispatch(hl.dsp.window.resize({window=w,x=" + std::to_string(event.c / 1000.0) + ",y=" + std::to_string(event.d / 1000.0) +
-                "}));hl.dispatch(hl.dsp.window.move({window=w,x=" + std::to_string(event.a / 1000.0) + ",y=" + std::to_string(event.b / 1000.0) + "}));"); break;
+                "}));hl.dispatch(hl.dsp.window.move({window=w,x=" + std::to_string(event.a / 1000.0) + ",y=" + std::to_string(event.b / 1000.0) + "}));if hl.plugin.viewflow.fit_output_window then hl.plugin.viewflow.fit_output_window() end;"); break;
         default: throw std::runtime_error("unsupported native window input kind");
         }
     }

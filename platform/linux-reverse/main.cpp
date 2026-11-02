@@ -1,3 +1,4 @@
+#include "../reverse-common/encoder_extent.hpp"
 #include "../reverse-common/diagnostics.hpp"
 #include "../reverse-common/fixture_stamp.hpp"
 #include "../reverse-common/activity_hint.hpp"
@@ -872,7 +873,10 @@ struct App {
         for(auto& image:decoded) {
             const auto found=pending.find(image->pts);if(found==pending.end())throw std::runtime_error("reverse decoded metadata missing");
             auto current=std::move(found->second);pending.erase(pending.begin(),std::next(found));
-            if(image->width!=static_cast<int>(current.width) || image->height!=static_cast<int>(current.height))throw std::runtime_error("reverse decoded dimensions mismatch");
+            // Color uses normalized texture coordinates; the lossless alpha and
+            // tile/input geometry stay in the original atlas canvas units.
+            if(!viewflow::media::reducedColor({unsigned(image->width),unsigned(image->height)},{current.width,current.height}))
+                throw std::runtime_error("reverse decoded color exceeds canvas");
             if(!activity_presentation.admit(current))continue;
             static const bool async_option=[] {const auto* value=std::getenv("VIEWFLOW_GPU_ALPHA_ASYNC");return value && std::strcmp(value,"1")==0;}();
             bool alpha_layout_changed=false;

@@ -164,6 +164,8 @@ pub mod pixel_runtime;
 pub mod raw_session;
 mod readiness_runtime;
 pub mod reverse_bridge;
+pub mod recovery_backoff;
+pub mod work_area;
 #[cfg(unix)]
 mod sidecar_runtime;
 mod sync_ext;

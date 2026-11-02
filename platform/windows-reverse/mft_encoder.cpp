@@ -1,3 +1,4 @@
+#include "../reverse-common/encoder_extent.hpp"
 #include "diagnostics.hpp"
 #include "mft_encoder.hpp"
 #include "../reverse-common/quality_control.hpp"
@@ -28,7 +29,7 @@ struct MediaFoundationEncoder::Impl {
     ComPtr<IMFTransform> encoder;
     ComPtr<IMFMediaEventGenerator> events;
     ComPtr<ICodecAPI> codec;
-    unsigned width{}, height{}, fps{}, input_ready{}, output_ready{};
+    unsigned width{}, height{}, sourceWidth{}, sourceHeight{}, fps{}, input_ready{}, output_ready{};
     DWORD input_id{}, output_id{};
     bool mf_started{};
     ~Impl() {
@@ -58,6 +59,9 @@ MediaFoundationEncoder::~MediaFoundationEncoder() = default;
 HRESULT MediaFoundationEncoder::start(ID3D11Device* device, unsigned width, unsigned height, unsigned fps, unsigned codec) {
     auto& s = *impl_;
     if (!device || s.encoder || !width || !height || width % 2 || height % 2 || !fps || (codec!=1 && codec!=2)) return E_INVALIDARG;
+    s.sourceWidth=width;s.sourceHeight=height;
+    const auto coded=viewflow::media::fitExtent({width,height},viewflow::media::encoderLimit(codec==1));
+    width=coded.width;height=coded.height;
     VF_HR(MFStartup(MF_VERSION)); s.mf_started = true;
     s.device = device; device->GetImmediateContext(&s.context);
     ComPtr<IDXGIDevice> dxgi;VF_HR(device->QueryInterface(IID_PPV_ARGS(&dxgi)));ComPtr<IDXGIAdapter> adapter;VF_HR(dxgi->GetAdapter(&adapter));DXGI_ADAPTER_DESC adapter_desc{};VF_HR(adapter->GetDesc(&adapter_desc));
@@ -66,14 +70,15 @@ HRESULT MediaFoundationEncoder::start(ID3D11Device* device, unsigned width, unsi
     VF_HR(s.context.As(&s.video_context));
     D3D11_VIDEO_PROCESSOR_CONTENT_DESC desc{};
     desc.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
-    desc.InputWidth = desc.OutputWidth = width;
-    desc.InputHeight = desc.OutputHeight = height;
+    desc.InputWidth = s.sourceWidth; desc.OutputWidth = width;
+    desc.InputHeight = s.sourceHeight; desc.OutputHeight = height;
     desc.InputFrameRate = desc.OutputFrameRate = {fps, 1};
     desc.Usage = D3D11_VIDEO_USAGE_OPTIMAL_SPEED;
     VF_HR(s.video->CreateVideoProcessorEnumerator(&desc, &s.enumeration));
     VF_HR(s.video->CreateVideoProcessor(s.enumeration.Get(), 0, &s.processor));
     RECT rect{0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
-    s.video_context->VideoProcessorSetStreamSourceRect(s.processor.Get(), 0, TRUE, &rect);
+    RECT sourceRect{0,0,static_cast<LONG>(s.sourceWidth),static_cast<LONG>(s.sourceHeight)};
+    s.video_context->VideoProcessorSetStreamSourceRect(s.processor.Get(), 0, TRUE, &sourceRect);
     s.video_context->VideoProcessorSetStreamDestRect(s.processor.Get(), 0, TRUE, &rect);
     s.video_context->VideoProcessorSetOutputTargetRect(s.processor.Get(), TRUE, &rect);
     s.video_context->VideoProcessorSetStreamFrameFormat(s.processor.Get(), 0, D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
@@ -164,7 +169,7 @@ HRESULT MediaFoundationEncoder::submit(ID3D11Texture2D* bgra, std::int64_t times
     VF_HR(s.event_poll());
     if (!s.input_ready) return S_FALSE;
     D3D11_TEXTURE2D_DESC source{}; bgra->GetDesc(&source);
-    if (source.Width != s.width || source.Height != s.height || source.Format != DXGI_FORMAT_B8G8R8A8_UNORM) return E_INVALIDARG;
+    if (source.Width != s.sourceWidth || source.Height != s.sourceHeight || source.Format != DXGI_FORMAT_B8G8R8A8_UNORM) return E_INVALIDARG;
     D3D11_TEXTURE2D_DESC desc{};
     desc.Width=s.width; desc.Height=s.height; desc.MipLevels=1; desc.ArraySize=1;
     desc.Format=DXGI_FORMAT_NV12; desc.SampleDesc.Count=1;

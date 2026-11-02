@@ -1,6 +1,8 @@
 #include "vaapi_encoder.hpp"
+#include "../reverse-common/encoder_extent.hpp"
 #include <stdexcept>
 #include <chrono>
+#include <cstdio>
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/hwcontext.h>
@@ -26,6 +28,7 @@ struct VaapiEncoder::Impl {
     int64_t pts{};
     std::string node;
     unsigned codecId{};
+    int sourceWidth{}, sourceHeight{};
     uint32_t bitrate{}, pending{};
     std::chrono::steady_clock::time_point rebuilt = std::chrono::steady_clock::now();
     ~Impl() { avcodec_free_context(&codec); av_buffer_unref(&frames); av_buffer_unref(&device); }
@@ -33,36 +36,64 @@ struct VaapiEncoder::Impl {
 VaapiEncoder::VaapiEncoder(int width,int height,unsigned codec,const std::string& renderNode,uint32_t kbps):impl_(std::make_unique<Impl>()) {
     if(width<2 || height<2 || width%2 || height%2 || (codec!=2 && codec!=4) || renderNode.empty())
         throw std::invalid_argument("VA-API requires even dimensions, H264/AV1, and a render node");
-    auto& s=*impl_;
-    s.node=renderNode; s.codecId=codec; s.bitrate=s.pending=kbps;
-    check(av_hwdevice_ctx_create(&s.device,AV_HWDEVICE_TYPE_VAAPI,renderNode.c_str(),nullptr,0),"create VA-API device");
-    s.frames=av_hwframe_ctx_alloc(s.device); if(!s.frames) throw std::bad_alloc();
-    auto* pool=reinterpret_cast<AVHWFramesContext*>(s.frames->data);
-    pool->format=AV_PIX_FMT_VAAPI; pool->sw_format=AV_PIX_FMT_NV12;
-    pool->width=width; pool->height=height; pool->initial_pool_size=4;
-    check(av_hwframe_ctx_init(s.frames),"create VA-API NV12 surface pool");
-    const auto* encoder=avcodec_find_encoder_by_name(codec==2?"h264_vaapi":"av1_vaapi");
-    if(!encoder) throw std::runtime_error("requested VA-API encoder is absent from libavcodec");
-    s.codec=avcodec_alloc_context3(encoder); if(!s.codec) throw std::bad_alloc();
-    auto* c=s.codec;
-    c->width=width; c->height=height; c->pix_fmt=AV_PIX_FMT_VAAPI;
-    c->hw_frames_ctx=av_buffer_ref(s.frames); if(!c->hw_frames_ctx) throw std::bad_alloc();
-    c->time_base={1,60}; c->framerate={60,1}; c->gop_size=120; c->max_b_frames=0;
-    c->flags|=AV_CODEC_FLAG_LOW_DELAY;
-    c->color_range=AVCOL_RANGE_MPEG; c->colorspace=AVCOL_SPC_BT709;
-    c->color_primaries=AVCOL_PRI_BT709; c->color_trc=AVCOL_TRC_BT709;
-    c->bit_rate=int64_t(kbps)*1000; c->rc_max_rate=c->bit_rate;
-    check(av_opt_set(c->priv_data,"rc_mode",kbps?"VBR":"CQP",0),"set VA-API rate control");
-    check(av_opt_set_int(c->priv_data,"qp",10,0),"set VA-API QP");
-    check(av_opt_set_int(c->priv_data,"async_depth",1,0),"set VA-API async depth");
-    if(codec==2) {
-        check(av_opt_set(c->priv_data,"profile","high",0),"set VA-API H264 profile");
-        check(av_opt_set_int(c->priv_data,"idr_interval",0,0),"set VA-API IDR interval");
+    const int sourceWidth=width,sourceHeight=height;
+    auto limit=encoderLimit(codec==2);
+    for (;;) {
+        impl_=std::make_unique<Impl>();
+        auto& s=*impl_;
+        s.sourceWidth=sourceWidth;s.sourceHeight=sourceHeight;
+        const auto coded=fitExtent({unsigned(sourceWidth),unsigned(sourceHeight)},limit);
+        width=coded.width;height=coded.height;
+        s.node=renderNode; s.codecId=codec; s.bitrate=s.pending=kbps;
+        check(av_hwdevice_ctx_create(&s.device,AV_HWDEVICE_TYPE_VAAPI,renderNode.c_str(),nullptr,0),"create VA-API device");
+        if (auto* constraints=av_hwdevice_get_hwframe_constraints(s.device,nullptr)) {
+            if (constraints->max_width>0) limit.width=std::min(limit.width,unsigned(constraints->max_width));
+            if (constraints->max_height>0) limit.height=std::min(limit.height,unsigned(constraints->max_height));
+            av_hwframe_constraints_free(&constraints);
+            const auto supported=fitExtent({unsigned(sourceWidth),unsigned(sourceHeight)},limit);
+            width=supported.width;height=supported.height;
+        }
+        s.frames=av_hwframe_ctx_alloc(s.device); if(!s.frames) throw std::bad_alloc();
+        auto* pool=reinterpret_cast<AVHWFramesContext*>(s.frames->data);
+        pool->format=AV_PIX_FMT_VAAPI; pool->sw_format=AV_PIX_FMT_NV12;
+        pool->width=width; pool->height=height; pool->initial_pool_size=4;
+        const int poolStatus=av_hwframe_ctx_init(s.frames);
+        if (poolStatus<0 && width>192 && height>192) {
+            limit={unsigned(width/2),unsigned(height/2)};
+            continue;
+        }
+        check(poolStatus,"create VA-API NV12 surface pool");
+        const auto* encoder=avcodec_find_encoder_by_name(codec==2?"h264_vaapi":"av1_vaapi");
+        if(!encoder) throw std::runtime_error("requested VA-API encoder is absent from libavcodec");
+        s.codec=avcodec_alloc_context3(encoder); if(!s.codec) throw std::bad_alloc();
+        auto* c=s.codec;
+        c->width=width; c->height=height; c->pix_fmt=AV_PIX_FMT_VAAPI;
+        c->hw_frames_ctx=av_buffer_ref(s.frames); if(!c->hw_frames_ctx) throw std::bad_alloc();
+        c->time_base={1,60}; c->framerate={60,1}; c->gop_size=120; c->max_b_frames=0;
+        c->flags|=AV_CODEC_FLAG_LOW_DELAY;
+        c->color_range=AVCOL_RANGE_MPEG; c->colorspace=AVCOL_SPC_BT709;
+        c->color_primaries=AVCOL_PRI_BT709; c->color_trc=AVCOL_TRC_BT709;
+        c->bit_rate=int64_t(kbps)*1000; c->rc_max_rate=c->bit_rate;
+        check(av_opt_set(c->priv_data,"rc_mode",kbps?"VBR":"CQP",0),"set VA-API rate control");
+        check(av_opt_set_int(c->priv_data,"qp",10,0),"set VA-API QP");
+        check(av_opt_set_int(c->priv_data,"async_depth",1,0),"set VA-API async depth");
+        if(codec==2) {
+            check(av_opt_set(c->priv_data,"profile","high",0),"set VA-API H264 profile");
+            check(av_opt_set_int(c->priv_data,"idr_interval",0,0),"set VA-API IDR interval");
+        }
+        const int opened=avcodec_open2(c,encoder,nullptr);
+        if (opened<0 && width>192 && height>192) {
+            limit={unsigned(width/2),unsigned(height/2)};
+            continue; // Drop the failed context/pool; retain the capture canvas.
+        }
+        check(opened,"open hardware VA-API encoder");
+        s.staging=frame(); s.staging->format=AV_PIX_FMT_NV12; s.staging->width=width; s.staging->height=height;
+        check(av_frame_get_buffer(s.staging.get(),32),"allocate VA-API upload staging");
+        if (width!=sourceWidth || height!=sourceHeight)
+            std::fprintf(stderr,"encoder-size backend=vaapi canvas=%dx%d color=%dx%d\n",sourceWidth,sourceHeight,width,height);
+        s.rebuilt=std::chrono::steady_clock::now();
+        break;
     }
-    check(avcodec_open2(c,encoder,nullptr),"open hardware VA-API encoder");
-    s.staging=frame(); s.staging->format=AV_PIX_FMT_NV12; s.staging->width=width; s.staging->height=height;
-    check(av_frame_get_buffer(s.staging.get(),32),"allocate VA-API upload staging");
-    s.rebuilt=std::chrono::steady_clock::now();
 }
 VaapiEncoder::~VaapiEncoder()=default;
 void VaapiEncoder::setBitrateKbps(uint32_t kbps) {
@@ -73,22 +104,23 @@ std::vector<uint8_t> VaapiEncoder::encode(std::span<const uint8_t> rgba,bool idr
     if (impl_->pending!=impl_->bitrate && std::chrono::steady_clock::now()-impl_->rebuilt>=std::chrono::seconds(1)) {
         // Replacement creates its own first-frame IDR. Failure retains the old stream.
         try {
-            VaapiEncoder replacement(impl_->codec->width,impl_->codec->height,impl_->codecId,impl_->node,impl_->pending);
+            VaapiEncoder replacement(impl_->sourceWidth,impl_->sourceHeight,impl_->codecId,impl_->node,impl_->pending);
             impl_.swap(replacement.impl_);
             idr=true;
         } catch (const std::exception&) { impl_->rebuilt=std::chrono::steady_clock::now(); }
     }
     auto& s=*impl_; const int w=s.codec->width,h=s.codec->height;
-    if(rgba.size()!=size_t(w)*h*4) throw std::invalid_argument("VA-API RGBA size mismatch");
+    if(rgba.size()!=size_t(s.sourceWidth)*s.sourceHeight*4) throw std::invalid_argument("VA-API RGBA size mismatch");
     check(av_frame_make_writable(s.staging.get()),"writable VA-API staging");
+    auto pixel=[&](int x,int y) { return rgba.data()+(size_t(h==s.sourceHeight ? y : uint64_t(y)*s.sourceHeight/h)*s.sourceWidth+(w==s.sourceWidth ? x : uint64_t(x)*s.sourceWidth/w))*4; };
     // Identical BT.709 limited-range conversion to the NVIDIA kernel.
     for(int y=0;y<h;++y) for(int x=0;x<w;++x) {
-        const auto* p=rgba.data()+(size_t(y)*w+x)*4;
+        const auto* p=pixel(x,y);
         s.staging->data[0][size_t(y)*s.staging->linesize[0]+x]=((47*p[0]+157*p[1]+16*p[2]+128)>>8)+16;
         if((x|y)&1) continue;
         int r=0,g=0,b=0;
         for(int dy=0;dy<2;++dy) for(int dx=0;dx<2;++dx) {
-            const auto* q=rgba.data()+(size_t(y+dy)*w+x+dx)*4; r+=q[0];g+=q[1];b+=q[2];
+            const auto* q=pixel(x+dx,y+dy); r+=q[0];g+=q[1];b+=q[2];
         }
         auto* uv=s.staging->data[1]+size_t(y/2)*s.staging->linesize[1]+x;
         uv[0]=((-26*(r/4)-87*(g/4)+112*(b/4)+128)>>8)+128;

@@ -1,3 +1,4 @@
+#include "../reverse-common/encoder_extent.hpp"
 #include "gpu_dmabuf_encoder.cuh"
 #include "gpu_dmabuf_encoder_cabi.h"
 #include <EGL/egl.h>
@@ -45,6 +46,8 @@ std::int64_t deadlineNs(int ms) {
 }
 bool decodedBt709LimitedMatches(const std::vector<unsigned char> &annexB, int red,
                                 int green, int blue) {
+  const auto coded=viewflow::media::fitExtent({unsigned(W),unsigned(H)},viewflow::media::encoderLimit(true));
+  const int CW=coded.width,CH=coded.height;
   const AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_H264);
   AVCodecContext *ctx = codec ? avcodec_alloc_context3(codec) : nullptr;
   AVPacket *packet = av_packet_alloc();
@@ -62,18 +65,18 @@ bool decodedBt709LimitedMatches(const std::vector<unsigned char> &annexB, int re
               wantU = ((-26 * red - 87 * green + 112 * blue + 128) >> 8) + 128,
               wantV = ((112 * red - 102 * green - 10 * blue + 128) >> 8) + 128;
     ok = r >= 0 && ctx->profile == AV_PROFILE_H264_HIGH &&
-         frame->format == AV_PIX_FMT_YUV420P && frame->width == W &&
-         frame->height == H && frame->color_range == AVCOL_RANGE_MPEG &&
+         frame->format == AV_PIX_FMT_YUV420P && frame->width == CW &&
+         frame->height == CH && frame->color_range == AVCOL_RANGE_MPEG &&
          frame->color_primaries == AVCOL_PRI_BT709 &&
          frame->color_trc == AVCOL_TRC_BT709 && frame->colorspace == AVCOL_SPC_BT709 &&
          std::abs(
-             int(frame->data[0][size_t(H / 2) * frame->linesize[0] + W / 2]) -
+             int(frame->data[0][size_t(CH / 2) * frame->linesize[0] + CW / 2]) -
              wantY) <= 4 &&
          std::abs(
-             int(frame->data[1][size_t(H / 4) * frame->linesize[1] + W / 4]) -
+             int(frame->data[1][size_t(CH / 4) * frame->linesize[1] + CW / 4]) -
              wantU) <= 4 &&
          std::abs(
-             int(frame->data[2][size_t(H / 4) * frame->linesize[2] + W / 4]) -
+             int(frame->data[2][size_t(CH / 4) * frame->linesize[2] + CW / 4]) -
              wantV) <= 4 &&
          avcodec_receive_frame(ctx, frame) == AVERROR_EOF;
   }
@@ -111,6 +114,8 @@ bool decodedBt709LimitedGopMatches(
     const std::vector<std::vector<unsigned char>> &accessUnits,
     const std::vector<std::array<int, 3>> &straightRgb,
     const std::vector<bool> &expectIdr) {
+  const auto coded=viewflow::media::fitExtent({unsigned(W),unsigned(H)},viewflow::media::encoderLimit(true));
+  const int CW=coded.width,CH=coded.height;
   const AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_H264);
   AVCodecContext *ctx = codec ? avcodec_alloc_context3(codec) : nullptr;
   AVPacket *packet = av_packet_alloc();
@@ -132,18 +137,18 @@ bool decodedBt709LimitedGopMatches(
       const int wantY = ((47 * red + 157 * green + 16 * blue + 128) >> 8) + 16,
                 wantU = ((-26 * red - 87 * green + 112 * blue + 128) >> 8) + 128,
                 wantV = ((112 * red - 102 * green - 10 * blue + 128) >> 8) + 128;
-      ok = frame->format == AV_PIX_FMT_YUV420P && frame->width == W &&
-           frame->height == H && frame->color_range == AVCOL_RANGE_MPEG &&
+      ok = frame->format == AV_PIX_FMT_YUV420P && frame->width == CW &&
+           frame->height == CH && frame->color_range == AVCOL_RANGE_MPEG &&
            frame->color_primaries == AVCOL_PRI_BT709 &&
            frame->color_trc == AVCOL_TRC_BT709 &&
            frame->colorspace == AVCOL_SPC_BT709 &&
            frame->pict_type == (expectIdr[decoded] ? AV_PICTURE_TYPE_I
                                                     : AV_PICTURE_TYPE_P) &&
-           std::abs(int(frame->data[0][size_t(H / 2) * frame->linesize[0] + W / 2]) -
+           std::abs(int(frame->data[0][size_t(CH / 2) * frame->linesize[0] + CW / 2]) -
                     wantY) <= 4 &&
-           std::abs(int(frame->data[1][size_t(H / 4) * frame->linesize[1] + W / 4]) -
+           std::abs(int(frame->data[1][size_t(CH / 4) * frame->linesize[1] + CW / 4]) -
                     wantU) <= 4 &&
-           std::abs(int(frame->data[2][size_t(H / 4) * frame->linesize[2] + W / 4]) -
+           std::abs(int(frame->data[2][size_t(CH / 4) * frame->linesize[2] + CW / 4]) -
                     wantV) <= 4;
       ++decoded;
       av_frame_unref(frame);
@@ -276,6 +281,10 @@ bool exportFrame(Egl &e, GLuint tex, Export &out) {
 int main(int argc, char** argv) {
   if (argc == 2 && std::strcmp(argv[1], "--4k") == 0) {
     W = 3840; H = 2400;
+  } else if (argc==2 && std::strcmp(argv[1],"--oversized")==0) {
+    W=4512;H=1032;
+  } else if (argc==2 && std::strcmp(argv[1],"--oversized-tall")==0) {
+    W=1032;H=4512;
   } else if (argc != 1) {
     std::fprintf(stderr, "usage: integration-test [--4k]\n");
     return 2;
@@ -319,6 +328,10 @@ int main(int argc, char** argv) {
       pixels[p + 2] = static_cast<unsigned char>(10 + change / 4);
       pixels[p + 3] = 128;
     }
+    // The last source byte lies outside the smaller color grid. Its change
+    // must invalidate the full-canvas alpha cache even during downscaling.
+    const bool changedEdge=(W>4096 || H>4096) && i==3;
+    if (changedEdge) pixels.back()=127;
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, W, H, GL_RGBA, GL_UNSIGNED_BYTE,
                     pixels.data());
     Export x;
@@ -355,7 +368,7 @@ int main(int argc, char** argv) {
              (i == 2 ? "changed frame remains P" : "forced H.264 IDR NAL"))))
       return 1;
     if (!ck(out.alpha().size() == size_t(W) * H && out.alpha()[0] == 128 &&
-                out.alpha().back() == 128,
+                out.alpha().back() == (changedEdge ? 127 : 128),
             "alpha exact"))
       return 1;
     const int change = i < 2 ? 0 : i * 20;
@@ -381,6 +394,10 @@ int main(int argc, char** argv) {
   std::printf("GOP AU bytes: first-IDR=%zu unchanged-P=%zu changed-P=%zu forced-IDR=%zu\n",
               gopAccessUnits[0].size(), gopAccessUnits[1].size(),
               gopAccessUnits[2].size(), gopAccessUnits[3].size());
+  if (W>4096 || H>4096) {
+    std::puts("PASS oversized capture: persistent IDR/P/IDR, reduced color, exact full-size alpha; no restart");
+    return 0;
+  }
   // Exercise the public C ABI with two distinct producer frames. This remains
   // a bounded synthetic fixture: the five-second deadline is not live-path
   // acceptance criteria.

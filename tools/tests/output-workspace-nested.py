@@ -54,8 +54,67 @@ try:
         assert mod.special_workspace_active(m,'viewflow-test'),m
         assert json.loads(ctl('-j','activewindow')).get('address')==before.get('address')
         ws=json.loads(ctl('-j','clients'));assert all(w['workspace']['name'].removeprefix('special:')=='viewflow-test' for w in ws),ws
-        assert all(not w['floating'] for w in ws),ws
-        print('PASS numbered migration of two tiled windows',flush=True)
+        assert all(w['floating'] for w in ws),ws
+        def window(addr):
+            return next(w for w in json.loads(ctl('-j','clients')) if w['address']==addr)
+        def fits(w):
+            # Client body plus a decoration allowance must fit the logical output.
+            return w['at'][0]>=1280 and w['at'][1]>=0 and w['at'][0]+w['size'][0]<=2560 and w['at'][1]+w['size'][1]<=800
+        assert all(fits(w) for w in ws),ws
+        print('PASS numbered migration floats and fits two tiled windows',flush=True)
+        addr=ws[0]['address']
+        ctl('eval','hl.dispatch(hl.dsp.window.float({window="address:'+addr+'",action="disable"}))')
+        time.sleep(.2);assert window(addr)['floating'] and fits(window(addr))
+        print('PASS tile toggle re-floats and fits',flush=True)
+        for mode in ('fullscreen','maximized'):
+            ctl('eval','hl.dispatch(hl.dsp.window.fullscreen({window="address:'+addr+'",mode="'+mode+'",action="set"}))')
+            time.sleep(.2)
+            assert window(addr)['floating'] and window(addr)['fullscreen']!=0
+            ctl('eval',expression);time.sleep(.1)
+            assert window(addr)['fullscreen']!=0
+            ctl('eval','hl.dispatch(hl.dsp.window.fullscreen({window="address:'+addr+'",mode="'+mode+'",action="unset"}))')
+            time.sleep(.2)
+            assert window(addr)['floating'] and window(addr)['fullscreen']==0
+        print('PASS fullscreen/maximize survive reconciliation and restore float',flush=True)
+        target=next(m for m in mons if m['name']==local)['activeWorkspace']['name']
+        ctl('eval','hl.dispatch(hl.dsp.window.move({window="address:'+addr+'",workspace="'+target+'",follow=false}))')
+        time.sleep(.2);assert not window(addr)['floating']
+        print('PASS original tile restored on leave',flush=True)
+        ctl('eval','hl.dispatch(hl.dsp.window.float({window="address:'+addr+'",action="enable"}))')
+        ctl('eval','hl.dispatch(hl.dsp.window.move({window="address:'+addr+'",workspace="special:viewflow-test",follow=false}))')
+        time.sleep(.2)
+        ctl('eval','hl.dispatch(hl.dsp.window.move({window="address:'+addr+'",workspace="'+target+'",follow=false}))')
+        time.sleep(.2);assert window(addr)['floating']
+        print('PASS user floating state preserved on leave',flush=True)
+        ctl('eval','hl.dispatch(hl.dsp.window.move({window="address:'+addr+'",workspace="special:viewflow-test",follow=false}))')
+        # Rules route a newly mapped client without injecting input or focus.
+        ctl('eval','hl.window_rule({match={class="^org.freedesktop.weston.wayland-terminal$"},workspace="special:viewflow-test"})')
+        clients.append(subprocess.Popen(['weston-terminal'],env=env,stdout=open(artifacts/'opened.log','w'),stderr=subprocess.STDOUT))
+        time.sleep(.5)
+        opened=[w for w in json.loads(ctl('-j','clients')) if w['address'] not in [v['address'] for v in ws]]
+        assert len(opened)==1 and opened[0]['floating'] and fits(opened[0]),opened
+        print('PASS open on remote workspace floats and fits',flush=True)
+        # Mac display snapshot in the source-pixel plane. No Mac/device access.
+        area={'revision':1,'source_scale':2,'displays':[{'id':42,'values':[2560,0,2560,1600,76,80,120,40]}]}
+        def report_area():
+            ctl('eval','hl.plugin.viewflow.workarea("address:'+addr+'",'+json.dumps(json.dumps(area))+')')
+            time.sleep(.2)
+        report_area()
+        reserved=next(m for m in json.loads(ctl('-j','monitors')) if m['name']==remote)['reserved']
+        # hyprctl JSON uses left/top/right/bottom, unlike the wire TRBL order.
+        assert reserved==[20,38,40,60],reserved
+        for w in json.loads(ctl('-j','clients')):
+            if w['workspace']['name'].removeprefix('special:')=='viewflow-test':
+                assert w['at'][0]>=1300 and w['at'][1]>=38 and w['at'][0]+w['size'][0]<=2520 and w['at'][1]+w['size'][1]<=740,w
+        ctl('eval','hl.dispatch(hl.dsp.window.move({window="address:'+addr+'",x=1280,y=0}));hl.plugin.viewflow.fit_output_window()')
+        time.sleep(.2);assert window(addr)['at'][0]>=1300 and window(addr)['at'][1]>=38
+        ctl('reload');time.sleep(.2);ctl('eval',expression);time.sleep(.2)
+        assert next(m for m in json.loads(ctl('-j','monitors')) if m['name']==remote)['reserved']==[20,38,40,60]
+        area['revision']=2;area['displays'][0]['values'][4:]=[0,0,0,0];report_area()
+        assert next(m for m in json.loads(ctl('-j','monitors')) if m['name']==remote)['reserved']==[0,0,0,0]
+        print('PASS work area mapping, clamping, reload and Dock auto-hide update',flush=True)
+        clients[-1].terminate();clients[-1].wait(timeout=10);clients.pop()
+        time.sleep(.2)
         ctl('eval',f'hl.get_monitor("{remote}"):set_special_workspace(nil)');ctl('eval',expression)
         assert mod.special_workspace_active(next(m for m in json.loads(ctl('-j','monitors')) if m['name']==remote),'viewflow-test')
         print('PASS special deactivation recovery',flush=True)
@@ -76,10 +135,12 @@ try:
             focus_before=json.loads(ctl('-j','activewindow')).get('address')
             result=json.loads(ctl('repl','return hl.plugin.viewflow.recall_windows(false)'))
             assert result['ok'] and result['moved']==2,result
+            time.sleep(.2)
             recalled=json.loads(ctl('-j','clients'))
-            assert all(w['workspace']['name']==target and w['floating'] for w in recalled),recalled
+            assert all(w['workspace']['name']==target for w in recalled),recalled
+            assert window(addr)['floating'] and not window(ws[1]['address'])['floating'],recalled
             assert json.loads(ctl('-j','activewindow')).get('address')==focus_before
-            print('PASS tiled underlay/special recall with Wayland physical fixture; focus retained',flush=True)
+            print('PASS underlay/special recall restores original float state; focus retained',flush=True)
         else:
             result=json.loads(ctl('repl','return hl.plugin.viewflow.recall_windows(true)'))
             assert not result['ok'] and result['error']=='No physical display',result

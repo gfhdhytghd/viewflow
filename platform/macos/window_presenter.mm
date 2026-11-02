@@ -10,6 +10,7 @@
 #include "window_keys.hpp"
 #include "window_pixels.hpp"
 #include "window_parking.hpp"
+#include "window_work_area.hpp"
 #include "../reverse-common/window_residency.hpp"
 #include "../reverse-common/geometry_sync.hpp"
 #include "../reverse-common/shadow_corner.hpp"
@@ -171,7 +172,10 @@ struct Proxy {
     NSPoint source_grab{};
     NSRect resize_start{};
     vf::NativeMoveConfirmation move_confirmation;
+    vf::ConstraintGeometry constrained_geometry;
+    std::array<int64_t,4> remote_backing_frame{};
     bool geometry_queued{};
+    std::optional<std::array<int64_t,4>> last_geometry_sent;
     uint64_t geometry_pending{}, generation{};
     std::set<unsigned> modifiers;
     std::set<unsigned> keys;
@@ -196,6 +200,20 @@ struct Presenter {
     uint64_t statistics_frames{};
     double statistics_gpu_ms{};
     bool quitting{}, recovery_release{};
+    vf::WorkAreaUpdates work_areas;
+    id screen_observer{},dock_observer{};
+    NSTimer* work_area_timer{};
+    void publish_work_areas(bool force=false) {
+        const char* enabled=std::getenv("VIEWFLOW_WORKAREA");
+        if(!enabled || std::strcmp(enabled,"1")!=0)return;
+        const auto areas=vm::screen_work_areas(options);
+        const auto prefs=vm::work_area_preferences();
+        if(!force && !work_areas.changed(areas,prefs))return;
+        const auto revision=work_areas.revision+1;
+        if(output.push(vf::pack_work_areas(revision,areas))) {
+            work_areas.commit(areas,prefs);
+        }
+    }
     vm::ShortcutPolicy shortcut_policy;
     explicit Presenter(const vm::Options& config) : options(config) {
         if (!device) throw std::runtime_error("Metal device unavailable");
@@ -203,12 +221,27 @@ struct Presenter {
             config.performance_mode == vm::PerformanceMode::latency ? 1 : 3];
         context = [CIContext contextWithMTLDevice:device options:@{kCIContextWorkingColorSpace: (__bridge id)color_space}];
         for (const auto& rule : config.linux_shortcuts) shortcut_policy.add(rule);
+        const char* enabled=std::getenv("VIEWFLOW_WORKAREA");
+        if(enabled && std::strcmp(enabled,"1")==0) {
+            screen_observer=[[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationDidChangeScreenParametersNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*) {publish_work_areas(true);}];
+            dock_observer=[[NSDistributedNotificationCenter defaultCenter] addObserverForName:@"com.apple.dock.prefchanged" object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification*) {publish_work_areas(true);}];
+            // Common modes include AppKit native window tracking. Reconcile
+            // visibleFrame and plist changes when the OS omits a notification.
+            work_area_timer=[NSTimer timerWithTimeInterval:.5 repeats:YES block:^(NSTimer*) {publish_work_areas();}];
+            [[NSRunLoop mainRunLoop] addTimer:work_area_timer forMode:NSRunLoopCommonModes];
+            publish_work_areas(true);
+        }
     }
     void interaction(std::uint64_t window,bool active){
         activity_priority.hold(window,4,0,active,viewflow::activity::now_us());
         if(viewflow::activity::negotiated())output.push(viewflow::activity::pack_hint({window,1,active}));
     }
-    ~Presenter() { windows.clear(); CGColorSpaceRelease(color_space); }
+    ~Presenter() {
+        [work_area_timer invalidate];
+        if(screen_observer)[[NSNotificationCenter defaultCenter] removeObserver:screen_observer];
+        if(dock_observer)[[NSDistributedNotificationCenter defaultCenter] removeObserver:dock_observer];
+        windows.clear(); CGColorSpaceRelease(color_space);
+    }
     uint64_t send(uint64_t id, vf::InputKind kind, int a = 0, int b = 0, int c = 0, int d = 0) {
         if (quitting) return 0;
         if (recovery_release) {
@@ -300,12 +333,19 @@ struct Presenter {
         }
         const auto rect = body_screen_rect(proxy.tile,[proxy.window contentRectForFrameRect:proxy.window.frame]);
         const double desktop_top = NSScreen.screens.firstObject.frame.size.height;
+        const std::array<int64_t,4> geometry{
+            int64_t(std::llround((rect.origin.x-options.origin_x)*options.scale)),
+            int64_t(std::llround((desktop_top-NSMaxY(rect)-options.origin_y)*options.scale)),
+            int64_t(std::llround(rect.size.width*options.scale)),int64_t(std::llround(rect.size.height*options.scale))};
+        const std::array<int64_t,4> source{proxy.tile.x,proxy.tile.y,int64_t(body_width(proxy.tile)),int64_t(body_height(proxy.tile))};
+        if(proxy.last_geometry_sent && *proxy.last_geometry_sent==geometry &&
+            (source==geometry || proxy.constrained_geometry.suppress(proxy.remote_backing_frame,vm::backing_rect(proxy.window.frame,options.scale),work_areas.revision)))return;
         const auto sent = send(proxy.tile.id, vf::InputKind::geometry,
             static_cast<int>(std::lround((rect.origin.x - options.origin_x) * options.scale)),
             static_cast<int>(std::lround((desktop_top - NSMaxY(rect) - options.origin_y) * options.scale)),
             static_cast<int>(std::lround(rect.size.width * options.scale)),
             static_cast<int>(std::lround(rect.size.height * options.scale)));
-        if (sent) proxy.geometry_pending = sent;
+        if (sent) {proxy.geometry_pending = sent;proxy.last_geometry_sent=geometry;}
         else proxy.geometry_queued = true; // Keep local ownership and retry after output backpressure.
     }
     void draw(Proxy& proxy) {
@@ -707,21 +747,37 @@ struct Presenter {
             const auto rect = [proxy.window frameRectForContentRect:surface_screen_rect(tile,NSMakeRect(options.origin_x + tile.x / options.scale,
                 desktop_top - options.origin_y - (tile.y + body_height(tile)) / options.scale,
                 body_width(tile) / options.scale, body_height(tile) / options.scale))];
+            proxy.remote_backing_frame=vm::backing_rect(rect,options.scale);
             if (!proxy.fullscreen_transition && !proxy.fullscreen_pending && !(proxy.window.styleMask & NSWindowStyleMaskFullScreen) && !proxy.dragging && !proxy.geometry_queued && (!proxy.geometry_pending || tile.geometry_ack >= proxy.geometry_pending)) {
-                proxy.geometry_pending = 0; proxy.applying = true;
-                if (!same_backing_frame(proxy.window.frame,rect,options.scale)) [proxy.window setFrame:rect display:NO animate:NO];
+                proxy.geometry_pending = 0;
+                const auto requested=vm::backing_rect(rect,options.scale);
+                const auto local=vm::backing_rect(proxy.window.frame,options.scale);
+                const bool suppress=proxy.constrained_geometry.suppress(requested,local,work_areas.revision);
+                proxy.applying = true;
+                if (!suppress && !same_backing_frame(proxy.window.frame,rect,options.scale)) {
+                    NSScreen* target=nil;double overlap=0;
+                    for(NSScreen* screen in NSScreen.screens) {
+                        const auto part=NSIntersectionRect(rect,screen.frame);
+                        const auto area=part.size.width*part.size.height;
+                        if(area>overlap){target=screen;overlap=area;}
+                    }
+                    const auto desired=target ? [proxy.window constrainFrameRect:rect toScreen:target] : rect;
+                    [proxy.window setFrame:desired display:NO animate:NO];
+                }
                 proxy.applying = false;
                 // AppKit can constrain a restored/moved window to the current
                 // display's visible frame. Acknowledge that real placement:
                 // otherwise global pointer coordinates target an invisible,
                 // stale source title bar (especially after display rearrange).
-                if (!same_backing_frame(proxy.window.frame,rect,options.scale)) {
+                if (!same_backing_frame(proxy.window.frame,rect,options.scale) &&
+                    proxy.constrained_geometry.observe(requested,vm::backing_rect(proxy.window.frame,options.scale),work_areas.revision)) {
                     std::fprintf(stderr,"macos-window-placement constrained id=%llu requested=%.1f,%.1f actual=%.1f,%.1f\n",
                         static_cast<unsigned long long>(tile.id),rect.origin.x,rect.origin.y,
                         proxy.window.frame.origin.x,proxy.window.frame.origin.y);
-                    // Source placement is authoritative here. Only a local user
-                    // move/resize sends geometry, never this rendering correction.
-                }
+                    // Publish AppKit's actual frame once. Repeated captures of
+                    // the rejected target do not move the proxy or echo again.
+                    proxy.last_geometry_sent.reset();geometry(proxy);
+                } else if(same_backing_frame(proxy.window.frame,rect,options.scale))proxy.constrained_geometry.observe(requested,vm::backing_rect(proxy.window.frame,options.scale),work_areas.revision);
             }
             if(original.flags&vf::application_icon_flag) {
                 NSData* data=[NSData dataWithBytes:original.icon_png.data() length:original.icon_png.size()];
@@ -775,8 +831,8 @@ Proxy::~Proxy() { if(shadow_window){[window removeChildWindow:shadow_window];[sh
 - (NSRect)constrainFrameRect:(NSRect)frame toScreen:(NSScreen*)screen {
     if([self.contentView isKindOfClass:VFProxyView.class]) {
         auto* state=((VFProxyView*)self.contentView)->proxy;
-        // Remote geometry can belong to an adjacent device. AppKit must not
-        // constrain it back onto this screen and feed that correction upstream.
+        // Proxy-first local moves can cross display boundaries. Source-driven
+        // placement uses the display's actual visible frame and reports it once.
         if(state && vm::unconstrained_move(state->applying,state->dragging,state->resizing,
             self.styleMask & NSWindowStyleMaskFullScreen))return frame;
         if(state && state->local_padding && !(self.styleMask&NSWindowStyleMaskFullScreen)) {

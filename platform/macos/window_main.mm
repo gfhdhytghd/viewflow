@@ -2,6 +2,7 @@
 #include "window_codec.hpp"
 #include "window_pixels.hpp"
 #include "window_parking.hpp"
+#include "window_work_area.hpp"
 #include <charconv>
 #include <csignal>
 #include <cstdio>
@@ -105,12 +106,28 @@ static int trace_secondary_events() {
 }
 
 int main(int argc, const char* argv[]) {
+    if(argc==2 && std::string_view(argv[1])=="--workarea-capabilities") { std::puts("workarea-presenter-v1");return 0; }
     if(argc==2 && std::string_view(argv[1])=="--quality-capabilities") { std::puts("native-quality-v1 max_kbps=80000 max_fps=60"); return 0; }
     if(argc==2 && std::string_view(argv[1])=="--activity-priority-capabilities") { std::puts("activity-priority-v1"); return 0; }
     @autoreleasepool {
         std::signal(SIGPIPE, SIG_IGN);
         try {
             PresenterExecutable isolated(argc,argv);
+            if(argc==2 && std::string_view(argv[1])=="--workarea-self-test") {
+                viewflow::macos::Options options;options.scale=2;options.origin_x=-3072;options.origin_y=-299;
+                const auto displays=viewflow::macos::screen_work_areas(options);
+                if(displays.empty())throw std::runtime_error("no physical Mac screen available for work area test");
+                viewflow::reverse::WorkAreaUpdates updates;
+                if(!updates.changed(displays,"initial"))throw std::runtime_error("initial work area not published");
+                updates.commit(displays,"initial");
+                if(updates.changed(displays,"initial") || !updates.changed(displays,"Dock prefs changed"))throw std::runtime_error("work area change detection");
+                for(const auto& d:displays) {
+                    const auto& v=d.values;
+                    if(v[2]<=0 || v[3]<=0 || v[4]+v[6]>=v[3] || v[5]+v[7]>=v[2])throw std::runtime_error("Mac work area mapping");
+                }
+                std::fprintf(stderr,"PASS Mac work area snapshot displays=%zu scale/origin and preference change; no window/input/pref mutation\n",displays.size());
+                return 0;
+            }
             if(argc==2 && std::string_view(argv[1])=="--trace-secondary-events")return trace_secondary_events();
             if (argc >= 3 && std::string_view(argv[1]) == "--owner-pid") {
                 const std::string_view text = argv[2];

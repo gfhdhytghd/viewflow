@@ -20,6 +20,7 @@ fn main() {
         "nvenc_encoder_cabi.h",
         "../linux-media/vaapi_encoder.cpp",
         "../linux-media/vaapi_encoder.hpp",
+        "../reverse-common/encoder_extent.hpp",
         "../linux-media/device_selection.hpp",
     ] {
         println!("cargo:rerun-if-changed={}", root.join(file).display());
@@ -95,6 +96,7 @@ fn build_gpu_encoder() {
         "../linux-media/egl_device.hpp",
         "../linux-media/vaapi_encoder.cpp",
         "../linux-media/vaapi_encoder.hpp",
+        "../reverse-common/encoder_extent.hpp",
         "gpu_dmabuf_encoder.cuh",
         "alpha_copy_profile.hpp",
         "opaque_alpha.hpp",

@@ -80,9 +80,11 @@ bool verify_alpha_software_decode(const std::vector<EncodedAccessUnit>& output,
   return valid;
 }
 
-int main() {
-  constexpr std::uint32_t kWidth = 1556;
-  constexpr std::uint32_t kHeight = 1300;
+int main(int argc, char** argv) {
+  const bool oversized=argc==2 && std::strcmp(argv[1],"--oversized")==0;
+  if (argc!=1 && !oversized) { std::fprintf(stderr,"usage: smoke [--oversized]\n");return 2; }
+  const std::uint32_t kWidth = oversized ? 4512 : 1556;
+  const std::uint32_t kHeight = oversized ? 1032 : 1300;
   std::string error;
   std::vector<std::uint8_t> rgba(static_cast<std::size_t>(kWidth) * kHeight * 4, 0);
   for (std::size_t pixel = 0; pixel < rgba.size() / 4; ++pixel) {

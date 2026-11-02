@@ -80,7 +80,7 @@ where R: AsyncRead + Unpin, W: AsyncWrite + Unpin {
             let bytes = read_record(incoming).await?;
             let tag = u32::from_le_bytes(bytes[..4].try_into()?);
             ensure!((tag == 2 && bytes.len() == 40) || (tag == 3 && (48..=64*1024*1024).contains(&bytes.len()))
-                || ((tag == 5 || tag == 6) && bytes.len() == 24), "activity input record");
+                || ((tag == 5 || tag == 6) && bytes.len() == 24) || (tag==7 && crate::work_area::Snapshot::decode(&bytes).is_ok()), "activity input record");
             events.send(bytes).await.map_err(|_| anyhow::anyhow!("activity input closed"))?;
         }
         #[allow(unreachable_code)] Ok::<(), anyhow::Error>(())

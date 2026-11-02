@@ -1,3 +1,4 @@
+#include "../reverse-common/encoder_extent.hpp"
 #include "gpu_sparse_atlas.cuh"
 #include "alpha_copy_profile.hpp"
 #include "opaque_alpha.hpp"
@@ -108,12 +109,12 @@ __global__ void alphaChanged(const unsigned char* current, size_t currentPitch,
   if (any && threadIdx.x == 0 && threadIdx.y == 0) atomicExch(changed, 1U);
 }
 __global__ void nv12(const unsigned char *rgba, size_t rp, unsigned char *y,
-                     size_t yp, unsigned char *uv, size_t up, int w, int h) {
+                     size_t yp, unsigned char *uv, size_t up, int w, int h, int sourceW, int sourceH) {
   const int x = int(blockIdx.x * blockDim.x + threadIdx.x),
             yy = int(blockIdx.y * blockDim.y + threadIdx.y);
   if (x >= w || yy >= h)
     return;
-  const unsigned char *p = rgba + size_t(yy) * rp + size_t(x) * 4;
+  const unsigned char *p = rgba + size_t(sourceH==h ? yy : uint64_t(yy)*sourceH/h) * rp + size_t(sourceW==w ? x : uint64_t(x)*sourceW/w) * 4;
   const int r = p[0], g = p[1], b = p[2];
   // BT.709 limited-range Y'CbCr. These coefficients and the VUI below are the
   // transport colour contract; do not substitute the BT.601 capture-probe
@@ -126,7 +127,7 @@ __global__ void nv12(const unsigned char *rgba, size_t rp, unsigned char *y,
   int sr = 0, sg = 0, sb = 0;
   for (int j = yy; j <= sy; ++j)
     for (int i = x; i <= sx; ++i) {
-      const unsigned char *q = rgba + size_t(j) * rp + size_t(i) * 4;
+      const unsigned char *q = rgba + size_t(sourceH==h ? j : uint64_t(j)*sourceH/h) * rp + size_t(sourceW==w ? i : uint64_t(i)*sourceW/w) * 4;
       sr += q[0];
       sg += q[1];
       sb += q[2];
@@ -383,8 +384,11 @@ struct CudaDmabufEncoder::Impl {
     auto *fc = reinterpret_cast<AVHWFramesContext *>(frames->data);
     fc->format = AV_PIX_FMT_CUDA;
     fc->sw_format = AV_PIX_FMT_NV12;
-    fc->width = config.outputWidth;
-    fc->height = config.outputHeight;
+    const auto coded = media::fitExtent({unsigned(config.outputWidth), unsigned(config.outputHeight)}, media::encoderLimit(config.colorCodec == 2));
+    if (coded.width!=unsigned(config.outputWidth) || coded.height!=unsigned(config.outputHeight))
+      std::fprintf(stderr,"encoder-size backend=nvenc canvas=%dx%d color=%ux%u\n",config.outputWidth,config.outputHeight,coded.width,coded.height);
+    fc->width = coded.width;
+    fc->height = coded.height;
     fc->initial_pool_size = 1;
     if (!avOk(av_hwframe_ctx_init(frames), error, "av_hwframe_ctx_init"))
       return false;
@@ -398,8 +402,8 @@ struct CudaDmabufEncoder::Impl {
       fail(error, "avcodec_alloc_context3");
       return false;
     }
-    encoder->width = config.outputWidth;
-    encoder->height = config.outputHeight;
+    encoder->width = coded.width;
+    encoder->height = coded.height;
     encoder->pix_fmt = AV_PIX_FMT_CUDA;
     encoder->time_base = {1, 1000000000};
     encoder->framerate = {60, 1};
@@ -1095,10 +1099,11 @@ bool CudaDmabufEncoder::encodeAtlas(const std::vector<DmabufAtlasTile>& inputs,
   frame->colorspace = AVCOL_SPC_BT709;
   dim3 b(16, 16), g((impl_->config.outputWidth + 15) / 16,
                     (impl_->config.outputHeight + 15) / 16);
-  nv12<<<g, b, 0, impl_->stream>>>(
+  const dim3 colorGrid((impl_->encoder->width + 15) / 16,(impl_->encoder->height + 15) / 16);
+  nv12<<<colorGrid, b, 0, impl_->stream>>>(
       impl_->rgba, impl_->rgbaPitch, frame->data[0], frame->linesize[0],
-      frame->data[1], frame->linesize[1], impl_->config.outputWidth,
-      impl_->config.outputHeight);
+      frame->data[1], frame->linesize[1], impl_->encoder->width, impl_->encoder->height,
+      impl_->config.outputWidth, impl_->config.outputHeight);
   const size_t alphaBytes = size_t(impl_->config.outputWidth) * impl_->config.outputHeight;
   std::vector<unsigned char> rawAlpha;
   std::shared_ptr<const std::vector<unsigned char>> sharedAlpha;

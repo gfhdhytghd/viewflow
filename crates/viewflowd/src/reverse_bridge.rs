@@ -17,7 +17,21 @@ const MAX_BACKDROP: u32 = 64 * 1024 * 1024;
 fn peer_supports_activity(connection: &quinn::Connection) -> bool {
     connection.handshake_data()
         .and_then(|data| data.downcast::<quinn::crypto::rustls::HandshakeData>().ok())
-        .is_some_and(|data| data.protocol.as_deref() == Some(viewflow_transport::ACTIVITY_ALPN))
+        .is_some_and(|data| [viewflow_transport::ACTIVITY_ALPN,viewflow_transport::WORKAREA_ALPN].contains(&data.protocol.as_deref().unwrap_or_default()))
+}
+
+
+fn peer_supports_workarea(connection:&quinn::Connection)->bool {
+    connection.handshake_data().and_then(|data|data.downcast::<quinn::crypto::rustls::HandshakeData>().ok())
+        .is_some_and(|data|data.protocol.as_deref()==Some(viewflow_transport::WORKAREA_ALPN))
+}
+async fn native_supports_workarea(config:&ReverseBridgeConfig, source:bool)->bool {
+    let mut command=Command::new(&config.native);
+    command.arg("--workarea-capabilities").stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    matches!(tokio::time::timeout(Duration::from_secs(2),command.output()).await,
+        Ok(Ok(output)) if output.status.success() && output.stdout==if source {b"workarea-source-v1\n".as_slice()} else {b"workarea-presenter-v1\n".as_slice()})
 }
 
 async fn native_supports_activity(config: &ReverseBridgeConfig) -> bool {
@@ -191,7 +205,7 @@ impl ReverseBridge {
         let config = config.clone();
         let (stop, mut stopped) = watch::channel(false);
         let task = tokio::spawn(async move {
-            let mut retry_delay = Duration::from_secs(1);
+            let mut retry = crate::recovery_backoff::RecoveryBackoff::default();
             loop {
                 if *stopped.borrow() || connection.close_reason().is_some() {
                     break;
@@ -219,12 +233,13 @@ impl ReverseBridge {
                 }
                 // Rapid native exits must not repeatedly recreate a remote
                 // presenter. A healthy minute resets only this direction's retry.
-                if started.elapsed() >= Duration::from_secs(60) { retry_delay = Duration::from_secs(1); }
+                if started.elapsed() >= Duration::from_secs(60) { retry.reset(); }
+                let retry_delay=retry.delay();
+                eprintln!("reverse-window-bridge retry in {retry_delay:?}; connection retained");
                 tokio::select! {
                     _ = stopped.changed() => break,
                     () = tokio::time::sleep(retry_delay) => (),
                 }
-                retry_delay = (retry_delay * 2).min(Duration::from_secs(30));
             }
         });
         Ok(Self {
@@ -244,6 +259,7 @@ async fn run(
     let quality_capability = if windows_source { native_quality_capability(config).await } else { None };
     let quality_mode=config.quality_mode.unwrap_or_else(crate::native_quality::QualityMode::from_env);
     let activity_capable = peer_supports_activity(connection) && native_supports_activity(config).await;
+    let workarea_capable=peer_supports_workarea(connection) && native_supports_workarea(config,windows_source).await;
     let negotiate = async {
         let (mut send, mut receive) = if windows_source {
             connection.open_bi().await?
@@ -265,9 +281,14 @@ async fn run(
             ensure!(peer <= 1, "invalid native activity capability");
             activity_capable && peer == 1
         } else { false };
-        Ok::<_, anyhow::Error>((send, receive, activity))
+        let workarea=if peer_supports_workarea(connection) {
+            send.write_all(&[u8::from(workarea_capable)]).await?;
+            let peer=receive.read_u8().await?;ensure!(peer<=1,"invalid work area capability");
+            workarea_capable && peer==1
+        } else {false};
+        Ok::<_, anyhow::Error>((send, receive, activity, workarea))
     };
-    let (mut send, mut receive, activity) = tokio::select! {
+    let (mut send, mut receive, activity, workarea) = tokio::select! {
         result = negotiate => result?,
         _ = stopped.changed() => return Ok(()),
     };
@@ -287,6 +308,7 @@ async fn run(
     command
         .args(&config.args)
         .env("VIEWFLOW_ACTIVITY_PRIORITY", if activity { "1" } else { "0" })
+        .env("VIEWFLOW_WORKAREA", if workarea {"1"} else {"0"})
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -396,9 +418,15 @@ async fn relay_reverse_inputs_with_activity<R: AsyncRead + Unpin, W: AsyncWrite 
         let mut prefix = [0u8; 4];
         reader.read_exact(&mut prefix).await.context("reverse input length")?;
         let length = u32::from_le_bytes(prefix);
-        ensure!(length == 24 || length == 40 || (48..=MAX_BACKDROP).contains(&length), "reverse input record length");
+        ensure!(length == 24 || length == 24 || length == 40 || (48..=MAX_BACKDROP).contains(&length), "reverse input record length");
         let mut tag = [0u8; 4];
         reader.read_exact(&mut tag).await?;
+        if u32::from_le_bytes(tag)==7 {
+            ensure!((24..=1176).contains(&length),"work area record length");
+            let mut bytes=tag.to_vec();bytes.resize(length as usize,0);reader.read_exact(&mut bytes[4..]).await?;
+            crate::work_area::Snapshot::decode(&bytes)?;
+            writer.write_all(&prefix).await?;writer.write_all(&bytes).await?;writer.flush().await?;continue;
+        }
         if u32::from_le_bytes(tag) == 6 {
             ensure!(activity && length==24, "activity hint not negotiated or invalid length");
             let mut body=[0u8;20];reader.read_exact(&mut body).await?;
@@ -513,7 +541,7 @@ async fn relay_records<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
         let length = u32::from_le_bytes(prefix);
         ensure!(
             if kind == 2 {
-                length == 40 || (48..=MAX_BACKDROP).contains(&length)
+                length == 24 || length == 40 || (48..=MAX_BACKDROP).contains(&length)
             } else {
                 (32..=MAX_FRAME).contains(&length)
             },
@@ -523,7 +551,8 @@ async fn relay_records<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
         reader.read_exact(&mut tag).await?;
         ensure!(
             (u32::from_le_bytes(tag) == kind && (kind != 2 || length == 40))
-                || (kind == 2 && u32::from_le_bytes(tag) == 3 && (48..=MAX_BACKDROP).contains(&length)),
+                || (kind == 2 && u32::from_le_bytes(tag) == 3 && (48..=MAX_BACKDROP).contains(&length))
+                || (kind==2 && u32::from_le_bytes(tag)==7 && (24..=1176).contains(&length)),
             "reverse record direction mismatch"
         );
         writer.write_all(&prefix).await?;
@@ -542,6 +571,20 @@ async fn relay_records<R: AsyncRead + Unpin, W: AsyncWrite + Unpin>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn workarea_snapshot_preserves_its_atomic_record_in_both_directions() {
+        let mut record=24u32.to_le_bytes().to_vec();
+        record.extend(7u32.to_le_bytes());record.extend(1u32.to_le_bytes());record.extend(2u64.to_le_bytes());
+        record.extend(0u32.to_le_bytes());record.extend(0u32.to_le_bytes());
+        let mut outgoing=Vec::new();
+        assert!(relay_reverse_inputs(&mut record.as_slice(),&mut outgoing,None,123).await.is_err());
+        assert_eq!(outgoing,record);
+        let mut incoming=Vec::new();
+        assert!(relay_records(&mut record.as_slice(),&mut incoming,2).await.is_err());
+        assert_eq!(incoming,record);
+        let mut source=record.as_slice();
+        assert!(matches!(crate::native_window_wire::read_source_event(&mut source).unwrap(),Some(crate::native_window_wire::SourceEvent::WorkArea(snapshot)) if snapshot.revision==2));
+    }
     #[tokio::test]
     async fn backdrops_preserve_order_with_input_in_both_relay_directions() {
         let input = |sequence: u64| {

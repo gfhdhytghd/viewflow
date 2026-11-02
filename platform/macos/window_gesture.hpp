@@ -10,7 +10,8 @@ inline WindowGesture window_gesture(bool popup, bool command, bool shift) {
 // A locally owned move must reach the neighbouring viewport, including above
 // the menu bar. Resizing and fullscreen keep the native frame constraints.
 inline bool unconstrained_move(bool applying,bool dragging,bool resizing,bool fullscreen) {
-    return applying || (dragging && !resizing && !fullscreen);
+    (void)applying;
+    return dragging && !resizing && !fullscreen;
 }
 struct GestureRect { double x, y, width, height; };
 // AppKit screen coordinates increase upwards. Keep the top left fixed and

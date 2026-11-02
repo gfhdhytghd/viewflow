@@ -76,6 +76,8 @@ def special_workspace_expression(output, workspace=SPECIAL_WORKSPACE,
     # send its contents to a physical display. Snapshot before changing spaces.
     return (f'local monitor = hl.get_monitor({output_value}); '
             f'if not monitor then error("Viewflow output is unavailable") end; '
+            f'if hl.plugin and hl.plugin.viewflow and hl.plugin.viewflow.float_output then '
+            f'hl.plugin.viewflow.float_output({output_value}, {workspace_name}, {json.dumps(underlay)}) end; '
             f'local previous = monitor.active_workspace; '
             f'local windows = previous and hl.get_workspace_windows(previous) or {{}}; '
             f'hl.workspace_rule({{ workspace = {workspace_value}, monitor = {output_value} }}); '

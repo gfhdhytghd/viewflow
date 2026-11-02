@@ -3,6 +3,7 @@
 #include "input_capture.hpp"
 #include "desktop_window_controller.hpp"
 #include "window_recall.hpp"
+#include "output_float.hpp"
 #include "macos_shadow.hpp"
 #include "popup_backdrop.hpp"
 
@@ -35,6 +36,7 @@ extern "C" {
 namespace {
 
 HANDLE g_handle = nullptr;
+std::unique_ptr<viewflow::hyprland::OutputFloat> g_outputFloat;
 wl_event_source* g_pendingDetach = nullptr;
 std::unique_ptr<viewflow::hyprland::MetadataBridge> g_bridge;
 std::unique_ptr<viewflow::hyprland::InputCapture> g_inputCapture;
@@ -131,6 +133,8 @@ APICALL EXPORT bool viewflow_input_capture_active_v1() {
   return capture && capture->captured() && !capture->forwardedMotion;
 }
 
+void viewflow::hyprland::requestOutputFloatFit() { if(g_outputFloat)g_outputFloat->refresh(); }
+
 void viewflow::hyprland::requestInputDetach() {
   if (g_pendingDetach) return;
   g_pendingDetach = wl_event_loop_add_idle(g_pCompositor->m_wlEventLoop, [](void*) {
@@ -160,6 +164,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
                              "against the active Hyprland headers");
   }
 
+  g_outputFloat = std::make_unique<viewflow::hyprland::OutputFloat>();
   g_bridge = std::make_unique<viewflow::hyprland::MetadataBridge>();
   g_bridge->start();
   g_inputCapture =
@@ -167,7 +172,23 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
   g_inputCapture->start();
   g_desktopWindowController =
       std::make_unique<viewflow::hyprland::DesktopWindowController>();
-  if (!HyprlandAPI::addLuaFunction(handle, "viewflow", "recall_windows", [](lua_State* state) -> int {
+  if (!HyprlandAPI::addLuaFunction(handle, "viewflow", "workarea", [](lua_State* state)->int {
+        try {
+          const auto* selector=lua_tostring(state,1);const auto* snapshot=lua_tostring(state,2);
+          if(!selector || !snapshot || !g_outputFloat)throw std::runtime_error("work area target and snapshot required");
+          g_outputFloat->workarea(selector,snapshot);return 0;
+        } catch(const std::exception& error){lua_pushstring(state,error.what());return lua_error(state);}
+      }) || !HyprlandAPI::addLuaFunction(handle,"viewflow","fit_output_window",[](lua_State*)->int {
+        viewflow::hyprland::requestOutputFloatFit();return 0;
+      }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "float_output", [](lua_State* state) -> int {
+        const auto* output = lua_tostring(state, 1);
+        const auto* special = lua_tostring(state, 2);
+        const auto* underlay = lua_tostring(state, 3);
+        if (!output || !special || !underlay || !g_outputFloat) {
+          lua_pushliteral(state, "output and workspace names required"); return lua_error(state);
+        }
+        g_outputFloat->add(output, special, underlay); return 0;
+      }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "recall_windows", [](lua_State* state) -> int {
         try {
           const auto result=viewflow::hyprland::recallWindows(lua_toboolean(state,1)).dump();
           lua_pushlstring(state,result.data(),result.size());return 1;
@@ -299,11 +320,12 @@ APICALL EXPORT void PLUGIN_EXIT() {
   // Revoke entry points before releasing their targets. Cached Lua closures
   // use Hyprland's ID dispatcher and then report "plugin unloaded".
   if (g_handle)
-    for (const auto* name : {"recall_windows", "recall_shortcut", "set_recall_shortcut", "add_input_route", "capture_status", "pointer_timings", "forwarded_button", "forwarded_axis", "with_forwarded_motion", "focus_without_warp", "desktop_window"})
+    for (const auto* name : {"workarea", "fit_output_window", "float_output", "recall_windows", "recall_shortcut", "set_recall_shortcut", "add_input_route", "capture_status", "pointer_timings", "forwarded_button", "forwarded_axis", "with_forwarded_motion", "focus_without_warp", "desktop_window"})
       HyprlandAPI::removeLuaFunction(g_handle, "viewflow", name);
   if (g_pendingDetach) wl_event_source_remove(g_pendingDetach);
   g_pendingDetach = nullptr;
   viewflow::hyprland::shutdownWindowRecall();
+  g_outputFloat.reset();
   g_inputRoutes.clear();
   g_popupBackdrops.reset();
   g_macShadows.reset();

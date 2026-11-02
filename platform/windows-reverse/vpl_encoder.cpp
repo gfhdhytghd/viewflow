@@ -1,3 +1,4 @@
+#include "../reverse-common/encoder_extent.hpp"
 #include "vpl_encoder.hpp"
 #include "../reverse-common/quality_control.hpp"
 #include "diagnostics.hpp"
@@ -32,7 +33,7 @@ struct VplEncoder::Impl {
  struct Task {std::vector<mfxU8> bytes;mfxBitstream bitstream{};mfxSyncPoint sync{};};
  std::vector<std::unique_ptr<Input>> inputs;std::array<Task,2> tasks;std::deque<unsigned> pending;
  std::map<mfxU64,std::int64_t> timestamps;
- bool draining{};unsigned width{},height{},fps{},depth{2};std::uint64_t serial{};
+ bool draining{};unsigned width{},height{},sourceWidth{},sourceHeight{},fps{},depth{2};std::uint64_t serial{};
  Input* free_input(){for(auto& input:inputs)if(!input->surface.Data.Locked)return input.get();return nullptr;}
  ~Impl(){if(started)pMFXVideoENCODE_Close(session);if(session)pMFXClose(session);if(loader)pMFXUnload(loader);if(dll)FreeLibrary(dll);}
  HRESULT filter(const char* key,mfxU32 value){auto c=pMFXCreateConfig(loader);if(!c)return E_OUTOFMEMORY;mfxVariant v{};v.Type=MFX_VARIANT_TYPE_U32;v.Data.U32=value;VF_MFX(pMFXSetConfigFilterProperty(c,(mfxU8*)key,v));return S_OK;}
@@ -55,6 +56,9 @@ HRESULT VplEncoder::start_impl(ID3D11Device* device,unsigned width,unsigned heig
  const auto start_at=clock100ns();auto stage_at=start_at;
  const auto stage=[&](const char* name){const auto now=clock100ns();std::fprintf(stderr,"encoder_vpl_init stage=%s us=%lld total_us=%lld\n",name,(now-stage_at)/10,(now-start_at)/10);stage_at=now;};
  auto& s=*impl_;if(!device||s.session||codec!=2||!width||!height||width%2||height%2||!fps||width>16368||height>16368)return E_INVALIDARG;
+ s.sourceWidth=width;s.sourceHeight=height;
+ const auto coded=viewflow::media::fitExtent({width,height},viewflow::media::encoderLimit(codec==1));
+ width=coded.width;height=coded.height;
  s.dll=LoadLibraryExW(L"libvpl.dll",nullptr,LOAD_LIBRARY_SEARCH_SYSTEM32);if(!s.dll)return HRESULT_FROM_WIN32(GetLastError());
  #define LOAD(name) s.p##name=reinterpret_cast<decltype(s.p##name)>(GetProcAddress(s.dll,#name));if(!s.p##name)return E_NOINTERFACE;
  VF_VPL_FUNCTIONS(LOAD)
@@ -87,9 +91,10 @@ HRESULT VplEncoder::start_impl(ID3D11Device* device,unsigned width,unsigned heig
  const auto query=s.pMFXVideoENCODE_Query(s.session,&p,&p);VF_MFX(query);mfxFrameAllocRequest request{};VF_MFX(s.pMFXVideoENCODE_QueryIOSurf(s.session,&p,&request));stage("query");VF_MFX(s.pMFXVideoENCODE_Init(s.session,&p));stage("encode-init");s.started=true;VF_MFX(s.pMFXVideoENCODE_GetVideoParam(s.session,&p));
  std::fprintf(stderr,"encoder_vpl api=%u.%u query=%d width=%u height=%u low=%u usage=%u async=%u refdist=%u refs=%u tiles=%u rows=%u slices=%u bitrate=%u\n",version.Major,version.Minor,query,i.CropW,i.CropH,m.LowPower,m.TargetUsage,p.AsyncDepth,m.GopRefDist,m.NumRefFrame,tiles.NumTileColumns,tiles.NumTileRows,m.NumSlice,m.TargetKbps);
  if(i.CropW!=width||i.CropH!=height||i.FourCC!=MFX_FOURCC_NV12||m.GopRefDist!=1||p.AsyncDepth!=s.depth)return E_FAIL;
- D3D11_VIDEO_PROCESSOR_CONTENT_DESC d{};d.InputFrameFormat=D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;d.InputWidth=d.OutputWidth=width;d.InputHeight=d.OutputHeight=height;d.InputFrameRate=d.OutputFrameRate={fps,1};d.Usage=D3D11_VIDEO_USAGE_OPTIMAL_SPEED;
+ D3D11_VIDEO_PROCESSOR_CONTENT_DESC d{};d.InputFrameFormat=D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;d.InputWidth=s.sourceWidth;d.OutputWidth=width;d.InputHeight=s.sourceHeight;d.OutputHeight=height;d.InputFrameRate=d.OutputFrameRate={fps,1};d.Usage=D3D11_VIDEO_USAGE_OPTIMAL_SPEED;
  VF_HR(s.video->CreateVideoProcessorEnumerator(&d,&s.enumeration));VF_HR(s.video->CreateVideoProcessor(s.enumeration.Get(),0,&s.processor));RECT rect{0,0,(LONG)width,(LONG)height};
- s.video_context->VideoProcessorSetStreamSourceRect(s.processor.Get(),0,TRUE,&rect);s.video_context->VideoProcessorSetStreamDestRect(s.processor.Get(),0,TRUE,&rect);s.video_context->VideoProcessorSetOutputTargetRect(s.processor.Get(),TRUE,&rect);s.video_context->VideoProcessorSetStreamFrameFormat(s.processor.Get(),0,D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
+ RECT sourceRect{0,0,(LONG)s.sourceWidth,(LONG)s.sourceHeight};
+ s.video_context->VideoProcessorSetStreamSourceRect(s.processor.Get(),0,TRUE,&sourceRect);s.video_context->VideoProcessorSetStreamDestRect(s.processor.Get(),0,TRUE,&rect);s.video_context->VideoProcessorSetOutputTargetRect(s.processor.Get(),TRUE,&rect);s.video_context->VideoProcessorSetStreamFrameFormat(s.processor.Get(),0,D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
  D3D11_VIDEO_PROCESSOR_COLOR_SPACE rgb{},yuv{};yuv.YCbCr_Matrix=1;yuv.Nominal_Range=D3D11_VIDEO_PROCESSOR_NOMINAL_RANGE_16_235;s.video_context->VideoProcessorSetStreamColorSpace(s.processor.Get(),0,&rgb);s.video_context->VideoProcessorSetOutputColorSpace(s.processor.Get(),&yuv);
  stage("video-processor");
  const unsigned count=std::max({s.depth+1,unsigned(request.NumFrameMin),unsigned(request.NumFrameSuggested)});
@@ -124,7 +129,7 @@ HRESULT VplEncoder::can_submit(){auto& s=*impl_;if(!s.started)return E_UNEXPECTE
 HRESULT VplEncoder::submit(ID3D11Texture2D* bgra,std::int64_t pts,bool key){
  auto& s=*impl_;if(!s.started||!bgra||pts<0)return E_INVALIDARG;if(s.draining||s.pending.size()>=s.depth)return S_FALSE;auto* selected=s.free_input();if(!selected)return S_FALSE;auto& input_surface=*selected;
  unsigned task_index=0;while(task_index<s.depth && s.tasks[task_index].sync)++task_index;if(task_index==s.depth)return S_FALSE;auto& task=s.tasks[task_index];
- D3D11_TEXTURE2D_DESC d{};bgra->GetDesc(&d);if(d.Width!=s.width||d.Height!=s.height||d.Format!=DXGI_FORMAT_B8G8R8A8_UNORM)return E_INVALIDARG;
+ D3D11_TEXTURE2D_DESC d{};bgra->GetDesc(&d);if(d.Width!=s.sourceWidth||d.Height!=s.sourceHeight||d.Format!=DXGI_FORMAT_B8G8R8A8_UNORM)return E_INVALIDARG;
  D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC iv{};iv.ViewDimension=D3D11_VPIV_DIMENSION_TEXTURE2D;ComPtr<ID3D11VideoProcessorInputView> input;VF_HR(s.video->CreateVideoProcessorInputView(bgra,s.enumeration.Get(),&iv,&input));D3D11_VIDEO_PROCESSOR_STREAM stream{};stream.Enable=TRUE;stream.pInputSurface=input.Get();VF_HR(s.video_context->VideoProcessorBlt(s.processor.Get(),input_surface.output.Get(),0,1,&stream));s.context->Flush();
  const auto token=s.serial*90000/s.fps;input_surface.surface.Data.TimeStamp=token;input_surface.surface.Data.FrameOrder=static_cast<mfxU32>(s.serial);task.bitstream={};task.bitstream.Data=task.bytes.data();task.bitstream.MaxLength=static_cast<mfxU32>(task.bytes.size());
  mfxEncodeCtrl control{};if(key)control.FrameType=MFX_FRAMETYPE_I|MFX_FRAMETYPE_IDR|MFX_FRAMETYPE_REF;
