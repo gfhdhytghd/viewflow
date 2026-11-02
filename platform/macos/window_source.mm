@@ -459,6 +459,12 @@ struct Source {
             }
             release(event.id); return;
         }
+        // The capability query is per source process, so an idle or not yet
+        // active capture must not drop it.
+        if (event.kind == vf::InputKind::touchpad_frame && event.a == 0 && event.b == 0 && event.c == 0 && event.d == 2) {
+            if (!hid_requested) { hid_requested = true; dirty = true; }
+            return;
+        }
         Capture* capture = nullptr;
         for (auto& [_, candidate] : captures) if (candidate->active && candidate->id == event.id) capture = candidate.get();
         if (event.kind == vf::InputKind::visibility) {
@@ -494,9 +500,6 @@ struct Source {
         }
         if (!capture || capture->dormant) { release(event.id); return; }
         input_target = capture;
-        if (event.kind == vf::InputKind::touchpad_frame && event.a == 0 && event.b == 0 && event.c == 0 && event.d == 2) {
-            hid_requested = true; dirty = true; return;
-        }
         if (event.kind == vf::InputKind::native_touchpad_chunk || event.kind == vf::InputKind::native_touchpad_commit) {
             vf::NativeTouchpadReport report{};
             if(activity_gestures.input(event,report)){

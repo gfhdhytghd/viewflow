@@ -238,6 +238,8 @@ struct App {
         auto bytes=vf::pack_input({id,++sequence,kind,a,b,c,d});vf::Writer prefix;prefix.u32(static_cast<std::uint32_t>(bytes.size()));
         write_all(STDOUT_FILENO,prefix.bytes);write_all(STDOUT_FILENO,bytes);return sequence;
     }
+    std::uint64_t hid_request_window{};
+    Clock::time_point hid_request_at{};
     bool hid_ready() const {
         const auto it=windows.find(pointer_window);
         return it!=windows.end() && (it->second->tile.flags&8);
@@ -252,6 +254,15 @@ struct App {
     }
     void drain_touchpad() {
         if(!touchpad)return;
+        // The one-shot capability query can be lost while the Mac capture is
+        // idle. Repeat it, rate-limited, while the hovered proxy lacks flag 8.
+        if(mac_shadow && pointer_window && !hid_ready() && touchpad->available()) {
+            const auto now=Clock::now();
+            if(hid_request_window!=pointer_window || now-hid_request_at>=std::chrono::seconds(1)) {
+                hid_request_window=pointer_window;hid_request_at=now;
+                send(pointer_window,vf::InputKind::touchpad_frame,0,0,0,2);
+            }
+        }
         const auto target=super_drag || local_titlebar_window || (mac_shadow && !hid_ready())?0:pointer_window;
         const auto ticks=std::chrono::duration_cast<std::chrono::microseconds>(Clock::now().time_since_epoch()).count()/100;
         if(touchpad_target && touchpad_target!=target){
