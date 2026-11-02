@@ -27,6 +27,11 @@ by the user; this task did not read live logs or reproduce that device behaviour
 - The named normal workspace is persistent and monitor-bound because Hyprland
   requires a normal workspace for each monitor. No lowest-unused-number scan or
   numbered allocation remains in Viewflow's workspace controller.
+- Hyprland reports the underlay as an ordinary `"type": "normal"` workspace;
+  the Lua-config fork has no negative id for named workspaces. Status bars must
+  hide every normal workspace whose name starts with `viewflow-` (for Waybar:
+  `"ignore-workspaces": ["^viewflow-"]`). Hyprland has no hidden flag for a
+  normal workspace that Viewflow could set instead.
 - Activation snapshots the old normal workspace's windows, selects the named
   underlay, activates the special workspace, and moves the snapshot into it with
   `follow=false`. This covers old numbered sessions, legacy named sessions and

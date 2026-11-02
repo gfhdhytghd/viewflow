@@ -154,7 +154,7 @@ documented default metadata socket
 headless output at the configured global coordinates using `hyprctl output create
 headless` plus `hyprctl eval 'hl.monitor(...)'`; it does not use `keyword`.
 The output displays the dedicated `special:viewflow` workspace over an empty,
-named `viewflow-underlay`, so it does not claim a numbered workspace from the
+named `viewflow-underlay` (or `viewflow-<route>-underlay`), so it does not claim a numbered workspace from the
 user's ordinary workspace strip. (Hyprland requires every monitor to retain a
 base workspace even while a special workspace is displayed.) The
 launcher binds the special workspace through the target monitor object without
