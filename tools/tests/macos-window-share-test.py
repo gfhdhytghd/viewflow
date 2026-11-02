@@ -63,3 +63,19 @@ for paused in [dict(base, hidden=True), dict(base, mapped=False),
     assert not share.selected_windows([paused], monitors, [2], set())
 assert not share.selected_windows([], monitors, [2], existing)
 assert identity not in share.selected_windows([dict(base, stableId='def')], monitors, [2], existing)
+
+# The normal underlay is hidden while a special workspace is displayed.
+assert not share.eligible(dict(window, workspace={'name': 'viewflow-route'}), named, 2)
+
+backoff = share.RestartBackoff()
+now = 100
+for delay in (2, 4, 8, 16, 30, 30):
+    backoff.failed(identity, now)
+    assert not backoff.ready(identity, now + delay - .01)
+    assert backoff.ready(identity, now + delay)
+    assert backoff.ready(('another', 7, 'window'), now)
+    now += delay
+backoff.stable(identity)
+assert backoff.ready(identity, now)
+backoff.failed(identity, now)
+assert backoff.until[identity] == now + 2

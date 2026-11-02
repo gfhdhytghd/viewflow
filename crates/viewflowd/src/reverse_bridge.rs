@@ -191,10 +191,12 @@ impl ReverseBridge {
         let config = config.clone();
         let (stop, mut stopped) = watch::channel(false);
         let task = tokio::spawn(async move {
+            let mut retry_delay = Duration::from_secs(1);
             loop {
                 if *stopped.borrow() || connection.close_reason().is_some() {
                     break;
                 }
+                let started = tokio::time::Instant::now();
                 if let Err(error) = run(
                     &connection,
                     &config,
@@ -215,10 +217,14 @@ impl ReverseBridge {
                 if *stopped.borrow() || connection.close_reason().is_some() {
                     break;
                 }
+                // Rapid native exits must not repeatedly recreate a remote
+                // presenter. A healthy minute resets only this direction's retry.
+                if started.elapsed() >= Duration::from_secs(60) { retry_delay = Duration::from_secs(1); }
                 tokio::select! {
                     _ = stopped.changed() => break,
-                    () = tokio::time::sleep(Duration::from_millis(500)) => (),
+                    () = tokio::time::sleep(retry_delay) => (),
                 }
+                retry_delay = (retry_delay * 2).min(Duration::from_secs(30));
             }
         });
         Ok(Self {

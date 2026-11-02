@@ -172,6 +172,9 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
           const auto result=viewflow::hyprland::recallWindows(lua_toboolean(state,1)).dump();
           lua_pushlstring(state,result.data(),result.size());return 1;
         } catch(const std::exception& e) {lua_pushstring(state,e.what());return lua_error(state);}
+      }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "recall_shortcut", [](lua_State* state) -> int {
+          const auto value=viewflow::recall::format_shortcut(viewflow::hyprland::recallShortcut());
+          lua_pushlstring(state,value.data(),value.size());return 1;
       }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "set_recall_shortcut", [](lua_State* state) -> int {
         try {
           const auto* value=lua_tostring(state,1);
@@ -296,7 +299,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
   // Revoke entry points before releasing their targets. Cached Lua closures
   // use Hyprland's ID dispatcher and then report "plugin unloaded".
   if (g_handle)
-    for (const auto* name : {"recall_windows", "set_recall_shortcut", "add_input_route", "capture_status", "pointer_timings", "forwarded_button", "forwarded_axis", "with_forwarded_motion", "focus_without_warp", "desktop_window"})
+    for (const auto* name : {"recall_windows", "recall_shortcut", "set_recall_shortcut", "add_input_route", "capture_status", "pointer_timings", "forwarded_button", "forwarded_axis", "with_forwarded_motion", "focus_without_warp", "desktop_window"})
       HyprlandAPI::removeLuaFunction(g_handle, "viewflow", name);
   if (g_pendingDetach) wl_event_source_remove(g_pendingDetach);
   g_pendingDetach = nullptr;

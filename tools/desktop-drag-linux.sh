@@ -72,7 +72,7 @@ safe_name() {
 
 activate_special_workspace() {
     local output=$1 workspace=$2 underlay=$3 expression ready=0
-    expression="local monitor = hl.get_monitor($(lua_string "$output")); if not monitor then error($(lua_string "Viewflow output is unavailable: $output")) end; local previous = monitor.active_workspace; hl.workspace_rule({ workspace = $(lua_string "special:$workspace"), monitor = $(lua_string "$output") }); monitor:set_special_workspace($(lua_string "$workspace")); if previous and previous.name == $(lua_string "$underlay") and not previous.special then hl.workspace_rule({ workspace = $(lua_string "name:$underlay"), persistent = false }); for _, window in ipairs(hl.get_workspace_windows(previous)) do hl.dsp.window.move({ window = window, workspace = $(lua_string "special:$workspace"), follow = false })() end; local used = {}; for _, ws in ipairs(hl.get_workspaces()) do if ws.id then used[ws.id] = true end end; local number = 1; while used[number] do number = number + 1 end; monitor:set_workspace(number) end"
+    expression=$(python3 "$(dirname "${BASH_SOURCE[0]}")/desktop-autostart-linux.py" --workspace-expression "$output" "$workspace" "$underlay")
     "$HYPRCTL" eval "$expression"
     for _ in {1..20}; do
         "$HYPRCTL" eval "$expression" >/dev/null
@@ -378,9 +378,7 @@ start() {
         sleep 0.1
     done
     [[ $layout_ready == 1 ]] || die "new headless output did not reach the requested layout and usable dimensions"
-    if [[ $reused_output == 0 ]]; then
-        activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
-    fi
+    activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
 
     # The one-shot probe requires the capture plugin.  It runs after this
     # owned load, but before sender/input startup, and leaves no producer live.
@@ -389,9 +387,7 @@ start() {
     # Plugin loading schedules a config reload, which can reset runtime output rules.
     sleep 0.3
     "$HYPRCTL" eval "$lua"
-    if [[ $reused_output == 0 ]]; then
-        activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
-    fi
+    activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
     if [[ $empty_desktop == 1 ]]; then
         [[ -z $window ]] || die "--empty-desktop cannot be combined with --window"
         install -d -m 700 "$(state_file native-control)"
@@ -431,9 +427,7 @@ start() {
     done
     [[ $stable_layout_samples -ge 5 ]] \
         || die "owned output did not stabilize after plugin configuration reloads"
-    if [[ $reused_output == 0 ]]; then
-        activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
-    fi
+    activate_special_workspace "$output" "$special_workspace" "$underlay_workspace"
 
     # Capture authority comes only from this freshly created, read-back checked
     # output. Never persist/reuse an ID from the user's paired configuration.

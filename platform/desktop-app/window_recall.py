@@ -44,7 +44,7 @@ class RecallController:
         return result.stdout.strip()
 
     def _linux(self, expression):
-        output = self._run(['hyprctl', 'eval', expression])
+        output = self._run(['hyprctl', 'repl', expression])
         # Hyprctl may return a compositor error with a zero process exit code.
         if 'error' in output.lower() or 'nil value' in output.lower(): raise RuntimeError(output)
         return output
@@ -52,7 +52,10 @@ class RecallController:
     def configure(self, value):
         value = canonical_shortcut(value)
         if self.platform == 'linux':
-            self._linux('return viewflow.set_recall_shortcut(' + json.dumps(value) + ')')
+            self._linux('return hl.plugin.viewflow.set_recall_shortcut(' + json.dumps(value) + ')')
+            registered = self._linux('return hl.plugin.viewflow.recall_shortcut()')
+            if registered.strip('\"') != value:
+                raise RuntimeError('Recall shortcut readback mismatch: ' + registered)
             self.shortcut = value
             self.status = '收回本机窗口：' + value
             self.retry_at = time.monotonic() + 5
@@ -102,7 +105,7 @@ class RecallController:
 
     def recall(self):
         if self.platform == 'linux':
-            return self._linux('return viewflow.recall_windows(false)')
+            return self._linux('return hl.plugin.viewflow.recall_windows(false)')
         return self._run([str(self.binary), '--once'])
 
     def stop(self):

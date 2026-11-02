@@ -57,7 +57,17 @@ def main():
                 '--source', args.bundle / 'bin/vf-hyprland-windows',
                 '--input-native', args.bundle / 'bin/viewflow-linux-window-input', '--runtime', args.runtime / 'windows'))
         children = [None] * len(commands)
+        shortcut_ready = None
         while not stopping:
+            # GUI startup can precede plugin load. Read back the plugin's
+            # active physical-key chord after the route loader has run.
+            try:
+                result = subprocess.check_output(['hyprctl', 'repl',
+                    'return hl.plugin.viewflow.recall_shortcut()'], text=True, timeout=5).strip()
+                if result != shortcut_ready and '+' in result and 'error' not in result.lower():
+                    print('Window recall shortcut ready: ' + result, flush=True)
+                    shortcut_ready = result
+            except (OSError, subprocess.SubprocessError): pass
             for index, command in enumerate(commands):
                 if children[index] is None or children[index].poll() is not None:
                     children[index] = subprocess.Popen(command)

@@ -7,6 +7,20 @@ from window_recall import RecallController, DEFAULT_SHORTCUT
 
 
 class RecallLifecycleTests(unittest.TestCase):
+    def test_linux_configures_loaded_namespace_and_reads_back(self):
+        controller = RecallController('linux', 'unused', '.')
+        with patch.object(controller, '_linux', side_effect=['true', DEFAULT_SHORTCUT]) as call:
+            controller.configure(DEFAULT_SHORTCUT)
+        self.assertEqual(call.call_args_list[0].args[0],
+                         'return hl.plugin.viewflow.set_recall_shortcut("' + DEFAULT_SHORTCUT + '")')
+        self.assertEqual(call.call_args_list[1].args[0], 'return hl.plugin.viewflow.recall_shortcut()')
+
+    def test_linux_rejects_missing_registration(self):
+        controller = RecallController('linux', 'unused', '.')
+        with patch.object(controller, '_linux', side_effect=['true', 'nil']):
+            with self.assertRaisesRegex(RuntimeError, 'readback mismatch'):
+                controller.configure(DEFAULT_SHORTCUT)
+
     def test_missing_helper_retries_after_delay(self):
         with tempfile.TemporaryDirectory() as directory:
             controller = RecallController('windows', Path(directory) / 'missing', directory)

@@ -75,6 +75,13 @@ inline bool needs_recall(Rect window, const std::vector<Rect>& physical) {
     const auto cx=window.x+window.width/2, cy=window.y+window.height/2;
     return std::none_of(physical.begin(), physical.end(), [&](Rect screen) { return screen.contains(cx,cy); });
 }
+// Membership takes precedence over global coordinates: a hidden/remote window
+// can overlap a physical screen without being rendered on that screen.
+inline bool needs_workspace_recall(Rect window, const std::vector<Rect>& physical,
+                                   bool physicalWorkspace, bool visibleWorkspace, Rect ownerScreen) {
+    if (physical.empty() || !window.valid()) return false;
+    return !physicalWorkspace || !visibleWorkspace || needs_recall(window, {ownerScreen});
+}
 inline Rect placement(Rect window, Rect work, std::size_t index, double step=28) {
     if (!window.valid() || !work.valid() || !std::isfinite(step) || step<=0) throw std::invalid_argument("Invalid recall geometry");
     const auto width=std::min(window.width,work.width),height=std::min(window.height,work.height);

@@ -32,8 +32,9 @@ def eligible(client, monitors, remote_id):
         number = workspace.get('id')
         return ('id', number) if number not in (None, 0) else None
 
-    visible = {workspace_key(m.get(field, {})) for m in monitors
-               for field in ('activeWorkspace', 'specialWorkspace')}
+    visible = {workspace_key(ws) for m in monitors
+               for ws in ([m['specialWorkspace']] if workspace_key(m.get('specialWorkspace', {}))
+                          else [m.get('activeWorkspace', {})])}
     visible.discard(None)
     if workspace_key(client.get('workspace', {})) not in visible:
         return False
@@ -55,6 +56,25 @@ def selected_windows(clients, monitors, remote_ids, existing):
             or any(eligible(w, monitors, mid) for mid in remote_ids)}
 
 
+class RestartBackoff:
+    """Identity-scoped retry delay; a failure never discards window ownership."""
+    def __init__(self):
+        self.failures = {}
+        self.until = {}
+
+    def failed(self, identity, now):
+        count = min(self.failures.get(identity, 0) + 1, 5)
+        self.failures[identity] = count
+        self.until[identity] = now + min(30, 2 ** count)
+
+    def ready(self, identity, now):
+        return now >= self.until.get(identity, 0)
+
+    def stable(self, identity):
+        self.failures.pop(identity, None)
+        self.until.pop(identity, None)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--route-config', type=Path)
@@ -74,6 +94,9 @@ def main():
     stopped = False
     children = {}
     retiring = []
+    backoff = RestartBackoff()
+    started_at = {}
+    retained = set()
 
     def stop(_sig, _frame):
         nonlocal stopped
@@ -118,7 +141,7 @@ def main():
                 monitors = json.loads(subprocess.check_output(['hyprctl', '-j', 'monitors'], timeout=3))
                 clients = json.loads(subprocess.check_output(['hyprctl', '-j', 'clients'], timeout=3))
                 live = selected_windows(clients, monitors,
-                    [item['pointer']['cursor_monitor_id'] for item in routes], children)
+                    [item['pointer']['cursor_monitor_id'] for item in routes], set(children) | retained)
                 # Keep a source alive while Hyprland owns its native drag,
                 # including the last pixels beyond the viewport on return.
                 try:
@@ -131,12 +154,25 @@ def main():
                             live[identity] = window
                 except (OSError, ValueError, subprocess.SubprocessError):
                     pass
+                now = time.monotonic()
                 for identity in list(children):
-                    if identity not in live or children[identity][0].poll() is not None:
+                    if identity not in live:
                         retire(children.pop(identity))
-                        print(f'window-share retired address={identity[0]}', flush=True)
+                        backoff.stable(identity)
+                        retained.discard(identity)
+                    elif children[identity][0].poll() is not None:
+                        retire(children.pop(identity))
+                        backoff.failed(identity, now)
+                        retained.add(identity)
+                        print(f'window-share recovering address={identity[0]} retry-after={backoff.until[identity]-now:.0f}s', flush=True)
+                    elif now - started_at.get(identity, now) >= 60:
+                        backoff.stable(identity)
+                for identity in list(retained):
+                    if identity not in live:
+                        retained.discard(identity)
+                        backoff.stable(identity)
                 for identity, window in live.items():
-                    if identity in children:
+                    if identity in children or not backoff.ready(identity, now):
                         continue
                     # Each capture has its own native encoder and paired stream.
                     # Retiring children keep their leases until normal cleanup.
@@ -158,8 +194,12 @@ def main():
                             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
                     except Exception:
                         log.close()
+                        backoff.failed(identity, now)
+                        retained.add(identity)
                         raise
                     children[identity] = process, log
+                    started_at[identity] = now
+                    retained.discard(identity)
                     print(f'window-share started address={address} pid={pid} peer={process.pid}', flush=True)
                 last_error = None
             except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:

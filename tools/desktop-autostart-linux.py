@@ -65,25 +65,33 @@ def special_workspace_active(monitor, workspace):
 
 def special_workspace_expression(output, workspace=SPECIAL_WORKSPACE,
                                  underlay=UNDERLAY_WORKSPACE):
+    # Old route versions used the same bare name for both workspace types.
+    if underlay == workspace:
+        underlay += '-underlay'
     output_value = json.dumps(output)
     workspace_value = json.dumps('special:' + workspace)
     workspace_name = json.dumps(workspace)
-    underlay_value = json.dumps(underlay)
-    # Convert the old internal normal workspace without selecting a user's
-    # existing numbered workspace. Monitor setters and follow=false retain focus.
+    underlay_value = json.dumps('name:' + underlay)
+    # Keep all windows on this output: migrating a numbered workspace must not
+    # send its contents to a physical display. Snapshot before changing spaces.
     return (f'local monitor = hl.get_monitor({output_value}); '
             f'if not monitor then error("Viewflow output is unavailable") end; '
             f'local previous = monitor.active_workspace; '
+            f'local windows = previous and hl.get_workspace_windows(previous) or {{}}; '
             f'hl.workspace_rule({{ workspace = {workspace_value}, monitor = {output_value} }}); '
+            f'hl.workspace_rule({{ workspace = {underlay_value}, monitor = {output_value}, persistent = true }}); '
+            f'if not previous or previous.name ~= {json.dumps(underlay)} then '
+            f'monitor:set_workspace({underlay_value}) end; '
             f'monitor:set_special_workspace({workspace_name}); '
-            f'if previous and previous.name == {underlay_value} and not previous.special then '
-            f'hl.workspace_rule({{ workspace = "name:" .. {underlay_value}, persistent = false }}); '
-            f'for _, window in ipairs(hl.get_workspace_windows(previous)) do '
-            f'hl.dsp.window.move({{ window = window, workspace = {workspace_value}, follow = false }})() end; '
-            f'local used = {{}}; for _, ws in ipairs(hl.get_workspaces()) do '
-            f'if ws.id then used[ws.id] = true end end; '
-            f'local number = 1; while used[number] do number = number + 1 end; '
-            f'monitor:set_workspace(number) end')
+            f'for _, window in ipairs(windows) do '
+            f'local action = hl.dsp.window.move({{ window = window, workspace = {workspace_value}, follow = false }}); '
+            f'if hl.dispatch then hl.dispatch(action) else action() end end')
+
+
+def reconcile_special_workspace(output, workspace=SPECIAL_WORKSPACE, underlay=UNDERLAY_WORKSPACE):
+    """Reassert visibility and drain the underlay, even if special is active."""
+    subprocess.run(['hyprctl', '-q', 'eval', special_workspace_expression(output, workspace, underlay)],
+                   check=True, timeout=5)
 
 
 def activate_special_workspace(output, workspace=SPECIAL_WORKSPACE,
@@ -245,8 +253,7 @@ def main():
                 owned = restore_existing_output(output, remote)
             elif any(owned[k] != remote[k] for k in ('x', 'y', 'width', 'height', 'scale')):
                 raise RuntimeError('Owned output differs from configured remote display')
-            if not args.existing_output:
-                activate_special_workspace(output)
+            activate_special_workspace(output)
             config['pointer']['cursor_monitor_id'] = owned['id']
             config['desktop']['native_control_dir'] = str(state / 'native-control')
             (state / 'native-control').mkdir(mode=0o700, exist_ok=True)
@@ -271,6 +278,10 @@ def main():
             if identity(candidate) == recorded:
                 pid, token = candidate, recorded
         while not stopping:
+            try:
+                reconcile_special_workspace((state / 'output').read_text().strip())
+            except (OSError, subprocess.SubprocessError) as error:
+                print(f'Workspace reconciliation deferred: {error}', flush=True)
             if not Path(config['desktop']['hyprland_socket']).exists():
                 raise RuntimeError('Hyprland session ended; waiting for the next login')
             if child is not None:
@@ -359,4 +370,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) == 5 and sys.argv[1] == '--workspace-expression':
+        print(special_workspace_expression(*sys.argv[2:]))
+    else:
+        main()

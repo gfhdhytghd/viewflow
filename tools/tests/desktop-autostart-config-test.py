@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert json.loads(path.read_text()) == old
     expression = autostart.special_workspace_expression('HEADLESS-6')
     assert 'hl.get_monitor("HEADLESS-6")' in expression
-    assert 'monitor:set_workspace("name:"' not in expression
+    assert 'monitor:set_workspace("name:viewflow-underlay")' in expression
     assert 'if hl.get_workspace' not in expression
     assert 'workspace.rename' not in expression
     assert 'monitor:set_special_workspace("viewflow")' in expression
@@ -79,26 +79,36 @@ assert not autostart.special_workspace_active({'specialWorkspace': {'type': 'spe
 # special name; passing a selector would create a doubled special: prefix.
 import subprocess
 migration = autostart.special_workspace_expression('HEADLESS-test', 'viewflow-route', 'viewflow-route')
-mock = """local previous = {name='viewflow-route',special=false}; local moved=0
+mock = """local previous = {name='7',id=7,special=false}; local moved=0
 local monitor={active_workspace=previous}
+local pending={{id=123},{id=124}}
 function monitor:set_special_workspace(name)
     self.special='special:'..name; assert(self.special=='special:viewflow-route')
 end
-function monitor:set_workspace(number) assert(number==4); self.number=number end
+function monitor:set_workspace(selector)
+    assert(selector=='name:viewflow-route-underlay')
+    self.active_workspace={name='viewflow-route-underlay',special=false}
+end
 hl={dsp={window={}}}
+function hl.dispatch(action) action.run() end
 function hl.get_monitor(name) assert(name=='HEADLESS-test'); return monitor end
-function hl.workspace_rule(rule) end
-function hl.get_workspace_windows(ws) assert(ws==previous); return {{id=123}} end
-function hl.get_workspaces() return {{id=1},{id=2},{id=3},{name='special:other',special=true}} end
+function hl.workspace_rule(rule) assert(not rule.workspace:match('^%d+$')) end
+function hl.get_workspace_windows(ws) assert(ws==monitor.active_workspace); return pending end
 function hl.dsp.window.move(args)
     assert(args.workspace=='special:viewflow-route' and args.follow==false)
-    return function() moved=moved+1 end
+    return {run=function() moved=moved+1 end}
 end
 """
 subprocess.run(['lua', '-'], input=(mock + migration +
-    "\nassert(monitor.number==4 and moved==1)\n" +
-    "monitor.active_workspace={name='4',id=4,special=false}\n" + migration +
-    "\nassert(moved==1)\n"), text=True, check=True)
+    "\nassert(monitor.active_workspace.name=='viewflow-route-underlay' and moved==2)\n" +
+    "pending={}; monitor.special=nil\n" + migration +
+    "\nassert(moved==2 and monitor.special=='special:viewflow-route')\n" +
+    "pending={{id=125}}\n" + migration + "\nassert(moved==3)\n"), text=True, check=True)
+
+# Older Lua lines expose callable actions rather than hl.dispatch.
+legacy = mock.replace('function hl.dispatch(action) action.run() end', '').replace(
+    'return {run=function() moved=moved+1 end}', 'return function() moved=moved+1 end')
+subprocess.run(['lua', '-'], input=legacy + migration + '\nassert(moved==2)\n', text=True, check=True)
 
 # The frozen helper uses the same ABI selector as the GUI, including local cache
 # paths. Never resolve or load a real compositor during this configuration test.

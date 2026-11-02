@@ -78,7 +78,14 @@ mod native {
         native_window_wire::{self as wire, Frame, Input, Tile},
     };
     type Residency = Arc<Mutex<Option<((u32, u32), [u32; 4])>>>;
-    type Snapshot = Arc<Mutex<Option<(HcgfFrame, InputGeometry)>>>;
+    type Snapshot = Arc<Mutex<Option<(HcgfFrame, Option<InputGeometry>)>>>;
+
+    fn validated_input_binding(input: Option<InputGeometry>, window: u64, pid: u32) -> Result<Option<InputGeometry>> {
+        if let Some(input) = input {
+            ensure!(input.window == window && input.pid == u64::from(pid), "capture target identity changed");
+        }
+        Ok(input)
+    }
 
     fn clipped_crop(width: u32, height: u32, event: Input) -> [u32; 4] {
         if event.c <= 0 || event.d <= 0 { return [0; 4]; }
@@ -104,7 +111,10 @@ mod native {
         );
         Ok(rounded as i32)
     }
-    fn translate(mut event: Input, frame: &HcgfFrame, input: &InputGeometry) -> Result<Input> {
+    fn translate(mut event: Input, frame: &HcgfFrame, input: Option<&InputGeometry>) -> Result<Input> {
+        // XWayland has no HCGI surface binding. The existing identity-guarded
+        // virtual input helper still routes pointer/key and compositor geometry.
+        let content = input.map(|i| i.content).unwrap_or([frame.logical_x, frame.logical_y, frame.logical_width, frame.logical_height]);
         let sx = frame.logical_width / f64::from(frame.crop_width);
         let sy = frame.logical_height / f64::from(frame.crop_height);
         if event.kind == 1 {
@@ -117,10 +127,10 @@ mod native {
             event.c = 1;
         } else if event.kind == 6 {
             ensure!(event.c > 0 && event.d > 0, "invalid window resize");
-            event.a = millidips(f64::from(event.a) * sx + input.content[0] - frame.logical_x)?;
-            event.b = millidips(f64::from(event.b) * sy + input.content[1] - frame.logical_y)?;
-            event.c = millidips(f64::from(event.c) * sx - frame.logical_width + input.content[2])?;
-            event.d = millidips(f64::from(event.d) * sy - frame.logical_height + input.content[3])?;
+            event.a = millidips(f64::from(event.a) * sx + content[0] - frame.logical_x)?;
+            event.b = millidips(f64::from(event.b) * sy + content[1] - frame.logical_y)?;
+            event.c = millidips(f64::from(event.c) * sx - frame.logical_width + content[2])?;
+            event.d = millidips(f64::from(event.d) * sy - frame.logical_height + content[3])?;
         }
         Ok(event)
     }
@@ -128,8 +138,20 @@ mod native {
     mod tests {
         use super::*;
         #[test]
-        fn scaled_negative_origin_and_decorations_route_to_content() {
-            let frame = HcgfFrame {
+        fn xwayland_frames_without_binding_keep_video_geometry_and_input_snapshot() {
+            let frame = capture_frame();
+            // Missing HCGI is a supported XWayland capture, not a source error.
+            let snapshot: Snapshot = Arc::new(Mutex::new(None));
+            for sequence in 1..=500 {
+                *snapshot.lock().unwrap() = Some((frame.clone(), validated_input_binding(None, 1, 42).unwrap()));
+                let guard = snapshot.lock().unwrap();
+                let (captured, binding) = guard.as_ref().unwrap();
+                let geometry = translate(Input { id: 1, sequence, kind: 6, a: 20, b: 30, c: 800, d: 600 }, captured, binding.as_ref()).unwrap();
+                assert_eq!((geometry.a, geometry.b, geometry.c, geometry.d), (10000,15000,400000,300000));
+            }
+        }
+        fn capture_frame() -> HcgfFrame {
+            HcgfFrame {
                 sequence: 1,
                 capture_monotonic_ns: 1,
                 geometry_epoch: 1,
@@ -149,7 +171,11 @@ mod native {
                 crop_height: 640,
                 flip_y: false,
                 shadow: None,
-            };
+            }
+        }
+        #[test]
+        fn scaled_negative_origin_and_decorations_route_to_content() {
+            let frame = capture_frame();
             let geometry = InputGeometry {
                 window: 1,
                 surface: 1,
@@ -157,6 +183,9 @@ mod native {
                 content: [-500.0, 100.0, 400.0, 300.0],
                 surface_extent: [400.0, 300.0],
             };
+            assert!(validated_input_binding(Some(geometry), 1, 1).unwrap().is_some());
+            assert!(validated_input_binding(Some(geometry), 2, 1).is_err());
+            assert!(validated_input_binding(Some(geometry), 1, 2).is_err());
             let pointer = Input {
                 id: 1,
                 sequence: 9,
@@ -166,7 +195,7 @@ mod native {
                 c: 0,
                 d: 0,
             };
-            let mapped = translate(pointer, &frame, &geometry).unwrap();
+            let mapped = translate(pointer, &frame, Some(&geometry)).unwrap();
             assert_eq!(
                 (mapped.a, mapped.b, mapped.c, mapped.sequence),
                 (-490000, 120000, 1, 9)
@@ -179,7 +208,7 @@ mod native {
                     ..pointer
                 },
                 &frame,
-                &geometry,
+                Some(&geometry),
             )
             .unwrap();
             assert_eq!((global.a, global.b), (mapped.a, mapped.b));
@@ -191,14 +220,14 @@ mod native {
             let later = translate(
                 Input { a: -980, b: 240, c: 1, ..pointer },
                 &later_frame,
-                &geometry,
+                Some(&geometry),
             ).unwrap();
             assert_eq!((later.a, later.b), (global.a, global.b));
             // Precise scrolling is not a position: preserve milli-points,
             // axis, source, and stop across Retina/source geometry conversion.
             let scroll = translate(
                 Input { kind: 3, a: 1, b: -1250, c: 1, d: 1, ..pointer },
-                &later_frame, &geometry,
+                &later_frame, Some(&geometry),
             ).unwrap();
             assert_eq!((scroll.a, scroll.b, scroll.c, scroll.d), (1, -1250, 1, 1));
             let moved = translate(
@@ -211,7 +240,7 @@ mod native {
                     ..pointer
                 },
                 &frame,
-                &geometry,
+                Some(&geometry),
             )
             .unwrap();
             assert_eq!(
@@ -309,7 +338,7 @@ mod native {
                         let Some((frame, input)) = current else {
                             continue;
                         };
-                        match translate(event, &frame, &input) {
+                        match translate(event, &frame, input.as_ref()) {
                             Ok(value) => translated = value,
                             Err(error) => {
                                 eprintln!("window input coordinates rejected: {error:#}");
@@ -495,6 +524,7 @@ mod native {
                     .join(format!("{}.json", std::process::id()))
             });
         let mut published_binding = None;
+        let mut reported_binding = None;
         let mut published_ack = 0;
         let result = async {
             while !stopped.load(Ordering::Acquire) {
@@ -513,21 +543,22 @@ mod native {
                 // a complete keyframe while the receiver retains its snapshot.
                 if metadata.sequence != previous_sequence + 1 { force_idr = true; }
                 previous_sequence = metadata.sequence;
-                let input = frame
-                    .input_geometry()
-                    .context("capture omitted native window binding")?;
-                ensure!(
-                    input.window == native_address && input.pid == u64::from(pid),
-                    "capture target identity changed"
-                );
-                if published_binding!=Some((input.window,input.surface,input.pid)) {
-                    if let Some(path)=&binding_path {
-                        let value=serde_json::json!({"producer_pid":std::process::id(),"window":input.window,"surface":input.surface,"pid":input.pid});
-                        if let Some(parent)=path.parent() {let _=std::fs::create_dir_all(parent);}
-                        let temporary=path.with_extension("next");
-                        if std::fs::write(&temporary,value.to_string()).is_ok() {let _=std::fs::rename(temporary,path);}
+                let input = validated_input_binding(frame.input_geometry(), native_address, pid)?;
+                if reported_binding != Some(input.is_some()) {
+                    eprintln!("window-source native-binding={} input=identity-guarded-virtual-helper media=retained", input.is_some());
+                    reported_binding = Some(input.is_some());
+                }
+                let binding = input.map(|i| (i.window, i.surface, i.pid));
+                if published_binding != binding {
+                    if let Some(path) = &binding_path {
+                        if let Some((window, surface, pid)) = binding {
+                            let value=serde_json::json!({"producer_pid":std::process::id(),"window":window,"surface":surface,"pid":pid});
+                            if let Some(parent)=path.parent() {let _=std::fs::create_dir_all(parent);}
+                            let temporary=path.with_extension("next");
+                            if std::fs::write(&temporary,value.to_string()).is_ok() {let _=std::fs::rename(temporary,path);}
+                        } else { let _ = std::fs::remove_file(path); }
                     }
-                    published_binding=Some((input.window,input.surface,input.pid));
+                    published_binding = binding;
                 }
                 let resident = {
                     let mut requested = residency.lock().unwrap();

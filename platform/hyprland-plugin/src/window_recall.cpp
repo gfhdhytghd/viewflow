@@ -58,8 +58,13 @@ nlohmann::json recallWindows(bool dryRun) {
     const auto focus=Desktop::focusState()->window();
     std::vector<PHLWINDOW> windows;
     for(const auto& window:Desktop::windowState()->windows()) {
-        if(!window || !window->mapped() || !window->isFloating() || proxy(window) || Fullscreen::controller()->isFullscreen(window))continue;
-        if(vr::needs_recall(rect(window->getFullWindowBoundingBox()),rectangles))windows.push_back(window);
+        if(!window || !window->mapped() || proxy(window))continue;
+        const auto ws=window->m_workspace;
+        const auto owner=ws ? ws->m_monitor.lock() : PHLMONITOR{};
+        const bool visible=ws && owner && (owner->m_activeSpecialWorkspace ? owner->m_activeSpecialWorkspace==ws : owner->m_activeWorkspace==ws);
+        if(vr::needs_workspace_recall(rect(window->getFullWindowBoundingBox()),rectangles,
+                                     physical(owner),visible,owner ? rect(owner->logicalBox()) : vr::Rect{}))
+            windows.push_back(window);
     }
     unsigned moved=0,failed=0;bool focusedMoved=false;
     for(std::size_t index=0;index<windows.size();++index) {
@@ -69,6 +74,12 @@ nlohmann::json recallWindows(bool dryRun) {
         const auto size=window->size(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
         const auto dest=vr::placement(rect(full),work,index);
         if(dryRun)continue;
+        // Float recalled tiles so scrolling layout cannot place them off-screen
+        // again. This changes only recalled windows, never the destination layout.
+        Fullscreen::controller()->setFullscreenMode(window, Fullscreen::FSMODE_NONE, Fullscreen::FSMODE_NONE);
+        if(!window->isFloating() && !Config::Actions::floatWindow(Config::Actions::TOGGLE_ACTION_ENABLE,window)) {
+            ++failed; continue;
+        }
         // Native xdg popups move with their parent; do not create another proxy.
         window->layoutTarget()->assignToSpace(workspace->space());
         bool ok=true;

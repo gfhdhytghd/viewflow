@@ -50,9 +50,8 @@ def prepare(template, route, runtime, monitor_name=None, state_dir=None):
         autostart.save(record, {'name': output['name'], 'instance': instance['instance']})
     if output.get('disabled', False) or any(output[k] != remote[k] for k in ('x', 'y', 'width', 'height', 'scale')):
         output = autostart.restore_existing_output(output['name'], remote)
-    if not autostart.special_workspace_active(output, 'viewflow-' + route):
-        autostart.activate_special_workspace(output['name'], workspace='viewflow-' + route,
-                                             underlay='viewflow-' + route)
+    autostart.activate_special_workspace(output['name'], workspace='viewflow-' + route,
+                                         underlay='viewflow-' + route + '-underlay')
     config['pointer']['native_socket'] = str(runtime / 'viewflow' / (route + '.sock'))
     config['pointer']['cursor_monitor_id'] = output['id']
     config['desktop']['native_control_dir'] = str(state / 'native-control')
@@ -123,6 +122,11 @@ def main():
             if output is not None and any(output[k] != remote[k] for k in ('x', 'y', 'width', 'height', 'scale')):
                 autostart.restore_existing_output(output_name, remote)
                 print(f'{args.route} output geometry restored after compositor reconfiguration', flush=True)
+            try:
+                autostart.reconcile_special_workspace(output_name, 'viewflow-' + args.route,
+                                                      'viewflow-' + args.route + '-underlay')
+            except (OSError, subprocess.SubprocessError) as error:
+                print(f'Workspace reconciliation deferred: {error}', flush=True)
             if child is None or child.poll() is not None:
                 if child is not None:
                     print(f'{args.route} peer exited {child.returncode}; reconnecting', flush=True)

@@ -518,6 +518,7 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
 }
 
 void InputCapture::observePointerPosition(double x, double y) {
+  if (!m_auxiliary) observeRecallInteraction();
   std::vector<InputRect> monitors;
   monitors.reserve(State::monitorState()->monitors().size());
   for (const auto &monitor : State::monitorState()->monitors()) {
