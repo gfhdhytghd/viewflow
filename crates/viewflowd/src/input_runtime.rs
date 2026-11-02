@@ -31,6 +31,7 @@ pub(crate) fn input_event_diagnostic(event: &InputEvent) -> String {
         InputEventKind::KeyboardHidUsage(_) => ("keyboard", None),
         InputEventKind::ReleaseAll => ("release-all", None),
         InputEventKind::Touchpad(_) => ("touchpad", None),
+        InputEventKind::NativeTouchpad(_) => ("native-touchpad", None),
     };
     let mut result = format!(
         "kind={kind} generation={} sequence={}",
@@ -220,6 +221,8 @@ impl From<WindowsInputError> for InputApplyError {
 #[derive(Debug)]
 pub(crate) struct InputReceiver {
     pub(crate) feedback: crate::cursor_feedback::State,
+    #[cfg(unix)]
+    pub(crate) hid: crate::desktop_hid::Shared,
     backend: InputBackend,
     local_device: Option<Id128>,
     lease: Option<InputLease>,
@@ -235,6 +238,10 @@ impl InputReceiver {
         }
         Ok(Self {
             feedback: Default::default(),
+            #[cfg(unix)]
+            hid: std::sync::Arc::new(std::sync::Mutex::new(crate::desktop_hid::DesktopHid::new(
+                cfg!(target_os = "macos") && mode == InputBackendMode::Native
+                    && std::env::var("VIEWFLOW_DESKTOP_HID").as_deref() == Ok("1")))),
             backend: InputBackend::new(mode)?,
             local_device,
             lease: None,
@@ -311,6 +318,8 @@ impl InputReceiver {
             .lease
             .is_some_and(|current| current.state == InputLeaseState::Active)
         {
+            #[cfg(unix)]
+            self.hid.lock_or_recover().release();
             self.backend.release_all()?;
         }
         *self.feedback.lock_or_recover() = None;
@@ -349,6 +358,8 @@ impl InputReceiver {
 
         // Do not publish the revoked state until the native backend confirms
         // that all held input has actually been released.
+        #[cfg(unix)]
+        self.hid.lock_or_recover().release();
         self.backend.release_all()?;
         *self.feedback.lock_or_recover() = None;
         self.previous_event_sequence = None;
@@ -427,6 +438,16 @@ impl InputReceiver {
                 return Err(error);
             }
         }
+        #[cfg(unix)]
+        if let InputEventKind::NativeTouchpad(report) = event.event {
+            // Identity/order/freshness were checked above. Local HID failures
+            // never become input injection failures or revoke the cursor lease.
+            self.hid.lock_or_recover().report(report);
+        } else {
+            if matches!(event.event, InputEventKind::ReleaseAll) { self.hid.lock_or_recover().release(); }
+            self.backend.apply(event)?;
+        }
+        #[cfg(not(unix))]
         self.backend.apply(event)?;
         if matches!(event.event, InputEventKind::DesktopPointerPosition(_)) {
             *self.feedback.lock_or_recover() = Some((event.lease_generation, event.sequence));
@@ -442,6 +463,8 @@ impl InputReceiver {
     }
 
     pub(crate) fn release_all(&mut self) -> Result<()> {
+        #[cfg(unix)]
+        self.hid.lock_or_recover().release();
         *self.feedback.lock_or_recover() = None;
         self.backend.release_all()
     }
@@ -559,7 +582,7 @@ fn conservative_remote_deadline(
 
 impl Drop for InputReceiver {
     fn drop(&mut self) {
-        let _ = self.backend.release_all();
+        let _ = self.release_all();
     }
 }
 
@@ -953,6 +976,7 @@ fn event_to_wire(event: InputEventKind) -> wire::input_event::Event {
                 repeat: key.repeat,
             })
         }
+        InputEventKind::NativeTouchpad(report) => wire::input_event::Event::NativeTouchpad(report.0.to_vec()),
         InputEventKind::Touchpad(frame) => {
             wire::input_event::Event::Touchpad(wire::TouchpadFrame {
                 width: frame.width,
@@ -1517,6 +1541,102 @@ mod tests {
 #[cfg(test)]
 mod touchpad_tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn native_hid_is_lease_gated_ordered_and_released_without_affecting_pointer() {
+        use std::{io::Read, os::unix::net::UnixListener};
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("hid.sock");
+        let listener = UnixListener::bind(&path).unwrap();
+        let mut receiver = InputReceiver::new(InputBackendMode::Disabled, Some(Id128(2))).unwrap();
+        *receiver.hid.lock().unwrap() = crate::desktop_hid::DesktopHid::at(Some(path));
+        assert!(crate::desktop_hid::available(&receiver.hid));
+        let (mut peer, _) = listener.accept().unwrap();
+        let mut report = [0; 72];
+        report[0] = 1;
+        report[13] = 1;
+        let event = InputEvent {
+            lease_generation: 2,
+            target_device: Id128(2),
+            sequence: 1,
+            sender_not_after_ns: 1,
+            event: InputEventKind::NativeTouchpad(viewflow_protocol::NativeTouchpadReport(report)),
+        };
+        assert_eq!(
+            receiver.apply_ordered_event(&event),
+            Err(InputApplyError::NoLease)
+        );
+        for (generation, state) in [(1, InputLeaseState::Offered), (2, InputLeaseState::Active)] {
+            receiver
+                .apply_lease(InputLease {
+                    generation,
+                    state,
+                    owner: Id128(1),
+                    route_to: Id128(2),
+                })
+                .unwrap();
+        }
+        let wire::control_envelope::Payload::InputEvent(encoded) = input_event_payload(event) else {
+            panic!()
+        };
+        assert_eq!(InputEvent::try_from(encoded).unwrap(), event);
+        assert_eq!(
+            receiver.apply_ordered_event(&InputEvent {
+                target_device: Id128(3),
+                ..event
+            }),
+            Err(InputApplyError::TargetDevice)
+        );
+        receiver.apply_ordered_event(&event).unwrap();
+        assert_eq!(
+            receiver.apply_ordered_event(&event),
+            Err(InputApplyError::EventSequence)
+        );
+        let mut bytes = [0; 80];
+        peer.read_exact(&mut bytes).unwrap();
+        assert_eq!(&bytes[..8], b"VFTP\x02\0\0\0");
+        assert_eq!(&bytes[8..], &report);
+        receiver
+            .apply_lease_revoke(InputLeaseRevoke {
+                operation_id: Id128(5),
+                lease_generation: 3,
+                owner_device: Id128(1),
+                target_device: Id128(2),
+                state: InputLeaseState::Revoked,
+            })
+            .unwrap();
+        assert_eq!(peer.read(&mut [0; 1]).unwrap(), 0);
+        for (generation, state) in [(4, InputLeaseState::Offered), (5, InputLeaseState::Active)] {
+            receiver
+                .apply_lease(InputLease {
+                    generation,
+                    state,
+                    owner: Id128(1),
+                    route_to: Id128(2),
+                })
+                .unwrap();
+        }
+        // An unavailable receiver consumes HID without failing the lease. Pointer still works.
+        receiver
+            .apply_ordered_event(&InputEvent {
+                lease_generation: 5,
+                ..event
+            })
+            .unwrap();
+        receiver
+            .apply_ordered_event(&InputEvent {
+                lease_generation: 5,
+                sequence: 2,
+                event: InputEventKind::PointerMotion(viewflow_protocol::RelativePointerMotion {
+                    delta_x_dip: 1.,
+                    delta_y_dip: 0.,
+                }),
+                ..event
+            })
+            .unwrap();
+        assert_eq!(receiver.applied_event_count, 3);
+    }
+
     #[test]
     fn touchpad_round_trip_and_ordered_lease_release() {
         let mut receiver = InputReceiver::new(InputBackendMode::Disabled, Some(Id128(2))).unwrap();

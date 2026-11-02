@@ -324,7 +324,7 @@ impl<S: Sink> State<S> {
     #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
     fn apply(&mut self, event: &InputEvent) -> Result<()> {
         match event.event {
-            InputEventKind::Touchpad(_) => Err(MacOsInputError::UnsupportedInput),
+            InputEventKind::Touchpad(_) | InputEventKind::NativeTouchpad(_) => Err(MacOsInputError::UnsupportedInput),
             InputEventKind::PointerMotion(m) => self.motion(m.delta_x_dip, m.delta_y_dip, true),
             InputEventKind::DesktopPointerPosition(p) => {
                 // The standalone receiver uses the native Quartz desktop as

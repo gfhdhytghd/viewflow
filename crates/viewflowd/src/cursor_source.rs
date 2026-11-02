@@ -11,7 +11,7 @@ use std::{
 
 pub async fn run(path: &Path) -> Result<()> {
     // Windows consumes native Precision Touchpad frames on this connection.
-    // macOS uses the separately connected DriverKit HID bridge instead.
+    // macOS negotiates ABI 2 reports on this same authenticated input lane.
     let raw_touchpad = match std::env::var("VIEWFLOW_CURSOR_RAW_TOUCHPAD").as_deref() {
         Ok("1" | "true") => true,
         Ok("0" | "false") | Err(std::env::VarError::NotPresent) => false,
@@ -35,6 +35,7 @@ pub async fn run(path: &Path) -> Result<()> {
         .pointer
         .as_ref()
         .context("cursor pointer configuration missing")?;
+    let external_touchpad = external_touchpad && pointer.hid_forwarding;
     let desktop = config
         .desktop
         .as_ref()

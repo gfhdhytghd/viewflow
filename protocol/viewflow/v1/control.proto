@@ -465,6 +465,8 @@ message InputEvent {
     ReleaseAllInput release_all = 14;
     DesktopPointerPosition desktop_pointer_position = 15;
     TouchpadFrame touchpad = 16;
+    // VFTP ABI 2 report; identical to assembled reverse kind 13/14 data.
+    bytes native_touchpad = 17;
   }
 }
 

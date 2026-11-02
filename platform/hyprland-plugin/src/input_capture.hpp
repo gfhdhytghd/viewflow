@@ -4,6 +4,7 @@
 #include "input_capture_core.hpp"
 #include "window_recall.hpp"
 #include "touchpad_capture.hpp"
+#include "../../reverse-common/native_touchpad.hpp"
 #include "gesture_route.hpp"
 #include "metadata_bridge.hpp"
 #include "window_pointer_controller.hpp"
@@ -71,10 +72,10 @@ private:
   bool remoteGesture(unsigned fingers=0) const;
   enum class TouchpadMode : std::uint8_t { Derived = 0, QuicRaw = 1, ExternalNative = 2 };
   bool suppressesDerivedTouchpad() const {
-    return m_touchpadMode != TouchpadMode::Derived && m_touchpad && m_touchpad->available();
+    return rawTouchpad() || externalTouchpad();
   }
   bool rawTouchpad() const { return m_touchpadMode == TouchpadMode::QuicRaw && m_touchpad && m_touchpad->available(); }
-  bool externalTouchpad() const { return m_touchpadMode == TouchpadMode::ExternalNative && m_touchpad && m_touchpad->available(); }
+  bool externalTouchpad() const { return m_nativeTouchpadEnabled && m_touchpadMode == TouchpadMode::ExternalNative && m_touchpad && m_touchpad->available(); }
   bool onKey(const IKeyboard::SKeyEvent &event);
   viewflow::recall::EvdevShortcut m_recallKeys, m_detachKeys;
   void suppressKeyboard(KeyboardListeners &listeners);
@@ -92,6 +93,8 @@ private:
   inline static CaptureSeat s_seat;
   bool m_auxiliary = false;
   TouchpadMode m_touchpadMode{TouchpadMode::QuicRaw};
+  bool m_nativeTouchpadEnabled{}, m_nativeTouchpadRequested{}, m_nativeTouchpadWaitLift{};
+  reverse::NativeTouchpadEncoder m_nativeTouchpadEncoder{true};
   bool m_buttonPhysical = true, m_axisPhysical = true, m_keyPhysical = true;
   uint64_t m_returnedButtons = 0, m_inheritedButtons = 0;
   std::unique_ptr<TouchpadCapture> m_touchpad;

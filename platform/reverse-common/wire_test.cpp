@@ -126,6 +126,22 @@ int main() {
     native.frame(snapshot,1245,emit);assert(reports.size()==pressed_size);
     snapshot.button=false;native.frame(snapshot,1246,emit);
     assert(reports.size()==pressed_size+1 && reports.back()[1]==0 && reports.back()[18]==9);
+    vf::NativeTouchpadEncoder desktop(true);
+    std::vector<vf::NativeTouchpadReport> desktop_reports;
+    auto emit_desktop=[&](const auto& report){desktop_reports.push_back(report);};
+    for(unsigned count=1;count<=5;++count) {
+        snapshot.count=count;
+        for(unsigned i=0;i<count;++i) snapshot.contacts[i]={100+i,8000,5000,10,80,40,0};
+        desktop.frame(snapshot,2000+count,emit_desktop);
+        assert(desktop_reports.back()[0]==count);
+    }
+    snapshot.button=true; desktop.frame(snapshot,2006,emit_desktop);
+    assert(desktop_reports.back()[1]==1);
+    snapshot.count=0; snapshot.button=false; desktop.frame(snapshot,2007,emit_desktop);
+    assert(desktop_reports.back()[0]==0 && desktop_reports.back()[1]==0);
+    const auto& lifts=desktop_reports[desktop_reports.size()-2];
+    assert(lifts[0]==5);
+    for(unsigned i=0;i<5;++i) assert(lifts[13+12*i]==0);
     vf::NativeTouchpadAssembler assembly;vf::NativeTouchpadReport rebuilt{};
     auto chunk=[&](unsigned offset,unsigned window=42) {
         std::array<std::uint32_t,3> words{};

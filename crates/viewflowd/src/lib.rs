@@ -78,6 +78,8 @@ pub mod clipboard_sync;
 mod clock_retention;
 pub mod doctor;
 mod cursor_feedback;
+#[cfg(unix)]
+mod desktop_hid;
 #[cfg(target_os = "linux")]
 mod cursor_native_drag;
 #[cfg(target_os = "linux")]
@@ -2045,7 +2047,7 @@ async fn handle_server_connection(
         .map(|registry| registry.register(connection.remote_address(), outbound.clone()));
     let mut input = InputReceiver::new(input_backend, device_id)?;
     #[cfg(target_os = "macos")]
-    let _cursor_feedback = cursor_feedback::start(connection.clone(), input.feedback.clone());
+    let _cursor_feedback = cursor_feedback::start(connection.clone(), input.feedback.clone(), input.hid.clone());
     let mut probe = tokio::spawn(run_probe_loop(
         "server",
         connection.clone(),
@@ -2862,6 +2864,7 @@ fn releases_held_input(event: &viewflow_protocol::InputEventKind) -> bool {
         InputEventKind::PointerButton(button) => button.state == InputSwitchState::Released,
         InputEventKind::KeyboardHidUsage(key) => key.state == InputSwitchState::Released,
         InputEventKind::Touchpad(frame) => frame.count == 0,
+        InputEventKind::NativeTouchpad(report) => report.released(),
         InputEventKind::DesktopPointerPosition(_)
         | InputEventKind::PointerMotion(_)
         | InputEventKind::PointerWheel(_) => false,

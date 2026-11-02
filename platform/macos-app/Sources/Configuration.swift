@@ -83,6 +83,9 @@ struct ConnectionProfile: Codable, Equatable {
     var hidForwarding: Bool?
     var transparencyEnabled: Bool { transparency ?? true }
     var hidForwardingEnabled: Bool { hidForwarding ?? true }
+    var desktopInputEnvironment: [String: String] {
+        ["VIEWFLOW_DESKTOP_HID": hidForwardingEnabled ? "1" : "0"]
+    }
 
     static let qualityModes = ["auto", "high_quality", "save_bandwidth"]
 

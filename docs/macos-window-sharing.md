@@ -704,3 +704,113 @@ Mac 日志 `~/Library/Logs/Viewflow/source-2052-66920-a4834581f2f870e013ee280276
 6. 使用默认 HID 路径验证双击、菜单跟踪、悬停提示、内容拖动、滚轮和原生双指手势。
    覆盖 Settings、Finder、Chromium/Electron 和常用 AppKit 控件。
 7. 在 scale 2、负停车原点及多显示器之间重复检查；确认其他代理和会话持续工作。
+
+## Desktop native touchpad forwarding
+
+The whole-desktop cursor route differs from the window-proxy policy above:
+while captured on the Mac display it forwards **one through five contacts**,
+including native pinch/swipe gestures. Local Hyprland gestures stay local when
+not captured. The existing evdev discovery follows the physical libinput
+trackpad, without grabbing devices, hardcoded event numbers or an SSH forwarder.
+
+`NativeTouchpadEncoder(true)` reuses the existing 72-byte VFTP ABI 2 layout,
+normalization, stable contact IDs, button/pressure data and explicit lifts. The
+window-proxy encoder retains its two-finger policy. The desktop plugin emits
+local VFHY tag 39. `vf-cursor-peer` wraps the complete report in `InputEvent`
+field 17 on the authenticated **ordered input stream**, with the same lease,
+target and monotonic sequence as keys, wheel and pointer events. This reuses the
+report assembled from reverse kinds 13/14; protobuf already delimits the whole
+report, so splitting it into seven reverse records is unnecessary on this lane.
+It does not add another network reader or another connection.
+
+The Mac application passes per-link `VIEWFLOW_DESKTOP_HID=0/1` to `viewflowd`.
+Both pairing preferences must enable HID. The receiver advertises availability
+in bit 31 of the existing cursor-feedback button word only when the local
+nonblocking `hid.sock` stream is available. This uses the existing feedback
+cadence; there is no new polling loop on pointer paths. A missing/old receiver
+never advertises the bit and keeps ordinary pointer/click/two-finger-wheel input.
+The plugin initially leaves derived input enabled and applies lease-scoped tag
+44 only after capability negotiation. Capability commands run independently of
+the pointer FIFO. Deploy the matching Linux plugin and cursor binary together.
+
+With native HID active, the plugin marks touchpad-derived motion/buttons and
+suppresses its derived wheel. The cursor peer discards those marked duplicates;
+macOS HID owns touchpad motion/clicks, and Quartz feedback owns the cursor
+position. Physical mice continue on the relative-pointer path. An inherited
+pressed button finishes through Quartz before native ownership starts; all
+fingers lift before transferring that pressed gesture, preventing duplicate
+clicks or a held Quartz button. Normal leases and local gesture restoration
+continue regardless of HID availability.
+
+The receiver validates reports after the usual lease/target/sequence checks.
+Only native reports access the HID socket; ordinary pointer input does not wait
+for it. The local queue is bounded to 256 reports. EOF, write failure or backlog
+closes only this HID stream and clears its capability. The existing feedback
+tick retries the local socket after one second. Lease revocation, ReleaseAll,
+receiver teardown and disconnection close the stream, allowing the native host
+to release its contacts. Failures do not produce input-injection failure ACKs
+or retire unrelated proxies. These are recovery rules, not frame deadlines.
+
+Build/deployment scope:
+
+- Linux: rebuild `vf-cursor-peer` and `viewflow-hyprland.so`; rebuild
+  `viewflow_linux_reverse` because it shares the encoder header. The default
+  window policy remains two-finger only.
+- Mac: rebuild `viewflowd` and the `Viewflow` application executable.
+  `ViewflowHIDReceiver`, its CoreHID/DriverKit components and the VFTP ABI do not
+  change. The normal app build also rebuilds bundled helpers.
+- Do not start the old SSH HID service. No installed application, service,
+  plugin, device or user configuration was changed by the offline work.
+
+Offline validation covers Rust lease/sequence rejection, whole-report wire
+round trips, capability on/off fallback, duplicate motion/click suppression,
+local socket header/report order, EOF cleanup and receiver failure. C++ tests
+cover one-to-five-finger desktop encoding, explicit lifts, pressure/buttons and
+the unchanged proxy/assembler policy. Python profile tests cover both peers'
+HID preferences and preservation of wheel fallback. Swift configuration tests
+include the receiver policy environment; they require macOS and have **not**
+been run on Linux. macOS compilation, CoreHID delivery, real gestures, hotplug,
+and end-to-end latency remain **unverified**. Offline sockets are fake local
+receivers, not hardware evidence.
+
+User-operated checklist after rebuilding both endpoints:
+
+1. Enable HID on both sides. Cross onto the Mac display with the trackpad.
+   Verify one-finger movement and one click produce one action, including
+   tap-to-click and physical clicks. Repeat with a button held across the seam.
+2. Verify native two-finger scrolling, pinch, and configured three/four-finger
+   macOS gestures. Return to Linux and verify its local gestures resume.
+3. Repeat entry/return on every display edge, with an attached mouse and with
+   touchpad/mouse alternation. Verify cursor feedback and drag releases.
+4. Disable HID on either peer. Verify normal movement, click and wheel fallback.
+   Re-enable it and verify native operation returns.
+5. Make the HID receiver unavailable, then restore it. Verify ordinary input
+   continues and native operation recovers without terminating paired sessions.
+6. Disconnect while touching/clicking, reconnect, and verify no stuck contacts,
+   buttons or keys. Repeat after trackpad hotplug and under temporary congestion.
+7. Measure pointer and gesture latency on hardware. The 33 ms target is a
+   performance measurement; missing it must not terminate the session.
+
+Recorded offline checks (2026-11-02, Linux worktree `deskhid`):
+
+| Check | Result |
+| --- | --- |
+| `cargo build -p viewflowd --bin vf-cursor-peer --bin viewflowd` | PASS |
+| `cargo test -p viewflow-protocol -p viewflow-hyprland -p viewflow-platform --lib` | 150 passed, 2 existing ignored tests |
+| `cargo test -p viewflowd --lib atlas_cursor_handoff::tests` | 22 passed |
+| `cargo test -p viewflowd --lib touchpad_` | 2 passed |
+| `cargo test -p viewflowd --lib desktop_hid::tests` | 2 passed |
+| `cargo test -p viewflowd --lib cursor_feedback::tests` | 1 passed |
+| `cargo test -p viewflowd --lib native_` | 78 passed (overlaps the route test above) |
+| `cmake --build /tmp/deskhid-plugin-build -j 4` | PASS, compiler warnings retained |
+| `ctest --test-dir /tmp/deskhid-plugin-build --output-on-failure` | 14 passed |
+| `cmake --build /tmp/deskhid-reverse-build -j 4 --target viewflow_linux_reverse viewflow_reverse_wire_test` | PASS |
+| `ctest --test-dir /tmp/deskhid-reverse-build -R '^reverse_wire$' --output-on-failure` | 1 passed |
+| `/tmp/deskhid-test-venv/bin/python -m unittest discover -s platform/desktop-app -p test_pairing_profiles.py` | 7 passed, 1 existing bundle-dependent test skipped |
+| `/tmp/deskhid-test-venv/bin/python -m unittest discover -s platform/desktop-app -p test_pairing_service.py` | 19 passed |
+
+The system Python initially lacked `spake2`. A disposable `/tmp` virtual
+environment supplied the pairing dependencies; no user configuration changed.
+Linux builds retain existing compiler warnings. No Mac build, Swift test,
+service restart, plugin reload, physical input injection or focus change was
+performed. Run the macOS build/test workflow on the Mac before device acceptance.

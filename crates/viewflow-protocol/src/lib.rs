@@ -309,6 +309,36 @@ impl TouchpadFrame {
         Ok(())
     }
 }
+/// The same 72-byte VFTP ABI 2 report used by reverse-input kinds 13/14.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NativeTouchpadReport(pub [u8; 72]);
+impl NativeTouchpadReport {
+    pub fn decode(bytes: &[u8]) -> Result<Self, WireError> {
+        let data: [u8; 72] = bytes
+            .try_into()
+            .map_err(|_| WireError::InvalidField("native_touchpad.length"))?;
+        if data[0] > 5 || data[1] > 1 {
+            return Err(WireError::InvalidField("native_touchpad.count_or_button"));
+        }
+        let mut ids = 0u16;
+        for c in data[12..12 + usize::from(data[0]) * 12].chunks_exact(12) {
+            if c[0] >= 15
+                || c[1] > 1
+                || ids & (1 << c[0]) != 0
+                || u16::from_le_bytes([c[2], c[3]]) > 32767
+                || u16::from_le_bytes([c[4], c[5]]) > 32767
+            {
+                return Err(WireError::InvalidField("native_touchpad.contact"));
+            }
+            ids |= 1 << c[0];
+        }
+        Ok(Self(data))
+    }
+    pub fn released(self) -> bool {
+        self.0[1] == 0 && (0..usize::from(self.0[0])).all(|i| self.0[13 + i * 12] == 0)
+    }
+}
+
 impl TryFrom<wire::TouchpadFrame> for TouchpadFrame {
     type Error = WireError;
     fn try_from(value: wire::TouchpadFrame) -> Result<Self, Self::Error> {
@@ -336,6 +366,7 @@ impl TryFrom<wire::TouchpadFrame> for TouchpadFrame {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum InputEventKind {
     Touchpad(TouchpadFrame),
+    NativeTouchpad(NativeTouchpadReport),
     DesktopPointerPosition(DesktopPointerPosition),
     PointerMotion(RelativePointerMotion),
     PointerButton(PointerButtonEvent),
@@ -1057,6 +1088,9 @@ impl TryFrom<wire::InputEvent> for InputEvent {
             }
             wire::input_event::Event::KeyboardHidUsage(value) => {
                 InputEventKind::KeyboardHidUsage(value.try_into()?)
+            }
+            wire::input_event::Event::NativeTouchpad(value) => {
+                InputEventKind::NativeTouchpad(NativeTouchpadReport::decode(&value)?)
             }
             wire::input_event::Event::Touchpad(value) => {
                 InputEventKind::Touchpad(value.try_into()?)
@@ -2756,5 +2790,36 @@ mod wire_tests {
             HidDeviceOffer::try_from(bad_hid),
             Err(WireError::InvalidField("hid_device_offer.vendor_id"))
         );
+    }
+}
+
+#[cfg(test)]
+mod native_touchpad_tests {
+    use super::*;
+    #[test]
+    fn native_report_validates_bounds_ids_and_release() {
+        let mut data = [0u8; 72];
+        assert!(NativeTouchpadReport::decode(&data).unwrap().released());
+        data[0] = 1;
+        data[13] = 1;
+        assert!(!NativeTouchpadReport::decode(&data).unwrap().released());
+        assert!(NativeTouchpadReport::decode(&data[..71]).is_err());
+        data[0] = 6;
+        assert!(NativeTouchpadReport::decode(&data).is_err());
+        data[0] = 2;
+        assert!(NativeTouchpadReport::decode(&data).is_err()); // Duplicate ID.
+        data[24] = 1;
+        assert!(NativeTouchpadReport::decode(&data).is_ok());
+        data[12] = 15;
+        assert!(NativeTouchpadReport::decode(&data).is_err());
+        data[12] = 0;
+        data[15] = 128;
+        assert!(NativeTouchpadReport::decode(&data).is_err());
+        data[15] = 0;
+        data[13] = 2;
+        assert!(NativeTouchpadReport::decode(&data).is_err());
+        data[13] = 0;
+        data[1] = 2;
+        assert!(NativeTouchpadReport::decode(&data).is_err());
     }
 }

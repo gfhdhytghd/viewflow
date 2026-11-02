@@ -218,7 +218,7 @@ impl CursorBridge {
             return Ok(false);
         }
         let tag = u16::from_le_bytes(bytes[6..8].try_into()?);
-        if !(30..=37).contains(&tag) {
+        if !(30..=37).contains(&tag) && tag != 39 {
             return Ok(false);
         }
         let mut received = Instant::now();
@@ -537,6 +537,23 @@ async fn run(
     let mut native_sequence = None;
     let mut feedback_serial = 0;
     let mut feedback_seen = false;
+    let mut native_touchpad = false;
+    // Optional capability changes never wait in the pointer FIFO. The native
+    // producer marks events only after applying this command, so those marks
+    // (not a speculative sender flag) decide which path owns motion/clicks.
+    let (mode_sender, mut mode_receiver) = watch::channel::<Option<(u64, bool)>>(None);
+    let mut mode_worker = tokio::task::JoinSet::new();
+    let mode_commands = commands.clone();
+    mode_worker.spawn(async move {
+        while mode_receiver.changed().await.is_ok() {
+            let Some((generation, enabled)) = *mode_receiver.borrow_and_update() else { continue };
+            if let Err(error) = native(&mode_commands, CaptureCommand::NativeTouchpad {
+                generation, enabled,
+            }, tokio::time::Instant::now() + budget).await {
+                eprintln!("desktop HID mode unchanged: {error:#}");
+            }
+        }
+    });
     let mut injection_failures = writer.outbound().input_acks.injection_failures.subscribe();
     let mut window_drag = config
         .external_touchpad
@@ -650,6 +667,11 @@ async fn run(
                 continue;
             }
             feedback_serial = sample.serial;
+            let capable = sample.buttons & crate::cursor_feedback::NATIVE_TOUCHPAD != 0;
+            if capable != native_touchpad {
+                native_touchpad = capable;
+                mode_sender.send_replace(Some((generation, capable)));
+            }
             if !feedback_seen {
                 eprintln!(
                     "cursor authority=macos generation={generation} actual_x={} actual_y={}",
@@ -746,6 +768,7 @@ async fn run(
                 "atlas-cursor-handoff phase=native-active generation={generation} x={x} y={y}"
             );
             active = true;
+            native_touchpad = false;
             feedback_seen = false;
             feedback_serial = 0;
             left_button_held = false;
@@ -857,6 +880,12 @@ async fn run(
                         },
                         repeat: false,
                     })
+                }
+                39 => {
+                    if !config.external_touchpad { continue; }
+                    let report = viewflow_protocol::NativeTouchpadReport::decode(&bytes[32..])
+                        .map_err(|e| anyhow::anyhow!("invalid native touchpad report: {e:?}"))?;
+                    InputEventKind::NativeTouchpad(report)
                 }
                 37 => {
                     ensure!(bytes.len() == 104, "invalid touchpad packet");
@@ -1116,7 +1145,7 @@ fn retire_on_failure(network: &quinn::Connection, result: &Result<()>) {
 }
 
 fn revoked_capture_tail(active: bool, tag: u16) -> bool {
-    !active && (31..=37).contains(&tag)
+    !active && ((31..=37).contains(&tag) || tag == 39)
 }
 
 async fn release_capture_locally(
@@ -1387,6 +1416,161 @@ fn advance(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn desktop_native_capability_routes_reports_and_restores_derived_input() {
+        use std::sync::Arc;
+        let (_client, _server, connection, remote) = crate::atlas_session::tests::pair().await;
+        let owner = crate::shared_control::SharedControlWriter::start(&connection).unwrap();
+        let (sent, mut received) = mpsc::unbounded_channel();
+        let reader = tokio::spawn(async move {
+            let mut sequencer = viewflow_transport::ControlSequencer::default();
+            loop {
+                let envelope = viewflow_transport::receive_control_sequenced(&remote, &mut sequencer)
+                    .await
+                    .unwrap();
+                if let viewflow_protocol::DomainControl::InputEvent(event) =
+                    viewflow_protocol::DomainControl::try_from(envelope).unwrap()
+                {
+                    sent.send(event).unwrap();
+                }
+            }
+        });
+        let (commands, mut requests) = mpsc::channel::<NativeRequest>(8);
+        let (modes, mut mode_changes) = mpsc::unbounded_channel();
+        let native = tokio::spawn(async move {
+            while let Some(request) = requests.recv().await {
+                if let CaptureCommand::NativeTouchpad { enabled, .. } = request.command {
+                    modes.send(enabled).unwrap();
+                }
+                let _ = request.reply.send(Ok(()));
+            }
+        });
+        let (_clock_owner, clock) = watch::channel(None);
+        let queue = Arc::new(NativeCaptureQueue::default());
+        let worker = tokio::spawn(run(
+            CursorConfig {
+                drag: Default::default(),
+                reverse_drag: Default::default(),
+                remote_scale: 1.,
+                position_offset: (-100., 0.),
+                position_scale: (1., 1.),
+                ready_file: None,
+                raw_touchpad: false,
+                external_touchpad: true,
+                local: vec![rect(0, 0)],
+                remote: rect(100_000, 0),
+                monitor_id: 1,
+                topology_generation: 1,
+                owner: Id128(1),
+                target: Id128(2),
+                fps: 60,
+            },
+            owner.sender(),
+            Instant::now(),
+            queue.clone(),
+            commands,
+            clock,
+        ));
+        let mut edge = vec![0; 57];
+        edge[6..8].copy_from_slice(&30u16.to_le_bytes());
+        edge[28] = 1;
+        edge[37..45].copy_from_slice(&99f64.to_le_bytes());
+        edge[45..53].copy_from_slice(&50f64.to_le_bytes());
+        queue.push(edge, Instant::now()).unwrap();
+        let first = tokio::time::timeout(Duration::from_secs(1), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let packet = |tag: u16, seq: u64, len: usize| {
+            let mut p = vec![0; len];
+            p[6..8].copy_from_slice(&tag.to_le_bytes());
+            p[20..28].copy_from_slice(&2u64.to_le_bytes());
+            p[28..44].copy_from_slice(&2u128.to_be_bytes());
+            p[44..52].copy_from_slice(&seq.to_le_bytes());
+            p
+        };
+        let feedback = |serial, enabled| {
+            let sample = crate::cursor_feedback::Sample {
+                generation: 2,
+                anchor_sequence: first.sequence,
+                serial,
+                x: 50.,
+                y: 50.,
+                buttons: if enabled {
+                    crate::cursor_feedback::NATIVE_TOUCHPAD
+                } else {
+                    0
+                },
+            };
+            let mut p = vec![0; 20];
+            p[6..8].copy_from_slice(&38u16.to_le_bytes());
+            p.extend(sample.encode());
+            queue.push(p, Instant::now()).unwrap();
+        };
+        let motion = |seq, native| {
+            let mut p = packet(31, seq, if native { 89 } else { 88 });
+            p[56..64].copy_from_slice(&1f64.to_le_bytes());
+            if native {
+                p[88] = 1;
+            }
+            p
+        };
+        queue.push(motion(1, false), Instant::now()).unwrap();
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(1), received.recv())
+                .await
+                .unwrap()
+                .unwrap()
+                .event,
+            InputEventKind::PointerMotion(_)
+        ));
+        feedback(1, true);
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), mode_changes.recv())
+                .await
+                .unwrap(),
+            Some(true)
+        );
+        queue.push(motion(2, true), Instant::now()).unwrap(); // suppressed while native owns motion
+        let mut click = packet(32, 3, 62);
+        click[56..60].copy_from_slice(&272u32.to_le_bytes());
+        click[60] = 1;
+        click[61] = 1;
+        queue.push(click, Instant::now()).unwrap(); // HID owns this click too.
+        let mut report = packet(39, 4, 124);
+        report[52] = 1;
+        report[65] = 1;
+        queue.push(report, Instant::now()).unwrap();
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(1), received.recv())
+                .await
+                .unwrap()
+                .unwrap()
+                .event,
+            InputEventKind::NativeTouchpad(_)
+        ));
+        feedback(2, false);
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), mode_changes.recv())
+                .await
+                .unwrap(),
+            Some(false)
+        );
+        queue.push(motion(5, false), Instant::now()).unwrap();
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(1), received.recv())
+                .await
+                .unwrap()
+                .unwrap()
+                .event,
+            InputEventKind::PointerMotion(_)
+        ));
+        assert!(!worker.is_finished() && connection.close_reason().is_none());
+        worker.abort();
+        reader.abort();
+        native.abort();
+    }
+
     #[test]
     fn native_cursor_return_uses_mac_height_and_requires_shared_edge_motion() {
         let local = DesktopRect {
@@ -1815,7 +1999,7 @@ mod tests {
 
     #[test]
     fn revoked_native_tail_is_discarded_without_reading_its_expired_timestamp() {
-        for tag in 31..=37 {
+        for tag in (31..=37).chain([39]) {
             assert!(revoked_capture_tail(false, tag));
             assert!(!revoked_capture_tail(true, tag));
         }

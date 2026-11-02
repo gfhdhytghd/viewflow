@@ -9,9 +9,11 @@ import Foundation
         let decoded = try JSONDecoder().decode(ConnectionProfile.self, from: JSONEncoder().encode(profile))
         precondition(decoded == profile)
         precondition(decoded.transparencyEnabled && decoded.hidForwardingEnabled)
+        precondition(decoded.desktopInputEnvironment["VIEWFLOW_DESKTOP_HID"] == "1")
         profile.transparency = false; profile.hidForwarding = false
         let off = try JSONDecoder().decode(ConnectionProfile.self, from: JSONEncoder().encode(profile))
         precondition(!off.transparencyEnabled && !off.hidForwardingEnabled)
+        precondition(off.desktopInputEnvironment["VIEWFLOW_DESKTOP_HID"] == "0")
         precondition(ConnectionProfile.presentationEnvironment(transparency: false)["VIEWFLOW_TRANSPARENCY"] == "0")
         precondition(ConnectionProfile.presentationEnvironment(transparency: true)["VIEWFLOW_TRANSPARENCY"] == "1")
         precondition(ConnectionProfile.presentationEnvironment(transparency: true)["VIEWFLOW_QUALITY_MODE"] == nil)

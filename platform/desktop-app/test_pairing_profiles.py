@@ -60,6 +60,22 @@ class PairingProfileTests(unittest.TestCase):
                         if mode == 'auto': self.assertNotIn('quality_mode', config)
                         else: self.assertEqual(config['quality_mode'], mode)
 
+    def test_desktop_mac_hid_requires_both_peers_and_keeps_fallback(self):
+        for local_enabled, remote_enabled in itertools.product((False, True), repeat=2):
+            linux, mac = device('linux', 'a', 41000), device('macos', 'b', 42000)
+            record = dict(device=mac, certificate='cert', private_key='key', authority='ca',
+                          host='127.0.0.1', stream_id='c'*32,
+                          options=dict(hid_forwarding=local_enabled),
+                          remote_options=dict(hid_forwarding=remote_enabled))
+            profile = build_profile(linux, record)
+            env = next(c['environment'] for c in profile['components'] if c['id'] == 'desktop-share')
+            self.assertEqual(env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD'], str(int(local_enabled and remote_enabled)))
+            self.assertEqual(env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'], '0')
+            self.assertTrue(profile['configs']['desktop-share.json']['pointer']['wheel'])
+            record['device'] = linux
+            reverse = build_profile(mac, record)
+            self.assertEqual(reverse['hidForwarding'], local_enabled and remote_enabled)
+
     def test_connection_options_cover_every_launch_mode(self):
         for local_platform, remote_platform in itertools.permutations(('linux', 'windows', 'macos'), 2):
             local, peer = device(local_platform, 'a', 41000), device(remote_platform, 'b', 42000)

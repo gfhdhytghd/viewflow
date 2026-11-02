@@ -74,12 +74,17 @@ import Combine
         let old = Dictionary(uniqueKeysWithValues: (configuredProfile?.groupConnections ?? []).map { ($0.pairingDeviceID!, $0) })
         let preserved = Set((incoming.groupConnections ?? []).filter { link in
             guard var previous = old[link.pairingDeviceID!] else { return false }
-            // HID routing metadata is consumed by the sender; standard input,
-            // windows and clipboard processes do not need to restart for it.
+            // Other components retain their workers across HID preference changes.
+            // The input worker also enforces the receiver-side HID preference.
             previous.hidForwarding = link.hidForwarding
             return previous == link
         }.compactMap(\.pairingDeviceID))
-        pendingRetained = sameGroup ? Set(workers.values.filter { preserved.contains($0.groupPeerID ?? "") && !$0.stopping }.map(\.id)) : []
+        pendingRetained = sameGroup ? Set(workers.values.filter { worker in
+            let peer = worker.groupPeerID ?? ""
+            return preserved.contains(peer) && !worker.stopping &&
+                (worker.component != .input || old[peer]?.hidForwarding ==
+                 incoming.groupConnections?.first(where: { $0.pairingDeviceID == peer })?.hidForwarding)
+        }.map(\.id)) : []
         if sameGroup, let sharedHID = workers["corehid"], !sharedHID.stopping, enabled.contains(.hid) {
             pendingRetained.insert(sharedHID.id)
         }
@@ -155,11 +160,12 @@ import Combine
         try ProfileStore.writePrivate(JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys]), to: url)
         return url
     }
-    private func worker(_ id: String, component: Component, binary: String, peerID: String? = nil, arguments: () throws -> [String]) throws {
+    private func worker(_ id: String, component: Component, binary: String, peerID: String? = nil, environment: [String: String] = [:], arguments: () throws -> [String]) throws {
         if workers[id] == nil {
             let new = try ManagedWorker(id: id, component: component, executable: BundleTools.executable(binary), arguments: arguments())
             new.groupPeerID = peerID
             new.environment = ConnectionProfile.presentationEnvironment(transparency: transparency, qualityMode: qualityMode)
+            new.environment.merge(environment) { _, configured in configured }
             new.changed = { [weak self] in self?.objectWillChange.send() }
             workers[id] = new
         }
@@ -240,7 +246,8 @@ import Combine
                         let id = peer.isEmpty ? "input" : "input-" + peer
                         if !permissions.canPostInput && workers[id] == nil { statuses[component] = "等待辅助功能权限"; continue }
                         let material = linkIdentities[peer] ?? identity
-                        try worker(id, component: component, binary: "viewflowd", peerID: peer) {
+                        try worker(id, component: component, binary: "viewflowd", peerID: peer,
+                                   environment: link.desktopInputEnvironment) {
                             ["serve", "--bind", link.inputBind, "--cert", material["certificate"] as! String,
                              "--key", material["private_key"] as! String, "--ca", material["certificate_authority"] as! String,
                              "--input-backend", "native", "--device-id", link.deviceID]

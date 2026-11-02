@@ -18,13 +18,15 @@ class NativeTouchpadEncoder {
     using Contact=std::array<std::uint8_t,12>;
     std::map<std::uint32_t,Contact> previous;
     unsigned next{};
-    bool local_gesture{}, previous_button{};
+    bool local_gesture{}, previous_button{}, desktop{};
 public:
-    bool routes(unsigned count) const { return count==2 && !local_gesture; }
+    explicit NativeTouchpadEncoder(bool whole_desktop=false):desktop(whole_desktop) {}
+    bool routes(unsigned count) const { return desktop ? count>0 && count<=5 : count==2 && !local_gesture; }
     template<class Snapshot, class Emit>
     void frame(const Snapshot& snapshot, std::uint32_t ticks, Emit emit) {
         std::map<std::uint32_t,Contact> current;
-        // Three or more fingers belong to Linux until all fingers lift.
+        // Window proxies keep three-finger gestures local. The explicit
+        // whole-desktop mode forwards all one-to-five-finger contacts.
         // Release an in-progress Mac scroll when a third finger joins.
         if(snapshot.count>=3)local_gesture=true;
         if(snapshot.count==0)local_gesture=false;

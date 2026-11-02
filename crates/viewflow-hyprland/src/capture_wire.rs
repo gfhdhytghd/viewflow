@@ -21,11 +21,11 @@ pub enum CaptureCommand {
         width: f64,
         height: f64,
         raw_touchpad: bool,
-        // A separately connected native HID owner consumes the physical
-        // touchpad.  It still needs Hyprland's finger-derived events muted,
-        // but must never receive raw frames over this cursor connection.
+        // macOS ABI 2 reports use this connection after NativeTouchpad enables
+        // the negotiated path. Until then, derived pointer/wheel remain active.
         external_touchpad: bool,
     },
+    NativeTouchpad { generation: u64, enabled: bool },
     Activate {
         generation: u64,
         target: [u8; 16],
@@ -49,7 +49,8 @@ impl CaptureCommand {
     #[must_use]
     pub const fn generation(self) -> u64 {
         match self {
-            Self::Configure { generation, .. }
+            Self::NativeTouchpad { generation, .. }
+            | Self::Configure { generation, .. }
             | Self::Activate { generation, .. }
             | Self::Release { generation, .. } => generation,
         }
@@ -58,6 +59,7 @@ impl CaptureCommand {
     pub const fn tag(self) -> u16 {
         match self {
             Self::Configure { .. } => 42,
+            Self::NativeTouchpad { .. } => 44,
             Self::Activate { .. } => 40,
             Self::Release { .. } => 41,
         }
@@ -74,6 +76,7 @@ impl CaptureCommand {
         }
         let mut payload = self.generation().to_le_bytes().to_vec();
         match self {
+            Self::NativeTouchpad { enabled, .. } => payload.push(u8::from(enabled)),
             Self::Configure {
                 monitor_id,
                 x,
@@ -102,7 +105,7 @@ impl CaptureCommand {
                 }
                 // Legacy 48-byte topology keeps raw touchpad forwarding.
                 // Explicit modes are: 0 derived, 1 raw over this connection,
-                // and 2 separately-owned native HID.
+                // and 2 capability-gated macOS native reports.
                 if external_touchpad {
                     payload.push(2);
                 } else if !raw_touchpad {
@@ -197,6 +200,25 @@ impl CaptureCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn native_touchpad_switch_has_generation_matched_receipt() {
+        let command = CaptureCommand::NativeTouchpad {
+            generation: 9,
+            enabled: true,
+        };
+        let data = command.packet(1).unwrap();
+        assert_eq!(&data[6..8], &44u16.to_le_bytes());
+        assert_eq!(&data[20..28], &9u64.to_le_bytes());
+        assert_eq!(data[28], 1);
+        let mut receipt = vec![0; 31];
+        receipt[20..28].copy_from_slice(&9u64.to_le_bytes());
+        receipt[28..30].copy_from_slice(&44u16.to_le_bytes());
+        receipt[30] = 1;
+        assert!(command.receipt(&receipt).unwrap().applied);
+        receipt[20] = 8;
+        assert!(command.receipt(&receipt).is_err());
+    }
+
     #[test]
     fn touchpad_modes_keep_the_legacy_topology_prefix() {
         let raw = CaptureCommand::Configure {

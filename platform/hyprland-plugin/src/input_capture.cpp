@@ -362,7 +362,23 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
     if (m_windowPointer.handle(*packet, routeAllowed(), tickStarted, readStarted, origin,
                               m_previousDispatchStarted, m_previousDispatchEnded))
       continue;
-    if (packet->type == protocol::MessageType::INPUT_CAPTURE_TOPOLOGY) {
+    if (packet->type == protocol::MessageType::INPUT_NATIVE_TOUCHPAD_ENABLE) {
+      if (packet->payload.size() != 9) continue;
+      const auto generation = *readIntegral<std::uint64_t>(packet->payload, 0);
+      const bool enabled = packet->payload[8] == std::byte{1};
+      const bool applied = m_core.captured() && m_core.lease()->generation == generation &&
+          std::to_integer<unsigned>(packet->payload[8]) <= 1 &&
+          (!enabled || (m_touchpadMode == TouchpadMode::ExternalNative && m_touchpad && m_touchpad->available()));
+      if (applied) {
+        // Complete any inherited/derived press with its original Quartz path.
+        // Switching a held click to HID would leave Quartz's button ledger down.
+        m_nativeTouchpadRequested = enabled;
+        m_nativeTouchpadWaitLift = enabled && m_core.physicalButtonHeld(272);
+        m_nativeTouchpadEnabled = enabled && !m_nativeTouchpadWaitLift;
+        m_nativeTouchpadEncoder = reverse::NativeTouchpadEncoder{true};
+      }
+      receipt(generation, packet->type, applied);
+    } else if (packet->type == protocol::MessageType::INPUT_CAPTURE_TOPOLOGY) {
       if (packet->payload.size() != 48 && packet->payload.size() != 49)
         continue;
       const auto generation = readIntegral<std::uint64_t>(packet->payload, 0);
@@ -612,6 +628,8 @@ void InputCapture::onPointerButton(const IPointer::SButtonEvent &event, bool ext
   if (externalTouchpad()) payload.appendIntegral(static_cast<std::uint8_t>(external));
   if (!send(protocol::MessageType::INPUT_POINTER_BUTTON, payload))
     release(false);
+  else if (!pressed && event.button == 272 && m_nativeTouchpadRequested && !m_nativeTouchpadWaitLift)
+    m_nativeTouchpadEnabled = true;
 }
 
 void InputCapture::onPointerAxis(const IPointer::SAxisEvent &event) {
@@ -652,7 +670,26 @@ bool InputCapture::remoteGesture(unsigned fingers) const {
 void InputCapture::drainTouchpad() {
   if (!m_touchpad) return;
   m_touchpad->drain(m_core.captured(), [this](const TouchpadSnapshot& frame) {
-    if (!m_core.captured() || !rawTouchpad()) return;
+    if (!m_core.captured()) return;
+    if (m_nativeTouchpadWaitLift && frame.count == 0 && !m_core.physicalButtonHeld(272)) {
+      m_nativeTouchpadWaitLift = false;
+      m_nativeTouchpadEnabled = m_nativeTouchpadRequested;
+    }
+    if (externalTouchpad()) {
+      m_nativeTouchpadEncoder.frame(frame, static_cast<std::uint32_t>(diagnosticMonotonicNs() / 100000),
+          [this](const reverse::NativeTouchpadReport& report) {
+        const auto& lease = *m_core.lease();
+        protocol::PacketBuilder payload{protocol::MessageType::INPUT_NATIVE_TOUCHPAD, 0};
+        payload.appendIntegral(lease.generation); appendTarget(payload, lease);
+        payload.appendIntegral(m_eventSequence++);
+        for (const auto byte : report) payload.appendIntegral(byte);
+        if (send(protocol::MessageType::INPUT_NATIVE_TOUCHPAD, payload)) ++m_touchpadFrames;
+        // HID queue failures disable only this optional path. Derived input resumes.
+        else m_nativeTouchpadEnabled = false;
+      });
+      return;
+    }
+    if (!rawTouchpad()) return;
     const auto& lease = *m_core.lease();
     protocol::PacketBuilder payload{protocol::MessageType::INPUT_TOUCHPAD_FRAME, 0};
     payload.appendIntegral(lease.generation);
@@ -756,6 +793,8 @@ void InputCapture::forceDetach() {
 }
 
 void InputCapture::release(bool notifyPeer) {
+  m_nativeTouchpadEnabled = m_nativeTouchpadRequested = m_nativeTouchpadWaitLift = false;
+  m_nativeTouchpadEncoder = reverse::NativeTouchpadEncoder{true};
   const auto lease = m_core.lease();
   const auto edge = m_core.activeEdge();
   if (notifyPeer && lease && m_bridge.connected()) {

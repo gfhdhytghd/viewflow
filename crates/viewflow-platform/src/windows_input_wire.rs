@@ -22,6 +22,8 @@ pub fn encode(
             }
             (6, 0, 0)
         }
+        // Unsupported on Windows; the decoder rejects this tag. Never turn it into ReleaseAll.
+        InputEventKind::NativeTouchpad(_) => (255, 0, 0),
         InputEventKind::ReleaseAll => (0, 0, 0),
         InputEventKind::DesktopPointerPosition(p) => (1, p.x_millidip as u64, p.y_millidip as u64),
         InputEventKind::PointerMotion(p) => (2, p.delta_x_dip.to_bits(), p.delta_y_dip.to_bits()),

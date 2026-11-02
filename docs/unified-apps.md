@@ -273,3 +273,20 @@ macOS 应用在概览提供“透明窗口”设置，并将原生 HID 服务标
 两项设置保存在本机。HID 关闭会经认证配对更新通知 Linux 发送端，切换为普通
 指针、点击和双指滚轮，不影响“鼠标与键盘”服务。此切换需等待对端收到配对状态
 更新（通常下一个重连轮询周期），不应以关闭整个连接替代。
+
+桌面跨屏控制现在复用配对 QUIC 输入通道转发原生多指触控板报告。
+Linux 的 `vf-cursor-peer` 与 `viewflow-hyprland.so` 必须同时更新。
+插件复用当前 libinput 触控板对应的 evdev 设备，自动采集一至五指触点，
+不依赖固定的 `/dev/input/eventN`、SSH 或旧的 `viewflow-macos-hid.service`。
+Mac 的 `viewflowd` 将 VFTP ABI 2 报告写入应用现有的 `hid.sock`。
+接收端应用以每条连接的 `VIEWFLOW_DESKTOP_HID` 控制该能力。
+
+Mac 通过现有光标反馈声明 HID 可用性。Linux 在收到能力后才启用原生输入。
+能力切换异步执行，不在普通指针路径等待确认；有序输入仍使用同一租约。
+HID 不可用时，普通移动、点击与双指滚轮继续工作。
+本地 HID 断开或积压只释放原生触点，不终止配对连接。
+设置变更重新生成配置；Mac 仅在该连接的 HID 策略改变时更新其输入工作进程，
+窗口与剪贴板工作进程继续保留。HID 运行故障不会触发这种配置重启。
+
+本次离线检查与真实手势验收分开。设计、构建对象和人工清单见
+[桌面原生触控板转发](macos-window-sharing.md#desktop-native-touchpad-forwarding)。

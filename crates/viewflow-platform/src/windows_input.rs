@@ -236,7 +236,7 @@ impl<S: InputSink> StatefulInput<S> {
 
     fn apply(&mut self, event: &InputEvent) -> Result<(), WindowsInputError> {
         match event.event {
-            InputEventKind::DesktopPointerPosition(_) | InputEventKind::Touchpad(_) => {
+            InputEventKind::DesktopPointerPosition(_) | InputEventKind::Touchpad(_) | InputEventKind::NativeTouchpad(_) => {
                 return Err(WindowsInputError::DeltaOutOfRange);
             }
             InputEventKind::PointerMotion(motion) => {

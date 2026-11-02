@@ -5,6 +5,7 @@ use crate::sync_ext::LockExt;
 use std::sync::{Arc, Mutex};
 
 pub(crate) type State = Arc<Mutex<Option<(u64, u64)>>>;
+pub(crate) const NATIVE_TOUCHPAD: u32 = 1 << 31;
 const MAGIC: &[u8; 8] = b"VFCF\x01\0\0\0";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -59,7 +60,7 @@ impl Drop for Publisher {
     }
 }
 #[cfg(target_os = "macos")]
-pub(crate) fn start(connection: quinn::Connection, state: State) -> Option<Publisher> {
+pub(crate) fn start(connection: quinn::Connection, state: State, hid: crate::desktop_hid::Shared) -> Option<Publisher> {
     if std::env::var("VIEWFLOW_CURSOR_FEEDBACK").as_deref() != Ok("1") {
         return None;
     }
@@ -72,6 +73,7 @@ pub(crate) fn start(connection: quinn::Connection, state: State) -> Option<Publi
             if connection.close_reason().is_some() {
                 break;
             }
+            let native_touchpad = crate::desktop_hid::available(&hid);
             let anchor = *state.lock_or_recover();
             let Some((generation, anchor_sequence)) = anchor else {
                 continue;
@@ -86,7 +88,7 @@ pub(crate) fn start(connection: quinn::Connection, state: State) -> Option<Publi
                 serial,
                 x,
                 y,
-                buttons,
+                buttons: buttons | if native_touchpad { NATIVE_TOUCHPAD } else { 0 },
             };
             // Backpressure replaces observations; it never tears down input.
             let _ = connection.send_datagram(sample.encode().into());
