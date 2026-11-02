@@ -80,7 +80,17 @@ import Foundation
         precondition((try? withMenu.selected(existing: [one.key], limit: 1)) == [one])
         let local = WindowInventory(schemaVersion: 1, enumeration: "ok", windows: [one],
                                     physicalDisplays: [[0,0,1920,1200]], remoteDisplays: [[-3072,0,3072,1728]])
-        precondition((try? local.selected(existing: [one.key], limit: 8)) == [])
+        precondition((try? local.selected(existing: [one.key], limit: 8)) == [one])
+        let hidden = NativeWindow(windowID: one.windowID, pid: one.pid, bundleID: one.bundleID,
+            applicationName: one.applicationName, executableName: one.executableName,
+            onScreen: false, layer: 0, framePoints: one.framePoints)
+        var paused = local; paused.windows = [hidden]
+        precondition((try? paused.selected(existing: [one.key], limit: 8)) == [hidden])
+        precondition((try? paused.selected(existing: [], limit: 8)) == [])
+        paused.windows = []
+        precondition((try? paused.selected(existing: [one.key], limit: 8)) == [])
+        precondition(windowsPeer.accepts(hidden, existing: true))
+        precondition(!windowsPeer.accepts(hidden))
         var crossing = local
         crossing.physicalDisplays = [[100,0,1920,1200]]
         crossing.remoteDisplays = [[-2972,0,3072,1728]]
@@ -96,7 +106,7 @@ import Foundation
         precondition(!touchingPeer.accepts(one))
         var covered = crossing
         covered.physicalDisplays = [[0,0,400,1200],[400,0,400,1200]]
-        precondition((try? covered.selected(existing: [one.key], limit: 8)) == [])
+        precondition((try? covered.selected(existing: [one.key], limit: 8)) == [one])
         var gap = covered
         gap.physicalDisplays = [[0,0,300,1200],[400,0,400,1200]]
         gap.remoteDisplays = [[300,0,100,1200]]

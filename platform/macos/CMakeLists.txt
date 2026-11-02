@@ -135,3 +135,9 @@ add_executable(viewflow-window-mapping-test ../reverse-common/window_mapping_tes
 target_compile_features(viewflow-window-mapping-test PRIVATE cxx_std_20)
 target_compile_options(viewflow-window-mapping-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 add_test(NAME windows-local-mapping COMMAND viewflow-window-mapping-test)
+
+add_executable(viewflow-window-retained-image-test window_retained_image_test.mm)
+set_target_properties(viewflow-window-retained-image-test PROPERTIES OBJCXX_STANDARD 20 OBJCXX_STANDARD_REQUIRED YES)
+target_compile_options(viewflow-window-retained-image-test PRIVATE -fobjc-arc -Wall -Wextra -Werror)
+target_link_libraries(viewflow-window-retained-image-test PRIVATE "-framework CoreImage" "-framework Foundation" "-framework CoreGraphics")
+add_test(NAME windows-retained-image COMMAND viewflow-window-retained-image-test)

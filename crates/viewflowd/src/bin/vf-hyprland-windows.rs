@@ -460,6 +460,7 @@ mod native {
         let mut extent = (0, 0);
         let mut force_idr = true;
         let mut outstanding: Option<Box<GpuFrame>> = None;
+        let mut previous_sequence = 0;
         let binding_path = std::env::var_os("XDG_RUNTIME_DIR")
             .map(PathBuf::from)
             .map(|root| {
@@ -480,6 +481,10 @@ mod native {
                 outstanding = Some(frame);
                 let frame = outstanding.as_ref().unwrap();
                 let metadata = frame.metadata();
+                // Capture attempts continue during a visibility pause. Resume with
+                // a complete keyframe while the receiver retains its snapshot.
+                if metadata.sequence != previous_sequence + 1 { force_idr = true; }
+                previous_sequence = metadata.sequence;
                 let input = frame
                     .input_geometry()
                     .context("capture omitted native window binding")?;

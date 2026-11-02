@@ -965,6 +965,10 @@ struct App {
                 if((tile.flags&vf::windows_shell_flag) && tile.id!=shell_id)ids.erase(tile.id);
             for(auto& tile:current.tiles) {
                 if(!activity_presentation.accepts(current,tile) || ((tile.flags&vf::windows_shell_flag) && tile.id!=shell_id))continue;
+                // A paused tile preserves the last pixels AND local geometry.
+                // Source parking/viewport exit must not move a frozen proxy away.
+                const auto incoming_resident=vf::resident_rect(tile);
+                if(!incoming_resident.width || !incoming_resident.height)continue;
                 if((tile.flags&vf::windows_shell_flag) && !windows.contains(tile.id)) {
                     for(auto it=windows.begin();it!=windows.end();++it) {
                         if(!(it->second->tile.flags&vf::windows_shell_flag))continue;

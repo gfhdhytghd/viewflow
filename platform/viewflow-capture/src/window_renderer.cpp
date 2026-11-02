@@ -280,13 +280,17 @@ bool WindowRenderer::capture(std::uint64_t address, std::uint64_t sequence) {
     PHLWINDOW window;
     for (const auto& candidate : Desktop::windowState()->windows())
         if (reinterpret_cast<std::uintptr_t>(candidate.get()) == address) { window = candidate; break; }
-    if (!window || !window->mapped() || window->isHidden() || !window->wlSurface() || !window->wlSurface()->resource()) return false;
+    if (!window) return false;
+    // Not rendering is a pause, not withdrawal of this source window.
+    if (!window->mapped() || window->isHidden() || !window->wlSurface() || !window->wlSurface()->resource()) return true;
+    if (window->m_workspace && !window->m_workspace->visible() &&
+        !(window->m_state & Desktop::View::WINDOW_STATE_PINNED)) return true;
     if (impl_->target && impl_->target != window) return false;
     if (impl_->target_surface && impl_->target_surface != window->wlSurface()->resource()) return false;
     impl_->target = window;
     impl_->target_surface = window->wlSurface()->resource();
     const auto monitor = window->m_monitor.lock();
-    if (!monitor) return false;
+    if (!monitor) return true;
     g_pHyprOpenGL->makeEGLCurrent();
     WindowAnimationGoalOverride goal(window);
     CBox box = window->getFullWindowBoundingBox();

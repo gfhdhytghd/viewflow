@@ -133,11 +133,12 @@ struct App {
     std::string guard() const {
         return viewflow::linux_input::window_guard(address, pid, stable_id);
     }
-    void action(const std::string& body) {
-        const auto result = ipc("/eval " + guard() + body);
+    void execute(const std::string& command) {
+        const auto result = ipc("/eval " + command);
         if (result.find("error") != std::string::npos || result.find("Error") != std::string::npos || result.find("window target changed") != std::string::npos)
             throw std::runtime_error("native window operation: " + result);
     }
+    void action(const std::string& body) { execute(guard() + body); }
     std::string move_pointer() const {
         return "hl.plugin.viewflow.with_forwarded_motion(function() hl.dispatch(hl.dsp.cursor.move({x=" + std::to_string(pointer_x / 1000.0) + ",y=" + std::to_string(pointer_y / 1000.0) + "})) end);";
     }
@@ -222,7 +223,7 @@ struct App {
         case vf::InputKind::fullscreen:
             if(event.a!=0 && event.a!=1)throw std::runtime_error("invalid fullscreen state");
             action("hl.dispatch(hl.dsp.window.fullscreen({window=w,mode='fullscreen',action='"+std::string(event.a?"set":"unset")+"'}));"); break;
-        case vf::InputKind::close: action("hl.dispatch(hl.dsp.window.close({window=w}));"); break;
+        case vf::InputKind::close: execute(viewflow::linux_input::close_window_command(address, pid, stable_id)); break;
         case vf::InputKind::geometry:
             if (event.c <= 0 || event.d <= 0) return;
             action("hl.dispatch(hl.dsp.window.resize({window=w,x=" + std::to_string(event.c / 1000.0) + ",y=" + std::to_string(event.d / 1000.0) +

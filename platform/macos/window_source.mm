@@ -76,12 +76,13 @@ struct Capture {
     std::optional<vf::PixelRect> residency;
     unsigned residency_width{}, residency_height{};
     vf::PixelRect resident() const {
+        if(dormant || awaiting_resume_sample)return {};
         if(residency && residency_width==pixel_width() && residency_height==pixel_height())return *residency;
         return {0,0,pixel_width(),pixel_height()};
     }
     bool native_drag{}, native_drag_bootstrap{}, native_drag_last_left{};
     CGPoint native_drag_grab{};
-    bool metadata_logged{}, alpha_logged{}, dormant{}, suspending{}, transient{};
+    bool metadata_logged{}, alpha_logged{}, awaiting_resume_sample{}, dormant{}, suspending{}, transient{};
     bool active{true}, stopping{}, stopped{}, updating{}, restarting{}, starting{}, pending_sample{};
     double retry_after{}, next_title_refresh{}, created_at{};
     ~Capture() { if (ax_target) CFRelease(ax_target); if (callback) callback->capture = nullptr; if (latest) CVPixelBufferRelease(latest); }
@@ -121,14 +122,16 @@ bool same_pixels(CVPixelBufferRef newer, CVPixelBufferRef older) {
     CVPixelBufferUnlockBaseAddress(newer, kCVPixelBufferLock_ReadOnly);
     return same;
 }
-CGRect window_bounds(unsigned window, unsigned pid) {
+CGRect window_bounds(unsigned window, unsigned pid, bool* on_screen = nullptr, bool* inventory_ok = nullptr) {
     CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, window);
     CGRect bounds = CGRectNull;
+    if(inventory_ok)*inventory_ok=list!=nullptr;
     if (list) {
         for (NSDictionary* item in (__bridge NSArray*)list) {
             if ([item[(__bridge NSString*)kCGWindowNumber] unsignedIntValue] == window &&
                 [item[(__bridge NSString*)kCGWindowOwnerPID] unsignedIntValue] == pid) {
                 CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)item[(__bridge NSString*)kCGWindowBounds], &bounds);
+                if(on_screen)*on_screen=[item[(__bridge NSString*)kCGWindowIsOnscreen] boolValue];
                 break;
             }
         }
@@ -476,6 +479,19 @@ struct Source {
                 capture->native, (unsigned long long)event.sequence, (unsigned long long)capture->geometry_ack);
             return;
         }
+        if (capture && event.kind == vf::InputKind::close) {
+            capture->geometry_request.latest.reset();
+            capture->native_drag = capture->native_drag_bootstrap = false;
+            AXUIElementRef window = ax_window(*capture);
+            if (!window) { std::fprintf(stderr, "window %u close target unavailable\n", capture->native); return; }
+            CFTypeRef button = nullptr;
+            if (AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute, &button) == kAXErrorSuccess && button) {
+                const auto result=AXUIElementPerformAction(static_cast<AXUIElementRef>(button), kAXPressAction);
+                std::fprintf(stderr,"window %u graceful close result=%d\n",capture->native,result);
+                CFRelease(button);
+            }
+            CFRelease(window); return;
+        }
         if (!capture || capture->dormant) { release(event.id); return; }
         input_target = capture;
         if (event.kind == vf::InputKind::touchpad_frame && event.a == 0 && event.b == 0 && event.c == 0 && event.d == 2) {
@@ -568,17 +584,6 @@ struct Source {
             post(native); break;
         }
         case vf::InputKind::focus: focus(*capture); break;
-        case vf::InputKind::close: {
-            capture->geometry_request.latest.reset();
-            capture->native_drag = capture->native_drag_bootstrap = false;
-            AXUIElementRef window = ax_window(*capture);
-            if (!window) { std::fprintf(stderr, "window %u close target unavailable\n", capture->native); return; }
-            CFTypeRef button = nullptr;
-            if (AXUIElementCopyAttributeValue(window, kAXCloseButtonAttribute, &button) == kAXErrorSuccess && button) {
-                AXUIElementPerformAction(static_cast<AXUIElementRef>(button), kAXPressAction); CFRelease(button);
-            }
-            CFRelease(window); break;
-        }
         default: std::fprintf(stderr, "window input kind %u unsupported on macOS\n", static_cast<unsigned>(event.kind)); break;
         }
     }
@@ -751,7 +756,12 @@ struct Source {
                     SCWindow* selected = nil;
                     for (SCWindow* window in content.windows)
                         if (window.windowID == capture->native && window.owningApplication.processID == static_cast<pid_t>(capture->pid)) selected = window;
-                    if (!selected) { release(capture->id); capture->stop(); dirty = true; return; }
+                    if (!selected) {
+                        // SCK availability is not proof of native destruction.
+                        // The complete CG inventory alone withdraws this window.
+                        std::fprintf(stderr,"window %u capture target temporarily unavailable\n",capture->native);
+                        return;
+                    }
                     displays = content.displays;
                     capture->native_window = selected;
                     auto filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:selected];
@@ -879,13 +889,15 @@ struct Source {
         if (!inventory_worker.submit([this, observations = std::move(observations)]() mutable {
             @autoreleasepool {
                 for (auto& observation : observations) {
-                    observation.bounds = window_bounds(observation.native, observation.pid);
+                    bool on_screen=true;
+                    observation.bounds = window_bounds(observation.native, observation.pid, &on_screen, &observation.bounds_known);
+                    observation.needed=on_screen;
                     observation.left_down = CGEventSourceButtonState(kCGEventSourceStateHIDSystemState, kCGMouseButtonLeft);
                     if (CGEventRef event = CGEventCreate(nullptr)) {
                         observation.pointer = CGEventGetLocation(event); CFRelease(event);
                         observation.pointer_valid = true;
                     }
-                    if (options.native_decorations && !CGRectIsNull(observation.bounds))
+                    if (on_screen && options.native_decorations && !CGRectIsNull(observation.bounds))
                         observation.needed = vm::remote_window_needed(observation.bounds);
                     if (observation.read_title) {
                         observation.title = window_title(observation.native, observation.pid);
@@ -908,7 +920,7 @@ struct Source {
         std::optional<std::string> title;
         std::optional<bool> needed, fullscreen;
         bool transient;
-        bool left_down{}, pointer_valid{};
+        bool left_down{}, pointer_valid{}, bounds_known{true};
         CGPoint pointer{};
     };
     void apply_inventory(const std::vector<Observation>& observations) {
@@ -921,7 +933,7 @@ struct Source {
             auto* capture = found->second.get();
             // Input may have moved or queried this window while WindowServer
             // answered the background request. Never roll that newer state back.
-            if (!capture->active || capture->bounds_revision != observation.revision) continue;
+            if (!capture->active || capture->bounds_revision != observation.revision || !observation.bounds_known) continue;
             if (observation.fullscreen && capture->fullscreen != *observation.fullscreen) {
                 capture->fullscreen = *observation.fullscreen; dirty = true;
                 std::fprintf(stderr, "window %u source fullscreen=%u\n", capture->native, unsigned(capture->fullscreen));
@@ -946,13 +958,14 @@ struct Source {
                 dirty = true;
             }
             if (!CGRectEqualToRect(bounds, capture->bounds)) { capture->bounds = bounds; capture->placement.observe(bounds.origin.x, bounds.origin.y); dirty = true; }
-            if (options.native_decorations) {
+            if (observation.needed) {
                 const auto needed = observation.needed;
                 if (needed && !*needed) {
                     if (!capture->dormant) {
                         capture->dormant = true; release(capture->id); dirty = true;
                         if (capture->material) { capture->material->stop(); capture->material.reset(); }
-                        if (capture->latest) { CVPixelBufferRelease(capture->latest); capture->latest = nullptr; }
+                        // Retain the last sample and publish an empty resident rectangle.
+                        // Window lifetime is independent of capture activity.
                         std::fprintf(stderr, "window %u capture idle: returned to Mac\n", capture->native);
                     }
                     if (capture->stream && !capture->stopped && !capture->starting && !capture->suspending) {
@@ -968,7 +981,7 @@ struct Source {
                     continue;
                 }
                 if (needed && *needed && capture->dormant) {
-                    capture->dormant = false; dirty = true; ensure_preview(bounds);
+                    capture->dormant = false; capture->awaiting_resume_sample=true; dirty = true; ensure_preview(bounds);
                     std::fprintf(stderr, "window %u capture resumed: entered remote region\n", capture->native);
                 }
             }
@@ -1031,7 +1044,7 @@ struct Source {
         if(activity_enabled){
             std::vector<std::pair<std::uint64_t,std::uint64_t>> visible;
             std::vector<std::uint64_t> members;
-            for(const auto& [_,capture]:captures)if(capture->active && !capture->dormant){visible.emplace_back(capture->id,capture->parent_id);members.push_back(capture->id);}
+            for(const auto& [_,capture]:captures)if(capture->active){visible.emplace_back(capture->id,capture->parent_id);members.push_back(capture->id);}
             activity.membership(visible);std::sort(members.begin(),members.end());
             const auto preferred=dual?activity.preferred(viewflow::activity::now_us()):0;
             if(preferred!=activity_preferred || activity.last_focus()!=activity_focus || members!=activity_members){
@@ -1107,9 +1120,9 @@ struct Source {
         for (const auto& [_, capture] : captures) if (capture->active && capture->has_pixels() && (!lane_index || selected(capture->id,capture->parent_id))) {
             const auto width = capture->pixel_width();
             const auto height = capture->pixel_height();
-            const auto resident=capture->resident();
+            auto resident=capture->resident();
             if (x + resident.width > canvas) { y += row; x = 0; row = 0; }
-            if (y + resident.height > 8192 || uint64_t(canvas) * (y + resident.height) > vf::max_pixels) continue;
+            if (y + resident.height > 8192 || uint64_t(canvas) * (y + resident.height) > vf::max_pixels) resident={}; // Evict pixels, retain lifetime.
             frame.tiles.push_back({capture->id, capture->parent_id,
                 static_cast<int32_t>(std::lround(capture->placement.x * options.scale)),
                 static_cast<int32_t>(std::lround(capture->placement.y * options.scale)),
@@ -1132,7 +1145,7 @@ struct Source {
                 tile.logical_height = std::max(1l, std::lround(capture->frame_points.height));
                 tile.pixel_scale = static_cast<unsigned>(options.scale);
             }
-            if(capture->residency)vf::set_resident_rect(frame.tiles.back(),resident);
+            vf::set_resident_rect(frame.tiles.back(),resident);
             if(resident.width && resident.height && publish(capture->id,capture->parent_id) && (lane_index || !selected(capture->id,capture->parent_id)))versions.emplace(capture->id, capture->samples);
             x += resident.width; row = std::max(row, resident.height);
         }
@@ -1356,6 +1369,11 @@ struct Source {
     CVPixelBufferRetain(image);
     dispatch_async(dispatch_get_main_queue(), ^{
         if (callback->capture && stream == callback->capture->stream && callback->capture->active && !callback->capture->dormant) {
+            if(callback->capture->awaiting_resume_sample) {
+                callback->capture->awaiting_resume_sample=false;
+                callback->capture->owner->dirty=true;
+                for(auto& lane:callback->capture->owner->lanes)if(lane)lane->force_keyframe=true;
+            }
             const bool geometry_changed = !CGRectEqualToRect(body, callback->capture->body_pixels);
             if (callback->capture->transient && !callback->capture->first_sample_logged) {
                 callback->capture->first_sample_logged = true;

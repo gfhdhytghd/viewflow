@@ -106,7 +106,8 @@ struct ConnectionProfile: Codable, Equatable {
         var captureScale = 2
         var codec: String?
         var viewport: WindowParking?
-        func accepts(_ window: NativeWindow) -> Bool {
+        func accepts(_ window: NativeWindow, existing: Bool = false) -> Bool {
+            if existing { return true } // Visibility never withdraws an established stream.
             guard let viewport else { return true }
             guard window.framePoints.count == 4 else { return false }
             let frame = CGRect(x: window.framePoints[0], y: window.framePoints[1], width: window.framePoints[2], height: window.framePoints[3])
@@ -297,7 +298,8 @@ struct WindowInventory: Decodable {
               (physicalDisplays + remoteDisplays).allSatisfy({ $0.count == 4 && $0.allSatisfy(\.isFinite) && $0[2] > 0 && $0[3] > 0 }) else {
             throw ViewflowError.invalid("显示器布局暂不可用，保留当前窗口连接")
         }
-        let candidates = (windows ?? []).filter { $0.eligible && needsRemote($0) }
+        guard let windows else { throw ViewflowError.invalid("窗口列表暂不可用，保留当前窗口连接") }
+        let candidates = windows.filter { ($0.layer == 0 && existing.contains($0.key)) || ($0.eligible && needsRemote($0)) }
         let normal = Array(candidates.filter { $0.layer == 0 }.sorted {
             let a = existing.contains($0.key), b = existing.contains($1.key)
             return a != b ? a : ($0.windowID, $0.pid) < ($1.windowID, $1.pid)

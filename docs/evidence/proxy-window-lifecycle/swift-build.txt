@@ -1,0 +1,63 @@
+macos-app/Sources/DisplayLayoutView.swift:85:10: warning: 'onChange(of:perform:)' was deprecated in macOS 14.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]
+ 83 |             preview = nil; guides = []
+ 84 |         })
+ 85 |         .onChange(of: dragging) { active in if !active { preview = nil; guides = [] } }
+    |          `- warning: 'onChange(of:perform:)' was deprecated in macOS 14.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]
+ 86 |     }
+ 87 | }
+
+macos-app/Sources/DisplayLayoutView.swift:111:10: warning: 'onChange(of:perform:)' was deprecated in macOS 14.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]
+109 |         }
+110 |         .onAppear { x = String(display.x); y = String(display.y) }
+111 |         .onChange(of: display.x) { x = String($0) }
+    |          `- warning: 'onChange(of:perform:)' was deprecated in macOS 14.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]
+112 |         .onChange(of: display.y) { y = String($0) }
+113 |     }
+
+macos-app/Sources/DisplayLayoutView.swift:112:10: warning: 'onChange(of:perform:)' was deprecated in macOS 14.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]
+110 |         .onAppear { x = String(display.x); y = String(display.y) }
+111 |         .onChange(of: display.x) { x = String($0) }
+112 |         .onChange(of: display.y) { y = String($0) }
+    |          `- warning: 'onChange(of:perform:)' was deprecated in macOS 14.0: Use `onChange` with a two or zero parameter action closure instead. [#DeprecatedDeclaration]
+113 |     }
+114 | }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+macos-app/Sources/Permissions.swift:7:65: warning: conformance of 'Permissions' to protocol 'OSSystemExtensionRequestDelegate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+  5 | import SystemExtensions
+  6 |
+  7 | @MainActor final class Permissions: NSObject, ObservableObject, OSSystemExtensionRequestDelegate {
+    |                                                                 |- warning: conformance of 'Permissions' to protocol 'OSSystemExtensionRequestDelegate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+    |                                                                 |- note: isolate this conformance to the main actor with '@MainActor'
+    |                                                                 `- note: turn data races into runtime errors with '@preconcurrency'
+  8 |     static let driverID = "org.viewflow.trackpad-probe"
+  9 |     @Published var screen = false
+    :
+106 |         OSSystemExtensionManager.shared.submitRequest(request)
+107 |     }
+108 |     func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
+    |          |- note: main actor-isolated instance method 'requestNeedsUserApproval' cannot satisfy nonisolated requirement
+    |          `- note: mark instance method 'requestNeedsUserApproval' 'nonisolated'
+109 |         driverMessage = "请在系统设置中允许 Viewflow 的驱动扩展"
+110 |     }
+111 |     func request(_ request: OSSystemExtensionRequest, actionForReplacingExtension existing: OSSystemExtensionProperties,
+    |          |- note: main actor-isolated instance method 'request(_:actionForReplacingExtension:withExtension:)' cannot satisfy nonisolated requirement
+    |          `- note: mark instance method 'request(_:actionForReplacingExtension:withExtension:)' 'nonisolated'
+112 |                  withExtension replacement: OSSystemExtensionProperties) -> OSSystemExtensionRequest.ReplacementAction {
+113 |         existing.bundleIdentifier == Self.driverID && replacement.bundleIdentifier == Self.driverID ? .replace : .cancel
+114 |     }
+115 |     func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
+    |          |- note: main actor-isolated instance method 'request(_:didFinishWithResult:)' cannot satisfy nonisolated requirement
+    |          `- note: mark instance method 'request(_:didFinishWithResult:)' 'nonisolated'
+116 |         requests.removeAll { $0 === request }; driverPending = false
+117 |         driverEnabled = result == .completed
+    :
+119 |         refresh()
+120 |     }
+121 |     func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
+    |          |- note: main actor-isolated instance method 'request(_:didFailWithError:)' cannot satisfy nonisolated requirement
+    |          `- note: mark instance method 'request(_:didFailWithError:)' 'nonisolated'
+122 |         requests.removeAll { $0 === request }; driverPending = false; driverMessage = error.localizedDescription
+123 |     }
+
+[#ConformanceIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/conformance-isolation>
