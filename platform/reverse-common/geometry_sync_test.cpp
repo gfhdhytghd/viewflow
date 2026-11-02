@@ -28,7 +28,8 @@ int main(){
  local_titlebar.applied(press);
  const vf::Geometry following{180,240,800,600},late_mac{110,205,800,600};
  local_titlebar.sent(42);
- assert(local_titlebar.observe(following,late_mac,40,true,true)==vf::GeometryAction::send_local);
+ assert(local_titlebar.observe(following,late_mac,40,true,true)==vf::GeometryAction::none);
+ assert(local_titlebar.observe(following,late_mac,42,true,true)==vf::GeometryAction::send_local);
  local_titlebar.sent(43);
  assert(local_titlebar.observe(following,late_mac,42,true,true)==vf::GeometryAction::none);
  assert(local_titlebar.observe(following,late_mac,42,true,false)==vf::GeometryAction::none);
@@ -66,6 +67,26 @@ int main(){
  assert(sync.observe(a,b,12,false)==vf::GeometryAction::send_local);sync.sent(13);
  assert(sync.observe(a,b,13,false)==vf::GeometryAction::none);
  assert(sync.observe(a,b,13,true)==vf::GeometryAction::send_local);
+ // Burst updates replace the pending local target, including a new drag
+ // started before the previous drag's final receipt. Reconcile once, after
+ // that final target is acknowledged, even if the source constrained it.
+ vf::GeometrySync burst;
+ burst.observe(a,a,0,true);burst.applied(a);
+ assert(burst.observe(b,a,0,true,true)==vf::GeometryAction::send_local);burst.sent(100);
+ for(int i=0;i<10000;++i)
+     assert(burst.observe({i,-i,400,300},a,99,true,true)==vf::GeometryAction::none);
+ assert(burst.observe(c,a,99,true,false)==vf::GeometryAction::none);
+ const vf::Geometry next_drag{-100,-200,400,300};
+ assert(burst.observe(next_drag,a,99,true,true)==vf::GeometryAction::none);
+ assert(burst.observe(next_drag,a,100,true,true)==vf::GeometryAction::send_local);burst.sent(101);
+ assert(burst.observe(next_drag,b,101,true,true)==vf::GeometryAction::none);
+ assert(burst.observe(next_drag,b,100,true,false)==vf::GeometryAction::none);
+ assert(burst.observe(next_drag,b,101,true,false)==vf::GeometryAction::apply_remote);burst.applied(b);
+ assert(burst.observe(b,b,101,true,false)==vf::GeometryAction::none);
+ // Failed output submission retains the newest target for a local retry.
+ assert(burst.observe(c,b,101,true,true)==vf::GeometryAction::send_local);burst.sent(0);
+ assert(burst.observe(c,b,101,true,true)==vf::GeometryAction::send_local);burst.sent(102);
+ assert(burst.observe(c,a,101,true,true)==vf::GeometryAction::none);
  // Focus changes asymmetric framing while the native body remains stationary.
  // Observe actual outer geometry, never old outer coordinates plus new insets.
  vf::GeometrySync decoration;

@@ -3,6 +3,33 @@ use anyhow::{Result, ensure};
 
 const USAGE: &str = "usage: vf-hyprland-windows --window 0xADDRESS --compositor-pid PID [--fps 60] [--performance-mode frame-rate|latency] [--input-native /absolute/viewflow-linux-window-input]\nShares one selected window using the Viewflow capture plugin and NVENC. Omit --input-native for view-only sharing. Launch through vf-window-peer.";
 
+// Pair the receipt with helper completion in the capture clock domain. A
+// frame captured before completion must never advertise that receipt merely
+// because encoding finished later.
+#[cfg(any(test, all(target_os = "linux", feature = "native-gpu-nvenc")))]
+#[derive(Default)]
+struct GeometryReceipt { sequence: u64, completed_ns: u64 }
+#[cfg(any(test, all(target_os = "linux", feature = "native-gpu-nvenc")))]
+impl GeometryReceipt {
+    fn for_capture(&self, captured_ns: u64, previous: u64) -> u64 {
+        if captured_ns >= self.completed_ns { self.sequence } else { previous }
+    }
+}
+#[cfg(test)]
+mod receipt_tests {
+    use super::*;
+    #[test]
+    fn old_capture_cannot_ack_new_geometry_after_slow_encoding() {
+        let receipt = GeometryReceipt { sequence: 42, completed_ns: 1000 };
+        assert_eq!(receipt.for_capture(999, 40), 40);
+        assert_eq!(receipt.for_capture(1000, 40), 42);
+        assert_eq!(receipt.for_capture(2000, 42), 42);
+        let next = GeometryReceipt { sequence: 44, completed_ns: 3000 };
+        assert_eq!(next.for_capture(2000, 42), 42);
+        assert_eq!(next.for_capture(3001, 42), 44);
+    }
+}
+
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args == ["--help"] || args == ["-h"] {
@@ -36,7 +63,7 @@ mod native {
         process::{Command, Stdio},
         sync::{
             Arc, Mutex,
-            atomic::{AtomicBool, AtomicU64, Ordering},
+            atomic::{AtomicBool, Ordering},
         },
         time::Duration,
     };
@@ -250,7 +277,7 @@ mod native {
         stable: String,
         snapshot: Snapshot,
         stopped: Arc<AtomicBool>,
-        ack: Arc<AtomicU64>,
+        ack: Arc<Mutex<GeometryReceipt>>,
         residency: Residency,
     ) {
         std::thread::spawn(move || {
@@ -322,7 +349,7 @@ mod native {
                     // if unavailable. Publish observed native geometry so the
                     // proxy can recover instead of waiting for an impossible ACK.
                     if event.kind == 6 || event.kind == 15 {
-                        ack.store(event.sequence, Ordering::Release);
+                        *ack.lock().unwrap() = GeometryReceipt { sequence: event.sequence, completed_ns: now()?.try_into()? };
                     }
                 }
                 Ok(())
@@ -436,7 +463,7 @@ mod native {
                 }
             });
         }
-        let ack = Arc::new(AtomicU64::new(0));
+        let ack = Arc::new(Mutex::new(GeometryReceipt::default()));
         input_worker(
             input_native,
             address.clone(),
@@ -467,6 +494,7 @@ mod native {
                     .join(format!("{}.json", std::process::id()))
             });
         let mut published_binding = None;
+        let mut published_ack = 0;
         let result = async {
             while !stopped.load(Ordering::Acquire) {
                 let frame = match receiver.recv_frame()? {
@@ -552,6 +580,7 @@ mod native {
                     Some(&crops),
                 )?;
                 let captured = metadata.clone();
+                published_ack = ack.lock().unwrap().for_capture(captured.capture_monotonic_ns, published_ack);
                 receiver.release_after_source_reads(frame)?;
                 outstanding = None;
                 let encoded_at = now()?;
@@ -571,7 +600,7 @@ mod native {
                             atlas_x: 0,
                             atlas_y: 0,
                             title: title.clone(),
-                            geometry_ack: ack.load(Ordering::Acquire),
+                            geometry_ack: published_ack,
                             resident,
                             application_icon: if icon_sent {None} else {application_icon.clone()},
                         };

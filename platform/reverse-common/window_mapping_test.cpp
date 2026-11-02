@@ -41,6 +41,13 @@ int main() {
     resize.queue({10,20,1000,800},1090);
     assert(!resize.ready(1189) && resize.ready(1190));
     assert(resize.candidate->width==1000);
+    resize.cancel();assert(!resize.ready(10000));
+    for(int i=0;i<1000;++i) {
+        resize.queue({-3072+i,-299+i,1000,800},2000+i,true);
+        assert(resize.ready(2000+i)); // continuous moves never restart resize debounce
+    }
+    resize.queue({10,20,1200,900},4000);
+    assert(!resize.ready(4099) && resize.ready(4100));
     resize.cancel();assert(!resize.ready(10000)); // fullscreen or successful send
     // A tiled 1000x800 proxy still displays an old 1600x900 Retina body.
     const auto fit=vf::fitted_body(1000,800,1600,900);
