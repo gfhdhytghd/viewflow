@@ -90,12 +90,19 @@ def inventory():
 
 def plugin_commands(root, manifest, report):
     version = report.get('hyprland', {})
-    built = manifest.get('hyprland_build', {})
-    if not isinstance(version, dict) or not isinstance(built, dict) or not built.get('commit') or built['commit'] != version.get('commit'):
+    from hyprland_plugins import running_build, exact_variant
+    try:
+        variant = exact_variant(manifest, running_build(version))
+    except (ValueError, AttributeError):
+        return ''
+    if not variant:
+        return ''  # Local compilation is performed by the Load Plugins action.
+    relative = Path(variant['path'])
+    if relative.is_absolute() or '..' in relative.parts:
         return ''
     loaded = report.get('plugins')
     if not isinstance(loaded, list):
         return ''
     names = {item.get('name') for item in loaded if isinstance(item, dict)}
-    return '\n'.join(shlex.join(['hyprctl', 'plugin', 'load', str(root / 'plugins' / (name + '.so'))])
+    return '\n'.join(shlex.join(['hyprctl', 'plugin', 'load', str(root / relative / (name + '.so'))])
                      for name in PLUGINS if name not in names)

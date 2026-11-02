@@ -38,7 +38,7 @@ class TranslationTests(unittest.TestCase):
 
 class PermissionTests(unittest.TestCase):
     def test_all_successful_linux_checks_are_green(self):
-        report = {'platform': 'linux', 'hyprland': {'commit': 'abc'}, 'plugin_build': {'commit': 'abc'},
+        report = {'platform': 'linux', 'hyprland': {'commit': 'a'*40, 'abiHash': 'abi'}, 'hyprland_variants': [{'commit': 'a'*40, 'api_hash': 'abi'}],
                   'plugins': [{'name': name} for name in ('viewflow-hyprland', 'viewflow-capture')],
                   'input_devices': [{'readable': True}],
                   'linux_setup': {'distro': 'Arch', 'kernel': 'test', 'gpu_devices': [{'vendor': '0x10de'}],
@@ -49,8 +49,8 @@ class PermissionTests(unittest.TestCase):
 
     def test_hyprland_detection_without_session_environment(self):
         with patch('linux_setup.inventory', return_value={}), patch.object(main, 'PLATFORM', 'linux'), patch.dict(main.os.environ, {}, clear=True), \
-             patch.object(main.subprocess, 'run', return_value=Mock(returncode=0, stdout='{"commit":"abc","version":"0.56.2"}')):
-            report = main.permission_report({'hyprland_build': {'commit': 'abc'}})
+             patch.object(main.subprocess, 'run', return_value=Mock(returncode=0, stdout=json.dumps({'commit': 'a'*40, 'version': '0.56.2', 'abiHash': 'abi'}))):
+            report = main.permission_report({'hyprland_variants': [{'commit': 'a'*40, 'api_hash': 'abi'}]})
         self.assertEqual(report['session'], 'wayland')
         self.assertTrue(report['hyprland_session'])
         rows = permission_rows(report, 'en')

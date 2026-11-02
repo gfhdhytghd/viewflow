@@ -24,8 +24,7 @@ PROGRAMS = {
                         'viewflow-windows-windows', 'viewflow_virtual_display', 'viewflow-window-recall'],
 }
 NATIVE = {
-    'linux': {'linux-media': ['viewflow-media-probe'], 'linux-reverse': ['viewflow_linux_reverse'], 'linux-window-input': ['viewflow-linux-window-input'],
-              'hyprland-plugin': ['viewflow-hyprland'], 'viewflow-capture': ['viewflow-capture']},
+    'linux': {'linux-media': ['viewflow-media-probe'], 'linux-reverse': ['viewflow_linux_reverse'], 'linux-window-input': ['viewflow-linux-window-input']},
     'windows': {'windows-reverse': ['viewflow_windows_reverse', 'viewflow_virtual_display'],
                 'windows-composition-preview': ['viewflow_windows_composition_preview'],
                 'windows-window-presenter': ['viewflow-windows-windows'],
@@ -48,17 +47,31 @@ def source_metadata():
             "dirty": bool(output(["git", "-C", ROOT, "status", "--porcelain"]))}
 
 
-def required_files(target):
+def required_files(target, variants=()):
     extension = '.exe' if target == 'windows' else ''
     result = ['bin/' + x + extension for x in PROGRAMS[target]]
-    if target == 'linux': result += ['plugins/viewflow-hyprland.so', 'plugins/viewflow-capture.so']
+    if target == 'linux':
+        for variant in variants:
+            result += [str(Path(variant['path']) / (name + '.so')) for name in ('viewflow-hyprland', 'viewflow-capture')]
     return result
 
 
 def inspect_payload(directory, target):
-    missing = [x for x in required_files(target) if not (directory / x).is_file()]
+    variants = []
+    if target == 'linux':
+        metadata_path = directory / 'hyprland-build.json'
+        if not metadata_path.exists(): metadata_path = directory / 'bundle-manifest.json'
+        if not metadata_path.is_file(): raise ValueError('Linux payload requires hyprland-build.json')
+        variants = json.loads(metadata_path.read_text()).get('hyprland_variants', [])
+        if not any(v.get('line') == 'release' for v in variants):
+            raise ValueError('Linux payload requires a release Hyprland variant')
+        for variant in variants:
+            relative = Path(variant['path'])
+            if relative.is_absolute() or '..' in relative.parts or not re.fullmatch(r'[0-9a-f]{40}', variant['commit']) or not variant.get('api_hash') or not variant.get('version'):
+                raise ValueError('invalid Hyprland variant metadata')
+    missing = [x for x in required_files(target, variants) if not (directory / x).is_file()]
     if missing: raise ValueError('incomplete runtime payload: ' + ', '.join(missing))
-    for relative in required_files(target):
+    for relative in required_files(target, variants):
         path = directory / relative
         with path.open('rb') as stream: magic = stream.read(4)
         if target == 'linux' and magic != b'\x7fELF': raise ValueError(f'not a Linux binary: {relative}')
@@ -66,6 +79,11 @@ def inspect_payload(directory, target):
 
 
 def native_build(target, work):
+    if target == 'linux':
+        built = hyprland_build()
+        expected = os.environ.get('VIEWFLOW_HYPRLAND_RELEASE_COMMIT', '0aa6745f705f2c4b0a5004eb019ef76e5bbdb426')
+        if built['commit'] != expected:
+            raise ValueError('Release packaging requires headers for ' + expected + '; pkg-config reports ' + built['commit'])
     payload = work / 'payload'; (payload / 'bin').mkdir(parents=True, exist_ok=True)
     (payload / 'plugins').mkdir(exist_ok=True)
     rust = COMMON + (['vf-input-service'] if target == 'windows' else ['vf-hyprland-windows'])
@@ -95,7 +113,16 @@ def native_build(target, work):
         if module.exists() and os.environ.get('VIEWFLOW_ENABLE_CUDA', 'ON').upper() not in ('OFF', '0', 'FALSE'):
             shutil.copy2(module, target_module)
         elif target_module.exists(): target_module.unlink()
-        (payload / 'hyprland-build.json').write_text(json.dumps(hyprland_build()))
+        relative = Path('plugins/release') / built['api_hash']
+        destination = payload / relative; destination.mkdir(parents=True)
+        from hyprland_plugins import PROJECTS, PLUGINS
+        for project, name in zip(PROJECTS, PLUGINS):
+            build = work / project
+            run(['cmake', '-S', ROOT / 'platform' / project, '-B', build, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_TESTING=ON'])
+            run(['cmake', '--build', build, '--parallel', '2'])
+            run(['ctest', '--test-dir', build, '--output-on-failure'])
+            shutil.copy2(build / (name + '.so'), destination / (name + '.so'))
+        (payload / 'hyprland-build.json').write_text(json.dumps({'hyprland_variants': [dict(built, line='release', path=str(relative))]}))
     return payload
 
 
@@ -155,14 +182,23 @@ def windows_dependencies(app):
 
 
 def hyprland_build():
-    includes = output(['pkg-config', '--cflags-only-I', 'hyprland']).split()
-    for flag in includes:
-        for relative in ('src/version.h', 'hyprland/src/version.h'):
-            path = Path(flag[2:]) / relative
-            if path.is_file():
-                match = re.search(r'#define\s+GIT_COMMIT_HASH\s+"([a-f0-9]+)"', path.read_text(encoding='utf-8'))
-                if match: return {'version': output(['pkg-config', '--modversion', 'hyprland']), 'commit': match[1]}
-    raise ValueError('cannot determine Hyprland plugin build ABI from installed headers')
+    sys.path.insert(0, str(ROOT / 'platform/desktop-app'))
+    from hyprland_plugins import header_build
+    return header_build()
+
+
+def bundle_plugin_sources(app):
+    """Ship only build inputs; keep their relative include layout intact."""
+    source = app / 'plugin-source/platform'
+    for project in ('hyprland-plugin', 'viewflow-capture', 'reverse-common', 'window-recall', 'hyprland-compat'):
+        origin = ROOT / 'platform' / project
+        destination_source = source / project
+        for path in origin.rglob('*'):
+            if path.is_file() and (path.suffix in ('.cpp', '.hpp', '.h', '.cmake', '.inc') or path.name == 'CMakeLists.txt') and not any(part.startswith('build') for part in path.relative_to(origin).parts):
+                relative = path.relative_to(origin)
+                target_source = destination_source / relative
+                target_source.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, target_source)
 
 
 def package(args):
@@ -193,13 +229,14 @@ def package(args):
              '--add-data', str(ROOT / 'platform/branding') + os.pathsep + 'brand',
              '--hidden-import', 'PySide6.QtQuick', '--hidden-import', 'PySide6.QtSvg',
              '--hidden-import', 'fcntl' if target == 'linux' else 'ctypes.wintypes',
-             '--hidden-import', 'shlex', '--hidden-import', 'select',
+             '--hidden-import', 'shlex', '--hidden-import', 'select', '--hidden-import', 'hyprland_plugins',
              '--collect-submodules', 'zeroconf',
              *(['--windowed', '--icon', ROOT / 'platform/branding/viewflow.ico'] if target == 'windows' else []),
              ROOT / 'platform/desktop-app/main.py'])
         app = work / 'dist/Viewflow'
         for directory in ('bin', 'plugins', 'lib'):
             if (payload / directory).exists(): shutil.copytree(payload / directory, app / directory)
+        if target == 'linux': bundle_plugin_sources(app)
         # Optional runtime DLLs are explicit payload files, not searched on PATH.
         dll_directory = args.runtime_dlls or payload / 'dll'
         if target == 'windows' and dll_directory.exists():
@@ -234,7 +271,7 @@ def package(args):
             metadata = payload / 'hyprland-build.json'
             if args.payload and not metadata.is_file(): raise ValueError('prebuilt Linux payload requires hyprland-build.json for its actual plugin ABI')
             manifest['media'] = {'vaapi': True, 'nvidia_module': (app / 'lib/libviewflow-cuda-encoder.so').is_file(), 'hardware_verified': False}
-            manifest['hyprland_build'] = json.loads(metadata.read_text(encoding='utf-8')) if metadata.exists() else hyprland_build()
+            manifest['hyprland_variants'] = json.loads(metadata.read_text(encoding='utf-8'))['hyprland_variants']
         manifest['files'] = {str(x.relative_to(app)): hashlib.sha256(x.read_bytes()).hexdigest() for x in app.rglob('*') if x.is_file()}
         (app / 'bundle-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
         inspect_payload(app, target)

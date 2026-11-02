@@ -23,13 +23,13 @@ def permission_rows(report, language):
         add('桌面会话', '已检测到', 'Hyprland ' + str(hypr.get('version', '')), 'good')
     else:
         add('桌面会话', '无法确认', '未连接到 Hyprland，请在 Hyprland 会话中打开应用。', 'warning')
-    built = report.get('plugin_build')
-    built = built if isinstance(built, dict) else {}
-    if built.get('commit') and hypr.get('commit'):
-        matches = built['commit'] == hypr['commit']
-        add('插件版本', '版本匹配' if matches else '需要更新',
-            '安装包插件与当前 Hyprland 构建匹配；是否加载需另行确认。' if matches else '请使用与当前 Hyprland 构建匹配的安装包。', 'good' if matches else 'warning')
-    else:
+    from hyprland_plugins import running_build, exact_variant
+    try:
+        matches = exact_variant(report, running_build(hypr)) is not None
+        add('插件版本', '版本匹配' if matches else '需要本地构建',
+            '安装包插件与当前 Hyprland 构建匹配；是否加载需另行确认。' if matches else
+            '加载时将使用当前 Hyprland 的头文件构建插件。', 'good' if matches else 'neutral')
+    except ValueError:
         add('插件版本', '无法确认', '缺少构建信息，暂时无法比较插件版本。')
     plugins = report.get('plugins')
     if isinstance(plugins, list):

@@ -23,10 +23,10 @@ class LinuxSetupTests(unittest.TestCase):
 
     def test_plugin_commands_quote_paths_and_skip_loaded(self):
         root = Path('/tmp/space and $shell/')
-        manifest = {'hyprland_build': {'commit': 'abc'}}
-        report = {'hyprland': {'commit': 'abc'}, 'plugins': [{'name': 'viewflow-hyprland'}]}
+        manifest = {'hyprland_variants': [{'commit': 'a'*40, 'api_hash': 'test', 'path': 'plugins/release/test'}]}
+        report = {'hyprland': {'commit': 'a'*40, 'abiHash': 'test'}, 'plugins': [{'name': 'viewflow-hyprland'}]}
         command = linux_setup.plugin_commands(root, manifest, report)
-        self.assertEqual(shlex.split(command), ['hyprctl', 'plugin', 'load', str(root / 'plugins/viewflow-capture.so')])
+        self.assertEqual(shlex.split(command), ['hyprctl', 'plugin', 'load', str(root / 'plugins/release/test/viewflow-capture.so')])
         report['hyprland']['commit'] = 'different'
         self.assertEqual(linux_setup.plugin_commands(root, manifest, report), '')
         self.assertEqual(linux_setup.plugin_commands(root, manifest, {}), '')

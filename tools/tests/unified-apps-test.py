@@ -48,11 +48,13 @@ class PackagingTests(unittest.TestCase):
         for target in ('linux', 'windows'):
             with tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
-                for relative in desktop.required_files(target):
+                variants = [{'line': 'release', 'version': '0.57.0', 'commit': 'a'*40, 'api_hash': 'test', 'path': 'plugins/release/test'}]
+                if target == 'linux': (root / 'hyprland-build.json').write_text(json.dumps({'hyprland_variants': variants}))
+                for relative in desktop.required_files(target, variants):
                     path = root / relative; path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_bytes(b'\x7fELFfixture' if target == 'linux' else b'MZfixture')
                 desktop.inspect_payload(root, target)
-                required = 'plugins/viewflow-hyprland.so' if target == 'linux' else 'bin/vf-input-service.exe'
+                required = 'plugins/release/test/viewflow-hyprland.so' if target == 'linux' else 'bin/vf-input-service.exe'
                 (root / required).unlink()
                 with self.assertRaises(ValueError): desktop.inspect_payload(root, target)
 

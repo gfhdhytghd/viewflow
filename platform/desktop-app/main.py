@@ -73,6 +73,7 @@ def permission_report(manifest):
         except (OSError, ValueError, subprocess.SubprocessError) as error: report['plugins'] = str(error)
         report['input_devices'] = [{'device': str(path), 'readable': os.access(path, os.R_OK)} for path in sorted(Path('/dev/input').glob('event*'))]
         report['plugin_build'] = manifest.get('hyprland_build', '未知')
+        report['hyprland_variants'] = manifest.get('hyprland_variants', [])
         from linux_setup import inventory
         report['linux_setup'] = inventory()
     return report

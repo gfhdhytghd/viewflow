@@ -43,6 +43,10 @@ def load_manifest(root=ROOT):
             raise ValueError('安装包中的组件路径无效')
         if not (root / relative).is_file():
             raise ValueError(f'安装包缺少组件：{name}')
+    if manifest.get('hyprland_variants'):
+        for project in ('hyprland-plugin', 'viewflow-capture'):
+            if not (root / 'plugin-source/platform' / project / 'CMakeLists.txt').is_file():
+                raise ValueError('安装包缺少插件源代码')
     for relative, expected in manifest.get('files', {}).items():
         path = Path(relative)
         if path.is_absolute() or '..' in path.parts: raise ValueError('安装包清单路径无效')
