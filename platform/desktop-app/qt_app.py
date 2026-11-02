@@ -19,6 +19,7 @@ from runtime import DATA, PLATFORM, ROOT, InstanceLock, Worker, command, expand,
 from window_recall import DEFAULT_SHORTCUT, RecallController
 from i18n import EN, resolve_language, translate, status_text
 from permissions import permission_rows
+from plugin_safety import validate_plugin_for_load
 import linux_setup
 import media_settings
 from pairing_service import PairingService
@@ -566,10 +567,19 @@ class ApplicationModel(QObject):
             loaded = json.loads(subprocess.check_output(['hyprctl', '-j', 'plugin', 'list'], timeout=5))
             paths = {item.get('path') for item in loaded} if isinstance(loaded, list) else set()
             names = {item.get('name') for item in loaded} if isinstance(loaded, list) else set()
-            for name in ('viewflow-hyprland.so', 'viewflow-capture.so'):
+            candidates = ('viewflow-hyprland.so', 'viewflow-capture.so')
+            for name in candidates:
+                if name.removesuffix('.so') not in names:
+                    validate_plugin_for_load(ROOT / 'plugins' / name)
+            retained = False
+            for name in candidates:
                 path = str(ROOT / 'plugins' / name)
                 if path not in paths and name.removesuffix('.so') not in names:
                     subprocess.run(['hyprctl', 'plugin', 'load', path], check=True, capture_output=True, timeout=10)
+                else:
+                    retained = True
+            if retained:
+                return '现有插件保持加载。此操作不替换旧插件；旧插件升级请使用新的 Hyprland 会话。'
             return '已提交插件加载；请检查组件状态。'
         def done(value):
             self.set_message(value)

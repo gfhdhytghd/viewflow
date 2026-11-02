@@ -184,6 +184,7 @@ def package(args):
                      'desktop_peer_discovery.py', 'windows_virtual_display_scale.py', 'windows_session_route.py',
                      'paired-linux-session.py', 'macos-window-share-linux.py', 'multiscreen-input-linux.py'):
             shutil.copy2(ROOT / 'tools' / name, scripts / name)
+        shutil.copy2(ROOT / 'platform/desktop-app/plugin_safety.py', scripts / 'plugin_safety.py')
         for name in ('linux_native_forward.py', 'linux_forward.py'):
             shutil.copy2(ROOT / 'platform/macos-trackpad-probe' / name, scripts / name)
         run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--name', 'Viewflow',

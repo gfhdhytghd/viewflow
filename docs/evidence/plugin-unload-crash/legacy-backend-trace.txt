@@ -1,0 +1,35 @@
+BACKEND ZERO
+#0  0x00007fffda927bbf in ??? () at /usr/lib/libaquamarine.so.14
+#1  0x00007ffff5440a21 in __cxa_finalize () at /usr/lib/libc.so.6
+#2  0x00007fffda90b5e8 in ??? () at /usr/lib/libaquamarine.so.14
+#3  0x00007fffffffb9f0 in ??? ()
+BACKEND DESTRUCTOR
+#0  Aquamarine::CBackend::~CBackend (this=0x5555567c38a0) at /home/wilf/data/aquamarine/src/backend/Backend.cpp:113
+#1  0x00007ffff7c7ba53 in std::default_delete<Aquamarine::CBackend>::operator() (this=<optimized out>, __ptr=0x5555567c38a0) at /usr/include/c++/16/bits/unique_ptr.h:92
+#2  Hyprutils::Memory::CSharedPointer<Aquamarine::CBackend>::_delete (p=0x5555567c38a0) at /usr/include/hyprutils/memory/SharedPtr.hpp:171
+#3  0x00007fffda927bea in ??? () at /usr/lib/libaquamarine.so.14
+#4  0x00007ffff5440a21 in __cxa_finalize () at /usr/lib/libc.so.6
+#5  0x00007fffda90b5e8 in ??? () at /usr/lib/libaquamarine.so.14
+#6  0x00007fffffffb9f0 in ??? ()
+DEBUG ]: [CInputManager::destroyKeyboard] Keyboard at 5555576b5b10 removed
+DEBUG ]: [CInputManager::setupKeyboard] Destroyed keyboard 5555576b5b10
+DEBUG ]: [CInputManager::destroyPointer] Pointer at 5555573ac660 removed
+warning: Temporarily disabling breakpoints for unloaded shared library "/usr/lib/libaquamarine.so.14"
+DEBUG ]: [CPluginSystem::unloadPlugin]  [PluginSystem] Plugin viewflow-capture unloaded.
+WARN ]: [Config::CMonitorRuleManager::get] No rule found for WAYLAND-1, trying to use the first.
+WARN ]: [Config::CMonitorRuleManager::get] No rule found for VF-UNLOAD, trying to use the first.
+DEBUG ]: [CXDGOutputProtocol::updateAllOutputs] updating all xdg_output heads
+
+Thread 1 "Hyprland" received signal SIGSEGV, Segmentation fault.
+Aquamarine::CBackend::hasSession (this=0x0) at /home/wilf/data/aquamarine/src/backend/Backend.cpp:243
+243	    return !!session;
+#0  Aquamarine::CBackend::hasSession (this=0x0) at /home/wilf/data/aquamarine/src/backend/Backend.cpp:243
+#1  0x0000555555d01a38 in Monitor::CMonitor::scheduleFrame(Aquamarine::IOutput::scheduleFrameReason) ()
+#2  0x0000555555f9afa6 in Render::IHyprRenderer::damageMonitor(Hyprutils::Memory::CSharedPointer<Monitor::CMonitor>) ()
+#3  0x0000555555a62541 in Config::Supplementary::CPropRefresher::refreshProp(bool) ()
+#4  0x0000555555c8ecde in CEventLoopManager::doLater(std::function<void ()> const&)::{lambda(void*)#1}::_FUN(void*) ()
+#5  0x00007ffff7a1478b in wl_event_loop_dispatch_idle () at /usr/lib/libwayland-server.so.0
+#6  0x00007ffff7a149f0 in wl_event_loop_dispatch () at /usr/lib/libwayland-server.so.0
+#7  0x00007ffff7a16b87 in wl_display_run () at /usr/lib/libwayland-server.so.0
+#8  0x0000555555c8fe2c in CEventLoopManager::enterLoop() ()
+#9  0x0000555555861d4e in main ()

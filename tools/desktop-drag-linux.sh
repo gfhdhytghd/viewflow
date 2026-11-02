@@ -28,7 +28,7 @@ The source process does not start until a selected window is one-shot probed.
 The capture plugin is loaded first because the probe needs it; the resulting
 local address, PID, stable ID and capture dimensions seed an owned runtime
 copy of the source JSON. Stop removes only the headless output, daemon, and
-plugin paths recorded by this script.
+session state recorded by this script. Loaded plugins remain available.
 EOF
 }
 
@@ -108,7 +108,9 @@ record_plugin_if_loaded_here() {
         note "plugin is already loaded; leaving ownership with the existing session: $name ($path)"
         return
     fi
-    "$HYPRCTL" plugin load "$path"
+    local safety="$(dirname -- "${BASH_SOURCE[0]}")/plugin_safety.py"
+    [[ -f $safety ]] || safety="$(dirname -- "${BASH_SOURCE[0]}")/../platform/desktop-app/plugin_safety.py"
+    python3 "$safety" "$path"
     plugin_loaded "$path" "$name" || die "Hyprland did not report the plugin as loaded: $name ($path)"
     printf '%s\n' "$path" >>"$(state_file plugins)"
 }
@@ -149,14 +151,11 @@ stop() {
         "$HYPRCTL" output remove "$output"
     fi
 
-    if [[ -f $(state_file plugins) ]]; then
-        local plugin
-        while IFS= read -r plugin; do
-            [[ -n $plugin ]] || continue
-            # The list contains only paths this wrapper loaded.  In particular,
-            # it never contains an independently loaded Hyprcapture plugin.
-            "$HYPRCTL" plugin unload "$plugin"
-        done <"$(state_file plugins)"
+    if [[ -s $(state_file plugins) ]]; then
+        # A loaded legacy plugin cannot be repaired by replacing its on-disk
+        # file. Stop capture/IPC through the owned daemon, but retain plugins:
+        # dlclose can run legacy destructors and kill the entire compositor.
+        note "retaining loaded plugins: automatic unload is unsafe for legacy builds; upgrade in a new compositor session"
     fi
     rm -f -- "$(state_file native-control/desktop-window.json)"
     rmdir -- "$(state_file native-control)" 2>/dev/null || true

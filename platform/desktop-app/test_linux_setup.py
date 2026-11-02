@@ -26,7 +26,7 @@ class LinuxSetupTests(unittest.TestCase):
         manifest = {'hyprland_build': {'commit': 'abc'}}
         report = {'hyprland': {'commit': 'abc'}, 'plugins': [{'name': 'viewflow-hyprland'}]}
         command = linux_setup.plugin_commands(root, manifest, report)
-        self.assertEqual(shlex.split(command), ['hyprctl', 'plugin', 'load', str(root / 'plugins/viewflow-capture.so')])
+        self.assertEqual(shlex.split(command), ['python3', str(root / '_internal/scripts/plugin_safety.py'), str(root / 'plugins/viewflow-capture.so')])
         report['hyprland']['commit'] = 'different'
         self.assertEqual(linux_setup.plugin_commands(root, manifest, report), '')
         self.assertEqual(linux_setup.plugin_commands(root, manifest, {}), '')

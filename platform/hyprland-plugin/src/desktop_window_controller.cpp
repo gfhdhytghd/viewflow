@@ -19,6 +19,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <limits>
 #include <map>
 #include <stdexcept>
@@ -99,6 +100,7 @@ struct DesktopWindowController::Impl {
     std::uint64_t stable_id = 0;
     pid_t pid = 0;
     Vector2D original_position{};
+    Vector2D original_size{};
     bool original_floating = false;
     bool forced_floating = false;
     std::string token;
@@ -107,8 +109,14 @@ struct DesktopWindowController::Impl {
   };
 
   std::map<std::string, OwnedWindow, std::less<>> windows;
+  // Expiring command authority must not discard the original window state.
+  // Keep weak restoration records until explicit release or plugin unload.
+  std::map<void*, OwnedWindow> modifiedWindows;
 
   void purgeExpired(std::uint64_t now) {
+    std::erase_if(modifiedWindows, [](const auto& entry) {
+      return entry.second.window.expired() || entry.second.surface.expired();
+    });
     std::erase_if(windows, [now](const auto& entry) {
       return entry.second.expires_at_ns <= now || entry.second.window.expired() ||
              entry.second.surface.expired();
@@ -184,6 +192,7 @@ struct DesktopWindowController::Impl {
       owned.pid = window->backend().pid();
       owned.original_position =
           window->position(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
+      owned.original_size = window->size(Desktop::View::IGeometric::GEOMETRIC_CURRENT);
       owned.original_floating = window->isFloating();
       owned.token = mintToken();
       owned.expires_at_ns = deadline;
@@ -207,6 +216,7 @@ struct DesktopWindowController::Impl {
       return failure("invalid full-capture coordinates");
     const auto window = owned->window.lock();
     if (!window) return failure("enrolled window destroyed");
+    modifiedWindows.try_emplace(window.get(), *owned);
     if (!window->isFloating()) {
       if (!succeeded(Config::Actions::floatWindow(Config::Actions::TOGGLE_ACTION_ENABLE, window)))
         return failure("could not make owned window floating");
@@ -257,6 +267,7 @@ struct DesktopWindowController::Impl {
     if (!checkedDeadline(*owned, request, now)) return failure("desktop-window deadline rejected");
     const bool restore = request.at("restore").get<bool>();
     if (!restore) {
+      modifiedWindows.erase(owned->window.lock().get());
       windows.erase(id);
       return {{"ok", true}, {"version", 1}, {"localWindowId", id}, {"released", true}, {"restored", false}};
     }
@@ -272,6 +283,7 @@ struct DesktopWindowController::Impl {
                                       Config::Actions::TOGGLE_ACTION_DISABLE,
             window)))
       return failure("owned window restore failed; enrollment retained");
+    modifiedWindows.erase(window.get());
     windows.erase(id);
     return {{"ok", true}, {"version", 1}, {"localWindowId", id}, {"released", true}, {"restored", true}};
   }
@@ -297,8 +309,34 @@ Json DesktopWindowController::handle(const Json& request) {
 }
 
 void DesktopWindowController::shutdown() noexcept {
-  // Do not risk moving an unrelated/reused object during teardown. Weak
-  // ownership expires naturally and all requests have finite deadlines.
+  // Only restore enrollments still owned at unload. A successful release with
+  // restore=false explicitly commits the user's new placement and erases it.
+  for (const auto& [_, owned] : m_impl->modifiedWindows) {
+    const auto window = owned.window.lock();
+    const auto surface = owned.surface.lock();
+    if (!window || !surface || !window->mapped() ||
+        window->metadata().stableID() != owned.stable_id ||
+        window->backend().pid() != owned.pid || window->resource() != surface)
+      continue;
+    try {
+      const auto check = [](const Config::Actions::ActionResult& result) {
+        if (!result) std::fprintf(stderr, "viewflow desktop-window unload restore: compositor rejected action\n");
+      };
+      if (const auto workspace = owned.original_workspace.lock())
+        check(Config::Actions::moveToWorkspace(workspace, true, window));
+      if (owned.original_floating && !window->isFloating())
+        check(Config::Actions::floatWindow(Config::Actions::TOGGLE_ACTION_ENABLE, window));
+      if (window->isFloating()) {
+        check(Config::Actions::resize(owned.original_size, false, window));
+        check(Config::Actions::move(owned.original_position, false, window));
+      }
+      check(Config::Actions::floatWindow(owned.original_floating ?
+          Config::Actions::TOGGLE_ACTION_ENABLE : Config::Actions::TOGGLE_ACTION_DISABLE, window));
+    } catch (const std::exception& error) {
+      std::fprintf(stderr, "viewflow desktop-window unload restore failed: %s\n", error.what());
+    }
+  }
+  m_impl->modifiedWindows.clear();
   m_impl->windows.clear();
 }
 

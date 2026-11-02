@@ -69,7 +69,10 @@ def ensure_plugins(bundle):
         loaded = autostart.read_json('hyprctl', '-j', 'plugin', 'list')
         if any(item.get('name') == name for item in loaded): continue
         plugin = bundle / 'plugins' / (name + '.so')
-        subprocess.run(['hyprctl', 'plugin', 'load', str(plugin)], check=True, timeout=10)
+        safety = Path(__file__).with_name('plugin_safety.py')
+        if not safety.exists():
+            safety = Path(__file__).resolve().parents[1] / 'platform/desktop-app/plugin_safety.py'
+        subprocess.run(['python3', str(safety), str(plugin)], check=True, timeout=10)
 
 
 def main():

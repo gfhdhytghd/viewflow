@@ -97,5 +97,8 @@ def plugin_commands(root, manifest, report):
     if not isinstance(loaded, list):
         return ''
     names = {item.get('name') for item in loaded if isinstance(item, dict)}
-    return '\n'.join(shlex.join(['hyprctl', 'plugin', 'load', str(root / 'plugins' / (name + '.so'))])
+    safety = root / 'plugin_safety.py'
+    if not safety.exists():
+        safety = root / '_internal/scripts/plugin_safety.py'
+    return '\n'.join(shlex.join(['python3', str(safety), str(root / 'plugins' / (name + '.so'))])
                      for name in PLUGINS if name not in names)

@@ -11,7 +11,8 @@ export TEST_LOG="$tmp/commands.log"
 export TEST_STATE="$tmp/fake-state"
 export HYPRCTL="$tmp/bin/hyprctl"
 export HYPRLAND_INSTANCE_SIGNATURE='test-instance'
-touch "$tmp/plugins/capture.so" "$tmp/plugins/input.so"
+cc -shared -fPIC -x c /dev/null -o "$tmp/plugins/capture.so"
+cp "$tmp/plugins/capture.so" "$tmp/plugins/input.so"
 
 cat >"$tmp/bin/hyprctl" <<'EOF'
 #!/usr/bin/env bash
@@ -122,8 +123,8 @@ jq -e '.pointer.cursor_monitor_id == 99 and .desktop.candidates[0].stable_id == 
 
 "$root/tools/desktop-drag-linux.sh" stop --state-dir "$tmp/runtime/owned"
 rg -q 'output remove HEADLESS-99' "$TEST_LOG"
-[[ $(rg -c 'plugin unload' "$TEST_LOG") == 2 ]]
-jq -e 'length == 1 and .[0].filename == "/opt/hyprcapture.so"' "$TEST_STATE/plugins" >/dev/null
+! rg -q 'plugin unload' "$TEST_LOG"
+jq -e 'length == 3 and .[0].filename == "/opt/hyprcapture.so"' "$TEST_STATE/plugins" >/dev/null
 
 "$root/tools/desktop-drag-linux.sh" start \
   --config "$tmp/source.json" --monitor DP-4 --crossing-timeout 1 --peer "$tmp/peer" \

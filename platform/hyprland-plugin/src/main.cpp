@@ -143,7 +143,11 @@ void viewflow::hyprland::requestInputDetach() {
 
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
 
+APICALL EXPORT void PLUGIN_EXIT();
+
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+  // Hyprland ejects failed initializers without calling PLUGIN_EXIT.
+  auto rollback = std::unique_ptr<void, void (*)(void*)>{handle, [](void*) { PLUGIN_EXIT(); }};
   g_handle = handle;
 
   const std::string compositorHash = __hyprland_api_get_hash();
@@ -278,6 +282,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 
   g_macShadows = std::make_unique<viewflow::hyprland::MacOsShadows>(handle);
   g_popupBackdrops = std::make_unique<viewflow::hyprland::PopupBackdrops>(handle);
+  rollback.release();
   return {
       "viewflow-hyprland",
       "Non-blocking Viewflow metadata and physical edge-input bridge (no "
@@ -288,6 +293,11 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
 }
 
 APICALL EXPORT void PLUGIN_EXIT() {
+  // Revoke entry points before releasing their targets. Cached Lua closures
+  // use Hyprland's ID dispatcher and then report "plugin unloaded".
+  if (g_handle)
+    for (const auto* name : {"recall_windows", "set_recall_shortcut", "add_input_route", "capture_status", "pointer_timings", "forwarded_button", "forwarded_axis", "with_forwarded_motion", "focus_without_warp", "desktop_window"})
+      HyprlandAPI::removeLuaFunction(g_handle, "viewflow", name);
   if (g_pendingDetach) wl_event_source_remove(g_pendingDetach);
   g_pendingDetach = nullptr;
   viewflow::hyprland::shutdownWindowRecall();
@@ -296,9 +306,10 @@ APICALL EXPORT void PLUGIN_EXIT() {
   g_macShadows.reset();
   if (g_focusMotionHook) HyprlandAPI::removeFunctionHook(g_handle, g_focusMotionHook);
   g_focusMotionHook = nullptr;
+  // Release held input before restoring a window to its original workspace.
+  g_inputCapture.reset();
   if (g_desktopWindowController) g_desktopWindowController->shutdown();
   g_desktopWindowController.reset();
-  g_inputCapture.reset();
   g_bridge.reset();
   g_handle = nullptr;
 }

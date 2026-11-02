@@ -11,7 +11,11 @@ pkg_check_modules(GLES REQUIRED IMPORTED_TARGET glesv2)
 pkg_check_modules(HYPRLAND REQUIRED IMPORTED_TARGET hyprland>=0.56)
 add_library(viewflow-capture-render STATIC src/window_renderer.cpp)
 set_target_properties(viewflow-capture-render PROPERTIES POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(viewflow-capture-render PUBLIC viewflow-capture-core PkgConfig::HYPRLAND)
+# Only import host headers. Linking the pkg-config library list can load a
+# second Aquamarine SONAME whose globals alias the compositor's live objects.
+target_include_directories(viewflow-capture-render SYSTEM PUBLIC ${HYPRLAND_INCLUDE_DIRS})
+target_compile_options(viewflow-capture-render PUBLIC ${HYPRLAND_CFLAGS_OTHER})
+target_link_libraries(viewflow-capture-render PUBLIC viewflow-capture-core)
 target_compile_options(viewflow-capture-render PRIVATE -Wall -Wextra --no-gnu-unique)
 add_library(viewflow-capture SHARED src/main.cpp)
 target_link_libraries(viewflow-capture PRIVATE viewflow-capture-render)
@@ -34,6 +38,9 @@ target_include_directories(viewflow-capture-core PUBLIC src)
 target_link_libraries(viewflow-capture-core PUBLIC Threads::Threads PkgConfig::EGL PkgConfig::GLES)
 target_compile_options(viewflow-capture-core PRIVATE -Wall -Wextra -Wpedantic -Werror)
 if(BUILD_TESTING)
+    add_test(NAME viewflow-host-dependencies COMMAND ${CMAKE_COMMAND}
+        -DREADELF=${CMAKE_READELF} -DPLUGIN=$<TARGET_FILE:viewflow-capture>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/../hyprland-plugin/tests/check_host_dependencies.cmake)
     add_test(NAME lua_c_linkage COMMAND ${CMAKE_COMMAND}
         -DNM=${CMAKE_NM} -DPLUGIN=$<TARGET_FILE:viewflow-capture>
         -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_lua_linkage.cmake)

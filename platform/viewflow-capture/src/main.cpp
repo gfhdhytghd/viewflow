@@ -65,6 +65,7 @@ struct Stream {
     bool commitMode = false;
     bool retired = false;
 };
+HANDLE g_handle = nullptr;
 std::map<std::string, std::shared_ptr<Stream>> streams;
 std::uint64_t nowNs() {
     return static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -122,14 +123,16 @@ void stopStream(const std::string& id, const std::shared_ptr<Stream>& stream) {
     stream->retired = true;
     stream->commitListener.reset();
     if (stream->timer) {
-        stream->timer->updateTimeout(std::nullopt);
+        stream->timer->cancel();
         g_pEventLoopManager->removeTimer(stream->timer);
+        stream->timer.reset();
     }
     if (const auto group = stream->group.lock()) {
         group->members.erase(id);
         if (group->members.empty()) {
-            group->timer->updateTimeout(std::nullopt);
+            group->timer->cancel();
             g_pEventLoopManager->removeTimer(group->timer);
+            group->timer.reset();
             groups.erase(stream->fps);
         } else group->arm();
     }
@@ -267,19 +270,27 @@ int request(lua_State* state, bool stop, bool commitMode = false) {
 }
 }
 APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
+APICALL EXPORT void PLUGIN_EXIT();
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+    g_handle = handle;
+    auto rollback = std::unique_ptr<void, void (*)(void*)>{handle, [](void*) { PLUGIN_EXIT(); }};
     if (std::string_view(__hyprland_api_get_hash()) != std::string_view(__hyprland_api_get_client_hash()))
         throw std::runtime_error("Viewflow capture ABI mismatch");
     if (!HyprlandAPI::addLuaFunction(handle, VIEWFLOW_CAPTURE_LUA_NAMESPACE, "window_stream_start", [](lua_State* s) { return request(s, false); })
         || !HyprlandAPI::addLuaFunction(handle, VIEWFLOW_CAPTURE_LUA_NAMESPACE, "window_stream_start_commit", [](lua_State* s) { return request(s, false, true); })
         || !HyprlandAPI::addLuaFunction(handle, VIEWFLOW_CAPTURE_LUA_NAMESPACE, "window_stream_stop", [](lua_State* s) { return request(s, true); }))
         throw std::runtime_error("Viewflow capture Lua registration failed");
+    rollback.release();
     return {VIEWFLOW_CAPTURE_PLUGIN_NAME, "Window-only GPU capture for Viewflow", "Viewflow contributors", "0.1.0"};
 }
 APICALL EXPORT void PLUGIN_EXIT() {
+    if (g_handle)
+        for (const auto* name : {"window_stream_start", "window_stream_start_commit", "window_stream_stop"})
+            HyprlandAPI::removeLuaFunction(g_handle, VIEWFLOW_CAPTURE_LUA_NAMESPACE, name);
     for (auto& [id, stream] : streams) {
         stopStream(id, stream);
     }
     streams.clear();
     groups.clear();
+    g_handle = nullptr;
 }

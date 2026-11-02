@@ -29,8 +29,13 @@ add_library(viewflow-hyprland SHARED
     src/window_keyboard_state.cpp
     src/window_keyboard_session.cpp
 )
+# Host-private libraries must resolve from Hyprland. A second Aquamarine
+# SONAME interposes backendInUse and runs a destructor against host ownership
+# on dlclose, even when the advertised package version/ABI hash matches.
 target_include_directories(viewflow-hyprland PRIVATE include src)
-target_link_libraries(viewflow-hyprland PRIVATE PkgConfig::HYPRLAND PkgConfig::XKBCOMMON PkgConfig::LIBINPUT ${CMAKE_DL_LIBS} GLESv2)
+target_include_directories(viewflow-hyprland SYSTEM PRIVATE ${HYPRLAND_INCLUDE_DIRS})
+target_compile_options(viewflow-hyprland PRIVATE ${HYPRLAND_CFLAGS_OTHER})
+target_link_libraries(viewflow-hyprland PRIVATE PkgConfig::XKBCOMMON PkgConfig::LIBINPUT ${CMAKE_DL_LIBS} GLESv2)
 target_compile_options(viewflow-hyprland PRIVATE
     -Wall
     -Wextra
@@ -39,11 +44,19 @@ target_compile_options(viewflow-hyprland PRIVATE
     -Wsign-conversion
     --no-gnu-unique
 )
+# Resolve all borrowed host symbols before PLUGIN_INIT can install callbacks.
+target_link_options(viewflow-hyprland PRIVATE "LINKER:-z,now")
 set_target_properties(viewflow-hyprland PROPERTIES PREFIX "" OUTPUT_NAME "viewflow-hyprland")
 
 install(TARGETS viewflow-hyprland LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 if(BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME viewflow-plugin-load-preflight COMMAND ${Python3_EXECUTABLE}
+        -m unittest discover -s ${CMAKE_CURRENT_SOURCE_DIR}/../desktop-app -p test_plugin_safety.py)
+    add_test(NAME viewflow-host-dependencies COMMAND ${CMAKE_COMMAND}
+        -DREADELF=${CMAKE_READELF} -DPLUGIN=$<TARGET_FILE:viewflow-hyprland>
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_host_dependencies.cmake)
     add_executable(viewflow-touchpad-capture-test tests/touchpad_capture_test.cpp)
     target_include_directories(viewflow-touchpad-capture-test PRIVATE src)
     target_compile_options(viewflow-touchpad-capture-test PRIVATE -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror -UNDEBUG)

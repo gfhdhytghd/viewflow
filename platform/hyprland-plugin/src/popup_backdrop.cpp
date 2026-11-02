@@ -244,6 +244,7 @@ struct PopupBackdrops::Impl {
         }
     }
     ~Impl() {
+        timer->cancel();
         g_pEventLoopManager->removeTimer(timer);
         timer.reset();
         if(pass_hook)HyprlandAPI::removeFunctionHook(handle,pass_hook);
