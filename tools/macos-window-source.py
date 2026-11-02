@@ -69,8 +69,11 @@ def selected_windows(report, existing, limit):
                 not all(isinstance(v, (int, float)) and math.isfinite(v) for v in r) or
                 r[2] <= 0 or r[3] <= 0 for r in physical + remote)):
         raise ValueError('display geometry unavailable; retain existing window connections')
-    live = {(w['window_id'], w['pid']): w for w in report.get('windows', [])
-            if eligible(w) and needs_remote(w, physical, remote)}
+    if not isinstance(report.get('windows'), list):
+        raise ValueError('window inventory unavailable; retain existing window connections')
+    live = {(w['window_id'], w['pid']): w for w in report['windows']
+            if (w.get('window_id'), w.get('pid')) in existing
+            or (eligible(w) and needs_remote(w, physical, remote))}
     # Retain current selections when inventory order changes at the window limit.
     ordered = [key for key in existing if key in live]
     ordered += sorted(key for key in live if key not in existing)

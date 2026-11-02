@@ -327,12 +327,16 @@ import Combine
         let parkingIDs = Set(((profile.windowParking.map { [$0] } ?? []) + (profile.windowParkingDisplays ?? [])).map {
             ($0.serial ?? 1) == 1 ? "window-parking" : "window-parking-\($0.serial ?? 1)"
         })
-        let desiredIDs = parkingIDs.union(live.flatMap { window in profile.windowDestinations.filter { $0.accepts(window) }.map { "source-\(window.key)-\($0.id)" } })
+        func accepts(_ peer: ConnectionProfile.WindowDestination, _ window: NativeWindow) -> Bool {
+            let id = "source-\(window.key)-\(peer.id)"
+            return peer.accepts(window, existing: workers[id]?.stopping == false)
+        }
+        let desiredIDs = parkingIDs.union(live.flatMap { window in profile.windowDestinations.filter { accepts($0, window) }.map { "source-\(window.key)-\($0.id)" } })
         for (id, worker) in workers where worker.component == .windowsShare && !desiredIDs.contains(id) { worker.stop() }
         // Include retiring processes in the worker budget; never oversubscribe
         // the capture pool while an old stream is still releasing resources.
         for window in live {
-            for peer in profile.windowDestinations where peer.accepts(window) {
+            for peer in profile.windowDestinations where accepts(peer, window) {
                 let id = "source-\(window.key)-\(peer.id)"
                 if workers[id] == nil && workers.values.filter({ $0.component == .windowsShare && $0.id.hasPrefix("source-") }).count >= (profile.maxWindows + 8) * profile.windowDestinations.count { continue }
                 try worker(id, component: .windowsShare, binary: "vf-window-peer", peerID: peer.id) {

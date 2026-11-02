@@ -1,4 +1,5 @@
 #include "activity_presentation.hpp"
+#include "window_residency.hpp"
 #include <cassert>
 int main(){
     namespace vf=viewflow::reverse;
@@ -19,5 +20,18 @@ int main(){
     nested.tiles={tile,parent,child};assert(p.admit(nested));assert(p.accepts(nested,child));
     nested.activity_lane=0;assert(p.admit(nested));assert(!p.accepts(nested,child));
     frame.activity_epoch=0;assert(vf::pack_frame(frame)==old);
+    // Legacy single-lane pause: an empty resident rectangle is still a member.
+    vf::set_resident_rect(frame.tiles[0],{});
+    const auto paused=vf::unpack_frame(vf::pack_frame(frame));
+    assert(p.admit(paused) && p.members(paused).contains(tile.id));
+    assert(vf::resident_rect(paused.tiles[0])==vf::PixelRect{});
+    auto destroyed=paused;destroyed.tiles.clear();
+    assert(p.members(destroyed).empty());
+    // Negotiated lane throttling/eviction may omit every pixel tile while
+    // retaining the complete source membership until actual destruction.
+    auto throttled=nested;throttled.activity_epoch=5;throttled.tiles.clear();
+    assert(p.admit(throttled) && p.members(throttled).contains(tile.id));
+    throttled.activity_epoch=6;throttled.activity_members.clear();
+    assert(p.admit(throttled) && p.members(throttled).empty());
     auto invalid=encoded;invalid[4]=2;bool threw=false;try{(void)vf::unpack_frame(invalid);}catch(...){threw=true;}assert(threw);
 }

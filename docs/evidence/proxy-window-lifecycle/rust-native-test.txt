@@ -1,0 +1,175 @@
+    Blocking waiting for file lock on artifact directory
+   Compiling viewflowd v0.1.0 (/home/wilf/data/viewflow-wt/proxylife/crates/viewflowd)
+warning: unnecessary parentheses around method argument
+    --> crates/viewflowd/src/atlas_preview_input.rs:1830:25
+     |
+1830 |                         (crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+     |                         ^
+1831 |                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS),
+     |                                                                                    ^
+     |
+     = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+     |
+1830 ~                         crate::input_runtime::INPUT_OPERATION_TIMEOUT_NS
+1831 ~                             - crate::input_runtime::INPUT_CLOCK_MAPPING_HEADROOM_NS,
+     |
+
+warning: method `into_activity` is never used
+   --> crates/viewflowd/src/atlas_presenter.rs:359:19
+    |
+279 | impl<W: AsyncWrite + Unpin, R: AsyncRead + Unpin> AtlasPresenterPipe<W, R> {
+    | -------------------------------------------------------------------------- method in this implementation
+...
+359 |     pub(crate) fn into_activity(
+    |                   ^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `tiles`, `start`, and `native` are never read
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:14:26
+   |
+14 |     Frame { lane: usize, tiles: usize, start: u64, native: NativePresentationDeadline },
+   |     -----                ^^^^^         ^^^^^       ^^^^^^
+   |     |
+   |     fields in this variant
+
+warning: fields `confirmation` and `start` are never read
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:15:16
+   |
+15 |     Recovery { confirmation: crate::atlas_input_recovery::InputRecoveryConfirmation, start: u64 },
+   |     --------   ^^^^^^^^^^^^                                                          ^^^^^
+   |     |
+   |     fields in this variant
+
+warning: variants `Frame` and `Recovery` are never constructed
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:17:16
+   |
+17 | enum Receipt { Frame(AtlasDisposition), Recovery(u64) }
+   |      -------   ^^^^^                    ^^^^^^^^
+   |      |
+   |      variants in this enum
+
+warning: field `deadline` is never read
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:20:5
+   |
+18 | struct Pending {
+   |        ------- field in this struct
+19 |     expect: Expect,
+20 |     deadline: Instant,
+   |     ^^^^^^^^
+
+warning: associated function `start` is never used
+  --> crates/viewflowd/src/atlas_activity_presenter.rs:71:19
+   |
+69 | impl<W: AsyncWrite + Unpin + Send> ActivityAtlasPresenter<W> {
+   | ------------------------------------------------------------ associated function in this implementation
+70 |     /// Caller has completed native readiness and all three warmup receipts.
+71 |     pub(crate) fn start<R: AsyncRead + Unpin + Send + 'static>(
+   |                   ^^^^^
+
+warning: function `receipt_key` is never used
+   --> crates/viewflowd/src/atlas_activity_presenter.rs:232:4
+    |
+232 | fn receipt_key(line: &str) -> Result<Key> {
+    |    ^^^^^^^^^^^
+
+warning: function `read_receipts` is never used
+   --> crates/viewflowd/src/atlas_activity_presenter.rs:247:10
+    |
+247 | async fn read_receipts<R: AsyncRead + Unpin>(mut reader: R, state: Arc<Mutex<State>>, changed: Arc<Notify>, clock: Clock) {
+    |          ^^^^^^^^^^^^^
+
+warning: method `enable_activity` is never used
+  --> crates/viewflowd/src/atlas_presenter_child.rs:89:19
+   |
+74 | impl AtlasPresenterChild {
+   | ------------------------ method in this implementation
+...
+89 |     pub(crate) fn enable_activity(&mut self,
+   |                   ^^^^^^^^^^^^^^^
+
+warning: method `validate_media_fence` is never used
+  --> crates/viewflowd/src/atlas_receiver_presenter.rs:48:19
+   |
+36 | impl NativeGeometryControl {
+   | -------------------------- method in this implementation
+...
+48 |     pub(crate) fn validate_media_fence(&self, armed: bool) -> Result<()> {
+   |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `cleared` is never used
+   --> crates/viewflowd/src/atlas_receiver_presenter.rs:144:14
+    |
+ 92 | impl AtlasInputRecoveryFence {
+    | ---------------------------- method in this implementation
+...
+144 |     async fn cleared(&self) {
+    |              ^^^^^^^
+
+warning: methods `enable_activity`, `drain_activity`, and `wait_input_recovery_request` are never used
+    --> crates/viewflowd/src/atlas_receiver_presenter.rs:547:19
+     |
+ 546 | impl AtlasReceiverPresenter {
+     | --------------------------- methods in this implementation
+ 547 |     pub(crate) fn enable_activity(&mut self,
+     |                   ^^^^^^^^^^^^^^^
+...
+ 583 |     async fn drain_activity(&mut self) -> Result<()> {
+     |              ^^^^^^^^^^^^^^
+...
+1209 |     pub(crate) async fn wait_input_recovery_request(
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `with_fenced_controls` is never used
+    --> crates/viewflowd/src/atlas_session.rs:1591:25
+     |
+1246 | impl AtlasReceiverSession {
+     | ------------------------- method in this implementation
+...
+1591 |     pub(crate) async fn with_fenced_controls<T>(
+     |                         ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `encode` is never used
+  --> crates/viewflowd/src/cursor_feedback.rs:20:12
+   |
+19 | impl Sample {
+   | ----------- method in this implementation
+20 |     pub fn encode(self) -> Vec<u8> {
+   |            ^^^^^^
+
+warning: methods `poll_ready_subset` and `poll_subset_with_clock` are never used
+   --> crates/viewflowd/src/gpu_atlas_capture.rs:278:19
+    |
+ 35 | impl AtlasCapturePool {
+    | --------------------- methods in this implementation
+...
+278 |     pub(crate) fn poll_ready_subset(
+    |                   ^^^^^^^^^^^^^^^^^
+...
+332 |     fn poll_subset_with_clock(
+    |        ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `validate_atlas_batch` is never used
+   --> crates/viewflowd/src/gpu_compatible_encoder.rs:622:4
+    |
+622 | fn validate_atlas_batch(
+    |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: method `apply_event` is never used
+   --> crates/viewflowd/src/input_runtime.rs:367:19
+    |
+231 | impl InputReceiver {
+    | ------------------ method in this implementation
+...
+367 |     pub(crate) fn apply_event(
+    |                   ^^^^^^^^^^^
+
+warning: `viewflowd` (lib) generated 18 warnings (run `cargo fix --lib -p viewflowd` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 03s
+     Running unittests src/bin/vf-hyprland-windows.rs (target/debug/deps/vf_hyprland_windows-169c8a6fd0c49716)
+
+running 1 test
+test native::tests::scaled_negative_origin_and_decorations_route_to_content ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

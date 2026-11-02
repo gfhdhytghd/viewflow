@@ -1,3 +1,4 @@
+#include "window_retained_image.hpp"
 #include "../reverse-common/source_drag.hpp"
 #include "../reverse-common/window_surface.hpp"
 #include "../reverse-common/activity_hint.hpp"
@@ -561,16 +562,18 @@ struct Presenter {
         };
         bool translucent = false;
         const auto resident = vf::resident_rect(tile);
+        if(!resident.width || !resident.height)return;
         for (unsigned y = 0; y < resident.height; ++y) {
             const auto row = alpha.subspan(static_cast<size_t>(tile.atlas_y + y) * frame.width + tile.atlas_x, resident.width);
             if (!translucent)
                 translucent = std::any_of(row.begin(), row.end(), [](uint8_t a) { return a > 0 && a < 255; });
         }
-        proxy.translucent = translucent; remember();
+        proxy.translucent = translucent || (proxy.translucent &&
+            resident != vf::PixelRect{0,0,tile.width,tile.height}); remember();
     }
     void sync_shadow(Proxy& proxy) {
         if(!proxy.shadow_window)return;
-        if(proxy.fullscreen_transition || (proxy.window.styleMask&NSWindowStyleMaskFullScreen)) {
+        if(proxy.window.miniaturized || proxy.fullscreen_transition || (proxy.window.styleMask&NSWindowStyleMaskFullScreen)) {
             [proxy.shadow_window orderOut:nil];return;
         }
         const auto rect=NSInsetRect(proxy.window.frame,-110,-110);
@@ -636,6 +639,11 @@ struct Presenter {
             auto tile=original;
             const unsigned padding=0; // Shadows are separate noninteractive child windows.
             live.insert(tile.id);
+            // Metadata-only tiles preserve both the pixels and local placement.
+            // A source returning to its physical display must not move this
+            // frozen proxy off the receiver's screen.
+            const auto incoming_resident=vf::resident_rect(tile);
+            if(!incoming_resident.width || !incoming_resident.height)continue;
             auto& entry = windows[tile.id];
             if (!entry) {
                 entry = std::make_unique<Proxy>(); auto& proxy = *entry;
@@ -726,24 +734,15 @@ struct Presenter {
                 }
             }
             update_backdrop(proxy, frame, alpha, revision);
-            const auto resident = vf::resident_rect(tile);
-            const auto crop = CGRectMake(tile.atlas_x, frame.height - tile.atlas_y - resident.height, resident.width, resident.height);
-            // A submitted frame is still rendered. Count only an unsubmitted image replaced here.
+            // A paused/cropped source retains complete old pixels, including alpha.
             if (proxy.video_pending) ++coalesced_draws;
-            CIImage* clear = [[CIImage imageWithColor:[CIColor colorWithRed:0 green:0 blue:0 alpha:0]]
-                imageByCroppingToRect:CGRectMake(0, 0, tile.width, tile.height)];
-            proxy.image = clear;
-            if (resident.width > 0 && resident.height > 0) {
-                CIImage* patch = [[composed imageByCroppingToRect:crop] imageByApplyingTransform:
-                    CGAffineTransformMakeTranslation(resident.x-crop.origin.x, tile.height-resident.y-resident.height-crop.origin.y)];
-                proxy.image = [patch imageByCompositingOverImage:clear];
-            }
+            proxy.image=vm::retain_window_patch(context,proxy.image,composed,frame.height,tile);
             local_shadow(proxy,revision,frame.width,original,alpha);
             proxy.needs_draw = true; proxy.video_pending = true;
             proxy.last_video=std::chrono::steady_clock::now();
             if (!proxy.shown) { [proxy.window orderFront:nil]; proxy.shown=true; } // No activation or key-window change.
             const bool source_raised=(tile.flags&64)!=0;
-            if(proxy.source_raise_known && source_raised && !proxy.source_raised && !proxy.fullscreen_transition)
+            if(!proxy.window.miniaturized && proxy.source_raise_known && source_raised && !proxy.source_raised && !proxy.fullscreen_transition)
                 [proxy.window orderFront:nil]; // Raise this proxy only, never the application group.
             proxy.source_raise_known=true;proxy.source_raised=source_raised;
             if (!proxy.fullscreen_transition && (!proxy.fullscreen_pending ||
@@ -1105,7 +1104,7 @@ void presenter_self_test() {
     if (!proxy.translucent) throw std::runtime_error("resident crop lost its atlas alpha");
     vf::set_resident_rect(proxy.tile, {});
     presenter.update_backdrop(proxy, frame, *cache.pixels, cache.revision);
-    if (proxy.translucent) throw std::runtime_error("empty resident crop retained backdrop work");
+    if (!proxy.translucent) throw std::runtime_error("empty resident crop discarded frozen backdrop state");
     vf::set_resident_rect(proxy.tile, {0, 0, 2, 2});
     alpha[0] = 0; frame.alpha = vf::encode_alpha(alpha); cache.update(frame);
     if (cache.revision == revision || cache.mask == cached_mask)

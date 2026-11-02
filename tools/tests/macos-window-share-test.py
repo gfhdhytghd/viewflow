@@ -53,3 +53,13 @@ assert share.eligible(dict(window, workspace={'address': 'special:active', 'name
 named[0]['specialWorkspace'] = {'type': 'special', 'name': 'active'}
 assert share.eligible(dict(window, workspace={'type': 'special', 'name': 'active'}), named, 2)
 assert not share.eligible(dict(window, workspace={'type': 'normal', 'name': 'active'}), named, 2)
+
+identity = ('0x123', 42, 'abc')
+existing = {identity}
+base = dict(window, address=identity[0], pid=identity[1], stableId=identity[2])
+for paused in [dict(base, hidden=True), dict(base, mapped=False),
+               dict(base, workspace={'name':'special:hidden'}), dict(base, at=[9000,9000])]:
+    assert identity in share.selected_windows([paused], monitors, [2], existing)
+    assert not share.selected_windows([paused], monitors, [2], set())
+assert not share.selected_windows([], monitors, [2], existing)
+assert identity not in share.selected_windows([dict(base, stableId='def')], monitors, [2], existing)

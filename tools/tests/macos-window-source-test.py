@@ -44,3 +44,10 @@ for remote, frame in [([-1100,-200,1000,800],[-101,0,200,200]),
     assert not source.needs_remote(dict(window, frame_points=[100,0,200,200]), physical, [remote])
 assert not source.needs_remote(dict(window, frame_points=[0,0,800,600]),
                                [[0,0,300,1200]], [[0,0,100,1200]])
+
+# Established proxies survive minimization, hiding, parking, and viewport exit.
+for paused in [dict(window, on_screen=False), dict(window, frame_points=[0,0,800,600])]:
+    paused_report = dict(report, windows=[paused])
+    assert list(source.selected_windows(paused_report, {(1,101)}, 8)) == [(1,101)]
+    assert not source.selected_windows(paused_report, set(), 8)
+assert not source.selected_windows(dict(report, windows=[]), {(1,101)}, 8)

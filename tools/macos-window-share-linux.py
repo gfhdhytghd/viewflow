@@ -47,6 +47,14 @@ def eligible(client, monitors, remote_id):
     return w > 0 and h > 0 and x < rx + rw and x + w > rx and y < ry + rh and y + h > ry
 
 
+def selected_windows(clients, monitors, remote_ids, existing):
+    # Visibility controls enrollment and pixels, never established ownership.
+    # Full identity prevents a reused address from inheriting an old proxy.
+    return {(w['address'], w['pid'], w['stableId']): w for w in clients
+            if (w['address'], w['pid'], w['stableId']) in existing
+            or any(eligible(w, monitors, mid) for mid in remote_ids)}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--route-config', type=Path)
@@ -109,8 +117,8 @@ def main():
                     session = current_session
                 monitors = json.loads(subprocess.check_output(['hyprctl', '-j', 'monitors'], timeout=3))
                 clients = json.loads(subprocess.check_output(['hyprctl', '-j', 'clients'], timeout=3))
-                live = {(w['address'], w['pid'], w['stableId']): w for w in clients
-                        if any(eligible(w, monitors, item['pointer']['cursor_monitor_id']) for item in routes)}
+                live = selected_windows(clients, monitors,
+                    [item['pointer']['cursor_monitor_id'] for item in routes], children)
                 # Keep a source alive while Hyprland owns its native drag,
                 # including the last pixels beyond the viewport on return.
                 try:
