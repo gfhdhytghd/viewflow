@@ -260,10 +260,13 @@ struct WindowInventory: Decodable {
     var leftButtonDown: Bool? = nil
     var physicalDisplays: [[Double]]? = nil
     var remoteDisplays: [[Double]]? = nil
+    var spaceAnimating: Bool? = nil
+    var displaySpaces: [String: UInt64]? = nil
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version", enumeration, windows
         case pointerPoints = "pointer_points", leftButtonDown = "left_button_down"
         case physicalDisplays = "physical_displays", remoteDisplays = "remote_displays"
+        case spaceAnimating = "space_animating", displaySpaces = "display_spaces"
     }
     // Match native capture and destination selection: a positive-area crossing
     // starts sharing, after subtracting the physical display union.
@@ -382,5 +385,43 @@ struct NativeDragInventory {
             guard point.count == 2 else { continue }
             grabs[window.key] = [Int((point[0] - frame[0]).rounded()), Int((point[1] - frame[1]).rounded())]
         }
+    }
+}
+
+// Same admission policy as window_space_transition.hpp. Samples are the existing
+// discovery inventory; no gesture interception or additional polling loop.
+struct SpaceTransitionGate {
+    private var previous: [String: NativeWindow] = [:]
+    private var spaces: [String: UInt64] = [:]
+    private var until: Double = 0
+    mutating func spaceChanged(now: Double) { until = now + 0.25 }
+    mutating func observe(_ inventory: WindowInventory, now: Double) -> Bool {
+        let current = inventory.displaySpaces ?? [:]
+        let changed = current.contains { key, value in
+            value != 0 && spaces[key] != nil && spaces[key] != 0 && spaces[key] != value
+        }
+        spaces = current
+        let windows = (inventory.windows ?? []).filter { $0.eligible && $0.layer == 0 }
+        func display(_ w: NativeWindow) -> Int? {
+            let f = w.framePoints
+            return (inventory.physicalDisplays ?? []).firstIndex { d in
+                d.count == 4 && f[0] < d[0]+d[2] && f[0]+f[2] > d[0] &&
+                f[1] < d[1]+d[3] && f[1]+f[3] > d[1]
+            }
+        }
+        var motions: [(Int, Double)] = []
+        for w in windows {
+            guard let p = previous[w.key], let d = display(w), display(p) == d else { continue }
+            let a = w.framePoints, b = p.framePoints, dx = a[0]-b[0]
+            if abs(dx) >= 2 && abs(a[1]-b[1]) <= 2 && abs(a[2]-b[2]) <= 2 && abs(a[3]-b[3]) <= 2 {
+                motions.append((d, dx))
+            }
+        }
+        let coherent = motions.contains { m in
+            motions.filter { $0.0 == m.0 && abs($0.1-m.1) <= 2 }.count >= 3
+        }
+        previous = Dictionary(windows.map { ($0.key, $0) }, uniquingKeysWith: { _, last in last })
+        if inventory.spaceAnimating == true || changed || coherent { until = now + 0.25 }
+        return now < until
     }
 }

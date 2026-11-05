@@ -18,6 +18,8 @@ import Combine
     private var selected: Set<String> = []
     private var inventoryBusy = false
     private var nativeDragInventory = NativeDragInventory()
+    private var spaceTransition = SpaceTransitionGate()
+    private var spaceObserver: NSObjectProtocol?
     private var identity: [String: Any] = [:]
     private var linkIdentities: [String: [String: Any]] = [:]
     private var pendingRetained: Set<String> = []
@@ -54,6 +56,13 @@ import Combine
         pairing.hidForwarding = enabled.contains(.hid)
         pairing.start()
         permissions.refresh()
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.spaceTransition.spaceChanged(now: ProcessInfo.processInfo.systemUptime)
+            }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in self?.tick() }
         }
@@ -326,6 +335,11 @@ import Combine
         }
     }
     private func updateWindows(_ inventory: WindowInventory, _ profile: ConnectionProfile) throws {
+        // Keep the selected set and every worker unchanged while bounds slide.
+        if spaceTransition.observe(inventory, now: ProcessInfo.processInfo.systemUptime) {
+            nativeDragInventory = NativeDragInventory()
+            return
+        }
         nativeDragInventory.observe(inventory)
         // Native-decoration streams include their owned popup windows. Creating
         // another menu stream duplicates the same menu and its input target.

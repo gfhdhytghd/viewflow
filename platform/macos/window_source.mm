@@ -1,3 +1,4 @@
+#include "window_space_monitor.hpp"
 #include "../reverse-common/opaque_alpha.hpp"
 #include "../reverse-common/activity_input.hpp"
 #include "../reverse-common/activity_feedback.hpp"
@@ -698,9 +699,11 @@ struct Source {
     if(capture->stream || !capture->active)return;
     capture->native_window=window;
     capture->callback = [VFWindowCapture new]; capture->callback->capture = capture;
-    if (options.native_decorations && vm::remote_window_needed(window.frame) == false) {
+    const bool space_transition = options.native_decorations && vm::space_monitor().sample();
+    if (options.native_decorations && (space_transition || vm::remote_window_needed(window.frame) == false)) {
         capture->dormant = true; capture->stopped = true;
-        std::fprintf(stderr, "window %u capture idle: outside remote region\n", capture->native);
+        std::fprintf(stderr, "window %u capture idle: %s\n", capture->native,
+            space_transition ? "Space transition" : "outside remote region");
         return;
     }
     ensure_preview(capture->bounds);
@@ -755,7 +758,7 @@ struct Source {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     capture->restarting = false;
                     capture->retry_after = NSProcessInfo.processInfo.systemUptime + 1;
-                    if (quitting || !capture->active || capture->dormant || error || !content) return;
+                    if (quitting || !capture->active || capture->dormant || error || !content || vm::space_monitor().holding()) return;
                     SCWindow* selected = nil;
                     for (SCWindow* window in content.windows)
                         if (window.windowID == capture->native && window.owningApplication.processID == static_cast<pid_t>(capture->pid)) selected = window;
@@ -790,6 +793,7 @@ struct Source {
         CFArrayRef list=CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly,kCGNullWindowID);
         if(!list)return;
         NSArray* windows=CFBridgingRelease(list);
+        if (vm::space_monitor().sample(windows)) return;
         std::set<unsigned> visible;
         for(NSDictionary* item in windows)visible.insert([item[(__bridge NSString*)kCGWindowNumber] unsignedIntValue]);
         for(auto it=captures.begin();it!=captures.end();) {
@@ -853,6 +857,7 @@ struct Source {
         [SCShareableContent getShareableContentExcludingDesktopWindows:YES onScreenWindowsOnly:YES completionHandler:^(SCShareableContent* content,NSError* error) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 menu_discovery_busy=false;
+                if (vm::space_monitor().holding()) return;
                 if(quitting || error || !content)return;
                 displays = content.displays;
                 for(SCWindow* window in content.windows) {
@@ -891,6 +896,7 @@ struct Source {
         inventory_busy = true;
         if (!inventory_worker.submit([this, observations = std::move(observations)]() mutable {
             @autoreleasepool {
+                if (options.native_decorations) vm::space_monitor().sample();
                 for (auto& observation : observations) {
                     bool on_screen=true;
                     observation.bounds = window_bounds(observation.native, observation.pid, &on_screen, &observation.bounds_known);
@@ -927,6 +933,7 @@ struct Source {
         CGPoint pointer{};
     };
     void apply_inventory(const std::vector<Observation>& observations) {
+        if (options.native_decorations && vm::space_monitor().holding()) return;
         const auto now = NSProcessInfo.processInfo.systemUptime;
         for (const auto& observation : observations) {
             const auto found = std::find_if(captures.begin(), captures.end(), [&](const auto& item) {

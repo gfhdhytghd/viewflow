@@ -1,5 +1,6 @@
 #include "window_native.hpp"
 #include "window_parking.hpp"
+#include "window_space_monitor.hpp"
 #import <Foundation/Foundation.h>
 #include "window_capture_scope.hpp"
 #import <AppKit/AppKit.h>
@@ -9,6 +10,7 @@
 
 namespace viewflow::macos {
 int discover_windows(bool enumerate) {
+    const auto initial_space_signals = space_signals();
     const bool allowed = CGPreflightScreenCaptureAccess();
     NSMutableDictionary* report = [@{
         @"schema_version": @1,
@@ -71,6 +73,11 @@ int discover_windows(bool enumerate) {
             report[@"windows"] = windows; report[@"enumeration"] = @"ok";
         }
     }
+    const auto signals = space_signals();
+    report[@"space_animating"] = @(initial_space_signals.animating || signals.animating);
+    NSMutableDictionary* spaces = [NSMutableDictionary dictionary];
+    for (const auto& [display, space] : signals.spaces) spaces[[@(display) stringValue]] = @(space);
+    report[@"display_spaces"] = spaces;
     NSData* data = [NSJSONSerialization dataWithJSONObject:report options:0 error:nil];
     if (!data || std::fwrite(data.bytes, 1, data.length, stdout) != data.length || std::puts("") == EOF) return 1;
     return status;

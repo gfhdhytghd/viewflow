@@ -151,3 +151,8 @@ add_executable(viewflow-work-area-test ../reverse-common/work_area_test.cpp)
 target_compile_features(viewflow-work-area-test PRIVATE cxx_std_20)
 target_compile_options(viewflow-work-area-test PRIVATE -UNDEBUG)
 add_test(NAME viewflow-work-area-test COMMAND viewflow-work-area-test)
+
+add_executable(viewflow-window-space-transition-test window_space_transition_test.cpp)
+target_compile_features(viewflow-window-space-transition-test PRIVATE cxx_std_20)
+target_compile_options(viewflow-window-space-transition-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+add_test(NAME windows-space-transition COMMAND viewflow-window-space-transition-test)

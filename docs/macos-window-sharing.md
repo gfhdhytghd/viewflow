@@ -814,3 +814,96 @@ environment supplied the pairing dependencies; no user configuration changed.
 Linux builds retain existing compiler warnings. No Mac build, Swift test,
 service restart, plugin reload, physical input injection or focus change was
 performed. Run the macOS build/test workflow on the Mac before device acceptance.
+
+## Space-switch capture admission
+
+The Mac app pauses window selection and worker reconciliation from inventory
+while a Space transition is detected. The selected IDs and existing workers
+remain unchanged, including when a transitioning inventory omits a window.
+After the transition settles, the next inventory uses current bounds and normal
+remote-region selection. A normal single-window drag has no new admission delay.
+Explicit disconnect, component disable, and real process failure keep their
+existing behavior; this is not an authentication or connection timeout.
+
+Detection uses the existing inventory/refresh cadence, with no new polling loop:
+
+- `viewflow-macos-windows --list-windows` reports optional `space_animating` and
+  `display_spaces` fields. It checks animation before and after enumeration.
+- Read-only SkyLight `SLSManagedDisplayIsAnimating` and
+  `SLSManagedDisplayGetCurrentSpace` are resolved with `dlsym`, falling back to
+  their `CGS` aliases. Only physical displays participate. No private symbol is
+  required at link time. ABI references:
+  [CGSSpace.h](https://github.com/asmagill/hs._asm.undocumented.spaces/blob/master/CGSSpace.h)
+  and [CGSSpaces.h](https://gist.github.com/kika/f03eab8316441ea92010).
+- `NSWorkspaceActiveSpaceDidChangeNotification` extends the settle interval in
+  the app and each source helper. It is an end/change signal, not a start signal.
+- With missing SPI, the fallback matches window ID plus PID across samples.
+  At least three ordinary on-screen windows on the same physical display must
+  move horizontally by matching deltas (minimum 2 points, tolerance 2 points),
+  without a vertical move or resize beyond 2 points. Movement of one window,
+  resize, and movements split across displays do not trigger this heuristic.
+- Animation, a changed Space ID, notification, or coherent movement holds the
+  gate for 250 ms after the latest positive evidence. Continuing animation
+  renews the hold, including a long paused gesture. Cancellation needs no end
+  notification: the gate clears after animation/movement stops and settles.
+
+The source helper checks the same policy before initial capture, dormant capture
+resume, metadata application, popup discovery, and asynchronous popup/recovery
+completion. While held, it retains the last geometry and residency; it does not
+suspend, destroy, or recreate a capture because of sliding bounds or temporary
+absence. Existing frame delivery continues. The source reuses its existing menu
+inventory for motion samples, and caps private signal sampling at 20 Hz within
+existing calls. There is no additional full-window enumeration in the source.
+The Swift and portable C++ gates use the same thresholds.
+
+Limits requiring Mac acceptance: private SPI semantics vary by macOS release.
+The metadata fallback cannot identify the start of a swipe with fewer than three
+observable moving windows, or a transform that WindowServer omits from reported
+bounds. A paused gesture with unavailable animation SPI has only the 250 ms
+motion hold. Notifications alone cannot detect gesture start. These are detection
+limits, not reasons to close sessions or delay every ordinary window drag.
+No Mac build, timing benchmark, or physical gesture acceptance was performed for
+this change on the Linux development host.
+
+Changed shipping binaries: `Viewflow.app/Contents/MacOS/Viewflow` and the bundled
+`viewflow-macos-windows` helper (including isolated `capture-helpers/source-*`
+copies created by the app). No Rust transport, Linux proxy, or other Mac helper
+binary changes. Existing installed helper copies must be replaced through the
+normal app update lifecycle; this task does not touch an installed app.
+
+Validation commands:
+
+```sh
+c++ -std=c++20 -UNDEBUG -Wall -Wextra -Werror platform/macos/window_space_transition_test.cpp -o /tmp/viewflow-space-transition-test
+/tmp/viewflow-space-transition-test
+# On the Mac:
+xcrun swiftc -parse-as-library platform/macos-app/Sources/Configuration.swift platform/macos-app/Tests/SpaceTransitionTests.swift -o /tmp/viewflow-space-transition-swift-test
+/tmp/viewflow-space-transition-swift-test
+cmake -S platform/macos -B /tmp/viewflow-spaces-build
+cmake --build /tmp/viewflow-spaces-build --target viewflow-macos-windows viewflow-window-space-transition-test
+ctest --test-dir /tmp/viewflow-spaces-build -R windows-space-transition --output-on-failure
+```
+
+The app build script also runs the Swift admission tests. Portable fake samples
+cover animation before movement, long gestures, cancelled gestures, Space ID
+changes, notifications, missing SPI, coherent motion, settle, ordinary drag,
+resize, and independent displays. Swift tests cover admission and optional JSON
+fields; they do not constitute an AppModel/process integration test.
+
+User-operated Mac checklist (no automated input or focus changes):
+
+1. Keep an existing remote window visible on Linux. Record its helper PID and
+   proxy identity. Swipe Spaces in both directions with three/four fingers,
+   including slow, paused, reversed, and cancelled gestures. Confirm no new
+   helper/proxy appears from sliding windows, and the original proxy survives.
+2. Repeat using Ctrl+Left/Right and Mission Control, with several app windows,
+   one app window, and independent physical displays. Include Reduce Motion.
+3. After settling, move a window into the remote region. Confirm prompt capture
+   and correct destination. Return it to the Mac and repeat without switching
+   Spaces. Compare latency and idle/source CPU with the previous build.
+4. Switch repeatedly with an open popup and a dormant source. Confirm no transient
+   restart, disappearance, or unintended resume. After settling, confirm normal
+   popup discovery, capture recovery, and genuine window-close handling.
+5. Confirm detection on each supported macOS release. Exercise missing-SPI cases
+   using the fake tests; real missing-SPI gesture behavior remains a manual
+   acceptance item subject to the limits above.

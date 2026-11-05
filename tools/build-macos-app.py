@@ -161,6 +161,11 @@ def build(args, work):
          APP_SOURCE / 'Sources/Configuration.swift', APP_SOURCE / 'Sources/ServiceOwnership.swift',
          APP_SOURCE / 'Tests/ServiceOwnershipTests.swift', '-o', ownership_test])
     run([ownership_test])
+    space_test = work / 'space-transition-tests'
+    run(['xcrun', 'swiftc', '-parse-as-library',
+         APP_SOURCE / 'Sources/Configuration.swift', APP_SOURCE / 'Tests/SpaceTransitionTests.swift',
+         '-o', space_test])
+    run([space_test])
     shared_input_test = work / 'shared-input-tests'
     run(['xcrun', 'swiftc', '-parse-as-library',
          ROOT / 'platform/macos-hid-receiver/SharedInput.swift',
