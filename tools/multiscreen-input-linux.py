@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import time
 
 _spec = importlib.util.spec_from_file_location('desktop_autostart', Path(__file__).with_name('desktop-autostart-linux.py'))
@@ -63,15 +64,27 @@ def prepare(template, route, runtime, monitor_name=None, state_dir=None):
 
 
 def ensure_plugins(bundle):
-    """Reuse installed plugins; load missing bundled plugins without reloading."""
-    for name in ('viewflow-capture', 'viewflow-hyprland'):
-        loaded = autostart.read_json('hyprctl', '-j', 'plugin', 'list')
-        if any(item.get('name') == name for item in loaded): continue
-        plugin = bundle / 'plugins' / (name + '.so')
-        safety = Path(__file__).with_name('plugin_safety.py')
-        if not safety.exists():
-            safety = Path(__file__).resolve().parents[1] / 'platform/desktop-app/plugin_safety.py'
-        subprocess.run(['python3', str(safety), str(plugin)], check=True, timeout=10)
+    """Load missing plugins for the running Hyprland build; never unload or reload."""
+    # Frozen bundles ship plugin_safety.py beside this script and hyprland_plugins
+    # in the archive; source checkouts keep both in platform/desktop-app.
+    for directory in (Path(__file__).resolve().parent,
+                      Path(__file__).resolve().parents[1] / 'platform/desktop-app'):
+        if str(directory) not in sys.path:
+            sys.path.append(str(directory))
+    from hyprland_plugins import resolve_plugins
+    from plugin_safety import validate_plugin_for_load
+    loaded = autostart.read_json('hyprctl', '-j', 'plugin', 'list')
+    names = {item.get('name') for item in loaded} if isinstance(loaded, list) else set()
+    if all(name in names for name in ('viewflow-capture', 'viewflow-hyprland')):
+        return
+    manifest = json.loads((bundle / 'bundle-manifest.json').read_text())
+    paths, status = resolve_plugins(bundle, manifest)
+    print('Hyprland plugins: ' + status, flush=True)
+    for plugin in paths:
+        if plugin.name.removesuffix('.so') in names:
+            continue
+        validate_plugin_for_load(plugin)
+        subprocess.run(['hyprctl', 'plugin', 'load', str(plugin)], check=True, timeout=10)
 
 
 def main():
