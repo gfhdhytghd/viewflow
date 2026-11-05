@@ -603,14 +603,14 @@ void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event, bool ext
 void InputCapture::onPointerButton(const IPointer::SButtonEvent &event, bool external) {
   const bool pressed = event.state == WL_POINTER_BUTTON_STATE_PRESSED;
   if (external) {
-    // Only a physical trackpad press is inside the native HID report. libinput
-    // tap-to-click has no BTN_LEFT, and macOS does not synthesize a click from
-    // the virtual contacts, so taps keep the ordinary button path. A release
-    // follows the path its press took.
+    // macOS recognises tap-to-click from the native HID contacts, so libinput's
+    // synthesized tap button stays suppressed. The virtual trackpad's button
+    // bit does not produce a macOS click, so a physical press (evdev BTN_LEFT)
+    // uses the ordinary button path. A release follows the path its press took.
     const unsigned bit = event.button >= 272 && event.button < 280 ? 1u << (event.button - 272) : 0u;
     if (pressed) {
       drainTouchpad();
-      external = m_touchpad && m_touchpad->current().button;
+      external = !(m_touchpad && m_touchpad->current().button);
       if (bit) m_hidButtons = external ? (m_hidButtons | bit) : (m_hidButtons & ~bit);
     } else {
       external = bit && (m_hidButtons & bit);

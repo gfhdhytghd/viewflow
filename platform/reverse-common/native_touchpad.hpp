@@ -32,7 +32,9 @@ public:
         if(snapshot.count==0)local_gesture=false;
         // Single-finger clicks remain on Wayland. Two-finger clicks belong
         // solely to native HID, including their real physical button edges.
-        const bool button=routes(snapshot.count) && snapshot.button;
+        // Whole-desktop mode sends physical presses on the ordinary button
+        // path; macOS ignores this bit, and keeping both would risk two clicks.
+        const bool button=!desktop && routes(snapshot.count) && snapshot.button;
         if(routes(snapshot.count) && snapshot.width && snapshot.height) {
             for(unsigned i=0;i<snapshot.count;++i) {
                 const auto& c=snapshot.contacts[i]; Contact out{};

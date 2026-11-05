@@ -135,8 +135,9 @@ int main() {
         desktop.frame(snapshot,2000+count,emit_desktop);
         assert(desktop_reports.back()[0]==count);
     }
+    const auto before_press=desktop_reports.size();
     snapshot.button=true; desktop.frame(snapshot,2006,emit_desktop);
-    assert(desktop_reports.back()[1]==1);
+    assert(desktop_reports.size()==before_press && desktop_reports.back()[1]==0);
     snapshot.count=0; snapshot.button=false; desktop.frame(snapshot,2007,emit_desktop);
     assert(desktop_reports.back()[0]==0 && desktop_reports.back()[1]==0);
     const auto& lifts=desktop_reports[desktop_reports.size()-2];
