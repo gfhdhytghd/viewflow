@@ -602,6 +602,21 @@ void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event, bool ext
 
 void InputCapture::onPointerButton(const IPointer::SButtonEvent &event, bool external) {
   const bool pressed = event.state == WL_POINTER_BUTTON_STATE_PRESSED;
+  if (external) {
+    // Only a physical trackpad press is inside the native HID report. libinput
+    // tap-to-click has no BTN_LEFT, and macOS does not synthesize a click from
+    // the virtual contacts, so taps keep the ordinary button path. A release
+    // follows the path its press took.
+    const unsigned bit = event.button >= 272 && event.button < 280 ? 1u << (event.button - 272) : 0u;
+    if (pressed) {
+      drainTouchpad();
+      external = m_touchpad && m_touchpad->current().button;
+      if (bit) m_hidButtons = external ? (m_hidButtons | bit) : (m_hidButtons & ~bit);
+    } else {
+      external = bit && (m_hidButtons & bit);
+      m_hidButtons &= ~bit;
+    }
+  }
   if (event.button == 272) s_seat.clearHeldLeft();
   if (!pressed && event.button == 272) {
     if (const auto target = m_returnDrag.lock(); target && g_layoutManager->dragController()->target() == target)
@@ -794,6 +809,7 @@ void InputCapture::forceDetach() {
 
 void InputCapture::release(bool notifyPeer) {
   m_nativeTouchpadEnabled = m_nativeTouchpadRequested = m_nativeTouchpadWaitLift = false;
+  m_hidButtons = 0;
   m_nativeTouchpadEncoder = reverse::NativeTouchpadEncoder{true};
   const auto lease = m_core.lease();
   const auto edge = m_core.activeEdge();

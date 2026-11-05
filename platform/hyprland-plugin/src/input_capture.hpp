@@ -75,6 +75,7 @@ private:
     return rawTouchpad() || externalTouchpad();
   }
   bool rawTouchpad() const { return m_touchpadMode == TouchpadMode::QuicRaw && m_touchpad && m_touchpad->available(); }
+  std::uint32_t m_hidButtons{};
   bool externalTouchpad() const { return m_nativeTouchpadEnabled && m_touchpadMode == TouchpadMode::ExternalNative && m_touchpad && m_touchpad->available(); }
   bool onKey(const IKeyboard::SKeyEvent &event);
   viewflow::recall::EvdevShortcut m_recallKeys, m_detachKeys;
