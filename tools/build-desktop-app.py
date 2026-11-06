@@ -17,15 +17,15 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-COMMON = ['viewflowd', 'vf-media-peer', 'vf-window-peer', 'vf-clipboard-peer', 'vf-cursor-peer']
+COMMON = ['viewflowd', 'vf-media-peer', 'vf-window-peer', 'vf-clipboard-peer', 'vf-cursor-peer', 'vf-handoff-peer']
 PROGRAMS = {
-    'linux': COMMON + ['vf-hyprland-windows', 'viewflow_linux_reverse', 'viewflow-linux-window-input', 'viewflow-media-probe'],
-    'windows': COMMON + ['vf-input-service', 'viewflow_windows_reverse', 'viewflow_windows_composition_preview',
+    'linux': COMMON + ['viewflow-desktop-handoff', 'vf-hyprland-windows', 'viewflow_linux_reverse', 'viewflow-linux-window-input', 'viewflow-media-probe'],
+    'windows': COMMON + ['viewflow-desktop-handoff', 'vf-input-service', 'viewflow_windows_reverse', 'viewflow_windows_composition_preview',
                         'viewflow-windows-windows', 'viewflow_virtual_display', 'viewflow-window-recall'],
 }
 NATIVE = {
-    'linux': {'linux-media': ['viewflow-media-probe'], 'linux-reverse': ['viewflow_linux_reverse'], 'linux-window-input': ['viewflow-linux-window-input']},
-    'windows': {'windows-reverse': ['viewflow_windows_reverse', 'viewflow_virtual_display'],
+    'linux': {'linux-media': ['viewflow-media-probe'], 'linux-reverse': ['viewflow_linux_reverse'], 'linux-window-input': ['viewflow-linux-window-input', 'viewflow-desktop-handoff']},
+    'windows': {'desktop-handoff': ['viewflow-desktop-handoff'], 'windows-reverse': ['viewflow_windows_reverse', 'viewflow_virtual_display'],
                 'windows-composition-preview': ['viewflow_windows_composition_preview'],
                 'windows-window-presenter': ['viewflow-windows-windows'],
                 'window-recall': ['viewflow-window-recall']},
@@ -190,7 +190,7 @@ def hyprland_build():
 def bundle_plugin_sources(app):
     """Ship only build inputs; keep their relative include layout intact."""
     source = app / 'plugin-source/platform'
-    for project in ('hyprland-plugin', 'viewflow-capture', 'reverse-common', 'window-recall', 'hyprland-compat'):
+    for project in ('hyprland-plugin', 'viewflow-capture', 'reverse-common', 'window-recall', 'hyprland-compat', 'desktop-handoff'):
         origin = ROOT / 'platform' / project
         destination_source = source / project
         for path in origin.rglob('*'):

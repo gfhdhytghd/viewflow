@@ -119,6 +119,10 @@ enum NativeProbe {
         self.id = id; self.component = component; self.executable = executable; self.arguments = arguments
     }
     func reconcile() {
+        if process != nil, !stopping, let path = environment["VIEWFLOW_HANDOFF_STATUS_FILE"],
+           let text = try? String(contentsOfFile: path, encoding: .utf8) {
+            status = String(text.prefix(512))
+        }
         guard desired, process == nil, Date() >= nextStart else { return }
         do {
             guard try ownership.ready(executable: executable, arguments: arguments) else {

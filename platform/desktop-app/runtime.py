@@ -248,6 +248,10 @@ class Worker:
                 if self.job: self.job.close(); self.job = None
                 if PLATFORM == 'windows': self.process.kill()
                 else: os.killpg(self.process.pid, signal.SIGKILL)
+        if self.process is not None and self.stopping is None and self.environment.get('VIEWFLOW_HANDOFF_STATUS_FILE'):
+            try:
+                self.status = Path(self.environment['VIEWFLOW_HANDOFF_STATUS_FILE']).read_text(encoding='utf-8')[:512]
+            except OSError: pass
         if not self.desired or self.process is not None or now < self.next_start:
             return
         try:

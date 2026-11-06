@@ -31,7 +31,7 @@ class GroupProfileTests(unittest.TestCase):
         client.connect(f'127.0.0.1:{host.port}', host.show_code(), host.device['id'])
 
     def manifest(self, platform):
-        programs = {name: 'bin/'+name for name in ('vf-window-peer', 'vf-media-peer', 'vf-clipboard-peer',
+        programs = {name: 'bin/'+name for name in ('vf-window-peer', 'vf-media-peer', 'vf-clipboard-peer', 'vf-handoff-peer', 'viewflow-desktop-handoff',
             'viewflow_linux_reverse', 'viewflow-windows-windows', 'viewflow_windows_reverse', 'viewflow_windows_composition_preview')}
         return dict(platform=platform, programs=programs, scripts=list(SCRIPTS))
 
@@ -47,7 +47,7 @@ class GroupProfileTests(unittest.TestCase):
             self.assertTrue(all(after[section][key] == value for key, value in before[section].items()))
         for component in before['components']: self.assertIn(component, after['components'])
         self.assertEqual(after['groupID'], before['groupID'])
-        self.assertEqual(len(after['components']), 6)
+        self.assertEqual(len(after['components']), 7)
         binds = [value['bind'] for value in after['configs'].values() if 'bind' in value]
         self.assertEqual(len(binds), len(set(binds)))
         routes = [item['args'][-1] for item in after['components'] if item['program'] == 'paired-linux-session']

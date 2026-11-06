@@ -18,7 +18,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = ROOT / 'platform/macos-app'
 HELPERS = ('viewflowd', 'vf-window-peer', 'vf-clipboard-peer',
-           'viewflow-macos-windows', 'viewflow-macos-probe', 'viewflow-window-recall', 'viewflow-pairing')
+           'viewflow-macos-windows', 'viewflow-macos-probe', 'viewflow-window-recall', 'viewflow-pairing', 'vf-handoff-peer', 'viewflow-desktop-handoff')
 DRIVER_ID = 'org.viewflow.trackpad-probe'
 APP_ID = 'org.viewflow.app'
 
@@ -134,9 +134,9 @@ def build(args, work):
     target = {'arm64': 'aarch64-apple-darwin', 'x86_64': 'x86_64-apple-darwin'}[arch]
     helper_dir = work / 'helpers'; helper_dir.mkdir()
     run(['cargo', 'build', '--locked', '--release', '--target', target, '-p', 'viewflowd',
-         '--bin', 'viewflowd', '--bin', 'vf-window-peer', '--bin', 'vf-clipboard-peer'], cwd=ROOT)
+         '--bin', 'viewflowd', '--bin', 'vf-window-peer', '--bin', 'vf-clipboard-peer', '--bin', 'vf-handoff-peer'], cwd=ROOT)
     target_dir = Path(json.loads(output(['cargo', 'metadata', '--no-deps', '--format-version', '1', '--manifest-path', ROOT / 'Cargo.toml']))['target_directory'])
-    for helper in HELPERS[:3]:
+    for helper in (*HELPERS[:3], 'vf-handoff-peer'):
         shutil.copy2(target_dir / target / 'release' / helper, helper_dir / helper)
     native = work / 'native'
     run(['cmake', '-S', ROOT / 'platform/macos', '-B', native,
@@ -146,6 +146,11 @@ def build(args, work):
          *(['-LE', 'hardware-codec'] if args.skip_hardware_tests else [])])
     for helper in HELPERS[3:6]:
         shutil.copy2(native / helper, helper_dir / helper)
+    handoff = work / 'handoff'
+    run(['cmake', '-S', ROOT / 'platform/desktop-handoff', '-B', handoff, f'-DCMAKE_OSX_ARCHITECTURES={arch}'])
+    run(['cmake', '--build', handoff, '--parallel'])
+    run(['ctest', '--test-dir', handoff, '--output-on-failure'])
+    shutil.copy2(handoff / 'viewflow-desktop-handoff', helper_dir / 'viewflow-desktop-handoff')
     # The native UI talks JSON-lines to a self-contained helper; users do not
     # need Python, pip, Qt or shell commands on the receiving Mac.
     run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile',
@@ -156,6 +161,10 @@ def build(args, work):
          *(['--codesign-identity', args.identity] if args.identity else []),
          ROOT / 'platform/desktop-app/pairing_helper.py'])
     run([sys.executable, ROOT / 'tools/tests/managed-owner-test.py'])
+    handoff_test = work / 'handoff-configuration-tests'
+    run(['xcrun', 'swiftc', '-parse-as-library', APP_SOURCE / 'Sources/Configuration.swift',
+         APP_SOURCE / 'Tests/HandoffConfigurationTests.swift', '-o', handoff_test])
+    run([handoff_test])
     ownership_test = work / 'service-ownership-tests'
     run(['xcrun', 'swiftc', '-parse-as-library',
          APP_SOURCE / 'Sources/Configuration.swift', APP_SOURCE / 'Sources/ServiceOwnership.swift',

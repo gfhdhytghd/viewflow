@@ -20,6 +20,25 @@ def quality_mode(local, remote):
     return max(known, key=QUALITY_ORDER.index, default='auto')
 
 
+def handoff_recipe(local, peer, host):
+    """Input-only capability is optional; an old peer keeps its existing lanes."""
+    if not all(d.get('handoff_version') == 1 and d.get('handoff_port') for d in (local, peer)):
+        return None
+    def rect(d):
+        return dict(x=0, y=0, width=round(d['display']['width']/d['display']['scale']),
+                    height=round(d['display']['height']/d['display']['scale']))
+    a, b = rect(local), rect(peer)
+    b['x'], b['y'] = local.get('share_origin', [a['width'], 0])
+    horizontal = (a['width'] == b['x'] or b['x']+b['width'] == 0) and max(0,b['y']) < min(a['height'],b['y']+b['height'])
+    vertical = (a['height'] == b['y'] or b['y']+b['height'] == 0) and max(0,b['x']) < min(a['width'],b['x']+b['width'])
+    if not (horizontal or vertical): return None
+    return dict(bind=endpoint('::' if ':' in host else '0.0.0.0', local['handoff_port']),
+                remote=endpoint(host, peer['handoff_port']), server_name='vf-'+peer['id']+'.local',
+                device_id=local['id'], peer_id=peer['id'], local=a, peer=b,
+                # Existing Linux->Mac HID and Linux->Windows atlas stay intact.
+                sender=True, receiver=True)
+
+
 def build_profile(local, record):
     validate_device(local)
     peer = validate_device(record['device'])
@@ -45,9 +64,14 @@ def build_profile(local, record):
     if remote_platform == 'windows' and peer.get('share_bounds'):
         incoming_origin = -round(peer['share_bounds'][0] / presentation_scale)
         incoming_y = -round(peer['share_bounds'][1] / presentation_scale)
+    handoff = handoff_recipe(local, peer, record['host'])
+    if handoff and platform == 'linux' and remote_platform == 'macos' and hid:
+        handoff['sender'] = False  # Existing native HID cursor lane owns this direction.
     if platform == 'macos':
         return dict(version=1, name=peer['name'], deviceID=local['id'], pairingDeviceID=peer['id'],
             certificatePEM=record['certificate'], privateKeyPEM=record['private_key'], authorityPEM=record['authority'],
+            desktopHandoff=handoff,
+            desktopHandoffNotice=None if handoff else '光标接管：对端未声明能力，或布局没有相邻边。其他通道继续运行。',
             inputBind=bind('input'), windowsBind=bind('windows'), clipboardBind=bind('clipboard'),
             windowDestinations=[dict(id=peer['id'], address=remote('windows'), serverName=server,
                                      captureScale=max(1, round(peer['display']['scale'])), codec='h264')],
@@ -72,6 +96,13 @@ def build_profile(local, record):
         profile['components'].append(dict(id=name, title=title, program=program,
             args=args if args is not None else ['--config', '${profile}/' + name + '.json'], enabled=True))
 
+    if handoff:
+        component('desktop-handoff', '桌面光标接管', 'vf-handoff-peer',
+                  dict(handoff, native='${program:viewflow-desktop-handoff}'))
+        profile['components'][-1]['environment'] = {'VIEWFLOW_HANDOFF_STATUS_FILE': '${profile}/handoff-status.txt'}
+    else:
+        profile['notice'] = '桌面光标接管：对端未声明能力，或布局没有相邻边。其他通道继续运行。'
+
     clipboard = dict(bind=bind('clipboard'))
     if local['id'] < peer['id']: clipboard.update(remote=remote('clipboard'), server_name=server)
     component('clipboard', '剪贴板同步', 'vf-clipboard-peer', clipboard)
@@ -91,7 +122,7 @@ def build_profile(local, record):
             backend=dict(native='${program:viewflow_windows_reverse}',
                          args=list(map(str, local['share_bounds'])))))
     elif platform == 'windows':
-        profile['notice'] = '正在启动接收窗口与剪贴板；共享 Windows 窗口需要一个已启用的虚拟显示器。'
+        profile['notice'] = profile.get('notice', '') + '\n正在启动接收窗口与剪贴板；共享 Windows 窗口需要一个已启用的虚拟显示器。'
     if platform == 'linux' or remote_platform == 'linux':
         linux = local if platform == 'linux' else peer
         receiver = peer if platform == 'linux' else local
@@ -117,6 +148,8 @@ def build_profile(local, record):
                 ['--config', '${profile}/desktop-share.json', '--peer-platform', remote_platform,
                  '--window-remote', remote('windows'), '--runtime', '${profile}/session',
                  '--bundle', '${bundle}'])
+            if remote_platform == 'linux' and handoff:
+                profile['components'][-1].setdefault('environment', {})['VIEWFLOW_CURSOR_WINDOW_ONLY'] = '1'
         elif platform == 'windows':
             component('desktop-receive', '接收 Linux 桌面与输入', 'vf-media-peer',
                 dict(desktop=dict(display=display, native_x=0, native_y=0), pointer=dict(devices, wheel=True, direct_keyboard=True),

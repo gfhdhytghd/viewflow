@@ -142,6 +142,8 @@ def validate_device(value):
     ports = value.get('ports', {})
     if set(ports) != {'windows', 'atlas', 'clipboard', 'input'} or any(type(p) is not int or not 1 <= p <= 65535 for p in ports.values()) or len(set(ports.values())) != 4:
         raise ValueError('invalid service ports')
+    if 'handoff_port' in value and (type(value['handoff_port']) is not int or not 1 <= value['handoff_port'] <= 65535 or value['handoff_port'] in ports.values()):
+        raise ValueError('invalid handoff port')
     display = value.get('display', {})
     for key in ('width', 'height'):
         if type(display.get(key)) is not int or not 64 <= display[key] <= 16384:
