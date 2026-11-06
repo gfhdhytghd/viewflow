@@ -432,7 +432,8 @@ ApplicationWindow {
                             ColumnLayout {
                                 width: parent.width; spacing: 10
                                 Heading { text: window.t("本地网络与触控板") }
-                                BodyText { text: window.t("首次联网时，按 Windows 提示允许 Viewflow。原生触控板组件随应用内置，无需另装 Viewflow HID 驱动。") }
+                                BodyText { text: window.t("首次连接前，允许 Viewflow 入站连接。系统会请求管理员权限，仅设置此安装目录的程序规则。原生触控板组件随应用内置。") }
+                                ActionButton { text: window.t("允许 Viewflow 入站连接"); onClicked: window.backend.action("configureFirewall") }
                                 ActionButton { text: window.t("打开防火墙设置"); onClicked: window.backend.action("firewall") }
                             }
                         }

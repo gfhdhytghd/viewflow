@@ -14,7 +14,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QSystemTrayIcon
 
-from main import desktop_entry, enable_windows_service, open_path, permission_report, resources
+from main import desktop_entry, enable_windows_service, configure_windows_firewall, open_path, permission_report, resources
 from runtime import DATA, PLATFORM, ROOT, InstanceLock, Worker, command, expand, materialize, private_write, validate_profile
 from window_recall import DEFAULT_SHORTCUT, RecallController
 from i18n import EN, resolve_language, translate, status_text
@@ -315,7 +315,7 @@ class ApplicationModel(QObject):
                        checkPermissions=self.check_permissions, checkMedia=self.check_media, installService=self.install_service,
                        loadPlugins=self.load_plugins, openLogs=self.open_logs,
                        exportDiagnostics=self.export_diagnostics, recall=self.recall_windows,
-                       firewall=lambda: open_path('windowsdefender://network/'),
+                       firewall=lambda: open_path('windowsdefender://network/'), configureFirewall=self.configure_firewall,
                        deviceHelp=lambda: open_path(ROOT / ('setup/linux-permissions.en.txt' if self.language == 'en' else 'setup/linux-permissions.txt')))
         try:
             if name not in actions: raise ValueError('未知操作')
@@ -553,6 +553,10 @@ class ApplicationModel(QObject):
             self.set_message('登录启动设置已保存。')
         except Exception as error:
             self.login = self.settings.get('login', False); self.set_message(str(error))
+
+    def configure_firewall(self):
+        try: configure_windows_firewall(); self.set_message('请完成 Windows 防火墙设置提示，然后连接。')
+        except Exception as error: self.set_message(str(error))
 
     def install_service(self):
         try: enable_windows_service(); self.set_message('请完成 Windows 安装提示，然后重新检查服务状态。')

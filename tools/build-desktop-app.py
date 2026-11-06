@@ -244,6 +244,7 @@ def package(args):
             for dll in dll_directory.glob('*.dll'): shutil.copy2(dll, app / 'bin' / dll.name)
         setup = app / 'setup'; setup.mkdir()
         shutil.copy2(ROOT / 'tools/install-windows-input-service.ps1', setup / 'install-windows-input-service.ps1')
+        if target == 'windows': shutil.copy2(ROOT / 'tools/configure-windows-firewall.ps1', setup / 'configure-windows-firewall.ps1')
         shutil.copy2(ROOT / 'platform/desktop-app/linux-permissions.txt', setup / 'linux-permissions.txt')
         shutil.copy2(ROOT / 'platform/desktop-app/linux-permissions.en.txt', setup / 'linux-permissions.en.txt')
         if target == 'linux': shutil.copy2(ROOT / 'docs/linux-media-backends.md', setup / 'linux-media-backends.md')
