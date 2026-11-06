@@ -1,5 +1,5 @@
 //! Input-only symmetric desktop link. No video or GPU initialization.
-use anyhow::{Context, Result, ensure};
+use anyhow::{ensure, Context, Result};
 use serde::Deserialize;
 use std::{
     net::SocketAddr,
@@ -8,8 +8,22 @@ use std::{
     time::Duration,
 };
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use viewflow_transport::{PeerIdentity, build_client_config, build_server_config};
+use viewflow_transport::{build_client_config, build_server_config, PeerIdentity};
 use viewflowd::desktop_handoff::*;
+
+// Connection liveness only: no frame/focus deadline revokes a healthy lease.
+const HANDOFF_IDLE_TIMEOUT: Duration = Duration::from_secs(3);
+const HANDOFF_KEEPALIVE: Duration = Duration::from_secs(1);
+fn handoff_transport() -> quinn::TransportConfig {
+    let mut transport = viewflow_transport::media_transport_config();
+    transport.max_idle_timeout(Some(
+        HANDOFF_IDLE_TIMEOUT
+            .try_into()
+            .expect("bounded handoff idle timeout"),
+    ));
+    transport.keep_alive_interval(Some(HANDOFF_KEEPALIVE));
+    transport
+}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -264,9 +278,7 @@ async fn main() -> Result<()> {
         &std::fs::read(&config.certificate_authority)?,
     )
     .map_err(|e| anyhow::anyhow!("handoff TLS: {e}"))?;
-    let mut transport = viewflow_transport::media_transport_config();
-    transport.keep_alive_interval(Some(Duration::from_secs(5)));
-    let transport = Arc::new(transport);
+    let transport = Arc::new(handoff_transport());
     let mut server =
         build_server_config(&identity).map_err(|e| anyhow::anyhow!("handoff TLS server: {e}"))?;
     server.transport_config(transport.clone());

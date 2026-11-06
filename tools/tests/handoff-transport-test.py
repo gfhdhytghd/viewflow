@@ -38,7 +38,7 @@ while True:
     elif kind==200:
         note('captured');emit(4,29,1);emit(2,272,1);emit(1,20000,30000)
         if os.environ.get('VIEWFLOW_TEST_DISCONNECT')=='1':note('disconnected');break
-        emit(101);note('returned')
+        if os.environ.get('VIEWFLOW_TEST_DISCONNECT')!='2':emit(101);note('returned')
     elif kind==201:note('entered')
     elif kind in (2,4):
         note(f'input {kind} {a} {b}')
@@ -61,6 +61,7 @@ def run(binary, disconnect):
         ports=[port(),port()]
         assert ports[0]!=ports[1]
         processes=[]
+        launches=[]
         try:
             for index,(label,key,certificate) in enumerate((('a',ak,certs['local_certificate']),('b',bk,certs['peer_certificate']))):
                 directory=root/label;directory.mkdir()
@@ -75,18 +76,43 @@ def run(binary, disconnect):
                     peer=dict(x=100 if label=='a' else -100,y=0,width=100,height=80))
                 path=directory/'config.json';path.write_text(json.dumps(config))
                 log=(directory/'transport.log').open('w')
-                environment=dict(os.environ,TMPDIR=str(directory),TEMP=str(directory),TMP=str(directory),VIEWFLOW_TEST_DISCONNECT='1' if disconnect else '0')
-                processes.append((subprocess.Popen([binary,'--config',path],env=environment,stdout=log,stderr=log),log))
+                environment=dict(os.environ,TMPDIR=str(directory),TEMP=str(directory),TMP=str(directory),VIEWFLOW_TEST_DISCONNECT=str(int(disconnect)))
+                launches.append(([binary,'--config',path],environment))
+                processes.append((subprocess.Popen(launches[-1][0],env=environment,stdout=log,stderr=log),log))
+            killed_at=None
             deadline=time.monotonic()+15
             while time.monotonic()<deadline:
                 a=(root/'a/native-a.log').read_text() if (root/'a/native-a.log').exists() else ''
                 b=(root/'b/native-b.log').read_text() if (root/'b/native-b.log').exists() else ''
-                if ('disconnected' if disconnect else 'released') in a and 'released' in b:break
+                if disconnect==2:
+                    if killed_at is None and 'input 2 272 1' in b:
+                        processes[0][0].kill();processes[0][0].wait()
+                        killed_at=time.monotonic()
+                    if killed_at is not None and 'released' in b:
+                        elapsed=time.monotonic()-killed_at
+                        assert elapsed<6, elapsed
+                        print(f'PASS: silent QUIC death releases held input after {elapsed:.2f}s')
+                        break
+                elif ('disconnected' if disconnect else 'released') in a and 'released' in b:break
                 time.sleep(.02)
             else:
                 raise AssertionError('\n'.join((root/x/'transport.log').read_text() for x in ('a','b')))
-            assert 'captured' in a and ('disconnected' if disconnect else 'returned') in a and 'input ' not in a, a
+            assert 'captured' in a and (disconnect==2 or ('disconnected' if disconnect else 'returned') in a) and 'input ' not in a, a
             assert all(line in b for line in ('entered','input 4 29 1','input 2 272 1','release 4 29','release 2 272','released')), b
+            if disconnect==2:
+                # Restart only the killed controller. The receiver's existing
+                # recovery loop must accept a fresh connection and native worker.
+                args,environment=launches[0]
+                log=(root/'a/restart.log').open('w')
+                processes.append((subprocess.Popen(args,env=environment,stdout=log,stderr=log),log))
+                deadline=time.monotonic()+15
+                while time.monotonic()<deadline:
+                    b=(root/'b/native-b.log').read_text()
+                    if b.count('input 2 272 1')>=2:break
+                    time.sleep(.02)
+                else:raise AssertionError('receiver failed automatic reconnect: '+b)
+                assert processes[1][0].poll() is None
+                print('PASS: receiver automatically reconnects after controller restart')
             print('PASS: mTLS QUIC captured -> entered -> ordered key/button -> '+('disconnect' if disconnect else 'return')+' -> released; fake adapters only')
         finally:
             for process,_ in processes:
@@ -97,4 +123,4 @@ def run(binary, disconnect):
                 log.close()
 if __name__=='__main__':
     binary=Path(sys.argv[1]).resolve()
-    for disconnect in (False,True):run(binary,disconnect)
+    for disconnect in (0,1,2):run(binary,disconnect)
