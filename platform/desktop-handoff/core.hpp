@@ -4,6 +4,7 @@
 #include <functional>
 #include <set>
 #include <cstdio>
+#include <exception>
 
 namespace viewflow::handoff {
 using reverse::Input;
@@ -38,6 +39,7 @@ inline Edge adjacent(Rect a, Rect b) {
 struct Core {
     Rect local, remote;
     Edge edge;
+    bool canSend=false;
     bool pending{}, outgoing{}, incoming{}, armed{true};
     double x{}, y{};
     std::set<int> physicalKeys, physicalButtons, receivedKeys, receivedButtons;
@@ -55,18 +57,25 @@ struct Core {
             (edge==Edge::top ? py<=local.y : py>=local.y+local.h-1);
     }
     void release_received() {
-        for(int k:receivedKeys) inject(message(4,k,0));
-        for(int b:receivedButtons) inject(message(2,b,0));
-        receivedKeys.clear();receivedButtons.clear();
+        std::exception_ptr failure;
+        const auto release=[&](std::set<int>& held,uint32_t type) {
+            for(auto i=held.begin();i!=held.end();) {
+                try {inject(message(type,*i,0));i=held.erase(i);}
+                catch(...) {failure=std::current_exception();++i;}
+            }
+        };
+        release(receivedKeys,4);release(receivedButtons,2);
+        if(failure)std::rethrow_exception(failure);
     }
     void reset() {
-        release_received();
         if(outgoing) capture(false);
         pending=outgoing=incoming=false;armed=false;
+        release_received();
         std::fprintf(stderr,"handoff released\n");
     }
     void command(Input e) {
-        if(kind(e)==released) {reset();return;}
+        if(kind(e)==capabilities) {canSend=e.a!=0;return;}
+        if(kind(e)==released) {reset();e.kind=static_cast<InputKind>(204);send(e);return;}
         if(kind(e)==captured) {
             pending=false;outgoing=true;incoming=false;capture(true);
             // Release local state before suppressing physical up events. Replay
@@ -86,7 +95,7 @@ struct Core {
         inject(e);
     }
     bool motion(double px,double py,double dx,double dy,bool injected=false) {
-        if(injected || incoming) return false;
+        if(injected || incoming || !canSend) return false;
         if(outgoing) {
             x+=dx;y+=dy;
             const bool back=(edge==Edge::right && x<0) || (edge==Edge::left && x>=remote.w) ||
@@ -122,6 +131,7 @@ inline int self_test() {
     a.send=[&](Input e){sent.push_back(e);};a.inject=[&](Input e){posted.push_back(e);};
     a.capture=[&](bool value){grabbed=value;};
     auto require=[](bool ok){if(!ok)throw std::runtime_error("handoff self-test failed");};
+    a.command(message(capabilities,1,1));
     require(!a.motion(99,30,1,0,true) && sent.empty());
     a.motion(99,30,1,0);require(kind(sent.back())==request && sent.back().b==10000);
     a.command(message(captured));require(grabbed);

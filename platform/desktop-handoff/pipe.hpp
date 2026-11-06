@@ -29,7 +29,7 @@ public:
     }) {}
     void send(Input e) {
         std::unique_lock lock(mutex);
-        if(queue.size()>=4096) {lock.unlock();throw std::runtime_error("handoff native queue exhausted");}
+        if(queue.size()>=4096) {lock.unlock();if(failed)failed();throw std::runtime_error("handoff native queue exhausted");}
         // Coalesce adjacent positions only; never cross key/release boundaries.
         if(kind(e)==1 && !queue.empty() && kind(queue.back())==1) queue.back()=e;
         else queue.push_back(e);

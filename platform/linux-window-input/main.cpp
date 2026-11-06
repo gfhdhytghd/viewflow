@@ -268,6 +268,7 @@ struct App {
     }
 };
 }
+#ifndef VIEWFLOW_DESKTOP_EMBED
 int main(int argc, char* argv[]) {
     std::signal(SIGPIPE, SIG_IGN);
     constexpr auto usage = "Usage: viewflow-linux-window-input WINDOW_HEX PID STABLE_ID\nPrivate helper for vf-hyprland-windows; no input is posted by --help.\n";
@@ -310,3 +311,5 @@ int main(int argc, char* argv[]) {
         return 0;
     } catch (const std::exception& error) { std::fprintf(stderr, "window input: %s\n", error.what()); return 1; }
 }
+
+#endif
