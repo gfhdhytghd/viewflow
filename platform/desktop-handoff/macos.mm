@@ -9,9 +9,10 @@ namespace {
 constexpr int64_t marker=0x56464831;
 h::Core* core{};h::Output* output{};CFMachPortRef tap{};CGPoint saved{};
 std::set<int> native_keys;
+bool caps_lock=false;
 viewflow::reverse::ScrollPointAccumulator scroll;
 CGEventFlags flags() {
-    CGEventFlags f=0;
+    CGEventFlags f=caps_lock?kCGEventFlagMaskAlphaShift:0;
     for(int k:native_keys) {
         if(k==29 || k==97)f|=kCGEventFlagMaskControl;
         if(k==42 || k==54)f|=kCGEventFlagMaskShift;
@@ -25,8 +26,10 @@ void post(h::Input e) {
     if(h::kind(e)==4) {
         const auto key=viewflow::macos::mac_key(e.a);
         if(!key)throw std::runtime_error("unsupported physical key");
+        if(e.a==58 && e.b && !native_keys.contains(e.a))caps_lock=!caps_lock;
         if(e.b)native_keys.insert(e.a);else native_keys.erase(e.a);
         event=CGEventCreateKeyboardEvent(nullptr,CGKeyCode(*key),e.b!=0);
+        if(event)CGEventSetIntegerValueField(event,kCGKeyboardEventAutorepeat,e.b==2);
     } else if(h::kind(e)==1 || h::kind(e)==2) {
         CGEventRef probe=CGEventCreate(nullptr);
         if(!probe)throw std::runtime_error("cannot read cursor position");
@@ -93,7 +96,7 @@ CGEventRef callback(CGEventTapProxy,CGEventType type,CGEventRef e,void*) {
             const auto key=unsigned(CGEventGetIntegerValueField(e,kCGKeyboardEventKeycode));
             if(const auto code=viewflow::macos::evdev_key(key)) {
                 const bool down=type==kCGEventFlagsChanged?CGEventSourceKeyState(kCGEventSourceStateHIDSystemState,CGKeyCode(key)):type==kCGEventKeyDown;
-                swallow=core->input(h::message(4,int(*code),down));
+                swallow=core->input(h::message(4,int(*code),down?(CGEventGetIntegerValueField(e,kCGKeyboardEventAutorepeat)?2:1):0));
             } else swallow=core->outgoing;
         } else if(type==kCGEventScrollWheel) {
             NSEvent* native=[NSEvent eventWithCGEvent:e];
@@ -127,6 +130,7 @@ int main(int argc,char** argv) {
             if(!CGPreflightPostEventAccess())
                 throw std::runtime_error("Accessibility / Input Monitoring permission missing; other lanes remain available");
             h::Core state(local,remote);core=&state;
+            caps_lock=(CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState)&kCGEventFlagMaskAlphaShift)!=0;
             for(auto [key,code]:viewflow::macos::key_pairs)
                 if(CGEventSourceKeyState(kCGEventSourceStateHIDSystemState,CGKeyCode(key)))state.physicalKeys.insert(int(code));
             for(int button=0;button<5;++button)
@@ -134,6 +138,12 @@ int main(int argc,char** argv) {
             h::Output writer;output=&writer;
             state.send=[&](h::Input e){writer.send(e);};state.inject=post;state.capture=capture;
             const auto loop=CFRunLoopGetCurrent();
+            // A receiver-only worker still needs a live run loop when Input
+            // Monitoring prevents creation of the capture tap.
+            CFRunLoopSourceContext context{};
+            auto pipe_source=CFRunLoopSourceCreate(nullptr,0,&context);
+            if(!pipe_source)throw std::runtime_error("native input run loop unavailable");
+            CFRunLoopAddSource(loop,pipe_source,kCFRunLoopCommonModes);
             writer.failed=[loop]{CFRunLoopStop(loop);};
             CGEventMask mask=0;
             for(auto t:{kCGEventMouseMoved,kCGEventLeftMouseDragged,kCGEventRightMouseDragged,kCGEventOtherMouseDragged,
@@ -160,6 +170,7 @@ int main(int argc,char** argv) {
             if(tap)CGEventTapEnable(tap,false);
             if(source){CFRunLoopRemoveSource(loop,source,kCFRunLoopCommonModes);CFRelease(source);}
             if(tap)CFRelease(tap);
+            CFRunLoopRemoveSource(loop,pipe_source,kCFRunLoopCommonModes);CFRelease(pipe_source);
             // The transport closes stdin before waiting for this process.
             reader.join();return 0;
         }catch(const std::exception& e){std::fprintf(stderr,"handoff unavailable: %s\n",e.what());return 1;}

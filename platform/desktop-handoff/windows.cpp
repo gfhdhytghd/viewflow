@@ -101,7 +101,8 @@ LRESULT CALLBACK keyboard(int code,WPARAM w,LPARAM l) {
     if((e.flags&LLKHF_INJECTED) || e.dwExtraInfo==marker)return CallNextHookEx(nullptr,code,w,l);
     try {
         const auto key=h::evdev_key(e.vkCode,e.scanCode,(e.flags&LLKHF_EXTENDED)!=0);
-        if(key && core->input(h::message(4,int(key),w==WM_KEYDOWN || w==WM_SYSKEYDOWN)))return 1;
+        const bool down=w==WM_KEYDOWN || w==WM_SYSKEYDOWN;
+        if(key && core->input(h::message(4,int(key),down?(core->physicalKeys.contains(int(key))?2:1):0)))return 1;
         if(core->outgoing)return 1;
     }catch(...){fail();}
     return CallNextHookEx(nullptr,code,w,l);

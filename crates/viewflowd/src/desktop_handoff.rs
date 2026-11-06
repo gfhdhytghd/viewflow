@@ -102,6 +102,9 @@ impl Ownership {
                     r.values,
                 ))]
             }
+            // A physical candidate can already be queued when an incoming
+            // grant enters the native adapter. Do not reset that newer owner.
+            REQUEST if self.busy() => vec![],
             REQUEST => vec![Action::Native(Record::new(RELEASED, 0, [0; 4]))],
             RETURN | FAULT => {
                 let lease = match self.phase {
@@ -243,6 +246,14 @@ mod tests {
         s.peer(rec(REQUEST, 2), true);
         assert_eq!(s.phase, Phase::Receiving(2));
         assert!(s.local(rec(4, 0), true).is_empty()); // receiving input cannot echo
+    }
+    #[test]
+    fn queued_physical_candidate_does_not_reset_incoming_owner() {
+        let mut s = Ownership::new(false, true, true);
+        s.peer(rec(REQUEST, 8), true);
+        assert!(s.local(rec(REQUEST, 0), true).is_empty());
+        assert_eq!(s.phase, Phase::Receiving(8));
+        assert_eq!(s.peer(rec(4, 8), true), vec![Action::Native(rec(4, 8))]);
     }
     #[test]
     fn edge_overlap_and_wire_round_trip() {
