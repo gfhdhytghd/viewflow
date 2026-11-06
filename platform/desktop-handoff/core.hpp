@@ -1,0 +1,136 @@
+#pragma once
+#include "../reverse-common/pipe_io.hpp"
+#include <cmath>
+#include <functional>
+#include <set>
+#include <cstdio>
+
+namespace viewflow::handoff {
+using reverse::Input;
+using reverse::InputKind;
+// Private native pipe messages. Network ownership lives in vf-handoff-peer.
+constexpr uint32_t request=100, returned=101, capabilities=102, fault=103;
+constexpr uint32_t captured=200, entered=201, released=202;
+inline Input message(uint32_t kind, int a=0, int b=0, int c=0, int d=0) {
+    return {1,1,static_cast<InputKind>(kind),a,b,c,d};
+}
+inline uint32_t kind(const Input& e) { return static_cast<uint32_t>(e.kind); }
+inline Input decode(std::span<const uint8_t> bytes) {
+    reverse::Reader r{bytes};
+    if(r.u32()!=2) throw std::runtime_error("invalid handoff native record");
+    Input e; e.id=r.u64(); e.sequence=r.u64(); e.kind=static_cast<InputKind>(r.u32());
+    e.a=r.i32();e.b=r.i32();e.c=r.i32();e.d=r.i32();r.finish();return e;
+}
+struct Rect { double x{},y{},w{},h{}; };
+enum class Edge { none, left, right, top, bottom };
+inline Edge adjacent(Rect a, Rect b) {
+    if(std::max(a.y,b.y)<std::min(a.y+a.h,b.y+b.h)) {
+        if(a.x+a.w==b.x) return Edge::right;
+        if(b.x+b.w==a.x) return Edge::left;
+    }
+    if(std::max(a.x,b.x)<std::min(a.x+a.w,b.x+b.w)) {
+        if(a.y+a.h==b.y) return Edge::bottom;
+        if(b.y+b.h==a.y) return Edge::top;
+    }
+    return Edge::none;
+}
+// All callbacks run on the native event thread. No timer or polling is needed.
+struct Core {
+    Rect local, remote;
+    Edge edge;
+    bool pending{}, outgoing{}, incoming{}, armed{true};
+    double x{}, y{};
+    std::set<int> physicalKeys, physicalButtons, receivedKeys, receivedButtons;
+    std::function<void(Input)> send, inject;
+    std::function<void(bool)> capture;
+    Core(Rect l, Rect r):local(l),remote(r),edge(adjacent(l,r)) {
+        if(l.w<2 || l.h<2 || r.w<2 || r.h<2 || edge==Edge::none)
+            throw std::runtime_error("handoff requires adjacent logical display rectangles");
+    }
+    bool at_edge(double px,double py) const {
+        if(edge==Edge::left || edge==Edge::right)
+            return py>=std::max(local.y,remote.y) && py<std::min(local.y+local.h,remote.y+remote.h) &&
+                (edge==Edge::left ? px<=local.x : px>=local.x+local.w-1);
+        return px>=std::max(local.x,remote.x) && px<std::min(local.x+local.w,remote.x+remote.w) &&
+            (edge==Edge::top ? py<=local.y : py>=local.y+local.h-1);
+    }
+    void release_received() {
+        for(int k:receivedKeys) inject(message(4,k,0));
+        for(int b:receivedButtons) inject(message(2,b,0));
+        receivedKeys.clear();receivedButtons.clear();
+    }
+    void reset() {
+        release_received();
+        if(outgoing) capture(false);
+        pending=outgoing=incoming=false;armed=false;
+        std::fprintf(stderr,"handoff released\n");
+    }
+    void command(Input e) {
+        if(kind(e)==released) {reset();return;}
+        if(kind(e)==captured) {
+            pending=false;outgoing=true;incoming=false;capture(true);
+            // Release local state before suppressing physical up events. Replay
+            // held positions on the target, preserving modifiers and drag buttons.
+            for(int k:physicalKeys) {inject(message(4,k,0));send(message(4,k,1));}
+            for(int b:physicalButtons) {inject(message(2,b,0));send(message(2,b,1));}
+            std::fprintf(stderr,"handoff captured\n");return;
+        }
+        if(kind(e)==entered) {
+            reset();incoming=true;
+            inject(message(1,e.a,e.b));
+            std::fprintf(stderr,"handoff entered\n");return;
+        }
+        if(!incoming) return;
+        if(kind(e)==4) {if(e.b)receivedKeys.insert(e.a);else receivedKeys.erase(e.a);}
+        if(kind(e)==2) {if(e.b)receivedButtons.insert(e.a);else receivedButtons.erase(e.a);}
+        inject(e);
+    }
+    bool motion(double px,double py,double dx,double dy,bool injected=false) {
+        if(injected || incoming) return false;
+        if(outgoing) {
+            x+=dx;y+=dy;
+            const bool back=(edge==Edge::right && x<0) || (edge==Edge::left && x>=remote.w) ||
+                (edge==Edge::bottom && y<0) || (edge==Edge::top && y>=remote.h);
+            if(back) {
+                send(message(returned));reset();
+                std::fprintf(stderr,"handoff returned\n");return true;
+            }
+            x=std::clamp(x,0.0,remote.w-1);y=std::clamp(y,0.0,remote.h-1);
+            send(message(1,int(std::lround(x*1000)),int(std::lround(y*1000))));return true;
+        }
+        if(!at_edge(px,py)) {armed=true;return false;}
+        const bool outward=(edge==Edge::right && dx>0) || (edge==Edge::left && dx<0) ||
+            (edge==Edge::bottom && dy>0) || (edge==Edge::top && dy<0);
+        if(!pending && armed && outward) {
+            x=std::clamp(px-remote.x,0.0,remote.w-1);y=std::clamp(py-remote.y,0.0,remote.h-1);
+            pending=true;armed=false;
+            send(message(request,int(std::lround(x*1000)),int(std::lround(y*1000))));
+        }
+        return false;
+    }
+    bool input(Input e,bool injected=false) {
+        if(injected) return false;
+        auto* held=kind(e)==4?&physicalKeys:kind(e)==2?&physicalButtons:nullptr;
+        if(held) {if(e.b)held->insert(e.a);else held->erase(e.a);}
+        if(!outgoing) return false;
+        send(e);return true;
+    }
+};
+inline int self_test() {
+    Core a({0,0,100,80},{100,20,120,60});
+    std::vector<Input> sent, posted;bool grabbed=false;
+    a.send=[&](Input e){sent.push_back(e);};a.inject=[&](Input e){posted.push_back(e);};
+    a.capture=[&](bool value){grabbed=value;};
+    auto require=[](bool ok){if(!ok)throw std::runtime_error("handoff self-test failed");};
+    require(!a.motion(99,30,1,0,true) && sent.empty());
+    a.motion(99,30,1,0);require(kind(sent.back())==request && sent.back().b==10000);
+    a.command(message(captured));require(grabbed);
+    require(a.input(message(4,125,1)) && sent.back().a==125);
+    a.motion(99,30,-2,0);require(!grabbed && kind(sent.back())==returned);
+    a.command(message(entered,1000,2000));a.command(message(4,29,1));a.command(message(2,272,1));
+    const auto before=sent.size();a.motion(99,30,1,0);require(sent.size()==before);
+    a.command(message(released));require(posted.back().a==272 && posted.back().b==0);
+    require(adjacent({0,0,100,80},{100,80,100,80})==Edge::none);
+    std::puts("handoff self-test passed: captured entered returned released; no native input");return 0;
+}
+}
