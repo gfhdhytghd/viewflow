@@ -289,3 +289,127 @@ native evidence. The initial native adapters use the paired logical primary
 screen geometry; arbitrary native monitor-origin selection is not established.
 No performance regression measurement was performed. Existing paths add no new
 polling in input callbacks, but that source observation is not a latency proof.
+
+## Windows VM follow-up (2026-11-06)
+
+Baseline `31c4a7c1` was tested by the user on two tiny11 VMs with real hooks
+and SendInput. The user reported both capture directions, opposite-edge return,
+relative motion, clicks, Shift symbols, Ctrl+A, local suppression, peer-death
+cleanup and automatic reconnect working. This supersedes the initial
+Windows→Windows “unverified” row for those baseline cases only. The changes
+below still require native acceptance.
+
+The core now records pointer placement from native warps and received input.
+An interior placement rearms the edge even when the next accelerated physical
+event lands directly on it. Changed physical positions may rearm; injected
+events never request capture. An unchanged sample at the return edge cannot
+bounce back. Presentation-restoration failures no longer skip held-input release.
+
+Windows replaces the standard system cursor images while captured and reloads
+the user's cursor scheme on return, release and failure. One session-local mutex
+protects ownership across workers. A separate, event-driven guardian waits for
+adapter process death and restores the cursor and removes clipping. Startup also
+reloads the cursor scheme when no live worker owns it. There is no input polling
+or persistent cursor-scheme change. Killing the entire process tree/job can also
+kill the guardian; the next adapter startup is the fallback. Custom application
+cursors and desktop switches need native testing. See Microsoft's
+[system cursor API](https://learn.microsoft.com/en-us/windows/win32/menurc/cursors)
+and [SPI_SETCURSORS](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-systemparametersinfow).
+
+Mac tracks successful hide/detach operations separately and undoes both before
+return warps, including partial failures, EOF, and ordinary exception cleanup.
+Repeated cleanup does not decrement another application's hide count.
+Uncatchable process termination cannot run this cleanup; WindowServer behavior
+after forced termination and background-helper cursor hiding remain native
+acceptance items. The API's foreground and hide-count behavior is documented by
+[Apple](https://developer.apple.com/documentation/coregraphics/cgdisplayhidecursor%28_%3A%29).
+No blind startup decrement is performed on Mac.
+
+The input-only QUIC lane now negotiates a 3-second idle timeout and sends
+keepalives every second. This is a dead-connection watchdog, unrelated to the
+33 ms performance target. QUIC loss detection and native release acknowledgment
+mean that wall-clock cleanup need not be exactly three seconds. The hermetic
+silent-process-death test observed held-input release in **4.00 seconds**, then
+reconnection without restarting the receiver. Timeout keeps the existing
+lane recovery loop; it does not end other application sessions.
+
+### Installed Windows firewall setup
+
+The per-user MSI stays per-user. The bundle now includes
+`setup/configure-windows-firewall.ps1`; the Windows app's network settings has
+an **Allow Viewflow inbound connections** button (Chinese:
+**允许 Viewflow 入站连接**). Before connecting, click it, approve the normal UAC
+prompt, and check that the elevated window reports
+`Viewflow firewall setup complete`. Close that window after reviewing the result.
+Launching the window alone is not evidence that setup succeeded.
+
+The script permits TCP/UDP for installed `Viewflow.exe` and UDP for installed
+`bin/viewflowd.exe`, `vf-handoff-peer.exe`, `vf-window-peer.exe`,
+`vf-media-peer.exe`, and `vf-clipboard-peer.exe`. Rules use full executable paths
+and all three firewall profiles. Missing optional workers get no rule; run setup
+again after installing them. The native handoff adapter has no network listener.
+
+Windows prompt-generated Block rules override Allow rules. Setup removes local
+PersistentStore inbound Block rules only when their executable path exactly
+matches one of those installed programs. It does not change global defaults,
+outbound rules, another installation's rules or Group Policy. A managed Group
+Policy block can still prevent access. Updating in the same directory retains
+the path-scoped rules; before removing or moving an installation, use `-Remove`
+to remove its managed Allow rules. It does not recreate old prompt-generated blocks.
+
+From Developer PowerShell in each Windows VM:
+
+```powershell
+cargo build --locked --release -p viewflowd --bin vf-handoff-peer
+cmake -S platform/desktop-handoff -B build/handoff-win -A x64
+cmake --build build/handoff-win --config Release
+ctest --test-dir build/handoff-win -C Release --output-on-failure
+.\build\handoff-win\Release\viewflow-desktop-handoff.exe --self-test
+powershell -NoProfile -File tools/configure-windows-firewall.ps1 -SelfTest
+```
+
+Rebuild/package the Windows app through the existing
+`tools/build-desktop-app.py` / `tools/package-windows-msi.py` workflow so the
+button and setup script ship together. Use the installed root, not the source
+tree, for the following commands. Run actual setup in elevated PowerShell:
+
+```powershell
+$bundle = Join-Path $env:LOCALAPPDATA 'Programs\Viewflow' # adjust to actual install
+& "$bundle\setup\configure-windows-firewall.ps1" -InstallRoot $bundle -WhatIf
+& "$bundle\setup\configure-windows-firewall.ps1" -InstallRoot $bundle
+Get-NetFirewallRule -Group Viewflow | Get-NetFirewallApplicationFilter | Format-Table Program
+# Before uninstall/move, if needed:
+# & "$bundle\setup\configure-windows-firewall.ps1" -InstallRoot $bundle -Remove
+```
+
+Focused user-operated acceptance in both VM directions:
+
+1. Return/enter so the local pointer is about 27 pixels from the configured
+   left edge. Make one fast physical move directly to x=0. Expect
+   `handoff captured` immediately. Repeat all four edges. Stationary or injected
+   edge placement alone must not produce a new capture.
+2. While captured, expect `handoff cursor hidden` and no visible controller cursor.
+   On return/disconnect expect `handoff cursor restored` and normal clipping.
+   Kill just the native adapter while captured to test guardian cleanup.
+   Separately kill its entire process tree and verify repair at the next start.
+3. Hold a modifier and mouse button, then kill only the remote transport or drop
+   that VM's network. Expect `recovering: connection lost: timed out` and
+   `handoff released` within roughly 3–5 seconds under normal scheduling.
+   Restart/reconnect and repeat capture without restarting the surviving app.
+4. On a fresh install, run the app's elevated firewall setup. Repeat with an
+   existing prompt-generated Block rule. Both peers must connect without another
+   firewall Allow click. Inspect that unrelated program rules remain unchanged.
+
+On Mac, rebuild `vf-handoff-peer` and `viewflow-desktop-handoff` using the commands
+above in the Mac section; repeat edge rearm and hide/restore tests in both
+directions. Include tap failure, adapter EOF and forced termination, recording
+cursor visibility as well as `handoff cursor hidden/restored` logs. On Linux,
+rebuild the transport, desktop helper and Hyprland plugin; user-operated testing
+should repeat accelerated reentry and stationary-edge no-bounce in both directions.
+
+Offline evidence for this follow-up: C++ core test passed; Linux helper CTest
+3/3 passed; Rust handoff state tests 5/5 passed; real loopback mTLS/QUIC with fake
+adapters passed return, EOF, silent death, held-input release and reconnect;
+Python elevated-launch tests 2/2 passed. Linux transport/helper/plugin builds
+passed with existing warnings. Windows/MSVC, Mac native builds, PowerShell
+SelfTest, actual firewall setup and MSI installation were not run on this host.
