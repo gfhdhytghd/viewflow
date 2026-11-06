@@ -1,12 +1,39 @@
 #include "core.hpp"
 #include "windows_keys.hpp"
 #include "scroll.hpp"
+#include "service_wire.hpp"
 #include "../reverse-common/scroll_units.hpp"
 #include "../macos/window_keys.hpp"
 #include <cassert>
 namespace h=viewflow::handoff;
 int main() {
     h::self_test();
+    auto word=[](const h::ServiceRequest& b,size_t offset) {
+        uint64_t v=0;for(unsigned i=0;i<8;++i)v|=uint64_t(b[offset+i])<<(i*8);return v;
+    };
+    const h::Rect display{-100,20,100,80};
+    auto position=h::service_input(h::message(1,27000,30000),display,1.5,1.5);
+    assert(position[4]==1 && position[5]==0);
+    assert(int64_t(word(position,8))==-109500 && word(position,16)==75000);
+    for(auto [code,usage]:{std::pair{29,0xe0},std::pair{97,0xe4},std::pair{42,0xe1},
+        std::pair{54,0xe5},std::pair{56,0xe2},std::pair{100,0xe6},std::pair{125,0xe3},std::pair{126,0xe7}}) {
+        for(int down:{0,1,2}) {
+            auto b=h::service_input(h::message(4,code,down),display,1,1);
+            assert(b[4]==5 && word(b,8)==(7u|(uint64_t(usage)<<16)));
+            assert(word(b,16)==uint64_t(down==2?3:down));
+        }
+    }
+    for(auto [code,button]:{std::pair{272,0},std::pair{273,2},std::pair{274,1},std::pair{275,3},std::pair{276,4}}) {
+        auto b=h::service_input(h::message(2,code,1),display,1,1);
+        assert(b[4]==4 && word(b,8)==unsigned(button) && word(b,16)==1);
+    }
+    auto wheel=h::service_input(h::message(3,0,120),display,1,1);
+    assert(std::bit_cast<double>(word(wheel,8))==1.0);
+    wheel=h::service_input(h::message(3,1,1000,1),display,1,1);
+    assert(std::bit_cast<double>(word(wheel,16))==-0.025);
+    try {h::service_input(h::message(4,9999,1),display,1,1);assert(false);}
+    catch(const std::runtime_error&) {}
+
     viewflow::reverse::ScrollPointAccumulator points;
     int total=0;for(int i=0;i<8;++i)total+=points.take(0,125);assert(total==1);
     assert(points.phase(0,false)==1 && points.phase(0,false)==2 && points.phase(0,true)==4);

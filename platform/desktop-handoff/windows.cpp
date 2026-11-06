@@ -6,6 +6,7 @@
 #include "pipe.hpp"
 #include "windows_keys.hpp"
 #include "windows_cursor.hpp"
+#include "windows_service.hpp"
 #include "scroll.hpp"
 #include "../reverse-common/scroll_units.hpp"
 namespace h=viewflow::handoff;
@@ -19,7 +20,30 @@ POINT last{},anchor{},saved{};bool positioned=false;
 DWORD main_thread{};
 double scale_x=1,scale_y=1;
 h::ScrollAccumulator scroll;
+h::ServiceClient service;
+bool receiver_active=false,receiver_service=false;
+void end_receiver() noexcept {
+    service.close();
+    // After broker EOF its existing backend owns any failed releases and retries
+    // them before admitting another client. Never replay them through SendInput.
+    if(receiver_service && core){core->receivedKeys.clear();core->receivedButtons.clear();}
+    receiver_active=receiver_service=false;
+}
+void begin_receiver() {
+    receiver_active=true;receiver_service=service.connect();
+    std::fprintf(stderr,receiver_service?
+        "handoff receiver backend=service elevated-input=available secure-desktop=service\n":
+        "handoff receiver backend=session elevated-input=unavailable secure-desktop=unavailable; install/start ViewflowInput for this receiver account\n");
+}
 void post(h::Input e) {
+    // Only received input uses the broker. Controller warps and local held-key
+    // release retain the existing in-session path and hook behavior.
+    if(receiver_active && receiver_service) {
+        if(!service.connected())throw std::runtime_error("input service lost during handoff");
+        service.request(h::service_input(e,core->local,scale_x,scale_y));
+        if(h::kind(e)==1)core->observe_position(e.a/1000.0+core->local.x,e.b/1000.0+core->local.y);
+        return;
+    }
     INPUT v{};
     if(h::kind(e)==4) {
         const auto key=h::windows_scan(e.a);if(!key)throw std::runtime_error("unsupported physical key");
@@ -77,7 +101,7 @@ void capture(bool active) {
         post(h::message(1,int((x-core->local.x)*1000),int((y-core->local.y)*1000)));
     }
 }
-void fail() {try{core->reset();}catch(...){} try{output->send(h::message(h::fault));}catch(...){} }
+void fail() {try{core->reset();}catch(...){} end_receiver(); try{output->send(h::message(h::fault));}catch(...){} }
 LRESULT CALLBACK mouse(int code,WPARAM w,LPARAM l) {
     if(code<0)return CallNextHookEx(nullptr,code,w,l);
     const auto& e=*reinterpret_cast<MSLLHOOKSTRUCT*>(l);
@@ -128,6 +152,12 @@ LRESULT CALLBACK keyboard(int code,WPARAM w,LPARAM l) {
 int main(int argc,char** argv) {
     try {
         if(argc==2 && std::string(argv[1])=="--self-test")return h::self_test();
+        if(argc==2 && std::string(argv[1])=="--service-probe") {
+            if(!service.connect())throw std::runtime_error("ViewflowInput unavailable for this account/session");
+            service.request(h::service_request(127)); // Existing read-only Winlogon access probe.
+            end_receiver();
+            std::puts("handoff service-ready secure-desktop-access=ok input-injected=false");return 0;
+        }
         if(argc==3 && std::string(argv[1])=="--cursor-guard")return h::cursor_guard(DWORD(std::stoul(argv[2])));
         const auto [local,remote]=h::geometry(argc,argv);
         SetConsoleCtrlHandler([](DWORD event)->BOOL {
@@ -169,10 +199,19 @@ int main(int argc,char** argv) {
         while(GetMessageW(&msg,nullptr,0,0)>0) {
             if(msg.message==command_message) {
                 std::unique_ptr<h::Input> e(reinterpret_cast<h::Input*>(msg.lParam));
-                try{state.command(*e);}catch(...){fail();}
+                try {
+                    if(h::kind(*e)==h::entered) {
+                        state.reset();end_receiver();begin_receiver();
+                    }
+                    state.command(*e);
+                    if(h::kind(*e)==h::released)end_receiver();
+                }catch(const std::exception& error){
+                    std::fprintf(stderr,"handoff receiver recovering: %s\n",error.what());fail();
+                }
             }
         }
         try{state.reset();}catch(const std::exception& e){std::fprintf(stderr,"handoff cleanup: %s\n",e.what());}
+        end_receiver();
         visibility.restore();
         if(clip_owned){ClipCursor(&previous_clip);clip_owned=false;}
         UnhookWindowsHookEx(mh);UnhookWindowsHookEx(kh);
