@@ -28,3 +28,6 @@ else()
   target_compile_options(viewflow_window_geometry_test PRIVATE -UNDEBUG)
 endif()
 add_test(NAME window_geometry COMMAND viewflow_window_geometry_test)
+
+# Pure input-contract tests can also run standalone on Linux.
+add_subdirectory(../reverse-common/tests portable-input-tests)

@@ -20,7 +20,6 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
-from spake2 import SPAKE2_A, SPAKE2_B
 
 VERSION = 2
 PORT = 44331
@@ -114,6 +113,8 @@ class Channel:
 
 
 def authenticate(sock, password, local_id, peer_id, client):
+    # Profile generation/certificate validation does not need the PAKE package.
+    from spake2 import SPAKE2_A, SPAKE2_B
     id_a, id_b = (local_id, peer_id) if client else (peer_id, local_id)
     pake = (SPAKE2_A if client else SPAKE2_B)(password.encode(),
         idA=CONTEXT + id_a.encode(), idB=CONTEXT + id_b.encode())

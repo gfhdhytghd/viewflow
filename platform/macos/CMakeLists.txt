@@ -156,3 +156,6 @@ add_executable(viewflow-window-space-transition-test window_space_transition_tes
 target_compile_features(viewflow-window-space-transition-test PRIVATE cxx_std_20)
 target_compile_options(viewflow-window-space-transition-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 add_test(NAME windows-space-transition COMMAND viewflow-window-space-transition-test)
+
+# Pure input-contract tests can also run standalone on Linux.
+add_subdirectory(../reverse-common/tests portable-input-tests)

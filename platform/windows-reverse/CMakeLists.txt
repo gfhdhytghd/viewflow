@@ -299,3 +299,6 @@ else()
     target_compile_options(viewflow_quality_control_test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 endif()
 add_test(NAME quality_control COMMAND viewflow_quality_control_test)
+
+# Pure input-contract tests can also run standalone on Linux.
+add_subdirectory(../reverse-common/tests portable-input-tests)

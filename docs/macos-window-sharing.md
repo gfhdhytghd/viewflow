@@ -12,6 +12,33 @@ listen. Use a second connection/port for simultaneous sharing in both directions
 | macOS → Windows | `viewflow-macos-windows source --codec h264` | `viewflow-windows-windows` |
 | Windows → macOS | `viewflow_windows_reverse` | `viewflow-macos-windows present` |
 
+## Same-OS peers
+
+Windows↔Windows, macOS↔macOS and Hyprland↔Hyprland have bidirectional native
+window-sharing paths and independent text/PNG clipboard synchronization. Windows
+sharing requires an enabled parking display; Hyprland sharing requires the
+Viewflow capture plugin and encoder. These are implementation support statements,
+not a claim of completed same-OS physical acceptance. Free desktop cursor handoff
+and whole-desktop streaming are not yet configured for same-OS pairs. File copying
+and native file drag-and-drop are not included in clipboard support.
+
+Window wheel records use 120 units per line/detent (`c=0`) or 1000 units per
+point (`c=1`); `d=1` ends a precise gesture. Both axes follow AppKit's sign,
+opposite Wayland. Windows horizontal-wheel signs are adapted at its sender and
+receiver boundaries. The Mac source now emits line events for detents and
+continuous point events for precise input, with sub-point accumulation and gesture
+end. Linux's existing detent encoding and Mac HID capability handshake are retained.
+Update both Windows window endpoints together for the horizontal-sign correction;
+old Windows endpoints used an inconsistent horizontal convention.
+
+Linux paired profiles identify the source with `VIEWFLOW_REVERSE_SOURCE_PLATFORM`.
+For a standalone Windows-source connection, set it to `windows` on the Linux
+presenter to enable its Windows touchpad record format. A Linux or unknown source
+keeps wheel fallback. Mac connections retain `VIEWFLOW_REVERSE_MAC_SHADOW=1` and
+require their existing HID-ready flag before replacing finger wheel events.
+See the [same-OS review and fix evidence](evidence/same-os-connection-review.md)
+for remaining gaps and offline validation limits.
+
 macOS uses ScreenCaptureKit, VideoToolbox and Core Image/Metal. Color is H.264 or
 HEVC Annex B; a separate lossless alpha plane preserves transparency. The Windows
 presenter currently accepts H.264. macOS and the Hyprland presenter accept both.

@@ -32,6 +32,49 @@ class PairingProfileTests(unittest.TestCase):
         return (build_profile(a, record(b, ak, issued['local_certificate'])),
                 build_profile(b, record(a, bk, issued['peer_certificate'])))
 
+    def test_ordered_matrix_components_and_documented_handoff_gaps(self):
+        # Spec: docs/evidence/same-os-connection-review.md W1/M1/L1.
+        # Profile generation is not evidence of a functioning desktop handoff.
+        expected = {
+            ('windows', 'windows'): {'clipboard', 'windows-receive', 'windows-share'},
+            ('windows', 'macos'): {'clipboard', 'windows-receive', 'windows-share'},
+            ('windows', 'linux'): {'clipboard', 'windows-share', 'desktop-receive'},
+            ('linux', 'windows'): {'clipboard', 'windows-receive', 'desktop-share'},
+            ('linux', 'macos'): {'clipboard', 'windows-receive', 'desktop-share'},
+            ('linux', 'linux'): {'clipboard', 'windows-receive', 'desktop-share'},
+        }
+        for local, remote in itertools.product(('linux', 'windows', 'macos'), repeat=2):
+            with self.subTest(local=local, remote=remote):
+                profile, reverse = self.profiles(local, remote)
+                def dialer(p):
+                    return bool(p.get('clipboardRemote') or p.get('configs', {}).get('clipboard.json', {}).get('remote'))
+                self.assertEqual(int(dialer(profile)) + int(dialer(reverse)), 1)
+                if local == 'macos':
+                    self.assertEqual(profile['windowsBind'], '0.0.0.0:41000')
+                    self.assertEqual(profile['inputBind'], '0.0.0.0:41002')
+                    self.assertEqual(profile['windowDestinations'][0]['address'], '127.0.0.1:42000')
+                    # M1: input listener + window sender, no desktop sender recipe.
+                    self.assertEqual({key for key in profile if key.startswith('input')}, {'inputBind'})
+                    self.assertNotIn('components', profile)
+                    continue
+                self.assertEqual({c['id'] for c in profile['components']}, expected[local, remote])
+                if local == 'linux':
+                    receiver = next(c for c in profile['components'] if c['id'] == 'windows-receive')
+                    self.assertEqual(receiver['environment']['VIEWFLOW_REVERSE_SOURCE_PLATFORM'], remote)
+                    source = profile['configs']['desktop-share.json']
+                    self.assertEqual(source['remote'], '127.0.0.1:' + ('42003' if remote == 'windows' else '42002'))
+                    if remote == 'linux':
+                        # L1: both send to input; neither profile owns that listener.
+                        for p in (profile, reverse):
+                            self.assertNotIn('desktop-receive.json', p['configs'])
+                            self.assertFalse(any(c.get('bind', '').endswith(':41002') or
+                                                 c.get('bind', '').endswith(':42002')
+                                                 for c in p['configs'].values()))
+                elif remote == 'windows':
+                    # W1: Windows windows/clipboard only; no desktop input pair.
+                    self.assertNotIn('desktop-receive.json', profile['configs'])
+                    self.assertNotIn('desktop-share.json', profile['configs'])
+
     def test_quality_mode_combines_to_the_more_conserving_choice(self):
         self.assertEqual(quality_mode('auto', 'auto'), 'auto')
         self.assertEqual(quality_mode('high_quality', 'auto'), 'auto')
@@ -43,7 +86,7 @@ class PairingProfileTests(unittest.TestCase):
         self.assertEqual(quality_mode(None, None), 'auto')
 
     def test_quality_mode_is_written_only_when_not_auto(self):
-        for local_platform, remote_platform in itertools.permutations(('linux', 'windows', 'macos'), 2):
+        for local_platform, remote_platform in itertools.product(('linux', 'windows', 'macos'), repeat=2):
             local, peer = device(local_platform, 'a', 41000), device(remote_platform, 'b', 42000)
             for mode in ('auto', 'high_quality', 'save_bandwidth'):
                 record = dict(device=peer, certificate='cert', private_key='key', authority='ca',
@@ -77,7 +120,7 @@ class PairingProfileTests(unittest.TestCase):
             self.assertEqual(reverse['hidForwarding'], local_enabled and remote_enabled)
 
     def test_connection_options_cover_every_launch_mode(self):
-        for local_platform, remote_platform in itertools.permutations(('linux', 'windows', 'macos'), 2):
+        for local_platform, remote_platform in itertools.product(('linux', 'windows', 'macos'), repeat=2):
             local, peer = device(local_platform, 'a', 41000), device(remote_platform, 'b', 42000)
             for enabled in (True, False):
                 record = dict(device=peer, certificate='cert', private_key='key', authority='ca',
@@ -113,7 +156,7 @@ class PairingProfileTests(unittest.TestCase):
                     self.assertEqual((env['VIEWFLOW_CURSOR_RAW_TOUCHPAD'], env['VIEWFLOW_CURSOR_EXTERNAL_TOUCHPAD']), ('0', '0'))
 
     def test_every_platform_pair_generates_local_allowlisted_profile(self):
-        for first, second in itertools.combinations(('linux', 'windows', 'macos'), 2):
+        for first, second in itertools.product(('linux', 'windows', 'macos'), repeat=2):
             for profile in self.profiles(first, second):
                 if profile['version'] == 1:
                     self.assertTrue(profile['windowParking'])
@@ -152,7 +195,7 @@ class PairingProfileTests(unittest.TestCase):
         programs['viewflow_windows_composition_preview'] = 'bin/viewflow_windows_composition_preview.exe'
         programs['viewflow_windows_reverse'] = 'bin/viewflow_windows_reverse.exe'
         programs['viewflow-windows-windows'] = 'bin/viewflow-windows-windows.exe'
-        for pair in [('linux', 'windows'), ('linux', 'macos'), ('windows', 'macos')]:
+        for pair in itertools.product(('linux', 'windows', 'macos'), repeat=2):
             for profile in self.profiles(*pair):
                 if profile['version'] == 1: continue
                 manifest = dict(platform=profile['platform'], programs=programs, scripts=list(SCRIPTS))

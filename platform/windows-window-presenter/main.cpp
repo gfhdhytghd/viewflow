@@ -11,6 +11,8 @@
 #include <shobjidl.h>
 #include <shellapi.h>
 #include <propkey.h>
+#include "../reverse-common/windows_keys.hpp"
+#include "../reverse-common/scroll_units.hpp"
 #include <propvarutil.h>
 #include <DispatcherQueue.h>
 #include <d2d1_3.h>
@@ -320,13 +322,9 @@ struct App {
         }
         buttons_sampled=true;sampled_left=left;
     }
-    static unsigned evdev(LPARAM value) {
-        const auto scan = static_cast<unsigned>((value >> 16) & 255);
-        if (!(value & (1 << 24))) return scan <= 88 ? scan : 0;
-        switch (scan) { case 0x1c:return 96; case 0x1d:return 97; case 0x35:return 98; case 0x38:return 100;
-            case 0x47:return 102; case 0x48:return 103; case 0x49:return 104; case 0x4b:return 105;
-            case 0x4d:return 106; case 0x4f:return 107; case 0x50:return 108; case 0x51:return 109;
-            case 0x52:return 110; case 0x53:return 111; case 0x5b:return 125; case 0x5c:return 126; case 0x5d:return 127; default:return 0; }
+    static unsigned evdev(WPARAM key, LPARAM value) {
+        return vf::windows_keys::from_message(static_cast<unsigned>(key),
+            static_cast<std::uint32_t>(value)).value_or(0);
     }
     static LRESULT CALLBACK procedure(HWND hwnd, UINT message, WPARAM w, LPARAM l) {
         auto* proxy = reinterpret_cast<Proxy*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
@@ -410,10 +408,10 @@ struct App {
         }
         case WM_MOUSEWHEEL: case WM_MOUSEHWHEEL: {
             POINT point{GET_X_LPARAM(l), GET_Y_LPARAM(l)}; ScreenToClient(hwnd, &point); app.pointer(*proxy, point.x, point.y);
-            app.send(proxy->tile.id, vf::InputKind::wheel, message == WM_MOUSEHWHEEL, GET_WHEEL_DELTA_WPARAM(w)); return 0;
+            app.send(proxy->tile.id, vf::InputKind::wheel, message == WM_MOUSEHWHEEL, vf::scroll_from_windows(message == WM_MOUSEHWHEEL, GET_WHEEL_DELTA_WPARAM(w))); return 0;
         }
         case WM_KEYDOWN: case WM_SYSKEYDOWN: case WM_KEYUP: case WM_SYSKEYUP: {
-            const auto code = evdev(l); if (!code) return 0;
+            const auto code = evdev(w,l); if (!code) return 0;
             const bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
             app.send(proxy->tile.id, vf::InputKind::key, static_cast<int>(code), down ? ((l & (1LL << 30)) ? 2 : 1) : 0); return 0;
         }

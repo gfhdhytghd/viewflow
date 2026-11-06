@@ -19,6 +19,8 @@
 #include "workspace_visibility.hpp"
 #include "../reverse-common/wire.hpp"
 #include "../reverse-common/native_touchpad.hpp"
+#include "../reverse-common/touchpad_routing.hpp"
+#include "../reverse-common/scroll_units.hpp"
 #include "../reverse-common/window_surface.hpp"
 #include "../reverse-common/window_resize.hpp"
 #include "../reverse-common/shadow_corner.hpp"
@@ -240,6 +242,10 @@ struct App {
     }
     std::uint64_t hid_request_window{};
     Clock::time_point hid_request_at{};
+    bool raw_touchpad_supported() const {
+        const auto* source=std::getenv("VIEWFLOW_REVERSE_SOURCE_PLATFORM");
+        return vf::raw_touchpad_supported(mac_shadow, hid_ready(), source ? source : "");
+    }
     bool hid_ready() const {
         const auto it=windows.find(pointer_window);
         return it!=windows.end() && (it->second->tile.flags&8);
@@ -263,7 +269,7 @@ struct App {
                 send(pointer_window,vf::InputKind::touchpad_frame,0,0,0,2);
             }
         }
-        const auto target=super_drag || local_titlebar_window || (mac_shadow && !hid_ready())?0:pointer_window;
+        const auto target=super_drag || local_titlebar_window || !raw_touchpad_supported()?0:pointer_window;
         const auto ticks=std::chrono::duration_cast<std::chrono::microseconds>(Clock::now().time_since_epoch()).count()/100;
         if(touchpad_target && touchpad_target!=target){
             auto frame=touchpad->current();frame.count=0;
@@ -429,7 +435,7 @@ struct App {
     }
     static void pointer_axis(void* data,wl_pointer*,std::uint32_t,std::uint32_t axis,wl_fixed_t value) {if(axis<2)static_cast<App*>(data)->axes[axis]+=wl_fixed_to_double(value);}
     static void pointer_frame(void* data,wl_pointer*) {
-        auto& a=*static_cast<App*>(data);for(unsigned i=0;i<2;++i){const auto delta=a.axis120[i]?a.axis120[i]:static_cast<int>(std::lround(a.axes[i]*12));if(delta && a.pointer_window && !(a.touchpad && a.touchpad->available() && (!a.mac_shadow || a.hid_ready()) && a.axis_source==WL_POINTER_AXIS_SOURCE_FINGER))a.send(a.pointer_window,vf::InputKind::wheel,i,i?-delta:-delta);a.axes[i]=0;a.axis120[i]=0;}a.axis_source=UINT32_MAX;
+        auto& a=*static_cast<App*>(data);for(unsigned i=0;i<2;++i){const auto delta=a.axis120[i]?a.axis120[i]:static_cast<int>(std::lround(a.axes[i]*12));if(delta && a.pointer_window && !(a.touchpad && a.touchpad->available() && a.raw_touchpad_supported() && a.axis_source==WL_POINTER_AXIS_SOURCE_FINGER))a.send(a.pointer_window,vf::InputKind::wheel,i,vf::scroll_from_wayland(delta));a.axes[i]=0;a.axis120[i]=0;}a.axis_source=UINT32_MAX;
     }
     static void pointer_axis_source(void* data,wl_pointer*,std::uint32_t source){static_cast<App*>(data)->axis_source=source;}
     static void pointer_axis_stop(void*,wl_pointer*,std::uint32_t,std::uint32_t){}

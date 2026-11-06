@@ -2,6 +2,7 @@
 #include "../reverse-common/opaque_alpha.hpp"
 #include "../reverse-common/activity_input.hpp"
 #include "../reverse-common/activity_feedback.hpp"
+#include "../reverse-common/scroll_units.hpp"
 #include "../reverse-common/quality_control.hpp"
 #include "../reverse-common/activity_hint.hpp"
 #include "window_native.hpp"
@@ -303,6 +304,7 @@ struct Source {
     std::map<pid_t, bool> input_method_cache;
     std::map<unsigned, bool> sharing_control_cache;
     std::map<unsigned, Held> keys, buttons;
+    std::map<uint64_t, vf::ScrollPointAccumulator> scroll_points;
     std::map<unsigned, std::pair<double, unsigned>> clicks;
     CGPoint pointer{},pointer_fraction{};
     uint64_t pointer_window{};
@@ -385,6 +387,7 @@ struct Source {
         return post(event);
     }
     void release(uint64_t window) {
+        if (window) scroll_points.erase(window); else scroll_points.clear();
         activity.release(window,viewflow::activity::now_us());
         if(access("/tmp/viewflow-secondary-trace",F_OK)==0)std::fprintf(stderr,"secondary-source at=%.6f release=%llu held-buttons=%zu\n",NSProcessInfo.processInfo.systemUptime,static_cast<unsigned long long>(window),buttons.size());
         hid.release(window);
@@ -580,11 +583,24 @@ struct Source {
             break;
         }
         case vf::InputKind::wheel: {
-            if (event.a != 0 && event.a != 1) return;
-            const auto pixels = static_cast<int32_t>(std::lround(event.b / 3.0));
-            const auto native = CGEventCreateScrollWheelEvent(event_source, kCGScrollEventUnitPixel, 2,
-                event.a == 0 ? pixels : 0, event.a == 1 ? -pixels : 0);
-            if (native) CGEventSetLocation(native, pointer);
+            const auto scroll = vf::decode_scroll(event.a,event.b,event.c,event.d);
+            if (!scroll) return;
+            const auto amount = scroll->precise ? scroll_points[event.id].take(scroll->axis,event.b)
+                : static_cast<int32_t>(std::lround(scroll->distance));
+            const auto native = CGEventCreateScrollWheelEvent(event_source,
+                scroll->precise ? kCGScrollEventUnitPixel : kCGScrollEventUnitLine, 2,
+                scroll->axis == 0 ? amount : 0, scroll->axis == 1 ? amount : 0);
+            if (native) {
+                CGEventSetIntegerValueField(native, kCGScrollWheelEventIsContinuous, scroll->precise);
+                if (scroll->precise) {
+                    CGEventSetIntegerValueField(native, kCGScrollWheelEventScrollPhase,
+                        scroll_points[event.id].phase(scroll->axis,scroll->ended));
+                } else {
+                    const auto fixed = scroll->axis == 0 ? kCGScrollWheelEventFixedPtDeltaAxis1 : kCGScrollWheelEventFixedPtDeltaAxis2;
+                    CGEventSetDoubleValueField(native, fixed, scroll->distance);
+                }
+                CGEventSetLocation(native, pointer);
+            }
             post(native); break;
         }
         case vf::InputKind::focus: focus(*capture); break;

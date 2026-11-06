@@ -185,3 +185,6 @@ add_executable(viewflow_window_mapping_test ../reverse-common/window_mapping_tes
 target_compile_features(viewflow_window_mapping_test PRIVATE cxx_std_20)
 target_compile_options(viewflow_window_mapping_test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 add_test(NAME window_mapping COMMAND viewflow_window_mapping_test)
+
+# Pure input-contract tests can also run standalone on Linux.
+add_subdirectory(../reverse-common/tests portable-input-tests)

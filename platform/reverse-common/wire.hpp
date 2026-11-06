@@ -71,6 +71,7 @@ struct Frame {
     std::uint64_t activity_epoch{}, activity_preferred{}, activity_focus{};
     std::vector<std::uint64_t> activity_members;
 };
+// wheel units and signs are defined in scroll_units.hpp (both axes).
 // fullscreen_route: a=0/2, b=version 1, c/d=physical output extent;
 // sequence is the request epoch. Fixed 40-byte input record remains unchanged.
 enum class InputKind : std::uint32_t { pointer=1, button=2, wheel=3, key=4, focus=5, geometry=6, close=7, release=8, proxy_drag=9, touchpad_contact=10, touchpad_frame=11, proxy_drag_anchor=12, native_touchpad_chunk=13, native_touchpad_commit=14, fullscreen=15, visibility=16, fullscreen_route=17 };

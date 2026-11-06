@@ -81,10 +81,12 @@ def build_profile(local, record):
     if remote_platform != 'linux' or platform == 'linux':
         component('windows-receive', '接收窗口', 'vf-window-peer', dict(bind=bind('windows'), role='presenter',
             backend=dict(native='${program:' + native + '}', args=presenter_args)))
+        if platform == 'linux':
+            profile['components'][-1]['environment'] = {'VIEWFLOW_REVERSE_SOURCE_PLATFORM': remote_platform}
         if platform == 'linux' and remote_platform == 'macos':
             # Mac metadata carries logical points; Windows metadata carries
             # physical pixels. Select the matching geometry and HID path.
-            profile['components'][-1]['environment'] = {'VIEWFLOW_REVERSE_MAC_SHADOW': '1'}
+            profile['components'][-1]['environment']['VIEWFLOW_REVERSE_MAC_SHADOW'] = '1'
     if platform == 'windows' and local.get('share_bounds'):
         component('windows-share', '共享 Windows 窗口', 'vf-window-peer', dict(bind=endpoint(any_host, 0),
             remote=remote('windows'), server_name=server, role='source',

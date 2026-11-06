@@ -17,6 +17,8 @@
 #include "alpha_encode.hpp"
 #include "../reverse-common/opaque_alpha.hpp"
 #include "touchpad.hpp"
+#include "../reverse-common/windows_keys.hpp"
+#include "../reverse-common/scroll_units.hpp"
 #include "window_inventory.hpp"
 #include "../reverse-common/wire.hpp"
 #include "../reverse-common/activity_input.hpp"
@@ -337,12 +339,14 @@ struct App {
         }
         case vf::InputKind::wheel:
             native.type=INPUT_MOUSE;native.mi.dwFlags=event.a?MOUSEEVENTF_HWHEEL:MOUSEEVENTF_WHEEL;
-            native.mi.mouseData=static_cast<DWORD>(event.b);SendInput(1,&native,sizeof(native));break;
+            native.mi.mouseData=static_cast<DWORD>(vf::scroll_from_windows(event.a!=0,event.b));SendInput(1,&native,sizeof(native));break;
         case vf::InputKind::key: {
-            unsigned code=static_cast<unsigned>(event.a),scan=code;bool extended=false;
-            switch(code){case 96:scan=0x1c;extended=true;break;case 97:scan=0x1d;extended=true;break;case 98:scan=0x35;extended=true;break;case 100:scan=0x38;extended=true;break;case 102:scan=0x47;extended=true;break;case 103:scan=0x48;extended=true;break;case 104:scan=0x49;extended=true;break;case 105:scan=0x4b;extended=true;break;case 106:scan=0x4d;extended=true;break;case 107:scan=0x4f;extended=true;break;case 108:scan=0x50;extended=true;break;case 109:scan=0x51;extended=true;break;case 110:scan=0x52;extended=true;break;case 111:scan=0x53;extended=true;break;case 125:scan=0x5b;extended=true;break;case 126:scan=0x5c;extended=true;break;case 127:scan=0x5d;extended=true;break;default:if(code>88)return;}
-            native.type=INPUT_KEYBOARD;native.ki.wScan=static_cast<WORD>(scan);
-            native.ki.dwFlags=KEYEVENTF_SCANCODE|(extended?KEYEVENTF_EXTENDEDKEY:0)|(event.b?0:KEYEVENTF_KEYUP);
+            const auto code=static_cast<unsigned>(event.a);
+            const auto key=vf::windows_keys::to_windows(code);if(!key)return;
+            native.type=INPUT_KEYBOARD;
+            native.ki.wScan=key->scan;native.ki.wVk=key->virtual_key;
+            native.ki.dwFlags=(key->virtual_key?0:KEYEVENTF_SCANCODE)|
+                (key->extended?KEYEVENTF_EXTENDEDKEY:0)|(event.b?0:KEYEVENTF_KEYUP);
             if(SendInput(1,&native,sizeof(native))==1){ime_priority.activity(scheduler_ms());if(event.b)held_keys[code]=native;else held_keys.erase(code);}
             break;
         }
