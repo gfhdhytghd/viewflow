@@ -8,6 +8,8 @@
 #include <string>
 #include <stdexcept>
 namespace viewflow::handoff {
+// The SDK defines no OCR_HELP; 32651 is the documented IDC_HELP system cursor id.
+inline constexpr int ocr_help=32651;
 struct CursorHandle {
     HANDLE value{};
     explicit CursorHandle(HANDLE h=nullptr):value(h){}
@@ -84,7 +86,7 @@ public:
         owned=true;SetEvent(dirty.value);
         std::array<unsigned char,128> and_mask,xor_mask{};and_mask.fill(0xff);
         for(DWORD id:{OCR_NORMAL,OCR_IBEAM,OCR_WAIT,OCR_CROSS,OCR_UP,OCR_SIZENWSE,
-            OCR_SIZENESW,OCR_SIZEWE,OCR_SIZENS,OCR_SIZEALL,OCR_NO,OCR_HAND,OCR_APPSTARTING,OCR_HELP}) {
+            OCR_SIZENESW,OCR_SIZEWE,OCR_SIZENS,OCR_SIZEALL,OCR_NO,OCR_HAND,OCR_APPSTARTING,ocr_help}) {
             HCURSOR cursor=CreateCursor(GetModuleHandleW(nullptr),0,0,32,32,and_mask.data(),xor_mask.data());
             if(!cursor) {restore();throw std::runtime_error("transparent desktop cursor creation failed");}
             // SetSystemCursor consumes the cursor on success.

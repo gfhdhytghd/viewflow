@@ -138,6 +138,10 @@ int main(int argc,char** argv) {
         h::CursorVisibility visibility;cursor_visibility=&visibility;
         h::Core state(local,remote);core=&state;
         scale_x=GetSystemMetrics(SM_CXSCREEN)/local.w;scale_y=GetSystemMetrics(SM_CYSCREEN)/local.h;
+        // A new adapter starts on every connection. Seed the last pointer
+        // sample so the first physical move (often accelerated straight onto
+        // the edge) still has a direction; observation alone never captures.
+        if(GetCursorPos(&last)) {positioned=true;state.observe_position(last.x/scale_x,last.y/scale_y);}
         for(unsigned code=1;code<256;++code)if(const auto scan=h::windows_scan(code)) {
             const auto vk=scan->virtual_key?scan->virtual_key:MapVirtualKeyW(scan->scan|(scan->extended?0xe000:0),MAPVK_VSC_TO_VK_EX);
             if(vk && (GetAsyncKeyState(int(vk))&0x8000))state.physicalKeys.insert(int(code));
