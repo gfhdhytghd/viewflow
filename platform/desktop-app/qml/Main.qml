@@ -422,7 +422,7 @@ ApplicationWindow {
                             ColumnLayout {
                                 width: parent.width; spacing: 10
                                 Heading { text: window.t("锁屏输入服务") }
-                                BodyText { text: window.t("普通窗口、输入和剪贴板使用当前登录会话。需要操作 Windows 锁屏时，安装内置输入服务；系统会请求管理员权限。") }
+                                BodyText { text: window.t("桌面接管自动使用可达的输入服务，以操作管理员窗口、UAC 安全桌面和锁屏。未安装或不可达时，仅支持普通窗口。安装会请求管理员权限。") }
                                 ActionButton { text: window.t("安装 / 更新锁屏输入服务"); onClicked: window.backend.action("installService") }
                                 SettingSwitch { text: window.t("通过输入服务接收锁屏输入"); checked: window.state.lockInput; onToggled: window.backend.setOption("lockInput", checked) }
                             }

@@ -14,7 +14,9 @@ def permission_rows(report, language):
         code = report.get('input_service_code')
         state = report.get('input_service_state')
         status = ('正在运行' if state == 4 else '已停止' if state == 1 else '已安装') if code == 0 else '未安装' if code == 1060 else '无法确认'
-        add('锁屏输入服务', status, '仅操作 Windows 锁屏时需要此服务；普通会话不受影响。' if code in (0, 1060) else '请在诊断页查看服务查询详情。')
+        detail = ('服务正在运行；桌面接管会自动尝试服务，实际连接结果见接管日志。' if code == 0 and state == 4 else
+                  '输入服务不可用：桌面接管仅支持普通窗口，管理员窗口、UAC 安全桌面和锁屏输入不可用。')
+        add('锁屏输入服务', status, detail, 'neutral' if code == 0 and state == 4 else 'warning')
         add('原生触控板', '已内置', '系统 API 支持和真实手势效果仍需在此电脑确认。')
         return rows
     hypr = report.get('hyprland')

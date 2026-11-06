@@ -413,3 +413,128 @@ adapters passed return, EOF, silent death, held-input release and reconnect;
 Python elevated-launch tests 2/2 passed. Linux transport/helper/plugin builds
 passed with existing warnings. Windows/MSVC, Mac native builds, PowerShell
 SelfTest, actual firewall setup and MSI installation were not run on this host.
+
+## Elevated Windows receiver follow-up (build after fde92e3c)
+
+The user reports that two Windows 11 VMs at baseline `fde92e3c` passed wheel
+direction/amount, 150% scale entry/return, cursor hiding and peer-death restoration,
+held-Shift release in 3–5 seconds, and replacement of prompt-generated firewall
+Block rules. The service integration below has only offline evidence on Linux.
+
+On each received handoff, the Windows adapter now tries the existing
+`\\.\pipe\ViewflowInput-v2-<session>` broker. The broker still authorizes the
+configured receiver SID and SYSTEM through its local-only pipe ACL. The client
+checks the pipe server's SYSTEM token and matching session, using identification
+SQOS exactly as the existing Rust service client does. No new network listener,
+service privilege, account permission or pairing rule is added.
+
+When reachable, the broker receives all pointer, button, wheel and keyboard
+events for that handoff. It uses the existing backend which binds its injection
+thread to the current input desktop on each request. Thus Default, UAC secure
+desktop and Winlogon use the existing service desktop-transition/release logic.
+Controller hooks, capture, cursor warps and local held-key release keep the
+in-session path. Service-generated input remains excluded by the injected-event
+hook flags. The service protocol and binary are unchanged.
+
+If the service is absent, stopped, denied to this account/session, or already
+occupied by another input client, the adapter uses its original in-session
+SendInput path for that handoff. The service currently admits one pipe client;
+no competing client is disconnected to acquire it. This fallback cannot support
+higher-integrity or secure-desktop targets. See Microsoft's
+[SendInput integrity constraints](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput).
+The app's permission panel reports the missing/stopped service and these limits.
+A running-service status is not proof of a reachable broker.
+
+The adapter logs the chosen route at entry:
+- `handoff receiver backend=service elevated-input=available secure-desktop=service`
+- `handoff receiver backend=session elevated-input=unavailable secure-desktop=unavailable; install/start ViewflowInput for this receiver account`
+
+The route stays fixed until release. A failed or uncertain service operation is
+never replayed through local SendInput or a new connection. It releases the
+handoff and closes the pipe; the service retains failed held-input cleanup and
+retries before accepting its next client. The transport remains recoverable.
+Normal return/EOF also closes the pipe, including failed-release paths. No new
+polling runs in hooks; broker I/O uses overlapped events and the existing service's
+five-second operation-watchdog convention.
+
+The broker wire carries physical pixel coordinates in milli-units, preserving
+the adapter's logical-to-physical scaling. Wheel values retain fractional
+detents; precise milli-points use 40 points/detent. Keyboard conversion reuses
+the shared Windows physical-key table and a generated inverse of the existing
+service HID table. `windows-handoff-key-table` regenerates it and a Rust test
+checks it for drift. Existing service key coverage still applies: Pause/E1 and
+unmapped OEM/browser/system keys are rejected with a diagnostic, not guessed or
+replayed locally. This change does not add software Secure Attention Sequence
+generation; Ctrl+Alt+Del opening must use the VM console's dedicated action.
+Once that screen is open, test its controls through the service.
+
+### VM build and test commands
+
+Run in an x64 Developer PowerShell with MSVC, Windows SDK, Rust MSVC and CMake:
+
+```powershell
+cargo build --locked --release -p viewflowd --bin vf-handoff-peer --bin vf-input-service
+cargo test --locked -p viewflow-platform windows_input
+cargo test --locked -p viewflow-platform --example windows-handoff-key-table
+cmake -S platform/desktop-handoff -B build/handoff-win -A x64
+cmake --build build/handoff-win --config Release
+ctest --test-dir build/handoff-win -C Release --output-on-failure
+.\build\handoff-win\Release\viewflow-desktop-handoff.exe --self-test
+```
+
+Install the rebuilt adapter in the tested bundle's `bin` directory using the
+normal packaging workflow. Rebuild `Viewflow.exe` to include permission text.
+No Rust production binary changed in this follow-up; the service build above
+ensures the VM tests use the reviewed baseline.
+
+With UAC enabled and “Switch to the secure desktop when prompting for elevation”
+enabled, install/start the existing service from elevated PowerShell. Set the
+account to the actual medium-integrity receiver user, especially if elevation
+uses a different administrator account:
+
+```powershell
+.\tools\install-windows-input-service.ps1 -Binary "$PWD\target\release\vf-input-service.exe" -ReceiverAccount "VMNAME\receiver"
+Get-Service ViewflowInput
+```
+
+Before entering a handoff, run from the receiver's **ordinary** PowerShell:
+
+```powershell
+.\build\handoff-win\Release\viewflow-desktop-handoff.exe --service-probe
+```
+
+Expect `handoff service-ready secure-desktop-access=ok input-injected=false`.
+This probe checks broker identity, session, account authorization and Winlogon
+access without hooks or injection. Do not run it during a handoff: the service's
+single pipe instance is already occupied.
+
+User-operated acceptance, repeated with each VM as receiver:
+
+1. Keep Viewflow and its adapter at medium integrity. Cross into the receiver.
+   Expect `backend=service`, `handoff entered`, and normal pointer/keyboard input.
+2. Open an Administrator console on the receiver. From the controller, click to
+   activate it, type a harmless command such as `echo handoff`, use Shift symbols
+   and Ctrl+A. Verify clicks and keys arrive. Repeat wheel and 150% scale checks.
+3. While controlling that VM, request elevation of an application to open a
+   consent prompt on the secure desktop. Use the remote pointer to select No.
+   Repeat with Yes. Expect input to continue through the prompt and back to
+   Default, without a handoff fault solely because the desktop changed.
+4. Lock the receiver with Win+L. Dismiss its lock screen through remote input,
+   focus the sign-in field and sign in with the tester's own credentials.
+   Do not capture passwords in logs. Expect the same link to resume on Default.
+5. Use the VM console's Send Ctrl+Alt+Del action, then select Cancel remotely.
+   This tests Winlogon controls, not software generation of Ctrl+Alt+Del.
+6. Hold Shift or a mouse button and disconnect/kill the controller. Verify release
+   in the service-backed target, then restart and capture again. Also stop the
+   service during capture: expect `handoff receiver recovering:`, return/release,
+   no duplicated input and a usable ordinary-session fallback on the next entry.
+7. Stop/uninstall the service and repeat ordinary-window control. Expect
+   `backend=session` and the permission-panel warning. Elevated-window and
+   secure-desktop control are unavailable in this mode. Starting the service and
+   returning/reentering selects it without restarting the other application lanes.
+
+Offline results: portable C++ core/wire test passed; Rust Windows input/wire
+tests **22/22** passed; generated key-table test **1/1** passed; Python service
+status test **1/1** passed. Windows named-pipe I/O, MSVC compilation, actual
+elevated/secure/locked desktop input, service contention, release on desktop
+switch and performance remain unverified until these VM checks run.
