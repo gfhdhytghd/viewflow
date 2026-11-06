@@ -5,6 +5,7 @@
 #include "pipe.hpp"
 #include "windows_keys.hpp"
 #include "scroll.hpp"
+#include "../reverse-common/scroll_units.hpp"
 namespace h=viewflow::handoff;
 namespace {
 constexpr ULONG_PTR marker=0x56464831;
@@ -19,8 +20,9 @@ void post(h::Input e) {
     INPUT v{};
     if(h::kind(e)==4) {
         const auto key=h::windows_scan(e.a);if(!key)throw std::runtime_error("unsupported physical key");
-        v.type=INPUT_KEYBOARD;v.ki.wScan=WORD(key->first);v.ki.dwExtraInfo=marker;
-        v.ki.dwFlags=KEYEVENTF_SCANCODE|(key->second?KEYEVENTF_EXTENDEDKEY:0)|(e.b?0:KEYEVENTF_KEYUP);
+        v.type=INPUT_KEYBOARD;v.ki.wScan=WORD(key->scan);v.ki.dwExtraInfo=marker;
+        v.ki.wVk=key->virtual_key;
+        v.ki.dwFlags=(key->virtual_key?0:KEYEVENTF_SCANCODE)|(key->extended?KEYEVENTF_EXTENDEDKEY:0)|(e.b?0:KEYEVENTF_KEYUP);
     } else {
         v.type=INPUT_MOUSE;v.mi.dwExtraInfo=marker;
         if(h::kind(e)==1) {
@@ -41,7 +43,7 @@ void post(h::Input e) {
         } else if(h::kind(e)==3) {
             // Precise milli-points -> wheel units (40 points per detent).
             v.mi.dwFlags=e.a?MOUSEEVENTF_HWHEEL:MOUSEEVENTF_WHEEL;
-            v.mi.mouseData=DWORD(scroll.convert(e.a,e.b,e.c!=0,true));
+            v.mi.mouseData=DWORD(viewflow::reverse::scroll_from_windows(e.a!=0,scroll.convert(e.a,e.b,e.c!=0,true)));
         } else return;
     }
     if(SendInput(1,&v,sizeof(v))!=1)throw std::runtime_error("SendInput failed (desktop or integrity level unavailable)");
@@ -78,7 +80,7 @@ LRESULT CALLBACK mouse(int code,WPARAM w,LPARAM l) {
             swallow=core->motion(e.pt.x/scale_x,e.pt.y/scale_y,dx/scale_x,dy/scale_y);
             // Swallowed events leave the system pointer at the anchor.
         } else if(w==WM_MOUSEWHEEL || w==WM_MOUSEHWHEEL) {
-            swallow=core->input(h::message(3,w==WM_MOUSEHWHEEL,SHORT(HIWORD(e.mouseData))));
+            swallow=core->input(h::message(3,w==WM_MOUSEHWHEEL,viewflow::reverse::scroll_from_windows(w==WM_MOUSEHWHEEL,SHORT(HIWORD(e.mouseData)))));
         } else {
             int button=0;bool down=false;
             switch(w) {
@@ -98,7 +100,7 @@ LRESULT CALLBACK keyboard(int code,WPARAM w,LPARAM l) {
     const auto& e=*reinterpret_cast<KBDLLHOOKSTRUCT*>(l);
     if((e.flags&LLKHF_INJECTED) || e.dwExtraInfo==marker)return CallNextHookEx(nullptr,code,w,l);
     try {
-        const auto key=h::evdev_scan(e.scanCode,(e.flags&LLKHF_EXTENDED)!=0);
+        const auto key=h::evdev_key(e.vkCode,e.scanCode,(e.flags&LLKHF_EXTENDED)!=0);
         if(key && core->input(h::message(4,int(key),w==WM_KEYDOWN || w==WM_SYSKEYDOWN)))return 1;
         if(core->outgoing)return 1;
     }catch(...){fail();}
@@ -117,7 +119,7 @@ int main(int argc,char** argv) {
         h::Core state(local,remote);core=&state;
         scale_x=GetSystemMetrics(SM_CXSCREEN)/local.w;scale_y=GetSystemMetrics(SM_CYSCREEN)/local.h;
         for(unsigned code=1;code<256;++code)if(const auto scan=h::windows_scan(code)) {
-            const auto vk=MapVirtualKeyW(scan->first|(scan->second?0xe000:0),MAPVK_VSC_TO_VK_EX);
+            const auto vk=scan->virtual_key?scan->virtual_key:MapVirtualKeyW(scan->scan|(scan->extended?0xe000:0),MAPVK_VSC_TO_VK_EX);
             if(vk && (GetAsyncKeyState(int(vk))&0x8000))state.physicalKeys.insert(int(code));
         }
         for(auto [vk,button]:{std::pair{VK_LBUTTON,272},std::pair{VK_RBUTTON,273},std::pair{VK_MBUTTON,274},std::pair{VK_XBUTTON1,275},std::pair{VK_XBUTTON2,276}})

@@ -1,7 +1,7 @@
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
 #include "pipe.hpp"
-#include "scroll.hpp"
+#include "../reverse-common/scroll_units.hpp"
 #include "../macos/window_keys.hpp"
 #include <csignal>
 namespace h=viewflow::handoff;
@@ -9,7 +9,7 @@ namespace {
 constexpr int64_t marker=0x56464831;
 h::Core* core{};h::Output* output{};CFMachPortRef tap{};CGPoint saved{};
 std::set<int> native_keys;
-h::ScrollAccumulator scroll;
+viewflow::reverse::ScrollPointAccumulator scroll;
 CGEventFlags flags() {
     CGEventFlags f=0;
     for(int k:native_keys) {
@@ -44,12 +44,16 @@ void post(h::Input e) {
         }
         event=CGEventCreateMouseEvent(nullptr,type,p,button);
     } else if(h::kind(e)==3) {
-        const int amount=scroll.convert(e.a,e.b,e.c!=0,false);
+        const auto units=viewflow::reverse::decode_scroll(e.a,e.b,e.c,e.d);
+        if(!units)throw std::runtime_error("invalid scroll units");
+        const int amount=units->precise?scroll.take(e.a,e.b):int(std::lround(units->distance));
         event=CGEventCreateScrollWheelEvent(nullptr,e.c?kCGScrollEventUnitPixel:kCGScrollEventUnitLine,2,
             e.a?0:int(std::lround(amount)),e.a?int(std::lround(amount)):0);
         if(event && e.c) {
             CGEventSetIntegerValueField(event,kCGScrollWheelEventIsContinuous,1);
-            CGEventSetIntegerValueField(event,kCGScrollWheelEventScrollPhase,e.d?4:2);
+            CGEventSetIntegerValueField(event,kCGScrollWheelEventScrollPhase,scroll.phase(e.a,e.d!=0));
+        } else if(event) {
+            CGEventSetDoubleValueField(event,e.a?kCGScrollWheelEventFixedPtDeltaAxis2:kCGScrollWheelEventFixedPtDeltaAxis1,units->distance);
         }
     } else return;
     if(!event)throw std::runtime_error("cannot create input event");
