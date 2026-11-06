@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "input_capture.hpp"
+#include "desktop_handoff.hpp"
 #include "diagnostic_clock.hpp"
 #include <hyprland/src/config/shared/actions/ConfigActions.hpp>
 
@@ -76,6 +77,7 @@ void InputCapture::start() {
   m_mouseMove = events.input.mouse.move.listen(
       [this](Vector2D position, Event::SCallbackInfo &info) {
         if (forwardedMotion) return;
+        if (DesktopHandoff::captured()) { info.cancelled=true; DesktopHandoff::restoreAnchor(); return; }
         observePointerPosition(position.x, position.y);
         if (!m_core.captured())
           return;
@@ -86,17 +88,17 @@ void InputCapture::start() {
   m_mouseButton = events.input.mouse.button.listen(
       [this](IPointer::SButtonEvent, Event::SCallbackInfo &info) {
         if (m_core.captured() && !m_buttonPhysical) ++m_returnedButtons;
-        if (m_core.captured() && m_buttonPhysical)
+        if ((m_core.captured() || DesktopHandoff::captured()) && m_buttonPhysical)
           info.cancelled = true;
       });
   m_mouseAxis = events.input.mouse.axis.listen(
       [this](IPointer::SAxisEvent, Event::SCallbackInfo &info) {
-        if (m_core.captured() && m_axisPhysical)
+        if ((m_core.captured() || DesktopHandoff::captured()) && m_axisPhysical)
           info.cancelled = true;
       });
   m_keyboardKey = events.input.keyboard.key.listen(
       [this](IKeyboard::SKeyEvent, Event::SCallbackInfo &info) {
-        if (m_core.captured() && m_keyPhysical)
+        if ((m_core.captured() || DesktopHandoff::captured()) && m_keyPhysical)
           info.cancelled = true;
       });
   m_gestures[0] = events.gesture.swipe.begin.listen([this](IPointer::SSwipeBeginEvent e, Event::SCallbackInfo& info) {
@@ -252,7 +254,7 @@ void InputCapture::reconcileDevices() {
     record->physical = physical(*pointer);
     listeners->destroy = pointer->m_events.destroy.listen([this, record] {
       record->dead = true;
-      if (m_core.captured() && record->physical)
+      if ((m_core.captured() || (!m_auxiliary && DesktopHandoff::captured())) && record->physical)
         release(true);
     });
     listeners->motion = pointer->m_pointerEvents.motion.listen(
@@ -301,7 +303,7 @@ void InputCapture::reconcileDevices() {
     listeners->destroy = keyboard->m_events.destroy.listen([this, record] {
       record->dead = true;
       if (record->physical) { m_recallKeys.reset(); m_detachKeys.reset(); }
-      if (m_core.captured() && record->physical)
+      if ((m_core.captured() || (!m_auxiliary && DesktopHandoff::captured())) && record->physical)
         release(true);
     });
     listeners->key = keyboard->m_keyboardEvents.key.listen(
@@ -312,7 +314,7 @@ void InputCapture::reconcileDevices() {
           const bool trusted = !record->physical && m_windowPointer.acceptsImeKeyboard(keyboard);
           const bool permitted = record->enabledState.permitted(keyboard->m_enabled) && keyboard->m_allowed;
           const bool recallConsumed = record->physical && onKey(event);
-          if ((m_core.captured() && record->physical) || trusted || recallConsumed) suppressKeyboard(*record);
+          if (((m_core.captured() || (!m_auxiliary && DesktopHandoff::captured())) && record->physical) || trusted || recallConsumed) suppressKeyboard(*record);
           else record->enabledState.restore(keyboard->m_enabled);
           if (!record->physical && trusted && permitted) m_windowPointer.imeKey(keyboard, event.keycode, event.state, event.timeMs);
         });
@@ -323,7 +325,7 @@ void InputCapture::reconcileDevices() {
           if (!keyboard) return;
           const bool trusted = !record->physical && m_windowPointer.acceptsImeKeyboard(keyboard);
           const bool permitted = record->enabledState.permitted(keyboard->m_enabled) && keyboard->m_allowed;
-          if ((m_core.captured() && record->physical) || trusted) suppressKeyboard(*record);
+          if (((m_core.captured() || (!m_auxiliary && DesktopHandoff::captured())) && record->physical) || trusted) suppressKeyboard(*record);
           else record->enabledState.restore(keyboard->m_enabled);
           if (trusted && permitted) m_windowPointer.imeModifiers(keyboard);
         });
@@ -421,7 +423,7 @@ void InputCapture::processCommands(std::uint64_t tickStarted, InputDispatchOrigi
           if (candidate && physical(*candidate) && candidate->m_enabled && candidate->m_allowed) { sourceKeyboard = candidate; break; }
       }
       const bool inheritLeft = s_seat.inheritsHeldLeft(this, m_core.remote()) && m_core.continuingHeldLeft();
-      const bool applied = (!loopback || (sourceKeyboard && sourceKeyboard->m_enabled && sourceKeyboard->m_allowed)) &&
+      const bool applied = !DesktopHandoff::busy() && (!loopback || (sourceKeyboard && sourceKeyboard->m_enabled && sourceKeyboard->m_allowed)) &&
           g_pInputManager && (!g_pInputManager->hasHeldButtons() || inheritLeft) && s_seat.available(this) && m_core.activate(lease);
       if (applied) {
         (void)s_seat.claim(this);
@@ -548,7 +550,11 @@ void InputCapture::observePointerPosition(double x, double y) {
 }
 
 void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event, bool external) {
-  if (!s_seat.available(this) || forwardedMotion) return;
+  if (!m_auxiliary && !forwardedMotion) {
+    const auto p=g_pInputManager->getMouseCoordsInternal();
+    DesktopHandoff::motion(p.x,p.y,event.unaccel.x,event.unaccel.y);
+  }
+  if (DesktopHandoff::busy() || !s_seat.available(this) || forwardedMotion) return;
   if (!m_core.captured() && g_pInputManager) {
     const auto position = g_pInputManager->getMouseCoordsInternal();
     observePointerPosition(position.x, position.y);
@@ -601,6 +607,8 @@ void InputCapture::onPointerMotion(const IPointer::SMotionEvent &event, bool ext
 }
 
 void InputCapture::onPointerButton(const IPointer::SButtonEvent &event, bool external) {
+  if (!m_auxiliary && DesktopHandoff::input(handoff::message(2,static_cast<int>(event.button),event.state==WL_POINTER_BUTTON_STATE_PRESSED))) return;
+  if (DesktopHandoff::busy()) return;
   const bool pressed = event.state == WL_POINTER_BUTTON_STATE_PRESSED;
   if (external) {
     // macOS recognises tap-to-click from the native HID contacts, so libinput's
@@ -648,6 +656,12 @@ void InputCapture::onPointerButton(const IPointer::SButtonEvent &event, bool ext
 }
 
 void InputCapture::onPointerAxis(const IPointer::SAxisEvent &event) {
+  if (!m_auxiliary) {
+    const bool precise=event.source==WL_POINTER_AXIS_SOURCE_FINGER || event.source==WL_POINTER_AXIS_SOURCE_CONTINUOUS;
+    if (DesktopHandoff::input(handoff::message(3,static_cast<int>(event.axis),
+        precise?static_cast<int>(std::lround(-event.delta*1000)): -event.deltaDiscrete,precise,precise && event.delta==0))) return;
+  }
+  if (DesktopHandoff::busy()) return;
   if (!m_core.captured())
     return;
   const auto &lease = *m_core.lease();
@@ -736,6 +750,8 @@ void InputCapture::onPointerFrame() {
 }
 
 bool InputCapture::onKey(const IKeyboard::SKeyEvent &event) {
+  if (!m_auxiliary && DesktopHandoff::input(handoff::message(4,static_cast<int>(event.keycode),event.state==WL_KEYBOARD_KEY_STATE_PRESSED))) return true;
+  if (DesktopHandoff::captured()) return true;
   const bool pressed = event.state == WL_KEYBOARD_KEY_STATE_PRESSED;
   const auto recall = m_recallKeys.key(event.keycode, pressed, recallShortcut());
   const auto detach = m_detachKeys.key(event.keycode, pressed, {7, 'D'});

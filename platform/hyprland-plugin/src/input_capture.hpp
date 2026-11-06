@@ -31,6 +31,7 @@ public:
 
   void start();
   void forceDetach();
+  void desktopCaptureChanged(bool active) { if (active) suppressLocalKeyboards(); else restoreLocalKeyboards(); }
   [[nodiscard]] std::string pointerTimingsJson() const { return m_windowPointer.timingsJson(); }
   bool suppressConvenienceMotion() const { return m_windowPointer.suppressConvenienceMotion(); }
   [[nodiscard]] std::string captureStatusJson() const;

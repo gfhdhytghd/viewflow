@@ -48,6 +48,20 @@ struct ConnectionProfile: Codable, Equatable {
     var certificatePEM: String
     var privateKeyPEM: String
     var authorityPEM: String
+    var desktopHandoffNotice: String?
+    var desktopHandoff: DesktopHandoff?
+    struct DesktopHandoff: Codable, Equatable {
+        struct Rect: Codable, Equatable { var x: Int; var y: Int; var width: Int; var height: Int }
+        var bind: String
+        var remote: String
+        var server_name: String
+        var device_id: String
+        var peer_id: String
+        var local: Rect
+        var peer: Rect
+        var sender: Bool
+        var receiver: Bool
+    }
     var inputBind = "0.0.0.0:44139"
     var windowsBind = "0.0.0.0:44220"
     var clipboardBind = "0.0.0.0:44141"
@@ -130,7 +144,7 @@ struct ConnectionProfile: Codable, Equatable {
                   (groupRole == "host" ? groupHostID == deviceID : (links.count == 1 && links[0].pairingDeviceID == groupHostID)) else {
                 throw ViewflowError.invalid("连接组必须包含一台主机和最多两台从机")
             }
-            let binds = links.flatMap { [$0.inputBind, $0.windowsBind, $0.clipboardBind] }
+            let binds = links.flatMap { [$0.inputBind, $0.windowsBind, $0.clipboardBind] + ($0.desktopHandoff.map { [$0.bind] } ?? []) }
             guard Set(binds).count == binds.count else { throw ViewflowError.invalid("连接组成员监听地址重复") }
             let parking = links.flatMap { ($0.windowParking.map { [$0] } ?? []) + ($0.windowParkingDisplays ?? []) }.map { $0.serial ?? 1 }
             guard Set(parking).count == parking.count else { throw ViewflowError.invalid("连接组成员显示器标识重复") }
@@ -177,6 +191,16 @@ struct ConnectionProfile: Codable, Equatable {
             }
         }
         var receiverBinds = Set([inputBind, windowsBind, clipboardBind])
+        if let handoff = desktopHandoff {
+            try Self.validateAddress(handoff.bind); try Self.validateAddress(handoff.remote)
+            guard receiverBinds.insert(handoff.bind).inserted,
+                  handoff.device_id == deviceID, handoff.peer_id == pairingDeviceID,
+                  handoff.server_name == "vf-" + handoff.peer_id + ".local",
+                  handoff.local.width >= 2, handoff.local.height >= 2,
+                  handoff.peer.width >= 2, handoff.peer.height >= 2 else {
+                throw ViewflowError.invalid("桌面光标接管配置无效")
+            }
+        }
         var receiverIDs = Set<String>()
         for receiver in windowReceivers ?? [] {
             guard !receiver.id.isEmpty, receiver.id.count <= 32,

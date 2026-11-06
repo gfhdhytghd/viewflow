@@ -1,3 +1,4 @@
+pub mod desktop_handoff;
 pub mod quality;
 mod atlas_loss;
 mod atlas_fec;

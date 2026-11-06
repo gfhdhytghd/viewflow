@@ -61,6 +61,7 @@ struct App {
     std::string address, stable_id;
     std::string keymap_text;
     unsigned pid{};
+    bool desktop = false;
     uint64_t sequence{};
     int32_t pointer_x{}, pointer_y{};
     bool has_pointer{};
@@ -143,6 +144,7 @@ struct App {
         return "hl.plugin.viewflow.with_forwarded_motion(function() hl.dispatch(hl.dsp.cursor.move({x=" + std::to_string(pointer_x / 1000.0) + ",y=" + std::to_string(pointer_y / 1000.0) + "})) end);";
     }
     void focus(bool move) {
+        if (desktop) return;
         action("hl.plugin.viewflow.with_forwarded_motion(function() hl.dispatch(hl.dsp.focus({window=w}));" +
             (move && has_pointer ? move_pointer() : "") + " end);");
     }
@@ -167,6 +169,39 @@ struct App {
         held_keys.clear(); send_modifiers();
         for (auto code : held_buttons) ipc("/eval " + button_command(code, false));
         held_buttons.clear(); zwlr_virtual_pointer_v1_frame(pointer); flush();
+    }
+    // Desktop input never selects a window. Pointer motion determines the native
+    // focus, just as it does for physical input. Injection stays inside the
+    // plugin's forwarded scope so an active edge sender cannot recapture it.
+    void desktop_input(const vf::Input& event) {
+        if (event.kind == vf::InputKind::key || event.kind == vf::InputKind::release) {
+            input(event); return;
+        }
+        if (event.sequence <= sequence) throw std::runtime_error("desktop input sequence regression");
+        sequence = event.sequence;
+        switch (event.kind) {
+        case vf::InputKind::pointer:
+            pointer_x = event.a; pointer_y = event.b; has_pointer = true;
+            execute(move_pointer()); break;
+        case vf::InputKind::button: {
+            if (event.a < 272 || event.a > 276 || (event.b != 0 && event.b != 1))
+                throw std::runtime_error("invalid desktop button");
+            const auto code = static_cast<uint32_t>(event.a);
+            if ((event.b != 0) == held_buttons.contains(code)) return;
+            execute(button_command(code, event.b != 0));
+            if (event.b) held_buttons.insert(code); else held_buttons.erase(code);
+            break;
+        }
+        case vf::InputKind::wheel:
+            if (event.a < 0 || event.a > 1 || event.c < 0 || event.c > 1)
+                throw std::runtime_error("invalid desktop wheel");
+            execute("hl.plugin.viewflow.forwarded_axis(" + std::to_string(event.a) + "," +
+                std::to_string(event.b) + "," + std::to_string(event.c) + "," + std::to_string(time()) + ");" +
+                ((event.c && event.d && event.b) ? "hl.plugin.viewflow.forwarded_axis(" +
+                 std::to_string(event.a) + ",0,1," + std::to_string(time()) + ");" : ""));
+            break;
+        default: throw std::runtime_error("unsupported desktop input kind");
+        }
     }
     void input(const vf::Input& event) {
         if (event.sequence <= sequence) throw std::runtime_error("window input sequence regression");
@@ -233,11 +268,27 @@ struct App {
     }
 };
 }
+#ifndef VIEWFLOW_DESKTOP_EMBED
 int main(int argc, char* argv[]) {
     std::signal(SIGPIPE, SIG_IGN);
     constexpr auto usage = "Usage: viewflow-linux-window-input WINDOW_HEX PID STABLE_ID\nPrivate helper for vf-hyprland-windows; no input is posted by --help.\n";
     if (argc == 2 && std::strcmp(argv[1], "--help") == 0) { std::puts(usage); return 0; }
     try {
+        if (argc == 2 && std::strcmp(argv[1], "--desktop") == 0) {
+            App app; app.desktop = true; app.start();
+            std::vector<uint8_t> bytes;
+            while (vf::read_record(STDIN_FILENO, bytes)) {
+                auto event = vf::unpack_input(bytes);
+                try { app.desktop_input(event); event.d = 0; }
+                catch (const std::exception& error) {
+                    std::fprintf(stderr, "handoff receiver recovering: %s\n", error.what());
+                    try { app.release(); } catch (...) {}
+                    event.d = 1;
+                }
+                vf::write_record(STDOUT_FILENO, vf::pack_input(event));
+            }
+            return 0;
+        }
         if (argc != 4) throw std::runtime_error(usage);
         App app; app.address = argv[1]; app.stable_id = argv[3];
         size_t used = 0; const auto pid = std::stoul(argv[2], &used);
@@ -260,3 +311,5 @@ int main(int argc, char* argv[]) {
         return 0;
     } catch (const std::exception& error) { std::fprintf(stderr, "window input: %s\n", error.what()); return 1; }
 }
+
+#endif

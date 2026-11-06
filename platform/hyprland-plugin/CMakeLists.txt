@@ -20,6 +20,7 @@ add_library(viewflow-hyprland SHARED
     src/popup_backdrop.cpp
     src/metadata_bridge.cpp
     src/socket_sink.cpp
+    src/desktop_handoff.cpp
     src/input_capture.cpp
     src/input_capture_core.cpp
     src/desktop_window_controller.cpp

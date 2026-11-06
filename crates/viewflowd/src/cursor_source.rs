@@ -10,6 +10,13 @@ use std::{
 };
 
 pub async fn run(path: &Path) -> Result<()> {
+    // The paired Linux window lane still owns the parking-output lifecycle.
+    // Its symmetric desktop input worker owns capture separately.
+    if std::env::var("VIEWFLOW_CURSOR_WINDOW_ONLY").as_deref() == Ok("1") {
+        let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+        tokio::select! { _ = terminate.recv() => {}, _ = tokio::signal::ctrl_c() => {} }
+        return Ok(());
+    }
     // Windows consumes native Precision Touchpad frames on this connection.
     // macOS negotiates ABI 2 reports on this same authenticated input lane.
     let raw_touchpad = match std::env::var("VIEWFLOW_CURSOR_RAW_TOUCHPAD").as_deref() {

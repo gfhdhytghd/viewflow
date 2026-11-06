@@ -115,6 +115,8 @@ class PairingService:
             write_private(identity_path, identity)
         self.device = wire.validate_device(dict(identity, platform=platform,
             name=(name or socket.gethostname())[:120], display=display))
+        self.device['handoff_port'] = allocate_ports(self.device['ports'].values())['input']
+        self.device['handoff_version'] = 1
         self.state_path = self.directory / 'group.json'
         if self.state_path.exists():
             self.state = json.loads(self.state_path.read_text(encoding='utf-8'))
@@ -474,7 +476,9 @@ class PairingService:
                 group['members'] = [m for m in group['members'] if m['device']['id'] != peer_id]
                 group['members'].append(dict(device=device, slot=slot)); group['members'].sort(key=lambda m: m['slot'])
                 excluded = {p for r in self.peers.values() for p in r['local_device']['ports'].values()}
+                excluded.update(r['local_device']['handoff_port'] for r in self.peers.values() if r['local_device'].get('handoff_port'))
                 local = dict(self.device, ports=allocate_ports(excluded))
+                local['handoff_port'] = allocate_ports([*excluded, *local['ports'].values()])['input']
                 # Existing members keep their desktop positions when a third
                 # computer joins or another member leaves.
                 edge = round(self.device['display']['width'] / self.device['display']['scale'])

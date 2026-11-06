@@ -25,3 +25,12 @@ if(BUILD_TESTING)
   add_test(NAME window-identity COMMAND ${LUA_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/window_identity_test.lua $<TARGET_FILE:window-identity-test>)
 endif()
+
+add_executable(viewflow-desktop-handoff ../desktop-handoff/linux.cpp ${PROTOCOL_FILES})
+target_compile_features(viewflow-desktop-handoff PRIVATE cxx_std_20)
+target_include_directories(viewflow-desktop-handoff PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_compile_options(viewflow-desktop-handoff PRIVATE -Wall -Wextra -Werror)
+target_link_libraries(viewflow-desktop-handoff PRIVATE PkgConfig::WAYLAND)
+if(BUILD_TESTING)
+  add_test(NAME desktop-handoff-self-test COMMAND viewflow-desktop-handoff --self-test)
+endif()

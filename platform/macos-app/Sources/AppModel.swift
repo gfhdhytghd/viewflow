@@ -255,11 +255,28 @@ import Combine
                         let id = peer.isEmpty ? "input" : "input-" + peer
                         if !permissions.canPostInput && workers[id] == nil { statuses[component] = "等待辅助功能权限"; continue }
                         let material = linkIdentities[peer] ?? identity
+                        if let handoff = link.desktopHandoff {
+                            let handoffID = "handoff-" + peer
+                            try worker(handoffID, component: component, binary: "vf-handoff-peer", peerID: peer,
+                                       environment: ["VIEWFLOW_HANDOFF_STATUS_FILE": ProfileStore.root.appendingPathComponent("run/\(handoffID)-status.txt").path]) {
+                                var fields = material
+                                let encoded = try JSONEncoder().encode(handoff)
+                                let values = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+                                fields.merge(values) { _, new in new }
+                                fields["native"] = try BundleTools.executable("viewflow-desktop-handoff").path
+                                return ["--config", try configuration(handoffID, fields: fields).path]
+                            }
+                        }
                         try worker(id, component: component, binary: "viewflowd", peerID: peer,
                                    environment: link.desktopInputEnvironment) {
                             ["serve", "--bind", link.inputBind, "--cert", material["certificate"] as! String,
                              "--key", material["private_key"] as! String, "--ca", material["certificate_authority"] as! String,
                              "--input-backend", "native", "--device-id", link.deviceID]
+                        }
+                        if let handoffWorker = workers["handoff-" + peer] {
+                            statuses[component] = (statuses[component] ?? "") + "；" + handoffWorker.status
+                        } else if let notice = link.desktopHandoffNotice {
+                            statuses[component] = (statuses[component] ?? "") + "；" + notice
                         }
                     }
                 case .windowsReceive:

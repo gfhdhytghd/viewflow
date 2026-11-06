@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 #include "metadata_bridge.hpp"
 #include "input_capture.hpp"
+#include "desktop_handoff.hpp"
 #include "desktop_window_controller.hpp"
 #include "window_recall.hpp"
 #include "output_float.hpp"
@@ -170,6 +171,8 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
   g_inputCapture =
       std::make_unique<viewflow::hyprland::InputCapture>(*g_bridge);
   g_inputCapture->start();
+  viewflow::hyprland::DesktopHandoff::captureChanged=[](bool active){if(g_inputCapture)g_inputCapture->desktopCaptureChanged(active);};
+  viewflow::hyprland::DesktopHandoff::legacyCaptured=[](){auto* c=activeInput();return c && c->captured();};
   g_desktopWindowController =
       std::make_unique<viewflow::hyprland::DesktopWindowController>();
   if (!HyprlandAPI::addLuaFunction(handle, "viewflow", "workarea", [](lua_State* state)->int {
@@ -224,6 +227,17 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         } catch (const std::exception& error) {
           lua_pushstring(state, error.what()); return lua_error(state);
         }
+      }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "handoff_connect", [](lua_State* state)->int {
+        try {
+          const char* path=lua_tostring(state,1);
+          if(!path)throw std::runtime_error("handoff socket required");
+          double v[8];for(int i=0;i<8;++i){if(!lua_isnumber(state,i+2))throw std::runtime_error("handoff geometry required");v[i]=lua_tonumber(state,i+2);}
+          std::erase_if(viewflow::hyprland::DesktopHandoff::routes,[](const auto& route){return route->finished();});
+          auto route=std::make_unique<viewflow::hyprland::DesktopHandoff>(path,
+              viewflow::handoff::Rect{v[0],v[1],v[2],v[3]},viewflow::handoff::Rect{v[4],v[5],v[6],v[7]});
+          viewflow::hyprland::DesktopHandoff::routes.push_back(std::move(route));
+          lua_pushboolean(state,true);return 1;
+        }catch(const std::exception& error){lua_pushstring(state,error.what());return lua_error(state);}
       }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "capture_status", [](lua_State *state) -> int {
         auto* capture = activeInput();
         if (const auto* name = lua_tostring(state, 1)) {
@@ -280,6 +294,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
         return 0;
       }) || !HyprlandAPI::addLuaFunction(handle, "viewflow", "desktop_window", desktopWindowRequest)) {
     g_desktopWindowController.reset();
+    viewflow::hyprland::DesktopHandoff::routes.clear();
     g_inputCapture.reset();
     g_bridge.reset();
     throw std::runtime_error("Viewflow timing query registration failed");
@@ -299,6 +314,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     if (g_focusMotionHook) HyprlandAPI::removeFunctionHook(handle, g_focusMotionHook);
     g_focusMotionHook = nullptr;
     g_desktopWindowController.reset();
+    viewflow::hyprland::DesktopHandoff::routes.clear();
     g_inputCapture.reset();
     g_bridge.reset();
     throw std::runtime_error("Viewflow exact compositor focus-motion hook unavailable");
@@ -320,7 +336,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
   // Revoke entry points before releasing their targets. Cached Lua closures
   // use Hyprland's ID dispatcher and then report "plugin unloaded".
   if (g_handle)
-    for (const auto* name : {"workarea", "fit_output_window", "float_output", "recall_windows", "recall_shortcut", "set_recall_shortcut", "add_input_route", "capture_status", "pointer_timings", "forwarded_button", "forwarded_axis", "with_forwarded_motion", "focus_without_warp", "desktop_window"})
+    for (const auto* name : {"workarea", "fit_output_window", "float_output", "recall_windows", "recall_shortcut", "set_recall_shortcut", "add_input_route", "handoff_connect", "capture_status", "pointer_timings", "forwarded_button", "forwarded_axis", "with_forwarded_motion", "focus_without_warp", "desktop_window"})
       HyprlandAPI::removeLuaFunction(g_handle, "viewflow", name);
   if (g_pendingDetach) wl_event_source_remove(g_pendingDetach);
   g_pendingDetach = nullptr;
@@ -332,7 +348,8 @@ APICALL EXPORT void PLUGIN_EXIT() {
   if (g_focusMotionHook) HyprlandAPI::removeFunctionHook(g_handle, g_focusMotionHook);
   g_focusMotionHook = nullptr;
   // Release held input before restoring a window to its original workspace.
-  g_inputCapture.reset();
+  viewflow::hyprland::DesktopHandoff::routes.clear();
+    g_inputCapture.reset();
   if (g_desktopWindowController) g_desktopWindowController->shutdown();
   g_desktopWindowController.reset();
   g_bridge.reset();

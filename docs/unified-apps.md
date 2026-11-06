@@ -290,3 +290,11 @@ HID 不可用时，普通移动、点击与双指滚轮继续工作。
 
 本次离线检查与真实手势验收分开。设计、构建对象和人工清单见
 [桌面原生触控板转发](macos-window-sharing.md#desktop-native-touchpad-forwarding)。
+
+## Desktop cursor handoff matrix
+
+See [desktop handoff](desktop-handoff-matrix.md) for the ordered 3×3 input-only
+matrix, ownership/loop rules, compatibility with atlas/native HID, build commands
+and user-operated acceptance. Source implementation and offline tests are
+separate from native acceptance; the matrix currently records native results as
+unverified.

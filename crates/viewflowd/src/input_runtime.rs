@@ -224,6 +224,8 @@ pub(crate) struct InputReceiver {
     #[cfg(unix)]
     pub(crate) hid: crate::desktop_hid::Shared,
     backend: InputBackend,
+    desktop_seat: Option<crate::desktop_handoff::Seat>,
+    native_mode: bool,
     local_device: Option<Id128>,
     lease: Option<InputLease>,
     previous_event_sequence: Option<u64>,
@@ -243,6 +245,8 @@ impl InputReceiver {
                 cfg!(target_os = "macos") && mode == InputBackendMode::Native
                     && std::env::var("VIEWFLOW_DESKTOP_HID").as_deref() == Ok("1")))),
             backend: InputBackend::new(mode)?,
+            desktop_seat: None,
+            native_mode: mode == InputBackendMode::Native,
             local_device,
             lease: None,
             previous_event_sequence: None,
@@ -321,6 +325,7 @@ impl InputReceiver {
             #[cfg(unix)]
             self.hid.lock_or_recover().release();
             self.backend.release_all()?;
+            self.desktop_seat = None;
         }
         *self.feedback.lock_or_recover() = None;
         self.previous_event_sequence = None;
@@ -361,6 +366,7 @@ impl InputReceiver {
         #[cfg(unix)]
         self.hid.lock_or_recover().release();
         self.backend.release_all()?;
+        self.desktop_seat = None;
         *self.feedback.lock_or_recover() = None;
         self.previous_event_sequence = None;
         self.lease = Some(revoke.lease());
@@ -438,6 +444,11 @@ impl InputReceiver {
                 return Err(error);
             }
         }
+        // Legacy desktop input and symmetric handoff share one target owner.
+        // Contention rejects this event, never the connection or other lanes.
+        if self.native_mode && self.desktop_seat.is_none() && !matches!(event.event, InputEventKind::ReleaseAll) {
+            self.desktop_seat = Some(crate::desktop_handoff::Seat::acquire().map_err(|_| InputApplyError::InjectionFailed)?);
+        }
         #[cfg(unix)]
         if let InputEventKind::NativeTouchpad(report) = event.event {
             // Identity/order/freshness were checked above. Local HID failures
@@ -453,6 +464,7 @@ impl InputReceiver {
             *self.feedback.lock_or_recover() = Some((event.lease_generation, event.sequence));
         } else if matches!(event.event, InputEventKind::ReleaseAll) {
             *self.feedback.lock_or_recover() = None;
+            self.desktop_seat = None;
         }
         self.previous_event_sequence = Some(event.sequence);
         #[cfg(test)]
@@ -466,7 +478,9 @@ impl InputReceiver {
         #[cfg(unix)]
         self.hid.lock_or_recover().release();
         *self.feedback.lock_or_recover() = None;
-        self.backend.release_all()
+        self.backend.release_all()?;
+        self.desktop_seat = None;
+        Ok(())
     }
 }
 
