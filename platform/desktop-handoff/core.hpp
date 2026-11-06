@@ -42,6 +42,8 @@ struct Core {
     bool canSend=false;
     bool pending{}, outgoing{}, incoming{}, armed{true};
     double x{}, y{};
+    double pointerX{}, pointerY{};
+    bool havePointer{};
     std::set<int> physicalKeys, physicalButtons, receivedKeys, receivedButtons;
     std::function<void(Input)> send, inject;
     std::function<void(bool)> capture;
@@ -56,6 +58,13 @@ struct Core {
         return px>=std::max(local.x,remote.x) && px<std::min(local.x+local.w,remote.x+remote.w) &&
             (edge==Edge::top ? py<=local.y : py>=local.y+local.h-1);
     }
+    // Observation is never a capture request. Native warps and received
+    // positions can rearm an interior cursor without waiting for another
+    // physical sample there (acceleration can skip directly to the edge).
+    void observe_position(double px,double py) {
+        pointerX=px;pointerY=py;havePointer=true;
+        if(!at_edge(px,py))armed=true;
+    }
     void release_received() {
         std::exception_ptr failure;
         const auto release=[&](std::set<int>& held,uint32_t type) {
@@ -68,10 +77,13 @@ struct Core {
         if(failure)std::rethrow_exception(failure);
     }
     void reset() {
-        if(outgoing) capture(false);
-        pending=outgoing=incoming=false;armed=false;
-        release_received();
+        std::exception_ptr failure;
+        try {if(outgoing)capture(false);} catch(...) {failure=std::current_exception();}
+        pending=outgoing=incoming=false;
+        armed=havePointer && !at_edge(pointerX,pointerY);
+        try {release_received();} catch(...) {failure=std::current_exception();}
         std::fprintf(stderr,"handoff released\n");
+        if(failure)std::rethrow_exception(failure);
     }
     void command(Input e) {
         if(kind(e)==capabilities) {canSend=e.a!=0;return;}
@@ -87,14 +99,24 @@ struct Core {
         if(kind(e)==entered) {
             reset();incoming=true;
             inject(message(1,e.a,e.b));
+            observe_position(local.x+e.a/1000.0,local.y+e.b/1000.0);
             std::fprintf(stderr,"handoff entered\n");return;
         }
         if(!incoming) return;
         if(kind(e)==4) {if(e.b)receivedKeys.insert(e.a);else receivedKeys.erase(e.a);}
         if(kind(e)==2) {if(e.b)receivedButtons.insert(e.a);else receivedButtons.erase(e.a);}
         inject(e);
+        if(kind(e)==1)observe_position(local.x+e.a/1000.0,local.y+e.b/1000.0);
     }
     bool motion(double px,double py,double dx,double dy,bool injected=false) {
+        const bool moved=havePointer && (px!=pointerX || py!=pointerY);
+        if(!outgoing) {
+            observe_position(px,py);
+            // A stationary sample at the return edge cannot recapture. A new
+            // physical position can, even if no intermediate interior sample
+            // was delivered. Injected movement only updates the observation.
+            if(!injected && moved)armed=true;
+        }
         if(injected || incoming || !canSend) return false;
         if(outgoing) {
             x+=dx;y+=dy;
@@ -140,6 +162,18 @@ inline int self_test() {
     a.command(message(entered,1000,2000));a.command(message(4,29,1));a.command(message(2,272,1));
     const auto before=sent.size();a.motion(99,30,1,0);require(sent.size()==before);
     a.command(message(released));require(posted.back().a==272 && posted.back().b==0);
+    Core b({0,0,100,80},{-100,0,100,80});
+    std::vector<Input> requests;
+    b.send=[&](Input e){requests.push_back(e);};b.inject=[](Input){};b.capture=[](bool){};
+    b.command(message(capabilities,1,1));
+    b.command(message(entered,27000,30000));b.command(message(released));
+    auto count=requests.size();b.motion(0,30,-27,0);
+    require(requests.size()==count+1 && kind(requests.back())==request);
+    b.observe_position(0,30);b.reset();count=requests.size();
+    b.motion(0,30,-1,0,true);b.motion(0,30,-1,0);
+    require(requests.size()==count); // no stationary/injected return-edge bounce
+    b.motion(27,30,27,0,true);b.motion(0,30,-27,0);
+    require(requests.size()==count+1);
     require(adjacent({0,0,100,80},{100,80,100,80})==Edge::none);
     std::puts("handoff self-test passed: captured entered returned released; no native input");return 0;
 }

@@ -41,10 +41,22 @@ int main() {
         assert(h::kind(sent.back())==h::returned);
         const auto count=sent.size();core.motion(c.px,c.py,c.dx,c.dy);assert(sent.size()==count); // no ping-pong
         core.motion(50,40,-c.dx,-c.dy);core.motion(c.px,c.py,c.dx,c.dy);assert(sent.size()==count+1);
+        // A native interior placement followed by one accelerated edge event
+        // must capture on every edge, without a physical interior sample.
+        core.observe_position(50,40);core.reset();
+        const auto accelerated=sent.size();
+        core.motion(c.px,c.py,c.dx*50,c.dy*40);
+        assert(sent.size()==accelerated+1 && h::kind(sent.back())==h::request);
         core.command(h::message(h::entered));core.command(h::message(4,29,1));core.command(h::message(4,42,1));
         bool attempted_shift=false;
         core.inject=[&](h::Input e){if(e.a==29)throw std::runtime_error("fixture injection failure");if(e.a==42)attempted_shift=true;};
         try{core.reset();assert(false);}catch(const std::runtime_error&){}
         assert(attempted_shift && !core.outgoing && !core.incoming);
+        core.receivedKeys={29};core.receivedButtons={272};core.outgoing=true;
+        core.capture=[](bool){throw std::runtime_error("fixture cursor restoration failure");};
+        posted.clear();core.inject=[&](h::Input e){posted.push_back(e);};
+        try{core.reset();assert(false);}catch(const std::runtime_error&){}
+        assert(posted.size()==2 && core.receivedKeys.empty() && core.receivedButtons.empty());
+        assert(!core.pending && !core.outgoing && !core.incoming);
     }
 }

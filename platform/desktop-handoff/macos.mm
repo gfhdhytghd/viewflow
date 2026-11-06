@@ -62,25 +62,48 @@ void post(h::Input e) {
     if(!event)throw std::runtime_error("cannot create input event");
     CGEventSetFlags(event,flags());CGEventSetIntegerValueField(event,kCGEventSourceUserData,marker);
     CGEventPost(kCGSessionEventTap,event);CFRelease(event);
+    if(h::kind(e)==1)core->observe_position(core->local.x+e.a/1000.0,core->local.y+e.b/1000.0);
 }
+bool cursor_hidden=false,mouse_detached=false;
+void restore_presentation() noexcept {
+    // Each successful hide/detach is undone once, independently of warp or
+    // held-input release failures. Do not decrement another application's hide.
+    if(mouse_detached && CGAssociateMouseAndMouseCursorPosition(true)==kCGErrorSuccess)mouse_detached=false;
+    if(cursor_hidden && CGDisplayShowCursor(kCGDirectMainDisplay)==kCGErrorSuccess) {
+        cursor_hidden=false;std::fprintf(stderr,"handoff cursor restored\n");
+    }
+}
+struct PresentationCleanup {~PresentationCleanup(){restore_presentation();}};
 void capture(bool active) {
     if(active) {
         CGEventRef event=CGEventCreate(nullptr);
         if(!event)throw std::runtime_error("cannot save cursor position");
         saved=CGEventGetLocation(event);CFRelease(event);
-        CGDisplayHideCursor(kCGDirectMainDisplay);
-        CGAssociateMouseAndMouseCursorPosition(false);
+        if(!cursor_hidden) {
+            if(CGDisplayHideCursor(kCGDirectMainDisplay)!=kCGErrorSuccess)throw std::runtime_error("hide Mac cursor failed");
+            cursor_hidden=true;std::fprintf(stderr,"handoff cursor hidden\n");
+        }
+        if(!mouse_detached) {
+            if(CGAssociateMouseAndMouseCursorPosition(false)!=kCGErrorSuccess)throw std::runtime_error("detach Mac cursor failed");
+            mouse_detached=true;
+        }
     } else {
-        CGAssociateMouseAndMouseCursorPosition(true);
+        restore_presentation();
+        if(cursor_hidden || mouse_detached)throw std::runtime_error("restore Mac cursor presentation failed");
         saved.x=std::clamp(core->remote.x+core->x,core->local.x+1,core->local.x+core->local.w-2);
         saved.y=std::clamp(core->remote.y+core->y,core->local.y+1,core->local.y+core->local.h-2);
-        CGWarpMouseCursorPosition(saved);CGDisplayShowCursor(kCGDirectMainDisplay);
+        if(CGWarpMouseCursorPosition(saved)!=kCGErrorSuccess)throw std::runtime_error("return Mac cursor failed");
+        core->observe_position(saved.x,saved.y);
     }
 }
 void fail() {try{core->reset();}catch(...){} try{output->send(h::message(h::fault));}catch(...){} }
 CGEventRef callback(CGEventTapProxy,CGEventType type,CGEventRef e,void*) {
     if(type==kCGEventTapDisabledByTimeout || type==kCGEventTapDisabledByUserInput) {
         fail();CGEventTapEnable(tap,true);return e;
+    }
+    if(!core->outgoing && (type==kCGEventMouseMoved || type==kCGEventLeftMouseDragged || type==kCGEventRightMouseDragged || type==kCGEventOtherMouseDragged) &&
+       (CGEventGetIntegerValueField(e,kCGEventSourceUserData)==marker || CGEventGetIntegerValueField(e,kCGEventSourceUnixProcessID)!=0)) {
+        const auto p=CGEventGetLocation(e);core->observe_position(p.x,p.y);return e;
     }
     if(CGEventGetIntegerValueField(e,kCGEventSourceUserData)==marker)return e;
     // Other synthetic sources (window presenters, accessibility tools) are not
@@ -129,6 +152,7 @@ int main(int argc,char** argv) {
             std::signal(SIGINT,SIG_IGN);std::signal(SIGTERM,SIG_IGN);
             if(!CGPreflightPostEventAccess())
                 throw std::runtime_error("Accessibility / Input Monitoring permission missing; other lanes remain available");
+            PresentationCleanup presentation_cleanup;
             h::Core state(local,remote);core=&state;
             caps_lock=(CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState)&kCGEventFlagMaskAlphaShift)!=0;
             for(auto [key,code]:viewflow::macos::key_pairs)
@@ -166,7 +190,9 @@ int main(int argc,char** argv) {
                 }catch(...){}
                 CFRunLoopPerformBlock(loop,kCFRunLoopCommonModes,^{CFRunLoopStop(loop);});CFRunLoopWakeUp(loop);
             });
-            CFRunLoopRun();state.reset();
+            CFRunLoopRun();
+            try{state.reset();}catch(const std::exception& e){std::fprintf(stderr,"handoff cleanup: %s\n",e.what());}
+            restore_presentation();
             if(tap)CGEventTapEnable(tap,false);
             if(source){CFRunLoopRemoveSource(loop,source,kCFRunLoopCommonModes);CFRelease(source);}
             if(tap)CFRelease(tap);

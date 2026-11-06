@@ -1,9 +1,11 @@
 #define NOMINMAX
+#define OEMRESOURCE
 #include <windows.h>
 #include <fcntl.h>
 #include <io.h>
 #include "pipe.hpp"
 #include "windows_keys.hpp"
+#include "windows_cursor.hpp"
 #include "scroll.hpp"
 #include "../reverse-common/scroll_units.hpp"
 namespace h=viewflow::handoff;
@@ -11,7 +13,8 @@ namespace {
 constexpr ULONG_PTR marker=0x56464831;
 constexpr UINT command_message=WM_APP+71;
 h::Core* core{};h::Output* output{};
-RECT previous_clip{};
+RECT previous_clip{};bool clip_owned=false;
+h::CursorVisibility* cursor_visibility{};
 POINT last{},anchor{},saved{};bool positioned=false;
 DWORD main_thread{};
 double scale_x=1,scale_y=1;
@@ -47,19 +50,27 @@ void post(h::Input e) {
         } else return;
     }
     if(SendInput(1,&v,sizeof(v))!=1)throw std::runtime_error("SendInput failed (desktop or integrity level unavailable)");
+    if(h::kind(e)==1)core->observe_position(e.a/1000.0+core->local.x,e.b/1000.0+core->local.y);
 }
 void capture(bool active) {
     if(active) {
-        GetCursorPos(&saved);anchor=saved;GetClipCursor(&previous_clip);
+        cursor_visibility->hide();
+        if(!GetCursorPos(&saved) || !GetClipCursor(&previous_clip))throw std::runtime_error("read desktop cursor placement failed");
+        anchor=saved;
         RECT clip{LONG(core->local.x*scale_x),LONG(core->local.y*scale_y),LONG((core->local.x+core->local.w)*scale_x),LONG((core->local.y+core->local.h)*scale_y)};
         if(!ClipCursor(&clip))throw std::runtime_error("ClipCursor failed");
+        clip_owned=true;
         // Anchor inside the display: relative hook motion remains available
         // in both directions even when the OS would clamp at an outer edge.
         anchor.x=LONG((core->local.x+core->local.w/2)*scale_x);anchor.y=LONG((core->local.y+core->local.h/2)*scale_y);
         last=anchor;positioned=true;
         post(h::message(1,int((anchor.x/scale_x-core->local.x)*1000),int((anchor.y/scale_y-core->local.y)*1000)));
     } else {
-        ClipCursor(&previous_clip);
+        // Restore visibility/clip before any cursor warp that could fail.
+        const bool visible=cursor_visibility->restore();
+        const bool unclipped=!clip_owned || ClipCursor(&previous_clip)!=FALSE;
+        if(unclipped)clip_owned=false;
+        if(!visible || !unclipped)throw std::runtime_error("restore desktop cursor presentation failed");
         const double x=std::clamp(core->remote.x+core->x,core->local.x+1,core->local.x+core->local.w-2);
         const double y=std::clamp(core->remote.y+core->y,core->local.y+1,core->local.y+core->local.h-2);
         saved={LONG(x*scale_x),LONG(y*scale_y)};last=saved;
@@ -70,7 +81,13 @@ void fail() {try{core->reset();}catch(...){} try{output->send(h::message(h::faul
 LRESULT CALLBACK mouse(int code,WPARAM w,LPARAM l) {
     if(code<0)return CallNextHookEx(nullptr,code,w,l);
     const auto& e=*reinterpret_cast<MSLLHOOKSTRUCT*>(l);
-    if((e.flags&LLMHF_INJECTED) || e.dwExtraInfo==marker)return CallNextHookEx(nullptr,code,w,l);
+    if((e.flags&LLMHF_INJECTED) || e.dwExtraInfo==marker) {
+        if(w==WM_MOUSEMOVE && !core->outgoing) {
+            core->observe_position(e.pt.x/scale_x,e.pt.y/scale_y);
+            last=e.pt;positioned=true;
+        }
+        return CallNextHookEx(nullptr,code,w,l);
+    }
     try {
         bool swallow=false;
         if(w==WM_MOUSEMOVE) {
@@ -111,12 +128,14 @@ LRESULT CALLBACK keyboard(int code,WPARAM w,LPARAM l) {
 int main(int argc,char** argv) {
     try {
         if(argc==2 && std::string(argv[1])=="--self-test")return h::self_test();
+        if(argc==3 && std::string(argv[1])=="--cursor-guard")return h::cursor_guard(DWORD(std::stoul(argv[2])));
         const auto [local,remote]=h::geometry(argc,argv);
         SetConsoleCtrlHandler([](DWORD event)->BOOL {
             if(event==CTRL_C_EVENT || event==CTRL_BREAK_EVENT)return TRUE; // parent closes stdin
             PostThreadMessageW(main_thread,WM_QUIT,0,0);return TRUE;
         },TRUE);
         SetProcessDPIAware();_setmode(0,_O_BINARY);_setmode(1,_O_BINARY);
+        h::CursorVisibility visibility;cursor_visibility=&visibility;
         h::Core state(local,remote);core=&state;
         scale_x=GetSystemMetrics(SM_CXSCREEN)/local.w;scale_y=GetSystemMetrics(SM_CYSCREEN)/local.h;
         for(unsigned code=1;code<256;++code)if(const auto scan=h::windows_scan(code)) {
@@ -149,7 +168,10 @@ int main(int argc,char** argv) {
                 try{state.command(*e);}catch(...){fail();}
             }
         }
-        state.reset();UnhookWindowsHookEx(mh);UnhookWindowsHookEx(kh);
+        try{state.reset();}catch(const std::exception& e){std::fprintf(stderr,"handoff cleanup: %s\n",e.what());}
+        visibility.restore();
+        if(clip_owned){ClipCursor(&previous_clip);clip_owned=false;}
+        UnhookWindowsHookEx(mh);UnhookWindowsHookEx(kh);
         CancelSynchronousIo(reader.native_handle());reader.join();return 0;
     }catch(const std::exception& e){std::fprintf(stderr,"handoff unavailable: %s\n",e.what());return 1;}
 }

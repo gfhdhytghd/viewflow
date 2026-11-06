@@ -36,6 +36,7 @@ DesktopHandoff::DesktopHandoff(const std::string& path,handoff::Rect local,hando
             anchorY=std::clamp(core.remote.y+core.y,core.local.y+1,core.local.y+core.local.h-2);
             const bool previous=InputCapture::forwardedMotion;InputCapture::forwardedMotion=true;
             Pointer::mgr()->warpTo({anchorX,anchorY});InputCapture::forwardedMotion=previous;
+            core.observe_position(anchorX,anchorY);
         }
         if(captureChanged)captureChanged(active);
     };
