@@ -339,9 +339,9 @@ The per-user MSI stays per-user. The bundle now includes
 `setup/configure-windows-firewall.ps1`; the Windows app's network settings has
 an **Allow Viewflow inbound connections** button (Chinese:
 **允许 Viewflow 入站连接**). Before connecting, click it, approve the normal UAC
-prompt, and check that the elevated window reports
-`Viewflow firewall setup complete`. Close that window after reviewing the result.
-Launching the window alone is not evidence that setup succeeded.
+prompt. The elevated window closes on success and stays open with the error
+on failure (4ea9dacc); rerunning setup is safe. Launching the window alone is
+not evidence that setup succeeded.
 
 The script permits TCP/UDP for installed `Viewflow.exe` and UDP for installed
 `bin/viewflowd.exe`, `vf-handoff-peer.exe`, `vf-window-peer.exe`,
@@ -424,8 +424,11 @@ Block rules. The service integration below has only offline evidence on Linux.
 On each received handoff, the Windows adapter now tries the existing
 `\\.\pipe\ViewflowInput-v2-<session>` broker. The broker still authorizes the
 configured receiver SID and SYSTEM through its local-only pipe ACL. The client
-checks the pipe server's SYSTEM token and matching session, using identification
-SQOS exactly as the existing Rust service client does. No new network listener,
+checks the pipe server's session (`GetNamedPipeServerSessionId`) and that the
+pipe object is owned by LocalSystem or BUILTIN\Administrators, using
+identification SQOS exactly as the existing Rust service client does. A standard
+UAC-filtered receiver cannot open the LocalSystem worker process or its token,
+so the earlier process-token check always failed there (fixed in 767d1525). No new network listener,
 service privilege, account permission or pairing rule is added.
 
 When reachable, the broker receives all pointer, button, wheel and keyboard
@@ -532,6 +535,17 @@ User-operated acceptance, repeated with each VM as receiver:
    `backend=session` and the permission-panel warning. Elevated-window and
    secure-desktop control are unavailable in this mode. Starting the service and
    returning/reentering selects it without restarting the other application lanes.
+
+VM results (2026-11-07, tiny11 VMs, receiver vfwin-b with UAC and secure
+desktop prompting enabled, 150% scale, adapter 767d1525, service installed by
+the app's button with b54403a8's runtime-DLL fix): `backend=service` on every
+entry; a UAC consent prompt was approved with the controller's Alt+Y; the
+Administrator console received typed commands including `| > \ /` and reported
+`High Mandatory Level`; Win+L lock screen accepted the password from the
+controller and unlocked to the same link; a held Shift was released about
+3 s after the controller peer was killed. Steps 5 and 7, service stop during
+capture, mouse clicks in elevated windows and service contention remain
+untested. Before 767d1525 the same VM always chose `backend=session`.
 
 Offline results: portable C++ core/wire test passed; Rust Windows input/wire
 tests **22/22** passed; generated key-table test **1/1** passed; Python service
