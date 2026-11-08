@@ -37,11 +37,13 @@ int main() {
     assert(needs_recall({50000,50000,800,600},physical));
     assert(!needs_recall({50000,0,800,600},{})); // never move without a physical destination
     const Rect overlap{200,300,800,600}, owner{0,0,1920,1200};
-    assert(needs_workspace_recall(overlap,physical,false,true,owner)); // remote tile overlaps DRM
-    assert(needs_workspace_recall(overlap,physical,true,false,owner)); // hidden underlay/inactive
-    assert(!needs_workspace_recall(overlap,physical,true,true,owner));
-    assert(needs_workspace_recall({-1800,200,800,600},physical,true,true,owner)); // scrolling into other DRM
-    assert(!needs_workspace_recall(overlap,{},false,false,owner));
+    assert(needs_workspace_recall(overlap,physical,false,true,false,owner)); // remote tile overlaps DRM
+    assert(needs_workspace_recall(overlap,physical,true,false,true,owner)); // hidden viewflow-* underlay
+    assert(!needs_workspace_recall(overlap,physical,true,false,false,owner)); // ordinary inactive workspace stays
+    assert(!needs_workspace_recall({50000,0,800,600},physical,true,false,false,owner)); // even if its coordinates are off-screen
+    assert(!needs_workspace_recall(overlap,physical,true,true,false,owner));
+    assert(needs_workspace_recall({-1800,200,800,600},physical,true,true,false,owner)); // scrolling into other DRM
+    assert(!needs_workspace_recall(overlap,{},false,false,false,owner));
     for (std::size_t i=0;i<200;++i) {
         auto r=placement({50000,50000,4000,3000},{-1920,24,1920,1056},i);
         assert(r.x==-1920&&r.y==24&&r.width==1920&&r.height==1056);

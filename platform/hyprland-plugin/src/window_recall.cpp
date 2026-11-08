@@ -62,8 +62,11 @@ nlohmann::json recallWindows(bool dryRun) {
         const auto ws=window->m_workspace;
         const auto owner=ws ? ws->m_monitor.lock() : PHLMONITOR{};
         const bool visible=ws && owner && (owner->m_activeSpecialWorkspace ? owner->m_activeSpecialWorkspace==ws : owner->m_activeWorkspace==ws);
+        std::string_view wsName=ws ? std::string_view{ws->addressableName()} : std::string_view{};
+        if(wsName.starts_with("name:"))wsName.remove_prefix(5);
+        const bool viewflowWorkspace=wsName.starts_with("viewflow-");
         if(vr::needs_workspace_recall(rect(window->getFullWindowBoundingBox()),rectangles,
-                                     physical(owner),visible,owner ? rect(owner->logicalBox()) : vr::Rect{}))
+                                     physical(owner),visible,viewflowWorkspace,owner ? rect(owner->logicalBox()) : vr::Rect{}))
             windows.push_back(window);
     }
     unsigned moved=0,failed=0;bool focusedMoved=false;

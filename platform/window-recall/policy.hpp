@@ -75,12 +75,17 @@ inline bool needs_recall(Rect window, const std::vector<Rect>& physical) {
     const auto cx=window.x+window.width/2, cy=window.y+window.height/2;
     return std::none_of(physical.begin(), physical.end(), [&](Rect screen) { return screen.contains(cx,cy); });
 }
-// Membership takes precedence over global coordinates: a hidden/remote window
-// can overlap a physical screen without being rendered on that screen.
+// Membership takes precedence over global coordinates: a remote window can
+// overlap a physical screen without being rendered on that screen. Only windows
+// that are on another system are recalled: on a non-physical (Viewflow output)
+// monitor, on a Viewflow-owned workspace (named "viewflow-*", e.g. the output
+// underlay), or pushed off their own screen on the visible workspace. Ordinary
+// hidden workspaces and special workspaces of a physical monitor stay untouched.
 inline bool needs_workspace_recall(Rect window, const std::vector<Rect>& physical,
-                                   bool physicalWorkspace, bool visibleWorkspace, Rect ownerScreen) {
+                                   bool physicalWorkspace, bool visibleWorkspace,
+                                   bool viewflowWorkspace, Rect ownerScreen) {
     if (physical.empty() || !window.valid()) return false;
-    return !physicalWorkspace || !visibleWorkspace || needs_recall(window, {ownerScreen});
+    return !physicalWorkspace || viewflowWorkspace || (visibleWorkspace && needs_recall(window, {ownerScreen}));
 }
 inline Rect placement(Rect window, Rect work, std::size_t index, double step=28) {
     if (!window.valid() || !work.valid() || !std::isfinite(step) || step<=0) throw std::invalid_argument("Invalid recall geometry");
