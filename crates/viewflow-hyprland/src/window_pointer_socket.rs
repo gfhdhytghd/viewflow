@@ -24,6 +24,24 @@ pub struct Listener {
     expected_pid: i32,
 }
 
+fn stale_socket(path: &Path, address: &UnixAddr) -> io::Result<bool> {
+    use std::os::unix::fs::FileTypeExt;
+    let meta = std::fs::symlink_metadata(path)?;
+    if !meta.file_type().is_socket() || meta.uid() != nix::unistd::geteuid().as_raw() {
+        return Ok(false);
+    }
+    let probe = socket::socket(
+        AddressFamily::Unix,
+        SockType::SeqPacket,
+        SockFlag::SOCK_CLOEXEC,
+        None,
+    )?;
+    Ok(matches!(
+        socket::connect(probe.as_raw_fd(), address),
+        Err(nix::errno::Errno::ECONNREFUSED)
+    ))
+}
+
 impl Listener {
     /// Bind a new path inside a pre-existing private, owned directory. Never unlinks.
     /// # Errors
@@ -46,7 +64,16 @@ impl Listener {
             SockFlag::SOCK_NONBLOCK | SockFlag::SOCK_CLOEXEC,
             None,
         )?;
-        socket::bind(fd.as_raw_fd(), &UnixAddr::new(path)?)?;
+        let address = UnixAddr::new(path)?;
+        match socket::bind(fd.as_raw_fd(), &address) {
+            // A peer killed without cleanup leaves its socket file behind.
+            // Replace it only when it is our own socket and nothing listens.
+            Err(nix::errno::Errno::EADDRINUSE) if stale_socket(path, &address)? => {
+                std::fs::remove_file(path)?;
+                socket::bind(fd.as_raw_fd(), &address)?;
+            }
+            result => result?,
+        }
         socket::listen(&fd, Backlog::new(1)?)?;
         Ok(Self { fd, expected_pid })
     }
@@ -112,6 +139,30 @@ mod tests {
         bytes.extend(seq.to_le_bytes());
         bytes.extend(payload);
         bytes
+    }
+
+    #[test]
+    fn bind_replaces_only_a_stale_owned_socket() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("vf-pointer-socket-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let path = dir.join("route.sock");
+        // A listener dropped without unlinking leaves a stale socket file.
+        drop(Listener::bind(&path, 1).unwrap());
+        assert!(path.exists());
+        let live = Listener::bind(&path, 1).unwrap();
+        assert_eq!(
+            Listener::bind(&path, 1).err().unwrap().raw_os_error(),
+            Some(nix::libc::EADDRINUSE)
+        );
+        drop(live);
+        std::fs::remove_file(&path).unwrap();
+        std::fs::write(&path, b"").unwrap();
+        assert!(Listener::bind(&path, 1).is_err());
+        assert!(path.is_file());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
