@@ -1,6 +1,7 @@
 #include "window_surface.hpp"
 #include "source_drag.hpp"
 #include "window_resize.hpp"
+#include "window_regions.hpp"
 #include <cassert>
 #include <cmath>
 namespace vf=viewflow::reverse;
@@ -35,20 +36,42 @@ int main() {
     assert(source_drag.observe(true,true,true)==vf::SourceDragAction::begin);
     assert(source_drag.observe(true,false,true)==vf::SourceDragAction::finish);
     assert(source_drag.observe(true,true,true)==vf::SourceDragAction::none); // old hint, new press
+    // Resize follows the pointer: no pause-based debounce, latest wins.
     vf::WindowResize resize;
-    resize.queue({10,20,800,600},1000);
-    assert(!resize.ready(1099));
-    resize.queue({10,20,1000,800},1090);
-    assert(!resize.ready(1189) && resize.ready(1190));
-    assert(resize.candidate->width==1000);
-    resize.cancel();assert(!resize.ready(10000));
+    assert(!resize.ready());
+    resize.queue({10,20,800,600});
+    assert(resize.ready());
+    resize.queue({10,20,1000,800});
+    assert(resize.ready() && resize.candidate->width==1000);
+    resize.cancel();assert(!resize.ready());
     for(int i=0;i<1000;++i) {
-        resize.queue({-3072+i,-299+i,1000,800},2000+i,true);
-        assert(resize.ready(2000+i)); // continuous moves never restart resize debounce
+        resize.queue({-3072+i,-299+i,1000+i,800});
+        assert(resize.ready() && resize.candidate->width==1000+i);
     }
-    resize.queue({10,20,1200,900},4000);
-    assert(!resize.ready(4099) && resize.ready(4100));
-    resize.cancel();assert(!resize.ready(10000)); // fullscreen or successful send
+    resize.cancel();assert(!resize.ready()); // fullscreen or successful send
+    // Interactive-resize state detection from an xdg_toplevel state list.
+    const std::uint32_t activated_only[]={4};
+    const std::uint32_t resizing[]={4,3,1};
+    assert(!vf::toplevel_resizing(activated_only,1) && vf::toplevel_resizing(resizing,3) && !vf::toplevel_resizing(resizing,0));
+    // Top strip moves, content below it does not; short windows keep a third.
+    assert(vf::classify_pointer(0,584)==vf::PointerRegion::titlebar);
+    assert(vf::classify_pointer(43.9,584)==vf::PointerRegion::titlebar);
+    assert(vf::classify_pointer(44,584)==vf::PointerRegion::content);
+    assert(vf::classify_pointer(-1,584)==vf::PointerRegion::content);
+    assert(vf::classify_pointer(30,90)==vf::PointerRegion::content);
+    assert(vf::classify_pointer(28.9,87)==vf::PointerRegion::titlebar);
+    // Source clicks stay inside the source resize zone margin.
+    assert(vf::inset_source_point(0,584)==vf::source_edge_inset_points);
+    assert(vf::inset_source_point(584,584)==584-vf::source_edge_inset_points);
+    assert(vf::inset_source_point(300,584)==300);
+    assert(vf::inset_source_point(-20,584)==vf::source_edge_inset_points);
+    assert(vf::inset_source_point(0,4)==1 && vf::inset_source_point(0,0)==0);
+    assert(!vf::drag_exceeds_slop(2,2) && vf::drag_exceeds_slop(4,0) && vf::drag_exceeds_slop(-3,3));
+    // A stretched proxy (resize ahead of the source frame) has no letterbox:
+    // the whole surface is body and pointer mapping scales to the old frame.
+    const auto stretched=vf::body_surface(1000,800);
+    assert(vf::body_point(stretched,0,0) && vf::body_point(stretched,999,799) && !vf::body_point(stretched,1000,0));
+    assert(vf::local_pointer(500,1000,1600,true)==800);
     // A tiled 1000x800 proxy still displays an old 1600x900 Retina body.
     const auto fit=vf::fitted_body(1000,800,1600,900);
     assert(fit.x==0 && fit.y==118 && fit.body_width==1000 && fit.body_height==563);
@@ -73,9 +96,9 @@ int main() {
     vf::GeometrySync sync;
     const vf::Geometry local{8,12,500,400},remote{8,12,800,600};
     assert(sync.observe(local,remote,0,false)==vf::GeometryAction::send_local);
-    resize.queue(local,2000);
+    resize.queue(local);
     assert(sync.observe(local,remote,0,false)==vf::GeometryAction::none);
-    assert(!resize.ready(2099) && resize.ready(2100));
+    assert(resize.ready());
     // The source divides the scale-two request back to logical AX points.
     const auto physical_width=resize.candidate->width*2;
     assert(physical_width/2==500);

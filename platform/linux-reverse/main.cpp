@@ -23,6 +23,7 @@
 #include "../reverse-common/scroll_units.hpp"
 #include "../reverse-common/window_surface.hpp"
 #include "../reverse-common/window_resize.hpp"
+#include "../reverse-common/window_regions.hpp"
 #include "../reverse-common/shadow_corner.hpp"
 #include "../reverse-common/window_residency.hpp"
 #include "../hyprland-plugin/src/touchpad_capture.hpp"
@@ -147,7 +148,7 @@ struct Window {
     wl_surface* surface{};xdg_surface* shell{};xdg_toplevel* top{};wp_viewport* viewport{};
     wl_egl_window* native{};EGLSurface egl{EGL_NO_SURFACE};
     bool configured{},placed{},workspace_assigned{},source_fullscreen{},fullscreen_pending{};vf::GeometrySync geometry_sync;vf::FullscreenBacking fullscreen_backing;vf::FullscreenRouteControl fullscreen_route;
-    vf::WindowResize resize;
+    vf::WindowResize resize;bool interactive_resize{};
     int logical_width{},logical_height{},region_width{},region_height{};bool desktop_region{},snapshot_desktop_output{};
     std::optional<std::array<int,8>> committed_surface_geometry;
     std::int32_t drag_grab_x{},drag_grab_y{};bool drag_has_anchor{};
@@ -209,7 +210,8 @@ struct App {
     std::uint64_t native_move_candidate{},local_titlebar_window{};
     std::uint32_t native_move_serial{};
     double native_move_grab_x{},native_move_grab_y{};
-    bool local_titlebar_seen{};
+    bool local_titlebar_seen{},native_move_band{};
+    double native_move_press_x{},native_move_press_y{};
     std::optional<std::uint32_t> repeating_key;Clock::time_point repeat_at{};int repeat_rate{25},repeat_delay{600};
     int scale{2},origin_x{3072},origin_y{390};
     bool mac_shadow=std::getenv("VIEWFLOW_REVERSE_MAC_SHADOW")!=nullptr;
@@ -301,8 +303,10 @@ struct App {
     }
     std::uint64_t identify(wl_surface* surface) {for(auto& [id,w]:windows)if(w->surface==surface)return id;return 0;}
     vf::SurfaceGeometry content_surface(const Window& window) const {
-        return mac_shadow?vf::fitted_body(window.logical_width,window.logical_height,
-            window.snapshot.width(),window.snapshot.height()):vf::body_surface(window.logical_width,window.logical_height);
+        // The newest frame fills the whole proxy, also while the source has not
+        // yet produced a frame at the compositor's new size. Aspect-fitting
+        // here drew black bars during every interactive resize.
+        return vf::body_surface(window.logical_width,window.logical_height);
     }
     void forward_pointer(bool begin_drag=false) {
         if(!pointer_window || local_titlebar_window)return;
@@ -330,9 +334,13 @@ struct App {
             }
             // Wayland positions already exclude compositor gaps and borders.
             // Body-local pixels carry their own frame extent through resize lag.
+            // Source clicks stay clear of the source's own resize zone; the
+            // compositor owns edge resizing of the proxy.
+            const double local_x=vf::inset_source_point(pointer_x-content.x,content.body_width);
+            const double local_y=vf::inset_source_point(pointer_y-content.y,content.body_height);
             send(pointer_window,vf::InputKind::pointer,
-                int(std::lround((pointer_x-content.x)*window.snapshot.width()/content.body_width)),
-                int(std::lround((pointer_y-content.y)*window.snapshot.height()/content.body_height)),0,
+                int(std::lround(local_x*window.snapshot.width()/content.body_width)),
+                int(std::lround(local_y*window.snapshot.height()/content.body_height)),0,
                 vf::pointer_extent(window.snapshot.width(),window.snapshot.height()));
             return;
         }
@@ -363,7 +371,7 @@ struct App {
         auto& a=*static_cast<App*>(data);
         if(state==WL_POINTER_BUTTON_STATE_RELEASED) {
             if(button==272) {
-                a.native_move_confirmation.cancel();a.native_move_candidate=0;
+                a.native_move_confirmation.cancel();a.native_move_candidate=0;a.native_move_band=false;
                 a.interaction(a.local_titlebar_window,false);a.local_titlebar_window=0;a.local_titlebar_seen=false;
             }
             auto held=a.forwarded_buttons.find(button);
@@ -394,6 +402,8 @@ struct App {
             if(button==272 && !window.ime_popup() && window.placed &&
                (!window.geometry_sync.pending || window.tile.geometry_ack>=window.geometry_sync.pending)) {
                 a.native_move_candidate=window.id;a.native_move_serial=serial;
+                a.native_move_band=a.mac_shadow && vf::classify_pointer(a.pointer_y,window.logical_height)==vf::PointerRegion::titlebar;
+                a.native_move_press_x=a.pointer_x;a.native_move_press_y=a.pointer_y;
                 a.native_move_grab_x=a.pointer_anchor_x.desktop-window.geometry_sync.observed.x;
                 a.native_move_grab_y=a.pointer_anchor_y.desktop-window.geometry_sync.observed.y;
                 a.native_move_confirmation.begin({window.tile.x,window.tile.y,
@@ -403,15 +413,21 @@ struct App {
         }
     }
     void take_local_titlebar(Window& window) {
-        if(native_move_candidate!=window.id || pointer_window!=window.id || local_titlebar_window || !native_move_confirmation.armed)return;
+        if(native_move_candidate!=window.id || pointer_window!=window.id || local_titlebar_window || !(native_move_confirmation.armed || native_move_band))return;
         const auto button=forwarded_buttons.find(272);
         if(button==forwarded_buttons.end() || button->second!=window.id)return;
         const auto& tile=window.tile;
         const auto pointer=nlohmann::json::parse(ipc("j/cursorpos"));
         const auto x=pointer.at("x").get<double>(),y=pointer.at("y").get<double>();
         if(x==pointer_anchor_x.desktop && y==pointer_anchor_y.desktop)return;
-        if(!native_move_confirmation.observe({tile.x,tile.y,static_cast<int>((tile.flags&16)?tile.logical_width:tile.width),
-                static_cast<int>((tile.flags&16)?tile.logical_height:tile.height)},tile.geometry_ack))return;
+        // A drag that starts in the title/toolbar strip moves the window like
+        // on macOS, even when the source application (unified toolbar, no
+        // classic title bar) does not move its own window. Elsewhere the
+        // source must confirm that it interpreted the drag as a move.
+        const bool source_moved=native_move_confirmation.observe({tile.x,tile.y,static_cast<int>((tile.flags&16)?tile.logical_width:tile.width),
+                static_cast<int>((tile.flags&16)?tile.logical_height:tile.height)},tile.geometry_ack);
+        const bool band_drag=native_move_band && vf::drag_exceeds_slop(pointer_x-native_move_press_x,pointer_y-native_move_press_y);
+        if(!source_moved && !band_drag)return;
         // Align the proxy to the original physical grab point, rather than
         // preserving the offset introduced by the first delayed source frame.
         auto local=window.geometry_sync.observed;
@@ -426,7 +442,7 @@ struct App {
         // End the source mouse drag before ordered geometry updates take over.
         send(window.id,vf::InputKind::button,272,0);
         forwarded_buttons.erase(button);pointer_anchor_window=0;
-        native_move_candidate=0;local_titlebar_window=window.id;local_titlebar_seen=false;interaction(window.id,true);
+        native_move_candidate=0;native_move_band=false;local_titlebar_window=window.id;local_titlebar_seen=false;interaction(window.id,true);
         xdg_toplevel_move(window.top,seat,native_move_serial);
         wl_display_flush(display);
         window.geometry_sync.sent(send(window.id,vf::InputKind::geometry,
@@ -574,10 +590,11 @@ struct App {
     static constexpr wl_registry_listener registry_listener={global,removed};
     static void configured(void* data,xdg_surface* surface,std::uint32_t serial) {auto& w=*static_cast<Window*>(data);xdg_surface_ack_configure(surface,serial);w.configured=true;}
     static constexpr xdg_surface_listener surface_listener={configured};
-    static void top_configure(void* data,xdg_toplevel*,std::int32_t width,std::int32_t height,wl_array*) {
+    static void top_configure(void* data,xdg_toplevel*,std::int32_t width,std::int32_t height,wl_array* states) {
         auto& w=*static_cast<Window*>(data);
         if(width>0)w.logical_width=width;
         if(height>0)w.logical_height=height;
+        w.interactive_resize=states && vf::toplevel_resizing(static_cast<const std::uint32_t*>(states->data),states->size/sizeof(std::uint32_t));
     }
     static void top_close(void* data,xdg_toplevel*) {auto& w=*static_cast<Window*>(data);w.app->send(w.id,vf::InputKind::close);}
     static void bounds(void*,xdg_toplevel*,std::int32_t,std::int32_t){}
@@ -1309,17 +1326,11 @@ struct App {
             // must not move/resize Windows' full-display shell backing HWND.
             if(w.tile.flags&vf::windows_shell_flag){w.placed=true;continue;}
             const vf::Geometry local{x,y,width,height},remote{target_x,target_y,target_width,target_height};
-            const bool same_local_size=w.geometry_sync.initialized &&
-                w.geometry_sync.observed.width==width && w.geometry_sync.observed.height==height;
             const auto action=w.ime_popup()?(local==remote?vf::GeometryAction::none:vf::GeometryAction::apply_remote):w.geometry_sync.observe(local,remote,w.tile.geometry_ack,client.value("floating",false),local_drag_window==w.native_address || local_titlebar_window==id);
-            const auto resize_now=std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
-            // Moving keeps size unchanged and must follow immediately. Only
-            // actual resize/configure churn uses the existing AX debounce.
-            const bool mac_move=mac_shadow && same_local_size;
             if(mac_shadow && action==vf::GeometryAction::send_local) {
-                w.resize.queue(local,resize_now,mac_move);
+                w.resize.queue(local);
             }
-            const bool mac_resize_ready=mac_shadow && w.resize.ready(resize_now);
+            const bool mac_resize_ready=mac_shadow && w.resize.ready();
             if((!mac_shadow && action==vf::GeometryAction::send_local) || mac_resize_ready) {
                 w.resize.cancel();
                 if(!held_super.empty() && !super_drag){super_drag=true;pending_super.clear();send(id,vf::InputKind::release);}
@@ -1336,7 +1347,7 @@ struct App {
                     }
                 }
                 w.geometry_sync.sent(send(id,vf::InputKind::geometry,(backing.x-origin_x)*scale,(backing.y-origin_y)*scale,body_width*scale,body_height*scale));
-            } else if(action==vf::GeometryAction::apply_remote && !w.resize.candidate) {
+            } else if(action==vf::GeometryAction::apply_remote && !w.resize.candidate && !w.interactive_resize) {
                 const std::string selector="'address:"+address+"'";
                 try {
                 eval("hl.dispatch(hl.dsp.window.resize({x="+std::to_string(target_width)+",y="+std::to_string(target_height)+",window="+selector+"}));hl.dispatch(hl.dsp.window.move({x="+std::to_string(target_x)+",y="+std::to_string(target_y)+",window="+selector+"}))");

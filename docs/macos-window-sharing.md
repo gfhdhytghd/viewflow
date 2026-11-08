@@ -934,3 +934,21 @@ User-operated Mac checklist (no automated input or focus changes):
 5. Confirm detection on each supported macOS release. Exercise missing-SPI cases
    using the fake tests; real missing-SPI gesture behavior remains a manual
    acceptance item subject to the limits above.
+
+## Proxy resize and title-strip drag
+
+- While the source has not yet produced a frame at the compositor's new proxy
+  size, the newest frame is stretched over the whole proxy. There is no
+  aspect-fit letterbox and no black fill.
+- Local resize geometry is sent latest-wins, with one edit in flight
+  (`GeometrySync`). There is no pause-based debounce, so the source follows the
+  pointer at the acknowledgement rate. While the compositor reports
+  `xdg_toplevel` state `resizing`, the source size is not applied back over the
+  proxy.
+- A held primary-button drag that starts in the top 44 points of a proxy
+  (capped to one third of a short window) moves the window with
+  `xdg_toplevel_move` after 4 points of motion. Plain clicks still reach the
+  source. Drags elsewhere keep the source-confirmed titlebar takeover.
+- Source pointer coordinates are kept 6 points inside the window, so a proxy
+  click never starts a macOS resize at the source. Edge resizing belongs to the
+  compositor.
