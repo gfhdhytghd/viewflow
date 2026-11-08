@@ -2,6 +2,7 @@
 // Same local-only v2 broker, SYSTEM/session check and identification-level
 // impersonation as windows_input_service::Client. No elevated network endpoint.
 #include "service_wire.hpp"
+#include <aclapi.h>
 namespace viewflow::handoff {
 class ServiceClient {
     HANDLE pipe=INVALID_HANDLE_VALUE;
@@ -41,15 +42,17 @@ public:
         pipe=CreateFileW(name.c_str(),GENERIC_READ|GENERIC_WRITE,0,nullptr,OPEN_EXISTING,
             FILE_FLAG_OVERLAPPED|SECURITY_SQOS_PRESENT|SECURITY_IDENTIFICATION,nullptr);
         if(!connected())return false;
-        ULONG pid=0;DWORD server_session=0;
-        if(!GetNamedPipeServerProcessId(pipe,&pid) || !ProcessIdToSessionId(pid,&server_session) || session!=server_session){close();return false;}
-        CursorHandle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION,FALSE,pid));
-        HANDLE raw_token=nullptr;
-        if(!process.value || !OpenProcessToken(process.value,TOKEN_QUERY,&raw_token)){close();return false;}
-        CursorHandle token(raw_token);
-        alignas(TOKEN_USER) std::array<unsigned char,512> bytes{};DWORD size=0;
-        if(!GetTokenInformation(token.value,TokenUser,bytes.data(),DWORD(bytes.size()),&size) ||
-            !IsWellKnownSid(reinterpret_cast<TOKEN_USER*>(bytes.data())->User.Sid,WinLocalSystemSid)){close();return false;}
+        // A standard (UAC-filtered) receiver cannot open the LocalSystem worker
+        // process or its token. Verify the pipe object: only LocalSystem or an
+        // elevated administrator can own it (LocalSystem's default owner is
+        // BUILTIN\\Administrators).
+        ULONG server_session=0;
+        if(!GetNamedPipeServerSessionId(pipe,&server_session) || session!=server_session){close();return false;}
+        PSID owner=nullptr;PSECURITY_DESCRIPTOR descriptor=nullptr;
+        if(GetSecurityInfo(pipe,SE_KERNEL_OBJECT,OWNER_SECURITY_INFORMATION,&owner,nullptr,nullptr,nullptr,&descriptor)!=ERROR_SUCCESS){close();return false;}
+        const bool trusted=IsWellKnownSid(owner,WinLocalSystemSid) || IsWellKnownSid(owner,WinBuiltinAdministratorsSid);
+        LocalFree(descriptor);
+        if(!trusted){close();return false;}
         return true;
     }
     void request(ServiceRequest request) {

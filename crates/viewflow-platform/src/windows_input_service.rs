@@ -121,6 +121,31 @@ fn is_system(process: HANDLE) -> io::Result<bool> {
         Ok(IsWellKnownSid(user.User.Sid, WinLocalSystemSid) != 0)
     }
 }
+fn pipe_owned_by_system(pipe: HANDLE) -> io::Result<bool> {
+    let mut owner = null_mut();
+    let mut descriptor = null_mut();
+    let status = unsafe {
+        GetSecurityInfo(
+            pipe,
+            SE_KERNEL_OBJECT,
+            OWNER_SECURITY_INFORMATION,
+            &mut owner,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            &mut descriptor,
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return Err(io::Error::from_raw_os_error(status as i32));
+    }
+    let _descriptor = Security(descriptor);
+    // A LocalSystem token's default owner is BUILTIN\Administrators.
+    Ok(unsafe {
+        IsWellKnownSid(owner, WinLocalSystemSid) != 0
+            || IsWellKnownSid(owner, WinBuiltinAdministratorsSid) != 0
+    })
+}
 fn no_data(error: &io::Error) -> bool {
     matches!(error.raw_os_error(), Some(232 | 536))
 }
@@ -211,12 +236,12 @@ impl Client {
                 null_mut(),
             );
             let h = Handle::new(h)?;
-            let mut pid = 0;
-            check(GetNamedPipeServerProcessId(h.0, &mut pid))?;
-            let server = Handle::new(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid))?;
+            // A standard (UAC-filtered) receiver cannot open the LocalSystem
+            // worker process or its token. Verify the pipe object instead: only
+            // LocalSystem or an elevated administrator can own it.
             let mut server_session = 0;
-            check(ProcessIdToSessionId(pid, &mut server_session))?;
-            if !is_system(server.0)? || server_session != target_session {
+            check(GetNamedPipeServerSessionId(h.0, &mut server_session))?;
+            if !pipe_owned_by_system(h.0)? || server_session != target_session {
                 return Err(failed("input broker identity/session mismatch"));
             }
             let mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
