@@ -24,6 +24,14 @@ if ($service) { Stop-Service -Name ViewflowInput; $service.WaitForStatus('Stoppe
 $target = Join-Path $root 'vf-input-service.exe'
 if (Test-Path -LiteralPath $target) { Copy-Item -LiteralPath $target -Destination ($target + '.previous') -Force }
 Copy-Item -LiteralPath $source -Destination $target -Force
+# The service runs from its own protected directory. Copy the MSVC runtime DLLs
+# that ship next to the bundled binary; Windows without the VC++ redistributable
+# (for example a trimmed image) otherwise fails with STATUS_DLL_NOT_FOUND and the
+# service manager only reports a 30 s start timeout.
+foreach ($dll in @('VCRUNTIME140.dll', 'VCRUNTIME140_1.dll', 'MSVCP140.dll')) {
+    $runtime = Join-Path (Split-Path -Parent $source) $dll
+    if (Test-Path -LiteralPath $runtime -PathType Leaf) { Copy-Item -LiteralPath $runtime -Destination (Join-Path $root $dll) -Force }
+}
 $command = '"' + $target + '" service ' + $sid
 if ($service) {
     $change = Invoke-CimMethod -InputObject (Get-CimInstance Win32_Service -Filter "Name='ViewflowInput'") -MethodName Change -Arguments @{PathName=$command; StartMode='Automatic'; StartName='LocalSystem'}
