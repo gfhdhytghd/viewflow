@@ -1,7 +1,10 @@
 # Elevated application setup; does not start workers or change global firewall policy.
 [CmdletBinding(SupportsShouldProcess = $true)]
-param([string]$InstallRoot, [switch]$Remove, [switch]$SelfTest)
+param([string]$InstallRoot, [switch]$Remove, [switch]$SelfTest, [switch]$PauseOnError)
 $ErrorActionPreference = 'Stop'
+# The app launches this in its own elevated window. Close it on success; keep a
+# failure readable instead of leaving an idle administrator prompt open.
+trap { if ($PauseOnError) { Write-Host "Viewflow firewall setup failed: $_"; Read-Host 'Press Enter to close' | Out-Null }; break }
 
 function Get-ViewflowFirewallPrograms([string]$Root, [scriptblock]$Exists = { param($p) Test-Path -LiteralPath $p -PathType Leaf }) {
     # Exact installed executables, never a directory wildcard or a remote profile.
@@ -73,7 +76,7 @@ if (!$Remove) {
     # local inbound blocks for these exact installed paths. GPO and unrelated
     # programs, other Viewflow installations, outbound rules and defaults stay intact.
     $paths = @($programs | ForEach-Object { $_.Program })
-    $blocks = @(Get-NetFirewallRule -PolicyStore PersistentStore -Direction Inbound -Action Block)
+    $blocks = @(Get-NetFirewallRule -PolicyStore PersistentStore -Direction Inbound -Action Block -ErrorAction SilentlyContinue)
     foreach ($rule in $blocks) {
         foreach ($filter in @($rule | Get-NetFirewallApplicationFilter)) {
             if ((Test-ViewflowProgramPath $filter.Program $paths) -and

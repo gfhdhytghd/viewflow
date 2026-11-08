@@ -52,8 +52,8 @@ def configure_windows_firewall():
     import ctypes
     script = ROOT / 'setup/configure-windows-firewall.ps1'
     if not script.is_file(): raise FileNotFoundError('安装包缺少防火墙设置脚本')
-    args = subprocess.list2cmdline(['-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', str(script),
-                                   '-InstallRoot', str(ROOT)])
+    args = subprocess.list2cmdline(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script),
+                                   '-InstallRoot', str(ROOT), '-PauseOnError'])
     result = ctypes.windll.shell32.ShellExecuteW(None, 'runas', 'powershell.exe', args, str(ROOT), 1)
     if result <= 32: raise OSError('系统未能启动防火墙设置，请稍后重试')
 

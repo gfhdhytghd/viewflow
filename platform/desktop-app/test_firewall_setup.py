@@ -21,7 +21,7 @@ class FirewallSetupTests(unittest.TestCase):
                  patch.object(ctypes, 'windll', SimpleNamespace(shell32=SimpleNamespace(ShellExecuteW=shell)), create=True):
                 main.configure_windows_firewall()
                 shell.assert_called_once_with(None, 'runas', 'powershell.exe',
-                    subprocess.list2cmdline(['-NoProfile', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', str(script), '-InstallRoot', str(root)]),
+                    subprocess.list2cmdline(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script), '-InstallRoot', str(root), '-PauseOnError']),
                     str(root), 1)
                 shell.return_value = 5
                 with self.assertRaises(OSError):
