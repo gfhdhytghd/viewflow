@@ -37,6 +37,16 @@ def stop(_signal, _frame):
     stopping = True
 
 
+def route_output_name(route):
+    """Stable Hyprland output name owned by one Viewflow route."""
+    return 'viewflow-' + route
+
+
+def virtual_output(name):
+    """Viewflow-owned or anonymous headless outputs are never a local screen."""
+    return name.startswith(('HEADLESS-', 'viewflow-'))
+
+
 def read_json(*args):
     return json.loads(subprocess.check_output(args, stderr=subprocess.DEVNULL, timeout=5))
 

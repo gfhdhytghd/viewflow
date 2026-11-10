@@ -5,7 +5,7 @@
 namespace viewflow::reverse {
 inline bool outbound_parking_monitor(const nlohmann::json& monitor) {
     const auto name=monitor.find("name"), workspace=monitor.find("activeWorkspace");
-    return name!=monitor.end() && name->is_string() && name->get<std::string>().starts_with("HEADLESS-") &&
+    return name!=monitor.end() && name->is_string() && (name->get<std::string>().starts_with("HEADLESS-") || name->get<std::string>().starts_with("viewflow-")) &&
         workspace!=monitor.end() && workspace->is_object() && workspace->contains("name") && (*workspace)["name"].is_string() &&
         (*workspace)["name"].get<std::string>().starts_with("viewflow-");
 }

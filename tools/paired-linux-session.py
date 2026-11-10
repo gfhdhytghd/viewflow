@@ -40,7 +40,7 @@ def main():
         while not stopping:
             try:
                 monitors = json.loads(subprocess.check_output(['hyprctl', '-j', 'monitors'], timeout=5))
-                monitor = next(m for m in monitors if not m['name'].startswith('HEADLESS-') and not m.get('disabled'))
+                monitor = next(m for m in monitors if not m['name'].startswith(('HEADLESS-', 'viewflow-')) and not m.get('disabled'))
                 break
             except (OSError, ValueError, StopIteration, subprocess.SubprocessError): time.sleep(1)
         if stopping: return

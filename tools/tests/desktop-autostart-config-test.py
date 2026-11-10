@@ -127,4 +127,7 @@ with tempfile.TemporaryDirectory() as directory:
     resolve.assert_called_once_with(bundle, manifest)
     assert command[command.index('--capture-plugin') + 1] == str(selected[1])
     assert command[command.index('--input-plugin') + 1] == str(selected[0])
+assert autostart.route_output_name('gui-a4834581f2f870e0-1') == 'viewflow-gui-a4834581f2f870e0-1'
+assert autostart.virtual_output('viewflow-gui-1') and autostart.virtual_output('HEADLESS-3')
+assert not autostart.virtual_output('DP-4')
 print('autostart plugin selection test passed')

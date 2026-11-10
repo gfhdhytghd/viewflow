@@ -28,7 +28,7 @@ def prepare(template, route, runtime, monitor_name=None, state_dir=None):
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
     monitors = autostart.read_json('hyprctl', '-j', 'monitors', 'all')
     local = next(m for m in monitors if m['name'] == monitor_name) if monitor_name else next(
-        m for m in monitors if not m['name'].startswith('HEADLESS-') and not m.get('disabled'))
+        m for m in monitors if not autostart.virtual_output(m['name']) and not m.get('disabled'))
     config = autostart.prepare(template, instance, local, runtime)
     remote = config['desktop']['remote_display']
     output = None
@@ -38,13 +38,16 @@ def prepare(template, route, runtime, monitor_name=None, state_dir=None):
         if previous['instance'] == instance['instance']:
             output = next((m for m in monitors if m['name'] == previous['name']), None)
     if output is None:
-        old = {m['name'] for m in monitors}
-        subprocess.run(['hyprctl', 'output', 'create', 'headless'], check=True, timeout=5)
+        # A named output identifies Viewflow in monitor lists and stays stable
+        # across fresh compositor sessions, unlike the HEADLESS-N sequence.
+        name = autostart.route_output_name(route)
+        output = next((m for m in monitors if m['name'] == name), None)
+        if output is None:
+            subprocess.run(['hyprctl', 'output', 'create', 'headless', name], check=True, timeout=5)
         for _ in range(30):
-            new = [m for m in autostart.read_json('hyprctl', '-j', 'monitors', 'all') if m['name'] not in old]
-            if len(new) == 1:
-                output = new[0]
+            if output is not None:
                 break
+            output = next((m for m in autostart.read_json('hyprctl', '-j', 'monitors', 'all') if m['name'] == name), None)
             time.sleep(.1)
         if output is None:
             raise RuntimeError('New Viewflow output did not appear')

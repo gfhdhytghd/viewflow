@@ -84,7 +84,7 @@ def matches(m, width, height, fps):
 
 
 def extend_position(monitors, height, scale=2):
-    others = [m for m in monitors if not m['name'].startswith('HEADLESS-')
+    others = [m for m in monitors if not m['name'].startswith(('HEADLESS-', 'viewflow-'))
               and not m.get('disabled') and m.get('mirrorOf', 'none') == 'none']
     if not others:
         raise RuntimeError('Required active physical display is unavailable')
