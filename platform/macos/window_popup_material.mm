@@ -397,14 +397,28 @@ void DesktopBackdrop::update(NSImage* image, CGRect bounds){
     CGDirectDisplayID displays[32];uint32_t count=0;
     if(CGGetOnlineDisplayList(32,displays,&count)!=kCGErrorSuccess)return;
     const double main_height=CGDisplayBounds(CGMainDisplayID()).size.height;
+    auto screen_number=[](NSScreen* screen){return CGDirectDisplayID([screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue]);};
+    auto drop=[&](CGDirectDisplayID display,const char* reason){
+        auto found=state_->screens.find(display);
+        if(found==state_->screens.end())return;
+        [found->second.window orderOut:nil];[found->second.window close];
+        state_->screens.erase(found);
+        std::fprintf(stderr,"desktop-backdrop hidden display=%u: %s\n",display,reason);
+    };
     for(uint32_t i=0;i<count;++i){
         if(!is_parking_display(displays[i]))continue;
         const CGRect screen_bounds=CGDisplayBounds(displays[i]);
         if(!CGRectIntersectsRect(screen_bounds,bounds))continue;
+        // The backdrop shows the Linux desktop. It belongs only on the parking
+        // display; AppKit relocates windows whose screen it does not know to
+        // the main display, where the image would cover the real desktop.
+        NSScreen* target=nil;
+        for(NSScreen* candidate in NSScreen.screens)if(screen_number(candidate)==displays[i]){target=candidate;break;}
+        if(!target){drop(displays[i],"parking screen unknown to AppKit");continue;}
         auto& screen=state_->screens[displays[i]];
         const NSRect frame=NSMakeRect(screen_bounds.origin.x,main_height-CGRectGetMaxY(screen_bounds),screen_bounds.size.width,screen_bounds.size.height);
         if(!screen.window){
-            screen.window=[[VFPopupBackdropWindow alloc] initWithContentRect:frame styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
+            screen.window=[[VFPopupBackdropWindow alloc] initWithContentRect:NSMakeRect(0,0,frame.size.width,frame.size.height) styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO screen:target];
             screen.window.releasedWhenClosed=NO;screen.window.ignoresMouseEvents=YES;screen.window.hasShadow=NO;
             // A fixed level below ordinary application windows, above desktop content.
             screen.window.level=NSNormalWindowLevel-1;
@@ -418,7 +432,25 @@ void DesktopBackdrop::update(NSImage* image, CGRect bounds){
         [screen.window setFrame:frame display:NO];
         screen.image.frame=NSMakeRect(bounds.origin.x-screen_bounds.origin.x,CGRectGetMaxY(screen_bounds)-CGRectGetMaxY(bounds),bounds.size.width,bounds.size.height);
         screen.image.image=image;
+        if(!NSEqualRects(screen.window.frame,frame) || (screen.window.screen && screen_number(screen.window.screen)!=displays[i])){
+            drop(displays[i],"window left the parking display");continue;
+        }
         [screen.window orderBack:nil];
+    }
+}
+void DesktopBackdrop::verify(){
+    // Display reconfiguration can move existing windows to another screen
+    // without a new backdrop record; never leave one on a physical display.
+    for(auto it=state_->screens.begin();it!=state_->screens.end();){
+        NSWindow* window=it->second.window;
+        const CGDirectDisplayID shown=window.screen?CGDirectDisplayID([window.screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue]):0;
+        const CGRect bounds=CGDisplayBounds(it->first);
+        const double main_height=CGDisplayBounds(CGMainDisplayID()).size.height;
+        const NSRect expected=NSMakeRect(bounds.origin.x,main_height-CGRectGetMaxY(bounds),bounds.size.width,bounds.size.height);
+        if(is_parking_display(it->first) && shown==it->first && NSEqualRects(window.frame,expected)){++it;continue;}
+        [window orderOut:nil];[window close];
+        std::fprintf(stderr,"desktop-backdrop hidden display=%u: placement changed (shown=%u)\n",it->first,shown);
+        it=state_->screens.erase(it);
     }
 }
 

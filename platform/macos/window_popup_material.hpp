@@ -25,6 +25,8 @@ public:
     DesktopBackdrop();
     ~DesktopBackdrop();
     void update(NSImage* image, CGRect source_bounds);
+    // Hide any window that is no longer exactly on its parking display.
+    void verify();
     void clear();
 };
 

@@ -159,7 +159,10 @@ void render_desktop(const std::shared_ptr<Capture>& capture, PHLMONITOR monitor)
     }
     if (!capture->framebuffer->alloc(static_cast<int>(monitor->m_pixelSize.x),
                                     static_cast<int>(monitor->m_pixelSize.y), DRM_FORMAT_ABGR8888)) return;
-    capture->framebuffer->setImageDescription(monitor->workBufferImageDescription());
+    // The 8-bit readback is sent to macOS as an untagged (sRGB) PNG. Render
+    // into SDR sRGB so an HDR monitor's PQ/linear work buffer is tone mapped
+    // instead of being reinterpreted as sRGB.
+    capture->framebuffer->setImageDescription(NColorManagement::DEFAULT_SRGB_IMAGE_DESCRIPTION);
     CRegion damage{CBox{{}, monitor->m_transformedSize}};
     if (!renderer.beginFullFakeRender(monitor, damage, capture->framebuffer)) return;
     drawing_desktop = true;

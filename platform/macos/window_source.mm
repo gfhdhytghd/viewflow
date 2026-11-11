@@ -896,6 +896,7 @@ struct Source {
             const auto& c=entry.second;return c->active && !c->dormant && vm::remote_window_needed(c->bounds).value_or(false);
         });
         if(!needs_display){popup_previews.clear();desktop_backdrop.clear();}
+        else desktop_backdrop.verify();
         for(auto& [_, preview]:popup_previews)preview->recover(now);
         scan_menus(now);
         const bool available = hid_requested && hid.available(now);
