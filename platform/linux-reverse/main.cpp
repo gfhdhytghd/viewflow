@@ -1559,7 +1559,10 @@ struct App {
                     if(durations.size()<4096)durations.push_back(std::chrono::duration<double,std::milli>(finished-started).count());
                     if(finished-report>=std::chrono::seconds(5)) {
                         std::sort(durations.begin(),durations.end());
-                        vf_diag::trace("reverse-geometry-timing samples=%zu p50_ms=%.3f p95_ms=%.3f max_ms=%.3f\n",durations.size(),durations[durations.size()/2],durations[durations.size()*95/100],durations.back());
+                        // Report only windows that missed the 33 ms target; routine
+                        // sub-millisecond samples every five seconds are noise.
+                        if(durations.back()>=33.)
+                            vf_diag::trace("reverse-geometry-timing samples=%zu p50_ms=%.3f p95_ms=%.3f max_ms=%.3f\n",durations.size(),durations[durations.size()/2],durations[durations.size()*95/100],durations.back());
                         durations.clear();report=finished;
                     }
                 }

@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+from log_limit import limit_log
+
 PLATFORM = 'windows' if sys.platform == 'win32' else 'linux'
 ROOT = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
 DATA = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'Viewflow' if PLATFORM == 'windows' else Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'viewflow/app'
@@ -248,6 +250,10 @@ class Worker:
                 if self.job: self.job.close(); self.job = None
                 if PLATFORM == 'windows': self.process.kill()
                 else: os.killpg(self.process.pid, signal.SIGKILL)
+        if self.process is not None and PLATFORM != 'windows':
+            # Windows children write at their inherited handle offset, so an
+            # in-place truncation would leave a sparse gap; they rotate on restart.
+            limit_log(self.data / 'logs' / (self.item['id'] + '.log'))
         if self.process is not None and self.stopping is None and self.environment.get('VIEWFLOW_HANDOFF_STATUS_FILE'):
             try:
                 self.status = Path(self.environment['VIEWFLOW_HANDOFF_STATUS_FILE']).read_text(encoding='utf-8')[:512]
@@ -257,8 +263,9 @@ class Worker:
         try:
             log = self.data / 'logs' / (self.item['id'] + '.log')
             log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            if log.exists() and log.stat().st_size > 5 * 1024 * 1024:
-                log.replace(log.with_suffix('.previous'))
+            # Releases before the 20 MiB limit kept an unbounded '<id>.previous'.
+            log.with_suffix('.previous').unlink(missing_ok=True)
+            limit_log(log)
             self.output = os.fdopen(os.open(log, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600), 'ab')
             kwargs = {'start_new_session': True} if PLATFORM != 'windows' else {'creationflags': subprocess.CREATE_NEW_CONSOLE | 0x00000004}
             if PLATFORM == 'windows':

@@ -118,6 +118,15 @@ enum NativeProbe {
     init(id: String, component: Component, executable: URL, arguments: [String]) {
         self.id = id; self.component = component; self.executable = executable; self.arguments = arguments
     }
+    private var logURL: URL { BundleTools.logs.appendingPathComponent("\(id).log") }
+    func limitLog() { if process != nil { LogLimit.limit(logURL) } }
+    // A per-window capture that ended normally leaves nothing worth keeping;
+    // a failed one keeps its log for diagnosis.
+    func discardLogAfterCleanExit() {
+        guard process == nil, let lastExit, [0, SIGINT, SIGTERM].contains(lastExit) else { return }
+        try? FileManager.default.removeItem(at: logURL)
+        try? FileManager.default.removeItem(at: logURL.appendingPathExtension("previous"))
+    }
     func reconcile() {
         if process != nil, !stopping, let path = environment["VIEWFLOW_HANDOFF_STATUS_FILE"],
            let text = try? String(contentsOfFile: path, encoding: .utf8) {
@@ -130,16 +139,9 @@ enum NativeProbe {
             }
             try FileManager.default.createDirectory(at: BundleTools.logs, withIntermediateDirectories: true,
                                                    attributes: [.posixPermissions: 0o700])
-            let log = BundleTools.logs.appendingPathComponent("\(id).log")
-            if let size = (try? FileManager.default.attributesOfItem(atPath: log.path)[.size]) as? NSNumber,
-               size.intValue > 5 * 1024 * 1024 {
-                let old = log.appendingPathExtension("previous")
-                try? FileManager.default.removeItem(at: old)
-                try FileManager.default.moveItem(at: log, to: old)
-            }
-            if !FileManager.default.fileExists(atPath: log.path) { try ProfileStore.writePrivate(Data(), to: log) }
-            let handle = try FileHandle(forWritingTo: log)
-            try handle.seekToEnd()
+            let log = logURL
+            LogLimit.limit(log)
+            let handle = try LogLimit.openForAppend(log)
             let child = Process()
             child.executableURL = executable; child.arguments = arguments
             child.standardInput = FileHandle.nullDevice
@@ -212,4 +214,35 @@ final class AppInstance {
         }
     }
     deinit { Darwin.close(descriptor) }
+}
+
+// Keeps each component log, with its one rotated copy, within 20 MiB. Children
+// write through an inherited O_APPEND descriptor, so the live file is copied to
+// "<name>.previous" and truncated in place; writers continue at the new end.
+enum LogLimit {
+    static let limit = 20 * 1024 * 1024
+    static let rotateAt = limit / 2
+
+    static func openForAppend(_ url: URL) throws -> FileHandle {
+        let descriptor = open(url.path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o600)
+        guard descriptor >= 0 else { throw ViewflowError.invalid("无法打开日志：\(String(cString: strerror(errno)))") }
+        return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    }
+
+    static func limit(_ url: URL) {
+        var status = stat()
+        guard stat(url.path, &status) == 0, Int(status.st_size) > rotateAt,
+              let source = FileHandle(forReadingAtPath: url.path) else { return }
+        defer { try? source.close() }
+        let previous = url.appendingPathExtension("previous")
+        do {
+            let size = try source.seekToEnd()
+            try source.seek(toOffset: size > UInt64(rotateAt) ? size - UInt64(rotateAt) : 0)
+            let data = try source.readToEnd() ?? Data()
+            try ProfileStore.writePrivate(data, to: previous)
+            truncate(url.path, 0)
+        } catch {
+            // Logging must never stop a component.
+        }
+    }
 }

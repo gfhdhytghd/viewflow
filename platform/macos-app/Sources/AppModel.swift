@@ -192,7 +192,11 @@ import Combine
         recall.poll()
         activityCoordinator.poll(active: Set(workers.values.filter { $0.desired && $0.process != nil && $0.id.hasPrefix("source-") }.map(\.id)))
         // Reap retired workers before reusing configuration files or identity.
-        for (id, worker) in workers where !worker.desired && worker.process == nil { workers.removeValue(forKey: id) }
+        for (id, worker) in workers where !worker.desired && worker.process == nil {
+            if id.hasPrefix("source-") { worker.discardLogAfterCleanExit() }
+            workers.removeValue(forKey: id)
+        }
+        if refreshTicks % 10 == 0 { for worker in workers.values { worker.limitLog() } }
         if pendingClear && fullyStopped {
             pendingClear = false; profile = nil; configuredProfile = nil; identity = [:]; linkIdentities = [:]
             try? FileManager.default.removeItem(at: ProfileStore.root.appendingPathComponent("connection.json"))

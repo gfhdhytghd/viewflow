@@ -146,11 +146,12 @@ def main():
             if child is None or child.poll() is not None:
                 if child is not None:
                     print(f'{args.route} peer exited {child.returncode}; reconnecting', flush=True)
-                with (state / 'source.log').open('ab') as log:
+                with autostart.open_log(state / 'source.log') as log:
                     child = subprocess.Popen([str(args.peer), 'send', '--config', str(state / 'config')],
                                              stdout=log, stderr=subprocess.STDOUT, env=environment)
                 (state / 'daemon.pid').write_text(str(child.pid) + '\n')
                 print(f'{args.route} peer running: PID {child.pid}', flush=True)
+            autostart.limit_log(state / 'source.log')
             time.sleep(1)
     finally:
         if child is not None and child.poll() is None:

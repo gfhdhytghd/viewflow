@@ -2171,12 +2171,6 @@ async fn handle_server_receiver(
                 )
                 .await
                 .context("control writer stopped before clock reply")?;
-                println!(
-                    "viewflowd server peer {} probe={} responder_us={}",
-                    connection.remote_address(),
-                    probe.probe_id,
-                    t2_send_ns.saturating_sub(t1_receive_ns) / 1_000
-                );
             }
             PeerPayload::Control(DomainControl::InputLease(lease)) => {
                 input.apply_lease(lease)?;
@@ -3624,11 +3618,9 @@ fn log_input_ack_resolution(
              prior_terminal={terminal:?}",
             ack.lease_generation, ack.event_sequence, ack.target_device.0, ack.result
         ),
-        InputAckResolution::Unmatched => eprintln!(
-            "viewflowd {role} peer {peer} ignored unmatched input acknowledgment \
-             lease_generation={} event_sequence={} target={:032x}",
-            ack.lease_generation, ack.event_sequence, ack.target_device.0
-        ),
+        // Acknowledgments for leases that were already replaced are expected
+        // after every handoff and carry no actionable information.
+        InputAckResolution::Unmatched => {}
     }
 }
 
@@ -3823,21 +3815,26 @@ async fn run_probe_loop(
         };
         snapshots.send_replace(active);
         let _ = dispatch.processed.send(Ok(()));
-        println!(
-            "viewflowd {role} peer {} probe={} rtt_us={} offset_us={} uncertainty_us={} clock_decision={} active_age_us={}",
-            connection.remote_address(),
-            probe_id,
-            snapshot.estimate.network_round_trip_ns / 1_000,
-            snapshot.estimate.remote_offset_ns / 1_000,
-            snapshot.estimate.uncertainty_ns / 1_000,
-            match active {
-                Some(active) if active == snapshot => "accepted",
-                Some(_) => "retained",
-                None => "unusable",
-            },
-            active.map_or(0, |active| (t3_receive_ns - active.measured_at_local_ns)
-                / 1_000)
-        );
+        // Accepted probes are the steady state, several per second; only a
+        // retained or unusable estimate is worth a log line.
+        let decision = match active {
+            Some(active) if active == snapshot => None,
+            Some(_) => Some("retained"),
+            None => Some("unusable"),
+        };
+        if let Some(decision) = decision {
+            println!(
+                "viewflowd {role} peer {} probe={} rtt_us={} offset_us={} uncertainty_us={} clock_decision={} active_age_us={}",
+                connection.remote_address(),
+                probe_id,
+                snapshot.estimate.network_round_trip_ns / 1_000,
+                snapshot.estimate.remote_offset_ns / 1_000,
+                snapshot.estimate.uncertainty_ns / 1_000,
+                decision,
+                active.map_or(0, |active| (t3_receive_ns - active.measured_at_local_ns)
+                    / 1_000)
+            );
+        }
 
         probe_id = probe_id
             .checked_add(1)

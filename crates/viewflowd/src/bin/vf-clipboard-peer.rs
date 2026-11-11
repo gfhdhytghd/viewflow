@@ -58,6 +58,9 @@ async fn main() -> Result<()> {
         endpoint.set_default_client_config(client);
     }
     let run = async {
+        // The retry loop runs every two seconds while the peer is away; log a
+        // failure once per distinct error instead of on every attempt.
+        let mut last_failure: Option<String> = None;
         loop {
             let connecting = if let Some(remote) = config.remote {
                 endpoint.connect(remote, config.server_name.as_deref().context("client requires server_name")?)?
@@ -70,12 +73,19 @@ async fn main() -> Result<()> {
             };
             match connecting.await {
                 Ok(connection) => {
+                    last_failure = None;
                     eprintln!("clipboard peer connected: {}", connection.remote_address());
                     let _sync =
                         viewflowd::clipboard_sync::ClipboardSync::start(&connection, source);
                     connection.closed().await;
                 }
-                Err(error) => eprintln!("clipboard connection recovering: {error}"),
+                Err(error) => {
+                    let message = error.to_string();
+                    if last_failure.as_deref() != Some(message.as_str()) {
+                        eprintln!("clipboard connection recovering: {message}");
+                        last_failure = Some(message);
+                    }
+                }
             }
             tokio::time::sleep(Duration::from_secs(2)).await;
         }

@@ -221,6 +221,7 @@ def package(args):
                      'paired-linux-session.py', 'macos-window-share-linux.py', 'multiscreen-input-linux.py'):
             shutil.copy2(ROOT / 'tools' / name, scripts / name)
         shutil.copy2(ROOT / 'platform/desktop-app/plugin_safety.py', scripts / 'plugin_safety.py')
+        shutil.copy2(ROOT / 'platform/desktop-app/log_limit.py', scripts / 'log_limit.py')
         for name in ('linux_native_forward.py', 'linux_forward.py'):
             shutil.copy2(ROOT / 'platform/macos-trackpad-probe' / name, scripts / name)
         run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onedir', '--name', 'Viewflow',

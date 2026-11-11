@@ -6,7 +6,15 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import sys
 import time
+
+# Frozen bundles ship log_limit.py beside this script; source checkouts keep it
+# in platform/desktop-app.
+for _directory in (Path(__file__).resolve().parent, Path(__file__).resolve().parents[1] / 'platform/desktop-app'):
+    if str(_directory) not in sys.path:
+        sys.path.append(str(_directory))
+from log_limit import limit_log, open_log, previous_path  # noqa: E402
 
 
 def eligible(client, monitors, remote_id):
@@ -102,13 +110,21 @@ def main():
         nonlocal stopped
         stopped = True
 
-    def retire(child):
+    def close_log(process, log, discard):
+        log.close()
+        # A window that left the Mac viewport and whose peer ended normally
+        # has nothing worth keeping; failed peers keep their log.
+        if discard and process.returncode in (0, -signal.SIGTERM):
+            Path(log.name).unlink(missing_ok=True)
+            previous_path(log.name).unlink(missing_ok=True)
+
+    def retire(child, discard=False):
         process, log = child
         if process.poll() is None:
             process.terminate()  # Peer closes QUIC; native input releases on EOF.
-            retiring.append((time.monotonic(), process, log))
+            retiring.append((time.monotonic(), process, log, discard))
         else:
-            log.close()
+            close_log(process, log, discard)
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
@@ -157,7 +173,7 @@ def main():
                 now = time.monotonic()
                 for identity in list(children):
                     if identity not in live:
-                        retire(children.pop(identity))
+                        retire(children.pop(identity), discard=True)
                         backoff.stable(identity)
                         retained.discard(identity)
                     elif children[identity][0].poll() is not None:
@@ -188,7 +204,7 @@ def main():
                     path = runtime / f'{address[2:]}-{pid}.json'
                     path.write_text(json.dumps(config, indent=2) + '\n')
                     path.chmod(0o600)
-                    log = path.with_suffix('.log').open('ab')
+                    log = open_log(path.with_suffix('.log'))
                     try:
                         process = subprocess.Popen([str(args.peer), '--config', str(path)],
                             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -208,9 +224,9 @@ def main():
                     print(f'window-share inventory retry: {error}', flush=True)
                     last_error = str(error)
             for entry in list(retiring):
-                started, process, log = entry
+                started, process, log, discard = entry
                 if process.poll() is not None:
-                    log.close()
+                    close_log(process, log, discard)
                     retiring.remove(entry)
                 elif time.monotonic() - started > 12:
                     # Process teardown watchdog, independent of frame cadence.
@@ -218,11 +234,13 @@ def main():
                     process.wait()
                     log.close()
                     retiring.remove(entry)
+            for _, log in children.values():
+                limit_log(log.name)
             time.sleep(0.25)
     finally:
         for child in children.values():
             retire(child)
-        for _, process, log in retiring:
+        for _, process, log, _ in retiring:
             try:
                 process.wait(timeout=12)
             except subprocess.TimeoutExpired:

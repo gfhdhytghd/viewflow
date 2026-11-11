@@ -9,6 +9,13 @@ import subprocess
 import sys
 import time
 
+# Frozen bundles ship log_limit.py beside this script; source checkouts keep it
+# in platform/desktop-app.
+for _directory in (Path(__file__).resolve().parent, Path(__file__).resolve().parents[1] / 'platform/desktop-app'):
+    if str(_directory) not in sys.path:
+        sys.path.append(str(_directory))
+from log_limit import limit_log, open_log  # noqa: E402
+
 stopping = False
 SPECIAL_WORKSPACE = 'viewflow'
 UNDERLAY_WORKSPACE = 'viewflow-underlay'
@@ -363,12 +370,13 @@ def main():
                         print(f'Waiting for desktop peer: {error}', flush=True)
                         time.sleep(1)
                         continue
-                with (state / 'source.log').open('ab') as log:
+                with open_log(state / 'source.log') as log:
                     child = subprocess.Popen([str(args.peer), 'send', '--config', str(state / 'config')], stdout=log, stderr=subprocess.STDOUT)
                 pid, token = child.pid, identity(child.pid)
                 (state / 'daemon.pid').write_text(f'{pid}\n')
                 (state / 'daemon.start').write_text(f'{token}\n')
                 print(f'Desktop peer running: PID {pid}', flush=True)
+            limit_log(state / 'source.log')
             time.sleep(1)
     finally:
         if pid is not None and identity(pid) == token:
